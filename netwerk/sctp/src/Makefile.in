@@ -1,0 +1,150 @@
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla.
+#
+# The Initial Developer of the Original Code is
+# Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2012
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK ***** */
+
+DEPTH     = ../../..
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = \
+   @srcdir@ \
+   @srcdir@/netinet \
+   @srcdir@/netinet6 \
+   $(NULL)
+
+include $(DEPTH)/config/autoconf.mk
+
+MODULE         = necko
+LIBRARY_NAME   = nksctp_s
+LIBXUL_LIBRARY = 1
+XPIDL_MODULE   = necko_sctp
+GRE_MODULE     = 1
+FORCE_STATIC_LIB = 1
+
+EXPORTS_NAMESPACES = mozilla/net
+
+XPIDLSRCS = \
+  $(NULL)
+
+CSRCS = \
+  user_environment.c \
+  user_mbuf.c \
+  user_recv_thread.c \
+  user_sctp_timer_iterate.c \
+  user_socket.c \
+  sctp_asconf.c \
+  sctp_auth.c \
+  sctp_bsd_addr.c \
+  sctp_callout.c \
+  sctp_cc_functions.c \
+  sctp_crc32.c \
+  sctp_hashdriver.c \
+  sctp_indata.c \
+  sctp_input.c \
+  sctp_output.c \
+  sctp_pcb.c \
+  sctp_peeloff.c \
+  sctp_sha1.c \
+  sctp_ss_functions.c \
+  sctp_sysctl.c \
+  sctp_userspace.c \
+  sctp_timer.c \
+  sctp_usrreq.c \
+  sctputil.c \
+  sctp6_usrreq.c \
+  $(NULL)
+
+EXPORTS_mozilla/net = \
+  usrsctp.h \
+  $(NULL)
+
+LOCAL_INCLUDES = \
+  -I$(srcdir)/../../base/src \
+  -I$(topsrcdir)/content/base/src \
+  -I$(topsrcdir)/content/events/src \
+  -I$(topsrcdir)/xpcom/ds \
+  $(NULL)
+
+DEFINES = \
+   -DSCTP_SIMPLE_ALLOCATOR=1 \
+   -DUSE_SCTP_SHA1=1 \
+   -DSCTP_PROCESS_LEVEL_LOCKS=1 \
+   -D__Userspace__=1 \
+   -DINET=1 \
+   -DINET6=1 \
+   -DCALLBACK_API=1 \
+   $(NULL)
+
+ifeq ($(OS_TARGET),WINNT)
+# CALLBACK_API is mandatory on windows; capture that here
+DEFINES += \
+    -D__Userspace_os_Windows=1 \
+    -DCALLBACK_API=1 \
+    -D_LIB=1 \
+    $(NULL)
+CFLAGS += /I. /W3
+else
+ifeq ($(OS_TARGET),Darwin)
+DEFINES += \
+    -D__Userspace_os_Darwin=1 \
+    -D__APPLE_USE_RFC_2292=1 \
+    -U__APPLE__ \
+    $(NULL)
+else
+ifeq ($(OS_TARGET),Linux)
+DEFINES += -D__Userspace_os_Linux=1
+else
+ifeq ($(OS_TARGET),FreeBSD)
+DEFINES += \
+    -D__Userspace_os_FreeBSD=1 \
+    -U__FreeBSD__ \
+    $(NULL)
+else
+#default_fallback; probably doesn't work
+DEFINES += -D__Userspace_os_$(OS_TARGET)=1
+endif
+endif
+endif
+endif
+
+
+DEFINES_debug = \
+   -DSCTP_DEBUG=1 \
+   $(NULL)
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
+
+DEFINES += -DIMPL_NS_NET
