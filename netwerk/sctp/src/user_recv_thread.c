@@ -36,17 +36,30 @@
 #include <pthread.h>
 #if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
+/* define to try to force in.h to define in6_pktinfo on all
+   revisions/distros */
+#define __USE_GNU
+#include <netinet/in.h>
+#undef __USE_GNU
+
+#if defined(__Userspace_os_Linux)
+#include <linux/netlink.h>
+#if defined(HAVE_LINUX_IF_ADDR_H)
+#include <linux/if_addr.h>
+#endif
+#if defined(HAVE_LINUX_RTNETLINK_H)
+#include <linux/rtnetlink.h>
+#endif
+#endif
+
 #else
 #include <user_ip6_var.h>
 #endif
 #endif
+
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_pcb.h>
-#if defined(__Userspace_os_Linux)
-#include <linux/netlink.h>
-#include <linux/if_addr.h>
-#endif
 
 /* local macros and datatypes used to get IP addresses system independently */
 #if defined IP_RECVDSTADDR

@@ -38,12 +38,21 @@ extern "C" {
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
+/*  to make sure some OSs define in6_pktinfo */
+#define __USE_GNU
 #include <netinet/in.h>
+#undef __USE_GNU
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
+#include <ws2def.h>
 #endif
+
+/* Mac OS/X Snow Leopard seems to not have this */
+#ifndef IPPROTO_SCTP
+#define IPPROTO_SCTP 132	/* the Official IANA number :-) */
+#endif				/* !IPPROTO_SCTP */
 
 #if !defined(MSG_NOTIFICATION)
 #define MSG_NOTIFICATION 0x2000         /* SCTP notification */

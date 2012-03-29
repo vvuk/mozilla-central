@@ -207,7 +207,7 @@ sctp_build_ctl_nchunk(struct sctp_inpcb *inp, struct sctp_sndrcvinfo *sinfo)
 	struct sctp_sndrcvinfo *outinfo;
 	struct sctp_rcvinfo *rcvinfo;
 	struct sctp_nxtinfo *nxtinfo;
-	struct cmsghdr *cmh;
+	SCTP_CMSGHDR *cmh;
 	struct mbuf *ret;
 	int len;
 	int use_extended;
@@ -252,7 +252,7 @@ sctp_build_ctl_nchunk(struct sctp_inpcb *inp, struct sctp_sndrcvinfo *sinfo)
 	SCTP_BUF_LEN(ret) = 0;
 
 	/* We need a CMSG header followed by the struct */
-	cmh = mtod(ret, struct cmsghdr *);
+	cmh = mtod(ret, SCTP_CMSGHDR *);
 	if (sctp_is_feature_on(inp, SCTP_PCB_FLAGS_RECVRCVINFO)) {
 		cmh->cmsg_level = IPPROTO_SCTP;
 		cmh->cmsg_len = CMSG_LEN(sizeof(struct sctp_rcvinfo));
@@ -266,7 +266,7 @@ sctp_build_ctl_nchunk(struct sctp_inpcb *inp, struct sctp_sndrcvinfo *sinfo)
 		rcvinfo->rcv_cumtsn = sinfo->sinfo_cumtsn;
 		rcvinfo->rcv_context = sinfo->sinfo_context;
 		rcvinfo->rcv_assoc_id = sinfo->sinfo_assoc_id;
-		cmh = (struct cmsghdr *)((caddr_t)cmh + CMSG_SPACE(sizeof(struct sctp_rcvinfo)));
+		cmh = (SCTP_CMSGHDR *)((caddr_t)cmh + CMSG_SPACE(sizeof(struct sctp_rcvinfo)));
 		SCTP_BUF_LEN(ret) += CMSG_SPACE(sizeof(struct sctp_rcvinfo));
 	}
 	if (provide_nxt) {
@@ -288,7 +288,7 @@ sctp_build_ctl_nchunk(struct sctp_inpcb *inp, struct sctp_sndrcvinfo *sinfo)
 		nxtinfo->nxt_ppid = seinfo->sreinfo_next_ppid;
 		nxtinfo->nxt_length = seinfo->sreinfo_next_length;
 		nxtinfo->nxt_assoc_id = seinfo->sreinfo_next_aid;
-		cmh = (struct cmsghdr *)((caddr_t)cmh + CMSG_SPACE(sizeof(struct sctp_nxtinfo)));
+		cmh = (SCTP_CMSGHDR *)((caddr_t)cmh + CMSG_SPACE(sizeof(struct sctp_nxtinfo)));
 		SCTP_BUF_LEN(ret) += CMSG_SPACE(sizeof(struct sctp_nxtinfo));
 	}
 	if (sctp_is_feature_on(inp, SCTP_PCB_FLAGS_RECVDATAIOEVNT)) {

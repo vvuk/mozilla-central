@@ -45,6 +45,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
+#include <ws2def.h>
 #include <iphlpapi.h>
 #include <Mswsock.h>
 #include <Windows.h>
@@ -206,6 +207,9 @@ typedef char* caddr_t;
 #endif
 #define CMSG_DATA(x)   WSA_CMSG_DATA(x)
 #define CMSG_ALIGN(x)  WSA_CMSGDATA_ALIGN(x)
+#define CMSG_SPACE(x)  WSA_CMSG_SPACE(x)
+#define CMSG_LEN(x)    WSA_CMSG_LEN(x)
+#define SCTP_CMSGHDR   WSACMSGHDR
 
 #define	MSG_DONTWAIT	0x80		/* this message should be nonblocking */
 
@@ -245,6 +249,7 @@ typedef char* caddr_t;
 		}                       \
 	} while (0)
 
+// XXX These need to be determined in configure.in
 #define BIG_ENDIAN 1
 #define LITTLE_ENDIAN 0
 #define BYTE_ORDER LITTLE_ENDIAN
@@ -359,6 +364,8 @@ struct udphdr {
 typedef pthread_mutex_t userland_mutex_t;
 typedef pthread_cond_t userland_cond_t;
 typedef pthread_t userland_thread_t;
+
+typedef struct cmsghdr SCTP_CMSGHDR;
 #endif
 
 #define mtx_lock(arg1)
@@ -1126,6 +1133,12 @@ sctp_get_mbuf_for_msg(unsigned int space_needed,
 #define __DARWIN_ALIGN32(p)       ((__darwin_size_t)((char *)(uintptr_t)(p) + __DARWIN_ALIGNBYTES32) &~ __DARWIN_ALIGNBYTES32)
 #endif
 #define CMSG_ALIGN(n)   __DARWIN_ALIGN32(n)
+#define I_AM_HERE \
+                do { \
+			SCTP_PRINTF("%s:%d at %s\n", __FILE__, __LINE__ , __FUNCTION__); \
+		} while (0)
+#else
+/* not BSD or Darwin */
 #define I_AM_HERE \
                 do { \
 			SCTP_PRINTF("%s:%d at %s\n", __FILE__, __LINE__ , __FUNCTION__); \
