@@ -533,3 +533,5 @@ DOMCI_CLASS(FileRequest)
 DOMCI_CLASS(LockedFile)
 
 DOMCI_CLASS(MozActivity)
+
+DOMCI_CLASS(DataChannel)
