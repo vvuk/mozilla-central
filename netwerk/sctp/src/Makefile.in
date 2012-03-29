@@ -89,6 +89,18 @@ EXPORTS_mozilla/net = \
   usrsctp.h \
   $(NULL)
 
+#EXPORTS_mozilla/net/netinet = \
+#  netinet/sctp_os.h \
+#  netinet/sctp.h \
+#  netinet/sctp_constants.h \
+#  netinet/sctp_sysctl.h \
+#  netinet/sctp_structs.h \
+#  netinet/sctp_auth.h \
+#  netinet/sctp_process_lock.h \
+#  netinet/sctp_lock_userspace.h \
+#  $(NULL)
+
+
 LOCAL_INCLUDES = \
   -I$(srcdir)/../../base/src \
   -I$(topsrcdir)/content/base/src \
@@ -104,6 +116,10 @@ DEFINES = \
    -DINET=1 \
    -DINET6=1 \
    -DCALLBACK_API=1 \
+   -DSCTP_DEBUG=1 \
+   $(NULL)
+
+DEFINES_Debug += \
    $(NULL)
 
 ifeq ($(OS_TARGET),WINNT)
