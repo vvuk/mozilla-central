@@ -36,6 +36,22 @@
 #include <pthread.h>
 #if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
+/* define to try to force in.h to define in6_pktinfo on all
+   revisions/distros */
+#define __USE_GNU
+#include <netinet/in.h>
+#undef __USE_GNU
+
+#if defined(__Userspace_os_Linux)
+#include <linux/netlink.h>
+#if defined(HAVE_LINUX_IF_ADDR_H)
+#include <linux/if_addr.h>
+#endif
+#if defined(HAVE_LINUX_RTNETLINK_H)
+#include <linux/rtnetlink.h>
+#endif
+#endif
+
 #else
 #include <user_ip6_var.h>
 #endif
@@ -43,12 +59,6 @@
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_pcb.h>
-#if defined(__Userspace_os_Linux)
-#include <linux/netlink.h>
-#if defined(HAVE_LINUX_IF_ADDR_H)
-#include <linux/if_addr.h>
-#endif
-#endif
 
 /* local macros and datatypes used to get IP addresses system independently */
 #if defined IP_RECVDSTADDR
@@ -69,6 +79,39 @@ void recv_thread_destroy(void);
 #if !defined(__Userspace_os_Windows)
 #define NEXT_SA(ap) ap = (struct sockaddr *) \
 	((caddr_t) ap + (ap->sa_len ? ROUNDUP(ap->sa_len, sizeof (uint32_t)) : sizeof(uint32_t)))
+#endif
+
+#if defined(__Userspace_os_Windows)
+/* Emulate if_nametoindex() for WinXP */
+int
+winxp_if_nametoindex (const char *ifname)
+{
+  IP_ADAPTER_ADDRESSES *addresses, *addr;
+  ULONG status, size;
+  int index = 0;
+
+  if (!ifname)
+    return 0;
+
+  size = 0;
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, NULL, &size);
+  if (status != ERROR_BUFFER_OVERFLOW)
+    return 0;
+
+  addresses = malloc(size);
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &size);
+  if (status == ERROR_SUCCESS) {
+    for (addr = addresses; addr; addr = addr->Next) {
+      if (addr->AdapterName && !strcmp (ifname, addr->AdapterName)) {
+        index = addr->IfIndex;
+        break;
+      }
+    }
+  }
+
+  free(addresses);
+  return index;
+}
 #endif
 
 #if !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Linux)
