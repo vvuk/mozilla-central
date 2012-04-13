@@ -312,7 +312,7 @@ typedef struct
 #define _SS_MAXSIZE     256     /* Implementation specific max size */
 
 #define cpr_sun_len(a) sizeof(a)
-void cpr_set_sockun_addr(cpr_sockaddr_un_t *addr, const char *name);
+void cpr_set_sockun_addr(cpr_sockaddr_un_t *addr, const char *name, pid_t pid);
 
 /*
  * To represent desired sockaddr max alignment for platform, a

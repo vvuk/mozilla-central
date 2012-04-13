@@ -1150,13 +1150,8 @@ cprRC_t start_timer_service_loop (void)
 
 
     /* initialize server and client addresses used for sending.*/
-    bzero(&tmr_serv_addr, sizeof(tmr_serv_addr));
-    tmr_serv_addr.sun_family = AF_LOCAL;
-    snprintf(tmr_serv_addr.sun_path, sizeof(tmr_serv_addr.sun_path), "%s_%d",SERVER_PATH, getpid());
-    
-    bzero(&tmr_client_addr, sizeof(tmr_client_addr));
-    tmr_client_addr.sun_family = AF_LOCAL;
-    snprintf(tmr_client_addr.sun_path, sizeof(tmr_client_addr.sun_path), "%s_%d",CLIENT_PATH, getpid());
+    cpr_set_sockun_addr((cpr_sockaddr_un_t *) &tmr_serv_addr,   SERVER_PATH, getpid());
+    cpr_set_sockun_addr((cpr_sockaddr_un_t *) &tmr_client_addr, CLIENT_PATH, getpid());
     
     /*
      * init mutex and cond var.

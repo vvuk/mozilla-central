@@ -75,8 +75,8 @@
 #else
 #define SIP_MSG_IPC_PATH  "/tmp/"
 #endif
-#define SIP_MSG_SERV_NAME "SIP-Main"
-#define SIP_MSG_CLNT_NAME "SIP-MsgQ"
+#define SIP_MSG_SERV_NAME "SIP-Main-%d"
+#define SIP_MSG_CLNT_NAME "SIP-MsgQ-%d"
 
 #define SIP_PAUSE_WAIT_IPC_LISTEN_READY_TIME   50  /* 50ms. */
 #define SIP_MAX_WAIT_FOR_IPC_LISTEN_READY    1200  /* 50 * 1200 = 1 minutes */
@@ -194,7 +194,7 @@ static cpr_socket_t sip_create_IPC_sock (const char *name)
     }
 
     /* Bind to the local socket */
-    cpr_set_sockun_addr(&addr, name);
+    cpr_set_sockun_addr(&addr, name, getpid());
 
     /* make sure file doesn't already exist */
     unlink( (char *)addr.sun_path);
@@ -285,7 +285,7 @@ void sip_platform_task_msgqwait (void *arg)
      * The main thread is ready. set global client socket address
      * so that the server can send back response. 
      */
-    cpr_set_sockun_addr(&sip_clnt_sock_addr, sip_IPC_clnt_name);
+    cpr_set_sockun_addr(&sip_clnt_sock_addr, sip_IPC_clnt_name, getpid());
 
     sip_ipc_clnt_socket = sip_create_IPC_sock(sip_IPC_clnt_name);
 
@@ -479,7 +479,7 @@ sip_platform_task_loop (void *arg)
     /*
      * Setup IPC socket addresses for main thread (server)
      */ 
-    cpr_set_sockun_addr(&sip_serv_sock_addr, sip_IPC_serv_name);
+    cpr_set_sockun_addr(&sip_serv_sock_addr, sip_IPC_serv_name, getpid());
 
     /*
      * Create IPC between the message queue thread and this main

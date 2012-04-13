@@ -274,7 +274,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
     /*
      * Find a unique key
      */
-    key = ftok("/tmp", key_id++);
+    key = ftok("/proc/self", key_id++);
     printf("key = %x\n", key);
     
     if (key == -1) {
