@@ -1641,5 +1641,6 @@ fi
 if [ "$MOZ_WEBRTC" ]; then
  add_makefiles "
    media/webrtc/Makefile
+   media/mtransport/Makefile
  "
 fi

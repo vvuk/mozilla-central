@@ -156,6 +156,7 @@ endif
 ifdef MOZ_WEBRTC
 tier_platform_dirs += \
 	        media/webrtc \
+	        media/mtransport \
 	        $(NULL)
 endif
 
