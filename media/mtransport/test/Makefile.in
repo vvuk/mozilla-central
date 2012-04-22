@@ -35,45 +35,29 @@
 # ***** END LICENSE BLOCK *****
 
 
-DEPTH = ../..
+DEPTH = ../../../
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = mtransport
-LIBRARY_NAME = mtransport
-FORCE_STATIC_LIB= 1
-ifeq (WINNT,$(OS_TARGET))
-VISIBILITY_FLAGS =
-endif
+MODULE = test_mtransport
+
+LIBS		= $(EXTRA_DSO_LIBS) \
+		  $(XPCOM_LIBS) \
+		  $(NSPR_LIBS) \
+		  $(DEPTH)/media/mtransport/libmtransport.a \
+		  $(NULL)
 
 LOCAL_INCLUDES += \
  -I. \
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
+ -I$(topsrcdir)/media/mtransport/ \
  $(NULL)
 
-EXPORTS_NAMESPACES = mtransport
-
-EXPORTS_mtransport = \
-  transportflow.h \
-  transportlayer.h \
-  transportlayerlog.h \
+CPP_UNIT_TESTS = \
+  transport_unittests$(BIN_SUFFIX) \
   $(NULL)
-
-CPPSRCS = \
-  transportflow.cpp \
-  transportlayer.cpp \
-  transportlayerlog.cpp \
-  $(NULL)
-
-DIRS = \
-  test \
-  $(NULL)
-
-#CPP_UNIT_TESTS = \
-#  transport_unittests$(BIN_SUFFIX) \
-#  $(NULL)
 
 include $(topsrcdir)/config/rules.mk

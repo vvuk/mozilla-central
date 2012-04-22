@@ -837,6 +837,7 @@ if [ "$ENABLE_TESTS" ]; then
     layout/tools/reftest/Makefile
     layout/xul/base/test/Makefile
     layout/xul/test/Makefile
+    media/mtransport/test/Makefile 
     modules/libjar/test/Makefile
     modules/libjar/test/chrome/Makefile
     modules/libjar/test/mochitest/Makefile
