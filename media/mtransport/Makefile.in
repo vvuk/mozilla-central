@@ -60,12 +60,14 @@ EXPORTS_mtransport = \
   transportflow.h \
   transportlayer.h \
   transportlayerlog.h \
+  transportlayerloopback.h \
   $(NULL)
 
 CPPSRCS = \
   transportflow.cpp \
   transportlayer.cpp \
   transportlayerlog.cpp \
+  transportlayerloopback.cpp \
   $(NULL)
 
 DIRS = \

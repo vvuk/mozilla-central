@@ -11,11 +11,13 @@
 MLOG_INIT("mtransport");
 
 void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
-  MLOG(PR_LOG_DEBUG, "Flow: " << flow->id() << ": Inserting layer id=" << id() << " downward=" << 
-    (downward ? downward->id(): "none"));
+  MLOG(PR_LOG_DEBUG, "Flow: '" << flow->id() << "': Inserting layer id='" << id() << "': downward='" << 
+    (downward ? downward->id(): "none") << "'");
 
   flow_ = flow;
   downward_ = downward;
+
+  WasInserted();
 }
 
 void TransportLayer::SetState(State state) {

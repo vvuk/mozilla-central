@@ -16,7 +16,7 @@ class TransportLayer;
 // Generally, one reads and writes to the top layer.
 class TransportFlow {
  public:
-  TransportFlow() : id_("") {}
+  TransportFlow() : id_("(anonymous)") {}
   ~TransportFlow();
   
   const std::string& id() const { return id_; }

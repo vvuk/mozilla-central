@@ -15,7 +15,7 @@
 class TransportFlow;
 
 // Abstract base class for network transport layers.
-class TransportLayer {
+class TransportLayer : public sigslot::has_slots<> {
  public:
   // The state of the transport flow
   enum State { INIT, CONNECTING, OPEN, CLOSED, ERROR };
@@ -28,7 +28,7 @@ class TransportLayer {
 
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
-
+  
   // Must be implemented by derived classes
   virtual int SendPacket(const unsigned char *data, size_t len) = 0;
   
@@ -43,6 +43,8 @@ class TransportLayer {
   virtual const std::string& id() = 0;
   
  protected:
+  // Called by Inserted
+  virtual void WasInserted() {}
   virtual void SetState(State state);
 
   State state_;
