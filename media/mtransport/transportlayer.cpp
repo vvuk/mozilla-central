@@ -17,3 +17,12 @@ void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
   flow_ = flow;
   downward_ = downward;
 }
+
+void TransportLayer::SetState(State state) {
+  if (state != state_) {
+    MLOG(PR_LOG_DEBUG, "Flow: " << flow_->id() << ": layer id=" << id() << 
+         "state " << state_ << "->" << state);
+    state_ = state;
+    SignalStateChange(this, state);
+  }
+}

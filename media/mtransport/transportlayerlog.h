@@ -7,6 +7,12 @@
 class TransportLayerLogging : public TransportLayer {
   // Overrides for TransportLayer
   virtual int SendPacket(const unsigned char *data, size_t len);
+  
+  // Signals (forwarded to upper layer)
+  void StateChange(TransportFlow *flow, State state);
+  void PacketReceived(TransportFlow* flow, const unsigned char *data,
+      size_t len);
+
 
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }

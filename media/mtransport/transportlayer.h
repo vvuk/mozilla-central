@@ -18,31 +18,34 @@ class TransportFlow;
 class TransportLayer {
  public:
   // The state of the transport flow
-  enum State { CONNECTING, OPEN, CLOSED, ERROR };
+  enum State { INIT, CONNECTING, OPEN, CLOSED, ERROR };
 
   // Is this a stream or datagram flow
   enum Mode { STREAM, DGRAM };
 
   // NULL constructor
-  TransportLayer() : flow_(NULL), downward_(NULL) {}
+  TransportLayer() : state_(INIT), flow_(NULL), downward_(NULL) {}
 
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
 
   // Must be implemented by derived classes
   virtual int SendPacket(const unsigned char *data, size_t len) = 0;
-
+  
   // Event definitions that one can register for
   // State has changed
-  sigslot::signal2<TransportFlow*, State> SignalState;
+  sigslot::signal2<TransportLayer*, State> SignalStateChange;
   // Data received on the flow
-  sigslot::signal3<TransportFlow*, const unsigned char *, size_t>
-                         PacketReceived;
+  sigslot::signal3<TransportLayer*, const unsigned char *, size_t>
+                         SignalPacketReceived;
   
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
   
- private:
+ protected:
+  virtual void SetState(State state);
+
+  State state_;
   TransportFlow *flow_;  // The flow this is part of
   TransportLayer *downward_; // The next layer in the stack
 };
