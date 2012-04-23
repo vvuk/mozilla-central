@@ -20,7 +20,7 @@ void TransportLayerLoopback::Connect(TransportLayerLoopback* peer) {
 }
 
 int TransportLayerLoopback::SendPacket(const unsigned char *data, size_t len) {
-  MLOG(PR_LOG_DEBUG, "SendPacket(" << len << ")");
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
 
   peer_->SignalPacketReceived(peer_, data, len);
   

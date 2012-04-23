@@ -25,6 +25,7 @@ class TransportLayer : public sigslot::has_slots<> {
 
   // NULL constructor
   TransportLayer() : state_(INIT), flow_(NULL), downward_(NULL) {}
+  virtual ~TransportLayer() {}
 
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
@@ -41,7 +42,7 @@ class TransportLayer : public sigslot::has_slots<> {
   
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
-  
+
  protected:
   // Called by Inserted
   virtual void WasInserted() {}
@@ -52,5 +53,6 @@ class TransportLayer : public sigslot::has_slots<> {
   TransportLayer *downward_; // The next layer in the stack
 };
 
+#define LAYER_INFO "Flow[" << flow_->id() << "]; Layer[" << id() << "]: "
 
 #endif

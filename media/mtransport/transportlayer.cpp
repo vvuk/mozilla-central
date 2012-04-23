@@ -8,22 +8,22 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
+// Logging context
 MLOG_INIT("mtransport");
 
 void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
-  MLOG(PR_LOG_DEBUG, "Flow: '" << flow->id() << "': Inserting layer id='" << id() << "': downward='" << 
-    (downward ? downward->id(): "none") << "'");
-
   flow_ = flow;
   downward_ = downward;
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Inserted: downward='" << 
+    (downward ? downward->id(): "none") << "'");
 
   WasInserted();
 }
 
 void TransportLayer::SetState(State state) {
   if (state != state_) {
-    MLOG(PR_LOG_DEBUG, "Flow: " << flow_->id() << ": layer id=" << id() << 
-         "state " << state_ << "->" << state);
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "state " << state_ << "->" << state);
     state_ = state;
     SignalStateChange(this, state);
   }
