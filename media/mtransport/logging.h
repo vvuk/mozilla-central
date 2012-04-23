@@ -14,8 +14,8 @@
 
 class LogCtx {
  public:
-  //  LogCtx(const char* name) : module_(PR_NewLogModule(name)) {}
-  LogCtx(const char* name) : module_(NULL) {}
+  LogCtx(const char* name) : module_(PR_NewLogModule(name)) {}
+  //  LogCtx(const char* name) : module_(NULL) {}
   LogCtx(std::string& name) : module_(PR_NewLogModule(name.c_str())) {}
 
   PRLogModuleInfo* module() const { return module_; }

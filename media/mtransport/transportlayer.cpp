@@ -8,14 +8,11 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
-#if 0
 MLOG_INIT("mtransport");
-#endif
 
 void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
-#if 0
-  MLOG(PR_LOG_DEBUG, "Flow: " << flow->id() << ": Inserting layer id=" << id() << " downward=" << downward->id());
-#endif
+  MLOG(PR_LOG_DEBUG, "Flow: " << flow->id() << ": Inserting layer id=" << id() << " downward=" << 
+    (downward ? downward->id(): "none"));
 
   flow_ = flow;
   downward_ = downward;

@@ -17,7 +17,7 @@ void TransportFlow::PushLayer(TransportLayer *layer) {
   TransportLayer *old_layer = layers_.empty() ? NULL : layers_.front();
 
   layers_.push_front(layer);
-  //  layer->Inserted(this, old_layer);
+  layer->Inserted(this, old_layer);
 }
 
 TransportLayer *TransportFlow::top() const {
