@@ -44,6 +44,7 @@ VPATH           = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 DIRS := trunk
+DIRS += trunk/testing
 
 ifneq ($(OS_TARGET),WINNT)
 DIRS += signaling

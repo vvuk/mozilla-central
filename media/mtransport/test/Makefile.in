@@ -53,10 +53,13 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 LOCAL_INCLUDES += \
  -I. \
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
+ -I$(topsrcdir)/media/webrtc/trunk/testing/gtest/include/ \
  -I$(topsrcdir)/media/mtransport/ \
+
  $(NULL)
 
 CPP_UNIT_TESTS = \
+  sockettransportservice_unittest$(BIN_SUFFIX) \
   transport_unittests$(BIN_SUFFIX) \
   $(NULL)
 
