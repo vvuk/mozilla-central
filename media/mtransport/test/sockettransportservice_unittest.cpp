@@ -22,6 +22,16 @@
 
 #include "gtest/gtest.h"
 
+
+namespace {
+class SocketTransportServiceTest : public ::testing::Test {
+ protected:
+  SocketTransportServiceTest() {
+    std::cout << "Test ran!\n";
+  }
+};
+
+
 class TestEvent : public nsRunnable {
 public:
     TestEvent() {};
@@ -32,6 +42,13 @@ public:
       return NS_OK;
   }
 };
+
+TEST_F(SocketTransportServiceTest, Test) {
+}
+
+
+}  // end namespace
+
 
 int main(int argc, char **argv) {
   nsresult rv;
@@ -51,4 +68,7 @@ int main(int argc, char **argv) {
      = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
 
    rv = eventTarget->Dispatch(new TestEvent(), NS_DISPATCH_NORMAL);
+
+   ::testing::InitGoogleTest(&argc, argv);
+   return RUN_ALL_TESTS();
 }

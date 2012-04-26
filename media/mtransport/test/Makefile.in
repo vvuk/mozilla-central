@@ -48,6 +48,7 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 		  $(XPCOM_LIBS) \
 		  $(NSPR_LIBS) \
 		  $(DEPTH)/media/mtransport/libmtransport.a \
+		  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/libgtest.a \
 		  $(NULL)
 
 LOCAL_INCLUDES += \
