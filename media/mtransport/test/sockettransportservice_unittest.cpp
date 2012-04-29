@@ -19,33 +19,64 @@
 #include "nsThreadUtils.h"
 
 #define GTEST_HAS_RTTI 0
-
 #include "gtest/gtest.h"
+#include "gtest_utils.h"
 
+class PacketReceived;
 
 namespace {
 class SocketTransportServiceTest : public ::testing::Test {
- protected:
-  SocketTransportServiceTest() {
-    std::cout << "Test ran!\n";
+ public:
+  SocketTransportServiceTest() : received_(0) {
   }
+
+  void SetUp() {
+    nsresult rv;
+
+    target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    ASSERT_TRUE(NS_SUCCEEDED(rv));
+  }
+
+  void Run();
+
+  void ReceivePacket() {
+    ++received_;
+  }
+
+  size_t Received() {
+    return received_;
+  }
+
+ private:
+  nsCOMPtr<nsIEventTarget> target_;
+  size_t received_;
 };
 
 
-class TestEvent : public nsRunnable {
+class PacketReceived : public nsRunnable {
 public:
-    TestEvent() {};
+  PacketReceived(SocketTransportServiceTest *test) :
+      test_(test) {};
     
-    NS_IMETHOD Run() {
-      std::cout << "RAN!!!!!\n";
-
-      return NS_OK;
+  NS_IMETHOD Run() {
+    test_->ReceivePacket();
+    return NS_OK;
   }
+
+  SocketTransportServiceTest *test_;
 };
 
 TEST_F(SocketTransportServiceTest, Test) {
+  Run();
 }
 
+void SocketTransportServiceTest::Run() {
+  nsresult rv;
+
+  target_->Dispatch(new PacketReceived(this), rv);
+  ASSERT_TRUE(rv);
+  ASSERT_TRUE_WAIT(Received() == 1, 10000);
+}
 
 }  // end namespace
 
@@ -53,22 +84,19 @@ TEST_F(SocketTransportServiceTest, Test) {
 int main(int argc, char **argv) {
   nsresult rv;
 
+  // Start the IO and socket transport service
   nsCOMPtr<nsIServiceManager> servMan;
   NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
-  
   nsCOMPtr<nsIComponentManager> manager = do_QueryInterface(servMan);
+  nsCOMPtr<nsIIOService> ioservice;
 
-   // Create an instance of our component
-   nsCOMPtr<nsIIOService> ioservice;
-   rv = manager->CreateInstanceByContractID(NS_IOSERVICE_CONTRACTID,
+  rv = manager->CreateInstanceByContractID(NS_IOSERVICE_CONTRACTID,
                                             nsnull, NS_GET_IID(nsIIOService),
                                             getter_AddRefs(ioservice));
-   
-   nsCOMPtr<nsIEventTarget> eventTarget
-     = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-
-   rv = eventTarget->Dispatch(new TestEvent(), NS_DISPATCH_NORMAL);
-
-   ::testing::InitGoogleTest(&argc, argv);
-   return RUN_ALL_TESTS();
+  assert(NS_SUCCEEDED(rv));
+  
+  // Start the tests
+  ::testing::InitGoogleTest(&argc, argv);
+  
+  return RUN_ALL_TESTS();
 }
