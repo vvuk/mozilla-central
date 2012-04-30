@@ -8,12 +8,12 @@
 #include "prio.h"
 
 #include "nsCOMPtr.h"
-#include "nsNetCID.h"
-#include "nsXPCOM.h"
 
-#include "nsISocketTransportService.h"
-#include "nsServiceManagerUtils.h"
 #include "nsASocketHandler.h"
+#include "nsISocketTransportService.h"
+#include "nsNetCID.h"
+#include "nsServiceManagerUtils.h"
+#include "nsXPCOM.h"
 
 #include "logging.h"
 #include "transportflow.h"

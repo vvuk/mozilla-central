@@ -10,10 +10,10 @@
 #include "nspr.h"
 #include "prio.h"
 
-#include "nsCOMPtr.h"
-#include "nsXPCOM.h"
-#include "nsISocketTransportService.h"o
 #include "nsASocketHandler.h"
+#include "nsCOMPtr.h"
+#include "nsISocketTransportService.h"o
+#include "nsXPCOM.h"
 
 #include "transportflow.h"
 #include "transportlayer.h"
