@@ -9,8 +9,8 @@
 
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
-#include "nsXPCOMGlue.h"
 #include "nsXPCOM.h"
+#include "nsXPCOMGlue.h"
 
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"

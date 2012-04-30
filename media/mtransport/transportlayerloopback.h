@@ -7,6 +7,9 @@
 #ifndef transportlayerloopback_h__
 #define transportlayerloopback_h__
 
+#include "nspr.h"
+#include "prio.h"
+
 #include "transportflow.h"
 #include "transportlayer.h"
 

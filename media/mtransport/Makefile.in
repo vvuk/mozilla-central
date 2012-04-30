@@ -61,6 +61,7 @@ EXPORTS_mtransport = \
   transportlayer.h \
   transportlayerlog.h \
   transportlayerloopback.h \
+  transportlayerprsock.h \
   $(NULL)
 
 CPPSRCS = \
@@ -68,6 +69,7 @@ CPPSRCS = \
   transportlayer.cpp \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
+  transportlayerprsock.cpp \
   $(NULL)
 
 DIRS = \

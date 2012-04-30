@@ -4,27 +4,48 @@
 
 // Original author: ekr@rtfm.com
 
+#include "nspr.h"
+#include "prio.h"
+
+#include "nsCOMPtr.h"
+#include "nsNetCID.h"
+#include "nsXPCOM.h"
+
+#include "nsISocketTransportService.h"
+#include "nsServiceManagerUtils.h"
+#include "nsASocketHandler.h"
+
 #include "logging.h"
 #include "transportflow.h"
-#include "transportlayerloopback.h"
+#include "transportlayerprsock.h"
 
 MLOG_INIT("mtransport");
 
-std::string TransportLayerLoopback::ID("mt_prsock");
+std::string TransportLayerPrsock::ID("mt_prsock");
 
-// nsASocketHandler implementations
-NS_IMPL_ISUPPORTS0
 
-void TransportLayerLoopback::Import(PRFileDesc *fd) {
+NS_IMPL_ISUPPORTS0(TransportLayerPrsock);
+
+nsresult TransportLayerPrsock::Import(PRFileDesc *fd) {
   fd_ = fd;
 
+  // Get the transport service as a transport service
+  nsresult rv;
+  stservice_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+  if (!NS_SUCCEEDED(rv))
+    return rv;
+
+  rv = stservice_->AttachSocket(fd_, this);
+  if (!NS_SUCCEEDED(rv))
+    return rv;
   
+  return NS_OK;
 }
 
-int TransportLayerLoopback::SendPacket(const unsigned char *data, size_t len) {
+int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
 
-  PRStatus status;
+  PRInt32 status;
   status = PR_Write(fd_, data, len);
   
   if (status <= 0)

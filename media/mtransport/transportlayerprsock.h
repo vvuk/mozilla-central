@@ -11,16 +11,19 @@
 #include "prio.h"
 
 #include "nsCOMPtr.h"
-#include "nsNetCID.h"
-#include "nsXPCOMGlue.h"
 #include "nsXPCOM.h"
+#include "nsISocketTransportService.h"o
+#include "nsASocketHandler.h"
 
 #include "transportflow.h"
 #include "transportlayer.h"
 
 class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
  public:
-  void Import(PRFileDesc *fd);
+  // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
+  // Should we require that or provide a way to pump requests across
+  // threads?
+  nsresult Import(PRFileDesc *fd);
 
   // Overrides for TransportLayer
   virtual int SendPacket(const unsigned char *data, size_t len);
@@ -31,13 +34,17 @@ class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
   // A static version of the layer ID
   static std::string ID;
 
-  // nsASocketHandler methods
+  // nsISupports methods
   NS_DECL_ISUPPORTS
+
+  // nsASocketHandler methods
+  void OnSocketDetached(PRFileDesc *fd) {}  
 
  private:
   void RegisterHandler();
 
   PRFileDesc *fd_;
+  nsCOMPtr<nsISocketTransportService> stservice_;
 };
 
 #endif
