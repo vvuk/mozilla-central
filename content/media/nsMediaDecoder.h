@@ -41,7 +41,6 @@
 #include "ImageLayers.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "VideoFrameContainer.h"
-#include "GraphManager.h"
 
 class nsHTMLMediaElement;
 class nsIStreamListener;
@@ -70,15 +69,13 @@ static const PRUint32 FRAMEBUFFER_LENGTH_MAX = 16384;
 class nsMediaDecoder : public nsIObserver
 {
 public:
-  typedef mozilla::layers::Image Image;
-  typedef mozilla::layers::ImageContainer ImageContainer;
-  typedef mozilla::media::InputStream InputStream;
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
-  typedef mozilla::media::Stream Stream;
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
+  typedef mozilla::layers::Image Image;
+  typedef mozilla::layers::ImageContainer ImageContainer;
 
   nsMediaDecoder();
   virtual ~nsMediaDecoder();
@@ -131,13 +128,6 @@ public:
 
   // Set the audio volume. It should be a value from 0 to 1.0.
   virtual void SetVolume(double aVolume) = 0;
-
-  // Sets whether audio is being captured. If it is, we won't play any
-  // of our audio.
-  virtual void SetAudioCaptured(bool aCaptured) = 0;
-
-  // Add an output stream. All decoder output will be sent to the stream.
-  virtual void AddOutputStream(InputStream* aStream, bool aFinishWhenEnded) = 0;
 
   // Start playback of a video. 'Load' must have previously been
   // called.

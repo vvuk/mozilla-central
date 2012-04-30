@@ -363,11 +363,22 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endFrame = aPacket->granulepos;
   while ((frames = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, frames);
+    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[frames * channels]);
+    for (PRUint32 j = 0; j < channels; ++j) {
+      VorbisPCMValue* channel = pcm[j];
+      for (PRUint32 i = 0; i < PRUint32(frames); ++i) {
+        buffer[i*channels + j] = MOZ_CONVERT_VORBIS_SAMPLE(channel[i]);
+      }
+    }
+
     PRInt64 duration = mVorbisState->Time((PRInt64)frames);
     PRInt64 startTime = mVorbisState->Time(endFrame - frames);
-
-    PushAudioData(mPageOffset, startTime, duration, frames, channels, pcm);
-
+    mAudioQueue.Push(new AudioData(mPageOffset,
+                                   startTime,
+                                   duration,
+                                   frames,
+                                   buffer.forget(),
+                                   channels));
     endFrame -= frames;
     if (vorbis_synthesis_read(&mVorbisState->mDsp, frames) != 0) {
       return NS_ERROR_FAILURE;

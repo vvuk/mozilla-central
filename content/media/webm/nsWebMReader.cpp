@@ -746,7 +746,6 @@ bool nsWebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
       decoded++;
       NS_ASSERTION(decoded <= parsed,
         "Expect only 1 frame per chunk per packet in WebM...");
-      LOG(PR_LOG_DEBUG, ("%p Pushing video frame %lld", mDecoder, v->mTime));
       mVideoQueue.Push(v);
     }
   }

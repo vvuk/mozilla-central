@@ -44,39 +44,27 @@ include $(DEPTH)/config/autoconf.mk
 MODULE = content
 LIBRARY_NAME = gkconmedia_s
 LIBXUL_LIBRARY = 1
-XPIDL_MODULE = content_media
-
-XPIDLSRCS = \
-  nsIDOMMediaStream.idl \
-  $(NULL)
 
 EXPORTS = \
-  GraphManager.h \
-  MediaResource.h \
   nsAudioAvailableEventManager.h \
+  nsMediaDecoder.h \
+  nsMediaCache.h \
   nsBuiltinDecoder.h \
   nsBuiltinDecoderStateMachine.h \
   nsBuiltinDecoderReader.h \
-  nsDOMMediaStream.h \
-  nsMediaDecoder.h \
-  nsMediaCache.h \
-  StreamBuffer.h \
-  TimeVarying.h \
+  MediaResource.h \
   VideoFrameContainer.h \
   VideoUtils.h \
   $(NULL)
 
 CPPSRCS = \
-  GraphManager.cpp \
-  MediaResource.cpp \
   nsAudioAvailableEventManager.cpp \
+  nsMediaDecoder.cpp \
+  nsMediaCache.cpp \
   nsBuiltinDecoder.cpp \
   nsBuiltinDecoderStateMachine.cpp \
   nsBuiltinDecoderReader.cpp \
-  nsDOMMediaStream.cpp \
-  nsMediaDecoder.cpp \
-  nsMediaCache.cpp \
-  StreamBuffer.cpp \
+  MediaResource.cpp \
   VideoFrameContainer.cpp \
   VideoUtils.cpp \
   $(NULL)
@@ -89,8 +77,6 @@ CPPSRCS += \
   nsAudioStream.cpp \
   $(NULL)
 endif
-
-PARALLEL_DIRS =
 
 ifdef MOZ_RAW
 PARALLEL_DIRS += raw
@@ -122,5 +108,3 @@ INCLUDES += \
   -I$(srcdir)/../base/src \
   -I$(srcdir)/../html/content/src \
   $(NULL)
-
-DEFINES += -D_IMPL_NS_LAYOUT

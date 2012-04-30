@@ -43,14 +43,13 @@
 #include "ImageLayers.h"
 #include "nsSize.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "GraphManager.h"
 
 // Stores info relevant to presenting media frames.
 class nsVideoInfo {
 public:
   nsVideoInfo()
-    : mAudioRate(44100),
-      mAudioChannels(2),
+    : mAudioRate(0),
+      mAudioChannels(0),
       mDisplay(0,0),
       mStereoMode(mozilla::layers::STEREO_MODE_MONO),
       mHasAudio(false),
@@ -95,11 +94,9 @@ typedef short AudioDataValue;
 // Convert the output of vorbis_synthesis_pcmout to a AudioDataValue
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) \
  (static_cast<AudioDataValue>(MOZ_CLIP_TO_15((x)>>9)))
-#define MOZ_CONVERT_S16_LE_TO_VORBIS(x) ((x) << 9)
 // Convert a AudioDataValue to a float for the Audio API
 #define MOZ_CONVERT_AUDIO_SAMPLE(x) ((x)*(1.F/32768))
 #define MOZ_SAMPLE_TYPE_S16LE 1
-#define MOZ_VORBIS_PCM_INT32 1
 
 #else /*MOZ_VORBIS*/
 
@@ -110,15 +107,12 @@ typedef float AudioDataValue;
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
 #define MOZ_CONVERT_AUDIO_SAMPLE(x) (x)
 #define MOZ_SAMPLE_TYPE_FLOAT32 1
-#define MOZ_VORBIS_PCM_FLOAT32 1
 
 #endif
 
 // Holds chunk a decoded audio frames.
 class AudioData {
 public:
-  typedef mozilla::media::AudioBuffer AudioBuffer;
-
   AudioData(PRInt64 aOffset,
             PRInt64 aTime,
             PRInt64 aDuration,
@@ -130,8 +124,7 @@ public:
     mDuration(aDuration),
     mFrames(aFrames),
     mChannels(aChannels),
-    mAudioData(aData),
-    mPlayed(false)
+    mAudioData(aData)
   {
     MOZ_COUNT_CTOR(AudioData);
   }
@@ -141,11 +134,6 @@ public:
     MOZ_COUNT_DTOR(AudioData);
   }
 
-  // If mAudioBuffer is null, creates it from mAudioData.
-  void EnsureAudioBuffer();
-
-  PRInt64 GetEnd() { return mTime + mDuration; }
-
   // Approximate byte offset of the end of the page on which this chunk
   // ends.
   const PRInt64 mOffset;
@@ -154,11 +142,7 @@ public:
   const PRInt64 mDuration; // In usecs.
   const PRUint32 mFrames;
   const PRUint32 mChannels;
-  // At least one of mAudioBuffer/mAudioData must be non-null.
-  nsRefPtr<AudioBuffer> mAudioBuffer;
-  // mFrames frames, each with mChannels values
   nsAutoArrayPtr<AudioDataValue> mAudioData;
-  bool mPlayed;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -213,8 +197,6 @@ public:
   {
     MOZ_COUNT_DTOR(VideoData);
   }
-
-  PRInt64 GetEnd() { return mEndTime; }
 
   // Dimensions at which to display the video frame. The picture region
   // will be scaled to this size. This is should be the picture region's
@@ -388,25 +370,6 @@ template <class T> class MediaQueue : private nsDeque {
     ForEach(aFunctor);
   }
 
-  // Extracts elements from the queue into aResult, in order.
-  // Elements whose start time is before aTime are ignored.
-  void GetElementsAfter(PRInt64 aTime, nsTArray<T*>* aResult) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    if (!GetSize())
-      return;
-    PRInt32 i;
-    for (i = GetSize() - 1; i > 0; --i) {
-      T* v = static_cast<T*>(ObjectAt(i));
-      if (v->GetEnd() < aTime)
-        break;
-    }
-    // Elements less than i have a end time before aTime. It's also possible
-    // that the element at i has a end time before aTime, but that's OK.
-    for (; i < GetSize(); ++i) {
-      aResult->AppendElement(static_cast<T*>(ObjectAt(i)));
-    }
-  }
-
 private:
   mutable ReentrantMonitor mReentrantMonitor;
 
@@ -445,7 +408,7 @@ public:
   // than aTimeThreshold will be decoded (unless they're not keyframes
   // and aKeyframeSkip is true), but will not be added to the queue.
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
-                                PRInt64 aTimeThreshold) = 0;
+                                  PRInt64 aTimeThreshold) = 0;
 
   virtual bool HasAudio() = 0;
   virtual bool HasVideo() = 0;
@@ -471,13 +434,6 @@ public:
   // Queue of audio frames. This queue is threadsafe, and is accessed from
   // the audio, decoder, state machine, and main threads.
   MediaQueue<AudioData> mAudioQueue;
-
-  void PushAudioData(PRInt64 aOffset,
-                     PRInt64 aTime,
-                     PRInt64 aDuration,
-                     PRUint32 aFrames,
-                     PRUint32 aChannels,
-                     VorbisPCMValue** aChannelBuffers);
 
   // Queue of video frames. This queue is threadsafe, and is accessed from
   // the decoder, state machine, and main threads.

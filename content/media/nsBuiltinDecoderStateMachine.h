@@ -137,9 +137,6 @@ public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
-  typedef nsBuiltinDecoder::OutputMediaStream OutputMediaStream;
-  typedef mozilla::media::InputStream InputStream;
-  typedef mozilla::media::AudioFrame AudioFrame;
 
   nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDecoder, nsBuiltinDecoderReader* aReader, bool aRealTime = false);
   ~nsBuiltinDecoderStateMachine();
@@ -152,7 +149,6 @@ public:
     return mState; 
   }
   virtual void SetVolume(double aVolume);
-  virtual void SetAudioCaptured(bool aCapture);
   virtual void Shutdown();
   virtual PRInt64 GetDuration();
   virtual void SetDuration(PRInt64 aDuration);
@@ -253,10 +249,6 @@ public:
   // machine again.
   nsresult ScheduleStateMachine();
 
-  // Calls ScheduleStateMachine() after taking the decoder lock. Also
-  // notifies the decoder thread in case it's waiting on the decoder lock.
-  void ScheduleStateMachineWithLockAndWakeDecoder();
-
   // Schedules the shared state machine thread to run the state machine
   // in aUsecs microseconds from now, if it's not already scheduled to run
   // earlier, in which case the request is discarded.
@@ -280,12 +272,6 @@ public:
    // Called when a "MozAudioAvailable" event listener is added to the media
    // element. Called on the main thread.
    void NotifyAudioAvailableListener();
-
-  // Copy queued audio/video data in the reader to any output MediaStreams that
-  // need it.
-  void SendOutputStreamData();
-  bool HaveEnoughDecodedAudio(PRInt64 aAmpleAudio);
-  bool HaveEnoughDecodedVideo();
 
 protected:
 
@@ -450,9 +436,6 @@ protected:
   // to call.
   void DecodeThreadRun();
 
-  void SendOutputStreamAudio(AudioData* aAudio, OutputMediaStream* aStream,
-                             nsTArray<AudioFrame>* aOutput);
-
   // State machine thread run function. Defers to RunStateMachine().
   nsresult CallRunStateMachine();
 
@@ -586,10 +569,6 @@ protected:
   // Time at which we started decoding. Synchronised via decoder monitor.
   TimeStamp mDecodeStartTime;
 
-  // True if we shouldn't play our audio (but still write it to any capturing
-  // streams).
-  bool mAudioCaptured;
-
   // True if the media resource can be seeked. Accessed from the state
   // machine and main threads. Synchronised via decoder monitor.
   bool mSeekable;
@@ -656,9 +635,6 @@ protected:
 
   // True is we are decoding a realtime stream, like a camera stream
   bool mRealTime;
-
-  bool mDidThrottleAudioDecoding;
-  bool mDidThrottleVideoDecoding;
 
   // True if we've requested a new decode thread, but it has not yet been
   // created. Synchronized by the decoder monitor.
