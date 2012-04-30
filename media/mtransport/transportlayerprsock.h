@@ -10,6 +10,11 @@
 #include "nspr.h"
 #include "prio.h"
 
+#include "nsCOMPtr.h"
+#include "nsNetCID.h"
+#include "nsXPCOMGlue.h"
+#include "nsXPCOM.h"
+
 #include "transportflow.h"
 #include "transportlayer.h"
 
