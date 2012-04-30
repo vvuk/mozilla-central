@@ -56,7 +56,7 @@ const TELEMETRY_INTERVAL = 60000;
 const TELEMETRY_DELAY = 60000;
 // about:memory values to turn into histograms
 const MEM_HISTOGRAMS = {
-  "js-gc-heap": "MEMORY_JS_GC_HEAP",
+  "js-main-runtime-gc-heap-committed": "MEMORY_JS_GC_HEAP_COMMITTED",
   "js-compartments-system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
   "js-compartments-user": "MEMORY_JS_COMPARTMENTS_USER",
   "explicit": "MEMORY_EXPLICIT",
@@ -68,7 +68,8 @@ const MEM_HISTOGRAMS = {
   "page-faults-hard": "PAGE_FAULTS_HARD",
   "low-memory-events-virtual": "LOW_MEMORY_EVENTS_VIRTUAL",
   "low-memory-events-commit-space": "LOW_MEMORY_EVENTS_COMMIT_SPACE",
-  "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL"
+  "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL",
+  "ghost-windows": "GHOST_WINDOWS"
 };
 // Seconds of idle time before pinging.
 // On idle-daily a gather-telemetry notification is fired, during it probes can
@@ -369,43 +370,46 @@ TelemetryPing.prototype = {
     let e = mgr.enumerateReporters();
     while (e.hasMoreElements()) {
       let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-      let id = MEM_HISTOGRAMS[mr.path];
-      if (!id) {
-        continue;
-      }
-      // mr.amount is expensive to read in some cases, so get it only once.
-      let amount = mr.amount;
-      if (amount == -1) {
+      let id, mrPath, mrAmount, mrUnits;
+      try {
+        mrPath = mr.path;
+        id = MEM_HISTOGRAMS[mrPath];
+        if (!id) {
+          continue;
+        }
+        mrAmount = mr.amount;
+        mrUnits = mr.units;
+      } catch (ex) {
         continue;
       }
 
       let val;
-      if (mr.units == Ci.nsIMemoryReporter.UNITS_BYTES) {
-        val = Math.floor(amount / 1024);
+      if (mrUnits == Ci.nsIMemoryReporter.UNITS_BYTES) {
+        val = Math.floor(mrAmount / 1024);
       }
-      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT) {
-        val = amount;
+      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT) {
+        val = mrAmount;
       }
-      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
+      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
         // If the reporter gives us a cumulative count, we'll report the
         // difference in its value between now and our previous ping.
 
-        if (!(mr.path in this._prevValues)) {
+        if (!(mrPath in this._prevValues)) {
           // If this is the first time we're reading this reporter, store its
           // current value but don't report it in the telemetry ping, so we
           // ignore the effect startup had on the reporter.
-          this._prevValues[mr.path] = amount;
+          this._prevValues[mrPath] = mrAmount;
           continue;
         }
 
-        val = amount - this._prevValues[mr.path];
-        this._prevValues[mr.path] = amount;
+        val = mrAmount - this._prevValues[mrPath];
+        this._prevValues[mrPath] = mrAmount;
       }
       else {
-        NS_ASSERT(false, "Can't handle memory reporter with units " + mr.units);
+        NS_ASSERT(false, "Can't handle memory reporter with units " + mrUnits);
         continue;
       }
-      this.addValue(mr.path, id, val);
+      this.addValue(mrPath, id, val);
     }
   },
 
@@ -436,18 +440,24 @@ TelemetryPing.prototype = {
     // Use a deterministic url for testing.
     let isTestPing = (reason == "test-ping");
     let havePreviousSession = !!this._prevSession;
-    let slug = (isTestPing
-                ? reason
-                : (havePreviousSession
-                   ? this._prevSession.uuid
-                   : this._uuid));
     let payloadObj = {
       ver: PAYLOAD_VERSION,
-      info: this.getMetadata(reason)
     };
 
+    let previousHistograms = null;
+    try {
+      if (havePreviousSession) {
+        previousHistograms = this.getHistograms(this._prevSession.snapshots);
+      }
+    } catch (e) {
+      // Some problem with getting information from our saved data.
+      // Act like we never knew about it.
+      havePreviousSession = false;
+      this._prevSession = null;
+    }
+
     if (havePreviousSession) {
-      payloadObj.histograms = this.getHistograms(this._prevSession.snapshots);
+      payloadObj.histograms = previousHistograms;
     }
     else {
       payloadObj.simpleMeasurements = getSimpleMeasurements();
@@ -461,6 +471,12 @@ TelemetryPing.prototype = {
       payloadObj.slowSQLStartup = this._slowSQLStartup;
     }
 
+    let slug = (isTestPing
+                ? reason
+                : (havePreviousSession
+                   ? this._prevSession.uuid
+                   : this._uuid));
+    payloadObj.info = this.getMetadata(havePreviousSession ? "saved-session" : reason);
     return { previous: !!havePreviousSession,
              slug: slug, payload: JSON.stringify(payloadObj) };
   },
@@ -623,12 +639,15 @@ TelemetryPing.prototype = {
       delete self._timer
     }
     this._timer.initWithCallback(timerCallback, TELEMETRY_DELAY, Ci.nsITimer.TYPE_ONE_SHOT);
+    this.loadHistograms(this.savedHistogramsFile(), false);
+  },
 
-    // Load data from the previous session.
+  loadHistograms: function loadHistograms(file, sync) {
+    let self = this;
     let loadCallback = function(data) {
       self._prevSession = data;
     }
-    Telemetry.loadHistograms(this.savedHistogramsFile(), loadCallback);
+    Telemetry.loadHistograms(file, loadCallback, sync);
   },
 
   /** 
@@ -702,6 +721,14 @@ TelemetryPing.prototype = {
       let data = this.getSessionPayloadAndSlug("gather-payload");
 
       aSubject.QueryInterface(Ci.nsISupportsString).data = data.payload;
+      break;
+    case "test-save-histograms":
+      Telemetry.saveHistograms(aSubject.QueryInterface(Ci.nsILocalFile),
+                               aData, function (success) success,
+                               /*isSynchronous=*/true);
+      break;
+    case "test-load-histograms":
+      this.loadHistograms(aSubject.QueryInterface(Ci.nsILocalFile), true);
       break;
     case "test-ping":
       server = aData;

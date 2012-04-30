@@ -501,7 +501,8 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
 
 nsresult
 nsFrameManager::RemoveFrame(ChildListID     aListID,
-                            nsIFrame*       aOldFrame)
+                            nsIFrame*       aOldFrame,
+                            bool            aInvalidate /* = true */)
 {
   bool wasDestroyingFrames = mIsDestroyingFrames;
   mIsDestroyingFrames = true;
@@ -512,7 +513,9 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->InvalidateFrameSubtree();
+  if (aInvalidate) {
+    aOldFrame->InvalidateFrameSubtree();
+  }
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -673,9 +676,8 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* child = childFrames.get();
-      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
-          || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
-        // only do frames that don't have placeholders
+      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+        // only do frames that are in flow
         if (nsGkAtoms::placeholderFrame == child->GetType()) { 
           // placeholder: first recurse and verify the out of flow frame,
           // then verify the placeholder's context
@@ -683,7 +685,9 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
             nsPlaceholderFrame::GetRealFrameForPlaceholder(child);
 
           // recurse to out of flow frame, letting the parent context get resolved
-          VerifyStyleTree(aPresContext, outOfFlowFrame, nsnull);
+          do {
+            VerifyStyleTree(aPresContext, outOfFlowFrame, nsnull);
+          } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
 
           // verify placeholder using the parent frame's context as
           // parent context
@@ -927,9 +931,8 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
           nsFrameList::Enumerator childFrames(lists.CurrentList());
           for (; !childFrames.AtEnd(); childFrames.Next()) {
             nsIFrame* child = childFrames.get();
-            // only do frames that don't have placeholders
-            if ((!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW) ||
-                 (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) &&
+            // only do frames that are in flow
+            if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
                 child != providerChild) {
 #ifdef DEBUG
               if (nsGkAtoms::placeholderFrame == child->GetType()) {
@@ -1556,9 +1559,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         nsFrameList::Enumerator childFrames(lists.CurrentList());
         for (; !childFrames.AtEnd(); childFrames.Next()) {
           nsIFrame* child = childFrames.get();
-          if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
-              || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
-            // only do frames that don't have placeholders
+          if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+            // only do frames that are in flow
             if (nsGkAtoms::placeholderFrame == child->GetType()) { // placeholder
               // get out of flow frame and recur there
               nsIFrame* outOfFlowFrame =

@@ -52,15 +52,14 @@ CPPSRCS = \
   AccEvent.cpp \
   AccGroupInfo.cpp \
   AccIterator.cpp \
+  ARIAStateMap.cpp \
   filters.cpp \
   FocusManager.cpp \
   NotificationController.cpp \
   nsAccDocManager.cpp \
   nsAccessNode.cpp \
-  nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
-  nsOuterDocAccessible.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
   nsAccessibilityService.cpp \
@@ -69,9 +68,7 @@ CPPSRCS = \
   nsAccTreeWalker.cpp \
   nsBaseWidgetAccessible.cpp \
   nsEventShell.cpp \
-  nsFormControlAccessible.cpp \
   nsRootAccessible.cpp \
-  nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
   nsTextEquivUtils.cpp \
@@ -86,7 +83,6 @@ EXPORTS = \
   nsAccessibilityService.h \
   nsAccessible.h \
   nsAccessNode.h \
-  nsARIAMap.h \
   $(NULL)
 
 EXPORTS_NAMESPACES = mozilla/a11y
@@ -104,13 +100,14 @@ include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
   -I$(srcdir) \
-  -I$(srcdir)/../xpcom \
+  -I$(srcdir)/../generic \
   -I$(srcdir)/../html \
+  -I$(srcdir)/../xpcom \
   -I$(srcdir)/../xul \
+  -I$(srcdir)/../xforms \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/style \
   -I$(srcdir)/../../../layout/xul/base/src \
-  -I$(srcdir)/../xforms \
   $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)

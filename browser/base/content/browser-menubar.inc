@@ -291,16 +291,16 @@
                 </menu>
                 <menu id="pageStyleMenu" label="&pageStyleMenu.label;"
                       accesskey="&pageStyleMenu.accesskey;" observes="isImage">
-                  <menupopup onpopupshowing="gPageStyleMenu.fillPopup(this);"
-                             oncommand="gPageStyleMenu.switchStyleSheet(event.target.getAttribute('data'));">
+                  <menupopup onpopupshowing="gPageStyleMenu.fillPopup(this);">
                     <menuitem id="menu_pageStyleNoStyle"
                               label="&pageStyleNoStyle.label;"
                               accesskey="&pageStyleNoStyle.accesskey;"
-                              oncommand="gPageStyleMenu.disableStyle(); event.stopPropagation();"
+                              oncommand="gPageStyleMenu.disableStyle();"
                               type="radio"/>
                     <menuitem id="menu_pageStylePersistentOnly"
                               label="&pageStylePersistentOnly.label;"
                               accesskey="&pageStylePersistentOnly.accesskey;"
+                              oncommand="gPageStyleMenu.switchStyleSheet('');"
                               type="radio"
                               checked="true"/>
                     <menuseparator/>
@@ -531,8 +531,15 @@
               <menu id="webDeveloperMenu"
                     label="&webDeveloperMenu.label;"
                     accesskey="&webDeveloperMenu.accesskey;">
-                <menupopup id="menuWebDeveloperPopup"
-                           onpopupshowing="onWebDeveloperMenuShowing();">
+                <menupopup id="menuWebDeveloperPopup">
+                  <menuitem id="menu_devToolbar"
+                            type="checkbox"
+                            autocheck="false"
+                            hidden="true"
+                            label="&devToolbarMenu.label;"
+                            accesskey="&devToolbarMenu.accesskey;"
+                            key="key_devToolbar"
+                            command="Tools:DevToolbar"/>
                   <menuitem id="webConsole"
                             type="checkbox"
                             label="&webConsoleCmd.label;"
@@ -548,9 +555,14 @@
                             command="Tools:Inspect"/>
                   <menuitem id="menu_debugger"
                             hidden="true"
+                            type="checkbox"
                             label="&debuggerMenu.label;"
                             key="key_debugger"
                             command="Tools:Debugger"/>
+                  <menuitem id="menu_remoteDebugger"
+                            hidden="true"
+                            label="&remoteDebuggerMenu.label;"
+                            command="Tools:RemoteDebugger"/>
                   <menuitem id="menu_scratchpad"
                             hidden="true"
                             label="&scratchpad.label;"

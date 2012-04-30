@@ -69,6 +69,7 @@
 #include "gfxRect.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
+#include "nsRenderingContext.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
@@ -103,6 +104,7 @@
 #include "nsDataHashtable.h"
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
+#include "nsFontInflationData.h"
 
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
@@ -132,6 +134,7 @@ typedef FrameMetrics::ViewID ViewID;
 
 static PRUint32 sFontSizeInflationEmPerLine;
 static PRUint32 sFontSizeInflationMinTwips;
+/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationLineThreshold;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
 
@@ -163,6 +166,20 @@ nsLayoutUtils::Are3DTransformsEnabled()
   }
 
   return s3DTransformsEnabled;
+}
+
+bool
+nsLayoutUtils::UseBackgroundNearestFiltering()
+{
+  static bool sUseBackgroundNearestFilteringEnabled;
+  static bool sUseBackgroundNearestFilteringPrefInitialised = false;
+
+  if (!sUseBackgroundNearestFilteringPrefInitialised) {
+    sUseBackgroundNearestFilteringPrefInitialised = true;
+    sUseBackgroundNearestFilteringEnabled = mozilla::Preferences::GetBool("gfx.filter.nearest.force-enabled", false);
+  }
+
+  return sUseBackgroundNearestFilteringEnabled;
 }
 
 void
@@ -958,76 +975,14 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
                   aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT &&
                   aEvent->eventStructType != NS_GESTURENOTIFY_EVENT &&
                   aEvent->eventStructType != NS_MOZTOUCH_EVENT &&
-#ifdef MOZ_TOUCH
                   aEvent->eventStructType != NS_TOUCH_EVENT &&
-#endif
                   aEvent->eventStructType != NS_QUERY_CONTENT_EVENT))
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 
   const nsGUIEvent* GUIEvent = static_cast<const nsGUIEvent*>(aEvent);
-#ifdef MOZ_TOUCH
   return GetEventCoordinatesRelativeTo(aEvent,
                                        GUIEvent->refPoint,
                                        aFrame);
-#else
-  if (!GUIEvent->widget)
-    return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-
-  nsIView* view = aFrame->GetView();
-  if (view) {
-    nsIWidget* widget = view->GetWidget();
-    if (widget && widget == GUIEvent->widget) {
-      // Special case this cause it happens a lot.
-      // This also fixes bug 664707, events in the extra-special case of select
-      // dropdown popups that are transformed.
-      nsPresContext* presContext = aFrame->PresContext();
-      nsPoint pt(presContext->DevPixelsToAppUnits(GUIEvent->refPoint.x),
-                 presContext->DevPixelsToAppUnits(GUIEvent->refPoint.y));
-      return pt - view->ViewToWidgetOffset();
-    }
-  }
-
-  /* If we walk up the frame tree and discover that any of the frames are
-   * transformed, we need to do extra work to convert from the global
-   * space to the local space.
-   */
-  nsIFrame* rootFrame = aFrame;
-  bool transformFound = false;
-
-  for (nsIFrame* f = aFrame; f; f = GetCrossDocParentFrame(f)) {
-    if (f->IsTransformed())
-      transformFound = true;
-    rootFrame = f;
-  }
-
-  nsIView* rootView = rootFrame->GetView();
-  if (!rootView)
-    return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-
-  nsPoint widgetToView = TranslateWidgetToView(rootFrame->PresContext(),
-                               GUIEvent->widget, GUIEvent->refPoint,
-                               rootView);
-
-  if (widgetToView == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE))
-    return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-
-  // Convert from root document app units to app units of the document aFrame
-  // is in.
-  PRInt32 rootAPD = rootFrame->PresContext()->AppUnitsPerDevPixel();
-  PRInt32 localAPD = aFrame->PresContext()->AppUnitsPerDevPixel();
-  widgetToView = widgetToView.ConvertAppUnits(rootAPD, localAPD);
-
-  /* If we encountered a transform, we can't do simple arithmetic to figure
-   * out how to convert back to aFrame's coordinates and must use the CTM.
-   */
-  if (transformFound)
-    return TransformRootPointToFrame(aFrame, widgetToView);
-
-  /* Otherwise, all coordinate systems are translations of one another,
-   * so we can just subtract out the different.
-   */
-  return widgetToView - aFrame->GetOffsetToCrossDoc(rootFrame);
-#endif
 }
 
 nsPoint
@@ -1451,6 +1406,7 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                 bool aShouldIgnoreSuppression,
                                 bool aIgnoreRootScrollFrame)
 {
+  SAMPLE_LABEL("nsLayoutUtils", "GetFrameForPoint");
   nsresult rv;
   nsAutoTArray<nsIFrame*,8> outFrames;
   rv = GetFramesForArea(aFrame, nsRect(aPt, nsSize(1, 1)), outFrames,
@@ -1465,6 +1421,7 @@ nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
                                 bool aShouldIgnoreSuppression,
                                 bool aIgnoreRootScrollFrame)
 {
+  SAMPLE_LABEL("nsLayoutUtils","GetFramesForArea");
   nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::EVENT_DELIVERY,
 		                       false);
   nsDisplayList list;
@@ -1605,6 +1562,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
+  SAMPLE_LABEL("nsLayoutUtils","PaintFrame");
   if (aFlags & PAINT_WIDGET_LAYERS) {
     nsIView* view = aFrame->GetView();
     if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
@@ -1668,10 +1626,6 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   if (aFlags & PAINT_IGNORE_SUPPRESSION) {
     builder.IgnorePaintSuppression();
   }
-  if (aRenderingContext &&
-      aRenderingContext->ThebesContext()->GetFlags() & gfxContext::FLAG_DISABLE_SNAPPING) {
-    builder.SetSnappingEnabled(false);
-  }
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
 
 #ifdef DEBUG
@@ -1715,9 +1669,10 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
   nsRect dirtyRect = visibleRegion.GetBounds();
   builder.EnterPresShell(aFrame, dirtyRect);
-
+  {
+  SAMPLE_LABEL("nsLayoutUtils","PaintFrame::BuildDisplayList");
   rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
-
+  }
   const bool paintAllContinuations = aFlags & PAINT_ALL_CONTINUATIONS;
   NS_ASSERTION(!paintAllContinuations || !aFrame->GetPrevContinuation(),
                "If painting all continuations, the frame must be "
@@ -1738,6 +1693,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     nsIFrame* page = aFrame;
     nscoord y = aFrame->GetSize().height;
     while ((page = GetNextPage(page)) != nsnull) {
+      SAMPLE_LABEL("nsLayoutUtils","PaintFrame::BuildDisplayListForExtraPage");
       rv = BuildDisplayListForExtraPage(&builder, page, y, &list);
       if (NS_FAILED(rv))
         break;
@@ -1749,6 +1705,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     nsIFrame* currentFrame = aFrame;
     while (NS_SUCCEEDED(rv) &&
            (currentFrame = currentFrame->GetNextContinuation()) != nsnull) {
+      SAMPLE_LABEL("nsLayoutUtils","PaintFrame::ContinuationsBuildDisplayList");
       nsRect frameDirty = dirtyRect - builder.ToReferenceFrame(currentFrame);
       rv = currentFrame->BuildDisplayListForStackingContext(&builder,
                                                             frameDirty, &list);
@@ -1801,7 +1758,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
 #ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
+  if (gfxUtils::sDumpPaintList || gfxUtils::sDumpPainting) {
     if (gfxUtils::sDumpPaintingToFile) {
       nsCString string("dump-");
       string.AppendInt(gPaintCount);
@@ -1865,7 +1822,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
 #ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
+  if (gfxUtils::sDumpPaintList || gfxUtils::sDumpPainting) {
     fprintf(gfxUtils::sDumpPaintFile, "</script>Painting --- after optimization:\n");
     nsFrame::PrintDisplayList(&builder, list, gfxUtils::sDumpPaintFile);
 
@@ -3617,6 +3574,9 @@ DrawImageInternal(nsRenderingContext* aRenderingContext,
                   const nsIntSize&     aImageSize,
                   PRUint32             aImageFlags)
 {
+  if (aDest.Contains(aFill)) {
+    aImageFlags |= imgIContainer::FLAG_CLAMP;
+  }
   PRInt32 appUnitsPerDevPixel = aRenderingContext->AppUnitsPerDevPixel();
   gfxContext* ctx = aRenderingContext->ThebesContext();
 
@@ -3794,6 +3754,11 @@ nsLayoutUtils::DrawBackgroundImage(nsRenderingContext* aRenderingContext,
                                    PRUint32            aImageFlags)
 {
   SAMPLE_LABEL("layout", "nsLayoutUtils::DrawBackgroundImage");
+
+  if (UseBackgroundNearestFiltering()) {
+    aGraphicsFilter = gfxPattern::FILTER_NEAREST;
+  }
+
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
                            aImageSize, aImageFlags);
@@ -4054,9 +4019,13 @@ nsLayoutUtils::GetRectDifferenceStrips(const nsRect& aR1, const nsRect& aR2,
 }
 
 nsDeviceContext*
-nsLayoutUtils::GetDeviceContextForScreenInfo(nsIDocShell* aDocShell)
+nsLayoutUtils::GetDeviceContextForScreenInfo(nsPIDOMWindow* aWindow)
 {
-  nsCOMPtr<nsIDocShell> docShell = aDocShell;
+  if (!aWindow) {
+    return nsnull;
+  }
+
+  nsCOMPtr<nsIDocShell> docShell = aWindow->GetDocShell();
   while (docShell) {
     // Now make sure our size is up to date.  That will mean that the device
     // context does the right thing on multi-monitor systems when we return it to
@@ -4111,8 +4080,9 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
   bool forceCopy = (aSurfaceFlags & SFE_WANT_NEW_SURFACE) != 0;
   bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
+  bool premultAlpha = (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) == 0;
 
-  if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) {
+  if (!premultAlpha) {
     forceCopy = true;
     wantImageSurface = true;
   }
@@ -4143,7 +4113,8 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
       nsRefPtr<gfxContext> ctx = new gfxContext(surf);
       // XXX shouldn't use the external interface, but maybe we can layerify this
-      rv = canvas->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST);
+      PRUint32 flags = premultAlpha ? nsHTMLCanvasElement::RenderFlagPremultAlpha : 0;
+      rv = canvas->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST, flags);
       if (NS_FAILED(rv))
         return result;
     }
@@ -4151,12 +4122,6 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
     // Ensure that any future changes to the canvas trigger proper invalidation,
     // in case this is being used by -moz-element()
     canvas->MarkContextClean();
-
-    if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) {
-      // we can modify this surface since we force a copy above when
-      // when NO_PREMULTIPLY_ALPHA is set
-      gfxUtils::UnpremultiplyImageSurface(static_cast<gfxImageSurface*>(surf.get()));
-    }
 
     result.mSurface = surf;
     result.mSize = size;
@@ -4517,6 +4482,8 @@ nsLayoutUtils::Initialize()
                                         "font.size.inflation.emPerLine");
   mozilla::Preferences::AddUintVarCache(&sFontSizeInflationMinTwips,
                                         "font.size.inflation.minTwips");
+  mozilla::Preferences::AddUintVarCache(&sFontSizeInflationLineThreshold,
+                                        "font.size.inflation.lineThreshold");
 }
 
 /* static */
@@ -4735,6 +4702,28 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
     return 1.0;
   }
 
+  // If between this current frame and its font inflation container there is a
+  // non-inline element with fixed width or height, then we should not inflate
+  // fonts for this frame.
+  for (const nsIFrame* f = aFrame;
+       f && !IsContainerForFontSizeInflation(f);
+       f = f->GetParent()) {
+    nsIContent* content = f->GetContent();
+    // Also, if there is more than one frame corresponding to a single
+    // content node, we want the outermost one.
+    if (!(f->GetParent() &&
+          f->GetParent()->GetContent() == content) &&
+        f->GetType() != nsGkAtoms::inlineFrame) {
+      nsStyleCoord stylePosWidth = f->GetStylePosition()->mWidth;
+      nsStyleCoord stylePosHeight = f->GetStylePosition()->mHeight;
+      if (stylePosWidth.GetUnit() != eStyleUnit_Auto ||
+          stylePosHeight.GetUnit() != eStyleUnit_Auto) {
+
+        return 1.0;
+      }
+    }
+  }
+
   // Scale everything from 0-1.5 times min to instead fit in the range
   // 1-1.5 times min, so that we still show some distinction rather than
   // just enforcing a minimum.
@@ -4750,6 +4739,14 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
   // is our input's multiple of min).  The scaling needed to produce
   // that is that divided by |ratio|, or:
   return (1.0f / ratio) + (1.0f / 3.0f);
+}
+
+static inline bool
+InflationDataSaysEnabled(const nsIFrame *aFrame)
+{
+  nsFontInflationData *data =
+    nsFontInflationData::FindFontInflationDataFor(aFrame);
+  return data && data->InflationEnabled();
 }
 
 static bool
@@ -4768,7 +4765,8 @@ ShouldInflateFontsForContainer(const nsIFrame *aFrame)
          !(aFrame->GetStateBits() & NS_FRAME_IN_CONSTRAINED_HEIGHT) &&
          // We also want to disable font inflation for containers that have
          // preformatted text.
-         styleText->WhiteSpaceCanWrap();
+         styleText->WhiteSpaceCanWrap() &&
+         InflationDataSaysEnabled(aFrame);
 }
 
 nscoord

@@ -37,6 +37,8 @@
 INTL_UNICHARUTIL_UTIL_LCPPSRCS = \
 	nsUnicharUtils.cpp \
 	nsBidiUtils.cpp \
+	nsSpecialCasingData.cpp \
+	nsUnicodeProperties.cpp \
 	$(NULL)
 
 INTL_UNICHARUTIL_UTIL_CPPSRCS = $(addprefix $(topsrcdir)/intl/unicharutil/util/, $(INTL_UNICHARUTIL_UTIL_LCPPSRCS))

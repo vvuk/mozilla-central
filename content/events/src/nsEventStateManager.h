@@ -228,6 +228,12 @@ public:
 
   static bool IsRemoteTarget(nsIContent* aTarget);
 
+  static nsIntPoint sLastScreenPoint;
+  static nsIntPoint sLastClientPoint;
+  static bool sIsPointerLocked;
+  static nsWeakPtr sPointerLockedElement;
+  static nsWeakPtr sPointerLockedDoc;
+
 protected:
   friend class MouseEnterLeaveDispatcher;
 
@@ -353,7 +359,8 @@ protected:
                         nsMouseScrollEvent* aMouseEvent,
                         nsIScrollableFrame::ScrollUnit aScrollQuantity,
                         bool aAllowScrollSpeedOverride,
-                        nsQueryContentEvent* aQueryEvent = nsnull);
+                        nsQueryContentEvent* aQueryEvent = nsnull,
+                        nsIAtom *aOrigin = nsnull);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
@@ -479,11 +486,16 @@ private:
 
   PRInt32     mLockCursor;
 
+  // Point when mouse was locked, used to reposition after unlocking.
+  nsIntPoint  mPreLockPoint;
+
   nsWeakFrame mCurrentTarget;
   nsCOMPtr<nsIContent> mCurrentTargetContent;
   nsWeakFrame mLastMouseOverFrame;
   nsCOMPtr<nsIContent> mLastMouseOverElement;
   static nsWeakFrame sLastDragOverFrame;
+  static nsIntPoint sLastRefPoint;
+  static nsIntPoint sLastScreenOffset;
 
   // member variables for the d&d gesture state machine
   nsIntPoint mGestureDownPoint; // screen coordinates
@@ -494,10 +506,8 @@ private:
   // an <area> of an image map this is the image. (bug 289667)
   nsCOMPtr<nsIContent> mGestureDownFrameOwner;
   // State of keys when the original gesture-down happened
-  bool mGestureDownShift;
-  bool mGestureDownControl;
-  bool mGestureDownAlt;
-  bool mGestureDownMeta;
+  mozilla::widget::Modifiers mGestureModifiers;
+  PRUint16 mGestureDownButtons;
 
   nsCOMPtr<nsIContent> mLastLeftMouseDownContent;
   nsCOMPtr<nsIContent> mLastLeftMouseDownContentParent;
@@ -555,6 +565,9 @@ public:
                               nsGUIEvent* inMouseDownEvent ) ;
   void KillClickHoldTimer ( ) ;
   void FireContextClick ( ) ;
+
+  void SetPointerLock(nsIWidget* aWidget, nsIContent* aElement) ;
+  nsIntPoint GetMouseCoords(nsIntRect aBounds);
   static void sClickHoldCallback ( nsITimer* aTimer, void* aESM ) ;
 };
 

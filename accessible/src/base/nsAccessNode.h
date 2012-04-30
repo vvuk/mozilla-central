@@ -53,8 +53,8 @@
 #include "nsIStringBundle.h"
 #include "nsWeakReference.h"
 
+class ApplicationAccessible;
 class nsAccessNode;
-class nsApplicationAccessible;
 class nsDocAccessible;
 class nsIAccessibleDocument;
 class nsRootAccessible;
@@ -83,7 +83,7 @@ public:
   /**
    * Return an application accessible.
    */
-  static nsApplicationAccessible* GetApplicationAccessible();
+  static ApplicationAccessible* GetApplicationAccessible();
 
   /**
    * Return the document accessible for this access node.
@@ -104,11 +104,6 @@ public:
    * Shutdown the access node object.
    */
   virtual void Shutdown();
-
-  /**
-   * Returns true when the accessible is defunct.
-   */
-  virtual bool IsDefunct() const;
 
   /**
    * Return frame for the given access node object.
@@ -157,32 +152,29 @@ public:
    * Interface methods on nsIAccessible shared with ISimpleDOM.
    */
   void Language(nsAString& aLocale);
-  void ScrollTo(PRUint32 aType);
 
 protected:
-    nsPresContext* GetPresContext();
-
-    void LastRelease();
+  void LastRelease();
 
   nsCOMPtr<nsIContent> mContent;
   nsDocAccessible* mDoc;
 
-    /**
-     * Notify global nsIObserver's that a11y is getting init'd or shutdown
-     */
-    static void NotifyA11yInitOrShutdown(bool aIsInit);
+  /**
+   * Notify global nsIObserver's that a11y is getting init'd or shutdown.
+   */
+  static void NotifyA11yInitOrShutdown(bool aIsInit);
 
-    // Static data, we do our own refcounting for our static data
-    static nsIStringBundle *gStringBundle;
+  // Static data, we do our own refcounting for our static data.
+  static nsIStringBundle* gStringBundle;
 
-    static bool gIsFormFillEnabled;
+  static bool gIsFormFillEnabled;
 
 private:
   nsAccessNode() MOZ_DELETE;
   nsAccessNode(const nsAccessNode&) MOZ_DELETE;
   nsAccessNode& operator =(const nsAccessNode&) MOZ_DELETE;
   
-  static nsApplicationAccessible *gApplicationAccessible;
+  static ApplicationAccessible* gApplicationAccessible;
 };
 
 #endif

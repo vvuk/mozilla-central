@@ -75,7 +75,7 @@ nsHttpResponseHead::SetContentLength(PRInt64 len)
     if (!LL_GE_ZERO(len)) // < 0
         mHeaders.ClearHeader(nsHttp::Content_Length);
     else
-        mHeaders.SetHeader(nsHttp::Content_Length, nsPrintfCString(20, "%lld", len));
+        mHeaders.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", len));
 }
 
 void
@@ -355,6 +355,7 @@ nsHttpResponseHead::MustValidate()
     case 302:
     case 304:
     case 307:
+    case 308:
         break;
         // Uncacheable redirects
     case 303:

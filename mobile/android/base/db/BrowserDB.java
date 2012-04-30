@@ -58,6 +58,8 @@ public class BrowserDB {
     private static BrowserDBIface sDb;
 
     public interface BrowserDBIface {
+        public void invalidateCachedState();
+
         public Cursor filter(ContentResolver cr, CharSequence constraint, int limit);
 
         public Cursor getTopSites(ContentResolver cr, int limit);
@@ -72,8 +74,6 @@ public class BrowserDB {
         public Cursor getAllVisitedHistory(ContentResolver cr);
 
         public Cursor getRecentHistory(ContentResolver cr, int limit);
-
-        public int getMaxHistoryCount();
 
         public void clearHistory(ContentResolver cr);
 
@@ -107,6 +107,10 @@ public class BrowserDB {
         sDb = new LocalBrowserDB(BrowserContract.DEFAULT_PROFILE);
     }
 
+    public static void invalidateCachedState() {
+        sDb.invalidateCachedState();
+    }
+
     public static Cursor filter(ContentResolver cr, CharSequence constraint, int limit) {
         return sDb.filter(cr, constraint, limit);
     }
@@ -134,10 +138,6 @@ public class BrowserDB {
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
         return sDb.getRecentHistory(cr, limit);
-    }
-
-    public static int getMaxHistoryCount() {
-        return sDb.getMaxHistoryCount();
     }
 
     public static void clearHistory(ContentResolver cr) {

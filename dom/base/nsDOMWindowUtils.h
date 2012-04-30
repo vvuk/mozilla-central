@@ -39,6 +39,7 @@
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"
+#include "nsEvent.h"
 
 class nsGlobalWindow;
 class nsIPresShell;
@@ -49,13 +50,11 @@ class nsDOMWindowUtils : public nsIDOMWindowUtils,
 public:
   nsDOMWindowUtils(nsGlobalWindow *aWindow);
   ~nsDOMWindowUtils();
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMWindowUtils,
-                                           nsIDOMWindowUtils)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMWINDOWUTILS
 
 protected:
-  nsRefPtr<nsGlobalWindow> mWindow;
+  nsWeakPtr mWindow;
 
   // If aOffset is non-null, it gets filled in with the offset of the root
   // frame of our window to the nearest widget in the app units of our window.
@@ -75,4 +74,6 @@ protected:
                                   PRInt32 aModifiers,
                                   bool aIgnoreRootScrollFrame,
                                   bool aToWindow);
+
+  static mozilla::widget::Modifiers GetWidgetModifiers(PRInt32 aModifiers);
 };

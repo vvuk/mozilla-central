@@ -53,12 +53,8 @@
 #include "nsIURL.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
-#include "nsIParser.h"
-#include "nsParserCIID.h"
-#include "nsNetUtil.h"
 #include "plstr.h"
 #include "nsIContent.h"
-#include "nsIDOMElement.h"
 #include "nsIDocument.h"
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
@@ -231,7 +227,7 @@ static const size_t kBucketSizes[] = {
 
 static const PRInt32 kNumBuckets = sizeof(kBucketSizes)/sizeof(size_t);
 static const PRInt32 kNumElements = 64;
-static const PRInt32 kInitialSize = (NS_SIZE_IN_HEAP(sizeof(nsXBLBindingRequest))) * kNumElements;
+static const PRInt32 kInitialSize = sizeof(nsXBLBindingRequest) * kNumElements;
 
 nsIXBLService* nsXBLBindingRequest::gXBLService = nsnull;
 int nsXBLBindingRequest::gRefCnt = 0;
@@ -404,7 +400,7 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
 
     if (!bindingDocument->GetRootElement()) {
       // FIXME: How about an error console warning?
-      NS_WARNING("*** XBL doc with no root element! Something went horribly wrong! ***");
+      NS_WARNING("XBL doc with no root element - this usually shouldn't happen");
       return NS_ERROR_FAILURE;
     }
 
@@ -1110,11 +1106,7 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
     }
   }
 
-  if (!info)
-    return NS_OK;
- 
-  *aResult = info;
-  NS_IF_ADDREF(*aResult);
+  info.forget(aResult);
 
   return NS_OK;
 }

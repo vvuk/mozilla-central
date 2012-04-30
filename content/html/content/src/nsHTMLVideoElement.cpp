@@ -52,7 +52,6 @@
 #include "plbase64.h"
 #include "nsNetUtil.h"
 #include "prmem.h"
-#include "nsNetUtil.h"
 #include "nsXPCOMStrings.h"
 #include "prlock.h"
 #include "nsThreadUtils.h"
@@ -218,5 +217,13 @@ NS_IMETHODIMP nsHTMLVideoElement::GetMozFrameDelay(double *aMozFrameDelay) {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   VideoFrameContainer* container = GetVideoFrameContainer();
   *aMozFrameDelay = container ?  container->GetFrameDelay() : 0;
+  return NS_OK;
+}
+
+
+/* readonly attribute bool mozHasAudio */
+NS_IMETHODIMP nsHTMLVideoElement::GetMozHasAudio(bool *aHasAudio) {
+  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+  *aHasAudio = mHasAudio;
   return NS_OK;
 }

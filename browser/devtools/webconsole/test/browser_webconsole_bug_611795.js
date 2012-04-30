@@ -2,7 +2,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const TEST_URI = 'data:text/html,<div style="-moz-opacity:0;">test repeated' +
+const TEST_URI = 'data:text/html;charset=utf-8,<div style="-moz-opacity:0;">test repeated' +
                  ' css warnings</div><p style="-moz-opacity:0">hi</p>';
 
 function onContentLoaded()
@@ -32,17 +32,12 @@ function onContentLoaded()
   finishTest();
 }
 
-registerCleanupFunction(function() {
-  Services.prefs.clearUserPref("devtools.gcli.enable");
-});
-
 /**
  * Unit test for bug 611795:
  * Repeated CSS messages get collapsed into one.
  */
 function test()
 {
-  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab(TEST_URI);
   browser.addEventListener("load", function() {
     browser.removeEventListener("load", arguments.callee, true);

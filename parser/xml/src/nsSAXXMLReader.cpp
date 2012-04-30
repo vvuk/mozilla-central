@@ -40,6 +40,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsCharsetAlias.h"
+#include "nsIParser.h"
 #include "nsParserCIID.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
@@ -47,6 +48,7 @@
 #include "nsSAXAttributes.h"
 #include "nsSAXLocator.h"
 #include "nsSAXXMLReader.h"
+#include "nsCharsetSource.h"
 
 #define XMLNS_URI "http://www.w3.org/2000/xmlns/"
 
@@ -648,9 +650,11 @@ nsSAXXMLReader::TryChannelCharset(nsIChannel *aChannel,
     nsCAutoString charsetVal;
     nsresult rv = aChannel->GetContentCharset(charsetVal);
     if (NS_SUCCEEDED(rv)) {
-      if (NS_FAILED(nsCharsetAlias::GetPreferred(charsetVal, aCharset)))
+      nsCAutoString preferred;
+      if (NS_FAILED(nsCharsetAlias::GetPreferred(charsetVal, preferred)))
         return false;
 
+      aCharset = preferred;
       aCharsetSource = kCharsetFromChannel;
       return true;
     }

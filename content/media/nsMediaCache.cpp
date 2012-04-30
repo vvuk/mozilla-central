@@ -45,12 +45,13 @@
 #include "nsXULAppAPI.h"
 #include "nsNetUtil.h"
 #include "prio.h"
+#include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "MediaResource.h"
 #include "nsMathUtils.h"
 #include "prlog.h"
-#include "nsIPrivateBrowsingService.h"
 #include "mozilla/Preferences.h"
+#include "FileBlockCache.h"
 
 using namespace mozilla;
 
@@ -122,7 +123,7 @@ void nsMediaCacheFlusher::Init()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
-    observerService->AddObserver(gMediaCacheFlusher, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
+    observerService->AddObserver(gMediaCacheFlusher, "last-pb-context-exited", true);
   }
 }
 
@@ -136,7 +137,7 @@ public:
 
   nsMediaCache() : mNextResourceID(1),
     mReentrantMonitor("nsMediaCache.mReentrantMonitor"),
-    mFD(nsnull), mFDCurrentPos(0), mUpdateQueued(false)
+    mUpdateQueued(false)
 #ifdef DEBUG
     , mInUpdate(false)
 #endif
@@ -147,8 +148,9 @@ public:
     NS_ASSERTION(mStreams.IsEmpty(), "Stream(s) still open!");
     Truncate();
     NS_ASSERTION(mIndex.Length() == 0, "Blocks leaked?");
-    if (mFD) {
-      PR_Close(mFD);
+    if (mFileCache) {
+      mFileCache->Close();
+      mFileCache = nsnull;
     }
     MOZ_COUNT_DTOR(nsMediaCache);
   }
@@ -175,8 +177,12 @@ public:
                          PRInt32* aBytes);
   // This will fail if all aLength bytes are not read
   nsresult ReadCacheFileAllBytes(PRInt64 aOffset, void* aData, PRInt32 aLength);
-  // This will fail if all aLength bytes are not written
-  nsresult WriteCacheFile(PRInt64 aOffset, const void* aData, PRInt32 aLength);
+
+  PRInt64 AllocateResourceID()
+  {
+    mReentrantMonitor.AssertCurrentThreadIn();
+    return mNextResourceID++;
+  }
 
   // mReentrantMonitor must be held, called on main thread.
   // These methods are used by the stream to set up and tear down streams,
@@ -233,6 +239,7 @@ public:
   /**
    * An iterator that makes it easy to iterate through all streams that
    * have a given resource ID and are not closed.
+   * Can be used on the main thread or while holding the media cache lock.
    */
   class ResourceStreamIterator {
   public:
@@ -345,20 +352,18 @@ protected:
   // This member is main-thread only. It's used to allocate unique
   // resource IDs to streams.
   PRInt64                       mNextResourceID;
-  // This member is main-thread only. It contains all the streams.
-  nsTArray<nsMediaCacheStream*> mStreams;
 
   // The monitor protects all the data members here. Also, off-main-thread
   // readers that need to block will Wait() on this monitor. When new
   // data becomes available in the cache, we NotifyAll() on this monitor.
   ReentrantMonitor         mReentrantMonitor;
+  // This is only written while on the main thread and the monitor is held.
+  // Thus, it can be safely read from the main thread or while holding the monitor.
+  nsTArray<nsMediaCacheStream*> mStreams;
   // The Blocks describing the cache entries.
   nsTArray<Block> mIndex;
-  // The file descriptor of the cache file. The file will be deleted
-  // by the operating system when this is closed.
-  PRFileDesc*     mFD;
-  // The current file offset in the cache file.
-  PRInt64         mFDCurrentPos;
+  // Writer which performs IO, asynchronously writing cache blocks.
+  nsRefPtr<FileBlockCache> mFileCache;
   // The list of free blocks; they are not ordered.
   BlockList       mFreeBlocks;
   // True if an event to run Update() has been queued but not processed
@@ -371,8 +376,7 @@ protected:
 NS_IMETHODIMP
 nsMediaCacheFlusher::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
 {
-  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0 &&
-      NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
+  if (strcmp(aTopic, "last-pb-context-exited") == 0) {
     nsMediaCache::Flush();
   }
   return NS_OK;
@@ -544,7 +548,7 @@ nsresult
 nsMediaCache::Init()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
-  NS_ASSERTION(!mFD, "Cache file already open?");
+  NS_ASSERTION(!mFileCache, "Cache file already open?");
 
   // In single process Gecko, store the media cache in the profile directory
   // so that multiple users can use separate media caches concurrently.
@@ -587,8 +591,13 @@ nsMediaCache::Init()
   rv = tmpFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0700);
   NS_ENSURE_SUCCESS(rv,rv);
 
+  PRFileDesc* fileDesc = nsnull;
   rv = tmpFile->OpenNSPRFileDesc(PR_RDWR | nsILocalFile::DELETE_ON_CLOSE,
-                                 PR_IRWXU, &mFD);
+                                 PR_IRWXU, &fileDesc);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  mFileCache = new FileBlockCache();
+  rv = mFileCache->Open(fileDesc);
   NS_ENSURE_SUCCESS(rv,rv);
 
 #ifdef PR_LOGGING
@@ -625,9 +634,9 @@ nsMediaCache::FlushInternal()
   // Truncate file, close it, and reopen
   Truncate();
   NS_ASSERTION(mIndex.Length() == 0, "Blocks leaked?");
-  if (mFD) {
-    PR_Close(mFD);
-    mFD = nsnull;
+  if (mFileCache) {
+    mFileCache->Close();
+    mFileCache = nsnull;
   }
   Init();
 }
@@ -673,21 +682,10 @@ nsMediaCache::ReadCacheFile(PRInt64 aOffset, void* aData, PRInt32 aLength,
 {
   mReentrantMonitor.AssertCurrentThreadIn();
 
-  if (!mFD)
+  if (!mFileCache)
     return NS_ERROR_FAILURE;
 
-  if (mFDCurrentPos != aOffset) {
-    PROffset64 offset = PR_Seek64(mFD, aOffset, PR_SEEK_SET);
-    if (offset != aOffset)
-      return NS_ERROR_FAILURE;
-    mFDCurrentPos = aOffset;
-  }
-  PRInt32 amount = PR_Read(mFD, aData, aLength);
-  if (amount <= 0)
-    return NS_ERROR_FAILURE;
-  mFDCurrentPos += amount;
-  *aBytes = amount;
-  return NS_OK;
+  return mFileCache->Read(aOffset, reinterpret_cast<PRUint8*>(aData), aLength, aBytes);
 }
 
 nsresult
@@ -710,35 +708,6 @@ nsMediaCache::ReadCacheFileAllBytes(PRInt64 aOffset, void* aData, PRInt32 aLengt
     data += bytes;
     offset += bytes;
   }
-  return NS_OK;
-}
-
-nsresult
-nsMediaCache::WriteCacheFile(PRInt64 aOffset, const void* aData, PRInt32 aLength)
-{
-  mReentrantMonitor.AssertCurrentThreadIn();
-
-  if (!mFD)
-    return NS_ERROR_FAILURE;
-
-  if (mFDCurrentPos != aOffset) {
-    PROffset64 offset = PR_Seek64(mFD, aOffset, PR_SEEK_SET);
-    if (offset != aOffset)
-      return NS_ERROR_FAILURE;
-    mFDCurrentPos = aOffset;
-  }
-
-  const char* data = static_cast<const char*>(aData);
-  PRInt32 length = aLength;
-  while (length > 0) {
-    PRInt32 amount = PR_Write(mFD, data, length);
-    if (amount <= 0)
-      return NS_ERROR_FAILURE;
-    mFDCurrentPos += amount;
-    length -= amount;
-    data += amount;
-  }
-
   return NS_OK;
 }
 
@@ -1158,27 +1127,18 @@ nsMediaCache::Update()
           PredictNextUse(now, destinationBlockIndex) > latestPredictedUseForOverflow) {
         // Reuse blocks in the main part of the cache that are less useful than
         // the least useful overflow blocks
-        char buf[BLOCK_SIZE];
-        nsresult rv = ReadCacheFileAllBytes(blockIndex*BLOCK_SIZE, buf, sizeof(buf));
+
+        nsresult rv = mFileCache->MoveBlock(blockIndex, destinationBlockIndex);
+
         if (NS_SUCCEEDED(rv)) {
-          rv = WriteCacheFile(destinationBlockIndex*BLOCK_SIZE, buf, BLOCK_SIZE);
-          if (NS_SUCCEEDED(rv)) {
-            // We successfully copied the file data.
-            LOG(PR_LOG_DEBUG, ("Swapping blocks %d and %d (trimming cache)",
-                blockIndex, destinationBlockIndex));
-            // Swapping the block metadata here lets us maintain the
-            // correct positions in the linked lists
-            SwapBlocks(blockIndex, destinationBlockIndex);
-          } else {
-            // If the write fails we may have corrupted the destination
-            // block. Free it now.
-            LOG(PR_LOG_DEBUG, ("Released block %d (trimming cache)",
-                destinationBlockIndex));
-            FreeBlock(destinationBlockIndex);
-          }
-          // Free the overflowing block even if the copy failed.
-          LOG(PR_LOG_DEBUG, ("Released block %d (trimming cache)",
-              blockIndex));
+          // We successfully copied the file data.
+          LOG(PR_LOG_DEBUG, ("Swapping blocks %d and %d (trimming cache)",
+              blockIndex, destinationBlockIndex));
+          // Swapping the block metadata here lets us maintain the
+          // correct positions in the linked lists
+          SwapBlocks(blockIndex, destinationBlockIndex);
+          //Free the overflowing block even if the copy failed.
+          LOG(PR_LOG_DEBUG, ("Released block %d (trimming cache)", blockIndex));
           FreeBlock(blockIndex);
         }
       } else {
@@ -1557,7 +1517,7 @@ nsMediaCache::AllocateAndWriteBlock(nsMediaCacheStream* aStream, const void* aDa
       }
     }
 
-    nsresult rv = WriteCacheFile(blockIndex*BLOCK_SIZE, aData, BLOCK_SIZE);
+    nsresult rv = mFileCache->WriteBlock(blockIndex, reinterpret_cast<const PRUint8*>(aData));
     if (NS_FAILED(rv)) {
       LOG(PR_LOG_DEBUG, ("Released block %d from stream %p block %d(%lld)",
           blockIndex, aStream, streamBlockIndex, (long long)streamBlockIndex*BLOCK_SIZE));
@@ -1578,7 +1538,7 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
-  aStream->mResourceID = mNextResourceID++;
+  aStream->mResourceID = AllocateResourceID();
 
   // Queue an update since a new stream has been opened.
   gMediaCache->QueueUpdate();
@@ -1745,38 +1705,10 @@ nsMediaCacheStream::NotifyDataStarted(PRInt64 aOffset)
   }
 }
 
-void
+bool
 nsMediaCacheStream::UpdatePrincipal(nsIPrincipal* aPrincipal)
 {
-  if (!mPrincipal) {
-    NS_ASSERTION(!mUsingNullPrincipal, "Are we using a null principal or not?");
-    if (mUsingNullPrincipal) {
-      // Don't let mPrincipal be set to anything
-      return;
-    }
-    mPrincipal = aPrincipal;
-    return;
-  }
-
-  if (mPrincipal == aPrincipal) {
-    // Common case
-    NS_ASSERTION(!mUsingNullPrincipal, "We can't receive data from a null principal");
-    return;
-  }
-  if (mUsingNullPrincipal) {
-    // We've already fallen back to a null principal, so nothing more
-    // to do.
-    return;
-  }
-
-  bool equal;
-  nsresult rv = mPrincipal->Equals(aPrincipal, &equal);
-  if (NS_SUCCEEDED(rv) && equal)
-    return;
-
-  // Principals are not equal, so set mPrincipal to a null principal.
-  mPrincipal = do_CreateInstance("@mozilla.org/nullprincipal;1");
-  mUsingNullPrincipal = true;
+  return nsContentUtils::CombineResourcePrincipals(&mPrincipal, aPrincipal);
 }
 
 void
@@ -1784,6 +1716,20 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
     nsIPrincipal* aPrincipal)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
+
+  // Update principals before putting the data in the cache. This is important,
+  // we want to make sure all principals are updated before any consumer
+  // can see the new data.
+  // We do this without holding the cache monitor, in case the client wants
+  // to do something that takes a lock.
+  {
+    nsMediaCache::ResourceStreamIterator iter(mResourceID);
+    while (nsMediaCacheStream* stream = iter.Next()) {
+      if (stream->UpdatePrincipal(aPrincipal)) {
+        stream->mClient->CacheClientNotifyPrincipalChanged();
+      }
+    }
+  }
 
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
   PRInt64 size = aSize;
@@ -1839,7 +1785,6 @@ nsMediaCacheStream::NotifyDataReceived(PRInt64 aSize, const char* aData,
       // The stream is at least as long as what we've read
       stream->mStreamLength = NS_MAX(stream->mStreamLength, mChannelOffset);
     }
-    stream->UpdatePrincipal(aPrincipal);
     stream->mClient->CacheClientNotifyDataReceived();
   }
 
@@ -1855,6 +1800,13 @@ nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
+
+  if (NS_FAILED(aStatus)) {
+    // Disconnect from other streams sharing our resource, since they
+    // should continue trying to load. Our load might have been deliberately
+    // canceled and that shouldn't affect other streams.
+    mResourceID = gMediaCache->AllocateResourceID();
+  }
 
   PRInt32 blockOffset = PRInt32(mChannelOffset%BLOCK_SIZE);
   if (blockOffset > 0) {
@@ -1882,6 +1834,7 @@ nsMediaCacheStream::NotifyDataEnded(nsresult aStatus)
   }
 
   mChannelEnded = true;
+  gMediaCache->QueueUpdate();
 }
 
 nsMediaCacheStream::~nsMediaCacheStream()
@@ -2334,6 +2287,9 @@ nsMediaCacheStream::Init()
 nsresult
 nsMediaCacheStream::InitAsClone(nsMediaCacheStream* aOriginal)
 {
+  if (!aOriginal->IsAvailableForSharing())
+    return NS_ERROR_FAILURE;
+
   if (mInitialized)
     return NS_OK;
 

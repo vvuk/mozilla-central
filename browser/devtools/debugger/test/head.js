@@ -50,8 +50,8 @@ function removeTab(aTab) {
 }
 
 function closeDebuggerAndFinish(aTab) {
-  DebuggerUI.aWindow.addEventListener("Debugger:Shutdown", function cleanup() {
-    DebuggerUI.aWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
+  DebuggerUI.chromeWindow.addEventListener("Debugger:Shutdown", function cleanup() {
+    DebuggerUI.chromeWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
     finish();
   }, false);
   DebuggerUI.getDebugger(aTab).close();
@@ -92,16 +92,30 @@ function debug_tab_pane(aURL, aOnDebugging)
 {
   let tab = addTab(aURL, function() {
     gBrowser.selectedTab = gTab;
-
     let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
 
     let pane = DebuggerUI.toggleDebugger();
-    pane.onConnected = function() {
+    pane._frame.addEventListener("Debugger:Connecting", function dbgConnected() {
+      pane._frame.removeEventListener("Debugger:Connecting", dbgConnected, true);
+
       // Wait for the initial resume...
       pane.debuggerWindow.gClient.addOneTimeListener("resumed", function() {
-        delete pane.onConnected;
         aOnDebugging(tab, debuggee, pane);
       });
-    };
+    }, true);
+  });
+}
+
+function remote_debug_tab_pane(aURL, aOnClosing, aOnDebugging)
+{
+  let tab = addTab(aURL, function() {
+    gBrowser.selectedTab = gTab;
+    let debuggee = tab.linkedBrowser.contentWindow.wrappedJSObject;
+
+    DebuggerUI.toggleRemoteDebugger(aOnClosing, function dbgRan(process) {
+
+      // Wait for the remote debugging process to start...
+      aOnDebugging(tab, debuggee, process);
+    });
   });
 }

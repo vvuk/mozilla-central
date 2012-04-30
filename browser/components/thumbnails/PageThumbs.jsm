@@ -13,22 +13,6 @@ const Ci = Components.interfaces;
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 /**
- * The default width for page thumbnails.
- *
- * Hint: This is the default value because the 'New Tab Page' is the only
- *       client for now.
- */
-const THUMBNAIL_WIDTH = 400;
-
-/**
- * The default height for page thumbnails.
- *
- * Hint: This is the default value because the 'New Tab Page' is the only
- *       client for now.
- */
-const THUMBNAIL_HEIGHT = 225;
-
-/**
  * The default background color for page thumbnails.
  */
 const THUMBNAIL_BG_COLOR = "#fff";
@@ -46,6 +30,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
  * accessing them if already cached.
  */
 let PageThumbs = {
+
+  /**
+   * The calculated width and height of the thumbnails.
+   */
+  _thumbnailWidth : 0,
+  _thumbnailHeight : 0,
+
   /**
    * The scheme to use for thumbnail urls.
    */
@@ -109,6 +100,10 @@ let PageThumbs = {
    * @param aCallback The function to be called when finished (optional).
    */
   captureAndStore: function PageThumbs_captureAndStore(aBrowser, aCallback) {
+    let url = aBrowser.currentURI.spec;
+    let channel = aBrowser.docShell.currentDocumentChannel;
+    let originalURL = channel.originalURI.spec;
+
     this.capture(aBrowser.contentWindow, function (aInputStream) {
       let telemetryStoreTime = new Date();
 
@@ -116,6 +111,20 @@ let PageThumbs = {
         if (aSuccessful) {
           Services.telemetry.getHistogramById("FX_THUMBNAILS_STORE_TIME_MS")
             .add(new Date() - telemetryStoreTime);
+
+          // We've been redirected. Create a copy of the current thumbnail for
+          // the redirect source. We need to do this because:
+          //
+          // 1) Users can drag any kind of links onto the newtab page. If those
+          //    links redirect to a different URL then we want to be able to
+          //    provide thumbnails for both of them.
+          //
+          // 2) The newtab page should actually display redirect targets, only.
+          //    Because of bug 559175 this information can get lost when using
+          //    Sync and therefore also redirect sources appear on the newtab
+          //    page. We also want thumbnails for those.
+          if (url != originalURL)
+            PageThumbsCache._copy(url, originalURL);
         }
 
         if (aCallback)
@@ -123,7 +132,7 @@ let PageThumbs = {
       }
 
       // Get a writeable cache entry.
-      PageThumbsCache.getWriteEntry(aBrowser.currentURI.spec, function (aEntry) {
+      PageThumbsCache.getWriteEntry(url, function (aEntry) {
         if (!aEntry) {
           finish(false);
           return;
@@ -153,15 +162,16 @@ let PageThumbs = {
     let sw = aWindow.innerWidth;
     let sh = aWindow.innerHeight;
 
-    let scale = Math.max(THUMBNAIL_WIDTH / sw, THUMBNAIL_HEIGHT / sh);
+    let [thumbnailWidth, thumbnailHeight] = this._getThumbnailSize();
+    let scale = Math.max(thumbnailWidth / sw, thumbnailHeight / sh);
     let scaledWidth = sw * scale;
     let scaledHeight = sh * scale;
 
-    if (scaledHeight > THUMBNAIL_HEIGHT)
-      sh -= Math.floor(Math.abs(scaledHeight - THUMBNAIL_HEIGHT) * scale);
+    if (scaledHeight > thumbnailHeight)
+      sh -= Math.floor(Math.abs(scaledHeight - thumbnailHeight) * scale);
 
-    if (scaledWidth > THUMBNAIL_WIDTH)
-      sw -= Math.floor(Math.abs(scaledWidth - THUMBNAIL_WIDTH) * scale);
+    if (scaledWidth > thumbnailWidth)
+      sw -= Math.floor(Math.abs(scaledWidth - thumbnailWidth) * scale);
 
     return [sw, sh, scale];
   },
@@ -175,9 +185,26 @@ let PageThumbs = {
     let canvas = doc.createElementNS(HTML_NAMESPACE, "canvas");
     canvas.mozOpaque = true;
     canvas.mozImageSmoothingEnabled = true;
-    canvas.width = THUMBNAIL_WIDTH;
-    canvas.height = THUMBNAIL_HEIGHT;
+    let [thumbnailWidth, thumbnailHeight] = this._getThumbnailSize();
+    canvas.width = thumbnailWidth;
+    canvas.height = thumbnailHeight;
     return canvas;
+  },
+
+  /**
+   * Calculates the thumbnail size based on current desktop's dimensions.
+   * @return The calculated thumbnail size or a default if unable to calculate.
+   */
+  _getThumbnailSize: function PageThumbs_getThumbnailSize() {
+    if (!this._thumbnailWidth || !this._thumbnailHeight) {
+      let screenManager = Cc["@mozilla.org/gfx/screenmanager;1"]
+                            .getService(Ci.nsIScreenManager);
+      let left = {}, top = {}, width = {}, height = {};
+      screenManager.primaryScreen.GetRect(left, top, width, height);
+      this._thumbnailWidth = Math.round(width.value / 3);
+      this._thumbnailHeight = Math.round(height.value / 3);
+    }
+    return [this._thumbnailWidth, this._thumbnailHeight];
   }
 };
 
@@ -203,6 +230,54 @@ let PageThumbsCache = {
   getWriteEntry: function Cache_getWriteEntry(aKey, aCallback) {
     // Try to open the desired cache entry.
     this._openCacheEntry(aKey, Ci.nsICache.ACCESS_WRITE, aCallback);
+  },
+
+  /**
+   * Copies an existing cache entry's data to a new cache entry.
+   * @param aSourceKey The key that contains the data to copy.
+   * @param aTargetKey The key that will be the copy of aSourceKey's data.
+   */
+  _copy: function Cache_copy(aSourceKey, aTargetKey) {
+    let sourceEntry, targetEntry, waitingCount = 2;
+
+    function finish() {
+      if (sourceEntry)
+        sourceEntry.close();
+
+      if (targetEntry)
+        targetEntry.close();
+    }
+
+    function copyDataWhenReady() {
+      if (--waitingCount > 0)
+        return;
+
+      if (!sourceEntry || !targetEntry) {
+        finish();
+        return;
+      }
+
+      let inputStream = sourceEntry.openInputStream(0);
+      let outputStream = targetEntry.openOutputStream(0);
+
+      // Copy the image data to a new entry.
+      NetUtil.asyncCopy(inputStream, outputStream, function (aResult) {
+        if (Components.isSuccessCode(aResult))
+          targetEntry.markValid();
+
+        finish();
+      });
+    }
+
+    this.getReadEntry(aSourceKey, function (aSourceEntry) {
+      sourceEntry = aSourceEntry;
+      copyDataWhenReady();
+    });
+
+    this.getWriteEntry(aTargetKey, function (aTargetEntry) {
+      targetEntry = aTargetEntry;
+      copyDataWhenReady();
+    });
   },
 
   /**

@@ -37,6 +37,7 @@ let DOMContactManager = {
     var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
     idbManager.initWindowless(myGlobal);
     this._db = new ContactDB(myGlobal);
+    this._db.init(myGlobal);
 
     Services.obs.addObserver(this, "profile-before-change", false);
 
@@ -61,9 +62,20 @@ let DOMContactManager = {
     this._messages = null;
     if (this._db)
       this._db.close();
+    this._db = null;
   },
 
   receiveMessage: function(aMessage) {
+    function sortfunction(a, b){
+      let x, y;
+      if (a.properties[msg.findOptions.sortBy])
+        x = a.properties[msg.findOptions.sortBy][0].toLowerCase();
+      if (b.properties[msg.findOptions.sortBy])
+        y = b.properties[msg.findOptions.sortBy][0].toLowerCase();
+      if (msg.findOptions == 'ascending')
+        return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+      return ((x < y) ? 1 : ((x > y) ? -1 : 0));
+    }
     debug("Fallback DOMContactManager::receiveMessage " + aMessage.name);
     let msg = aMessage.json;
     switch (aMessage.name) {
@@ -73,6 +85,13 @@ let DOMContactManager = {
           function(contacts) {
             for (let i in contacts)
               result.push(contacts[i]);
+            if (msg.findOptions.sortOrder !== 'undefined' && msg.findOptions.sortBy !== 'undefined') {
+              debug('sortBy: ' + msg.findOptions.sortBy + ', sortOrder: ' + msg.findOptions.sortOrder );
+              result.sort(sortfunction);
+              if (msg.findOptions.filterLimit)
+                result = result.slice(0, msg.findOptions.filterLimit);
+            }
+
             debug("result:" + JSON.stringify(result));
             ppmm.sendAsyncMessage("Contacts:Find:Return:OK", {requestID: msg.requestID, contacts: result});
           }.bind(this),

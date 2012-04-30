@@ -49,8 +49,6 @@
 #include "nsIFilePicker.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
 #include "nsAutoPtr.h"
@@ -96,7 +94,6 @@
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
-#include "nsDeviceMotion.h"
 #include "mozilla/Util.h"
 
 #include "nsIMemoryReporter.h"
@@ -114,6 +111,7 @@
 #include "nsWidgetsCID.h"
 #include "nsISupportsPrimitives.h"
 #include "mozilla/dom/sms/SmsParent.h"
+#include "nsDebugImpl.h"
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
@@ -165,6 +163,7 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
 }
 
 nsTArray<ContentParent*>* ContentParent::gContentParents;
+nsTArray<ContentParent*>* ContentParent::gPrivateContent;
 
 // The first content child has ID 1, so the chrome process can have ID 0.
 static PRUint64 gContentChildID = 1;
@@ -213,14 +212,12 @@ ContentParent::Init()
         obs->AddObserver(this, "memory-pressure", false);
         obs->AddObserver(this, "child-gc-request", false);
         obs->AddObserver(this, "child-cc-request", false);
+        obs->AddObserver(this, "last-pb-context-exited", false);
 #ifdef ACCESSIBILITY
         obs->AddObserver(this, "a11y-init-or-shutdown", false);
 #endif
     }
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
-    if (prefs) {
-        prefs->AddObserver("", this, false);
-    }
+    Preferences::AddStrongObserver(this, "");
     nsCOMPtr<nsIThreadInternal>
             threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt) {
@@ -250,13 +247,8 @@ ContentParent::OnChannelConnected(int32 pid)
         SetOtherProcess(handle);
 
 #if defined(ANDROID) || defined(LINUX)
-        EnsurePrefService();
-        nsCOMPtr<nsIPrefBranch> branch;
-        branch = do_QueryInterface(mPrefService);
-
         // Check nice preference
-        PRInt32 nice = 0;
-        branch->GetIntPref("dom.ipc.content.nice", &nice);
+        PRInt32 nice = Preferences::GetInt("dom.ipc.content.nice", 0);
 
         // Environment variable overrides preference
         char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
@@ -318,6 +310,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         obs->RemoveObserver(static_cast<nsIObserver*>(this), NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC);
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-gc-request");
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-cc-request");
+        obs->RemoveObserver(static_cast<nsIObserver*>(this), "last-pb-context-exited");
 #ifdef ACCESSIBILITY
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "a11y-init-or-shutdown");
 #endif
@@ -330,14 +323,9 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     SetChildMemoryReporters(empty);
 
     // remove the global remote preferences observers
-    nsCOMPtr<nsIPrefBranch> prefs 
-            (do_GetService(NS_PREFSERVICE_CONTRACTID));
-    if (prefs) { 
-        prefs->RemoveObserver("", this);
-    }
+    Preferences::RemoveObserver(this, "");
 
     RecvRemoveGeolocationListener();
-    RecvRemoveDeviceMotionListener();
 
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -351,6 +339,14 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         if (!gContentParents->Length()) {
             delete gContentParents;
             gContentParents = NULL;
+        }
+    }
+
+    if (gPrivateContent) {
+        gPrivateContent->RemoveElement(this);
+        if (!gPrivateContent->Length()) {
+            delete gPrivateContent;
+            gPrivateContent = NULL;
         }
     }
 
@@ -426,6 +422,10 @@ ContentParent::ContentParent()
     , mIsAlive(true)
     , mSendPermissionUpdates(false)
 {
+    // From this point on, NS_WARNING, NS_ASSERTION, etc. should print out the
+    // PID along with the warning.
+    nsDebugImpl::SetMultiprocessMode("Parent");
+
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
     mSubprocess->AsyncLaunch();
@@ -466,7 +466,6 @@ ContentParent::IsAlive()
 bool
 ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
 {
-    EnsurePrefService();
     Preferences::MirrorPreferences(prefs);
     return true;
 }
@@ -478,18 +477,6 @@ ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
     gfxAndroidPlatform::GetPlatform()->GetFontList(retValue);
 #endif
     return true;
-}
-
-
-void
-ContentParent::EnsurePrefService()
-{
-    nsresult rv;
-    if (!mPrefService) {
-        mPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-        NS_ASSERTION(NS_SUCCEEDED(rv), 
-                     "We lost prefService in the Chrome process !");
-    }
 }
 
 bool
@@ -685,11 +672,10 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
     return true;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS4(ContentParent,
+NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
-                              nsIDOMGeoPositionCallback,
-                              nsIDeviceMotionListener)
+                              nsIDOMGeoPositionCallback)
 
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,
@@ -747,6 +733,9 @@ ContentParent::Observe(nsISupports* aSubject,
     }
     else if (!strcmp(aTopic, "child-cc-request")){
         SendCycleCollect();
+    }
+    else if (!strcmp(aTopic, "last-pb-context-exited")) {
+        unused << SendLastPrivateDocShellDestroyed();
     }
 #ifdef ACCESSIBILITY
     // Make sure accessibility is running in content process when accessibility
@@ -1197,7 +1186,8 @@ ContentParent::RecvAddGeolocationListener()
     if (!geo) {
       return true;
     }
-    geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
+    jsval dummy = JSVAL_VOID;
+    geo->WatchPosition(this, nsnull, dummy, nsnull, &mGeolocationWatchID);
   }
   return true;
 }
@@ -1214,26 +1204,6 @@ ContentParent::RecvRemoveGeolocationListener()
     mGeolocationWatchID = -1;
   }
   return true;
-}
-
-bool
-ContentParent::RecvAddDeviceMotionListener()
-{
-    nsCOMPtr<nsIDeviceMotion> dm = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dm)
-        dm->AddListener(this);
-    return true;
-}
-
-bool
-ContentParent::RecvRemoveDeviceMotionListener()
-{
-    nsCOMPtr<nsIDeviceMotion> dm = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dm)
-        dm->RemoveListener(this);
-    return true;
 }
 
 NS_IMETHODIMP
@@ -1278,19 +1248,24 @@ ContentParent::RecvScriptError(const nsString& aMessage,
   return true;
 }
 
-NS_IMETHODIMP
-ContentParent::OnMotionChange(nsIDeviceMotionData *aDeviceData) {
-    PRUint32 type;
-    double x, y, z;
-    aDeviceData->GetType(&type);
-    aDeviceData->GetX(&x);
-    aDeviceData->GetY(&y);
-    aDeviceData->GetZ(&z);
-
-    unused << SendDeviceMotionChanged(type, x, y, z);
-    return NS_OK;
+bool
+ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
+{
+  if (!gPrivateContent)
+    gPrivateContent = new nsTArray<ContentParent*>;
+  if (aExist) {
+    gPrivateContent->AppendElement(this);
+  } else {
+    gPrivateContent->RemoveElement(this);
+    if (!gPrivateContent->Length()) {
+      nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+      obs->NotifyObservers(nsnull, "last-pb-context-exited", nsnull);
+      delete gPrivateContent;
+      gPrivateContent = NULL;
+    }
+  }
+  return true;
 }
-
 
 } // namespace dom
 } // namespace mozilla

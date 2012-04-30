@@ -724,6 +724,14 @@ class nsCSSShadowArray {
       return &mArray[i];
     }
 
+    bool HasShadowWithInset(bool aInset) {
+      for (PRUint32 i = 0; i < mLength; ++i) {
+        if (mArray[i].mInset == aInset)
+          return true;
+      }
+      return false;
+    }
+
     NS_INLINE_DECL_REFCOUNTING(nsCSSShadowArray)
 
   private:
@@ -763,7 +771,10 @@ struct nsStyleBorder {
 #ifdef DEBUG
   static nsChangeHint MaxDifference();
 #endif
-  static bool ForceCompare() { return false; }
+  // ForceCompare is true, because a change to our border-style might
+  // change border-width on descendants (requiring reflow of those)
+  // but not our own border-width (thus not requiring us to reflow).
+  static bool ForceCompare() { return true; }
 
   void EnsureBorderColors() {
     if (!mBorderColors) {
@@ -813,6 +824,11 @@ struct nsStyleBorder {
   const nsMargin& GetComputedBorder() const
   {
     return mComputedBorder;
+  }
+
+  bool HasBorder() const
+  {
+    return mComputedBorder != nsMargin(0,0,0,0) || mBorderImageSource;
   }
 
   // Get the actual border width for a particular side, in appunits.  Note that
@@ -923,14 +939,13 @@ protected:
 public:
   nsStyleCorners mBorderRadius;       // [reset] coord, percent
   nsStyleSides   mBorderImageSlice;   // [reset] factor, percent
-  PRUint8        mBorderImageFill;    // [reset]
   nsStyleSides   mBorderImageWidth;   // [reset] length, factor, percent, auto
   nsStyleSides   mBorderImageOutset;  // [reset] length, factor
 
+  PRUint8        mBorderImageFill;    // [reset]
   PRUint8        mBorderImageRepeatH; // [reset] see nsStyleConsts.h
   PRUint8        mBorderImageRepeatV; // [reset]
   PRUint8        mFloatEdge;          // [reset]
-  // 8 bits free here
 
 protected:
   // mComputedBorder holds the CSS2.1 computed border-width values.
@@ -1309,10 +1324,10 @@ struct nsStyleText {
   PRUint8 mTextSizeAdjust;              // [inherited] see nsStyleConsts.h
   PRInt32 mTabSize;                     // [inherited] see nsStyleConsts.h
 
+  nscoord mWordSpacing;                 // [inherited]
   nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
   nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
   nsStyleCoord  mTextIndent;            // [inherited] coord, percent, calc
-  nscoord mWordSpacing;                 // [inherited]
 
   nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] NULL in case of a zero-length
 
@@ -1561,7 +1576,7 @@ struct nsStyleDisplay {
   // We guarantee that if mBinding is non-null, so are mBinding->GetURI() and
   // mBinding->mOriginPrincipal.
   nsRefPtr<nsCSSValue::URL> mBinding;    // [reset]
-  nsRect    mClip;              // [reset] offsets from upper-left border edge
+  nsRect  mClip;                // [reset] offsets from upper-left border edge
   float   mOpacity;             // [reset]
   PRUint8 mDisplay;             // [reset] see nsStyleConsts.h NS_STYLE_DISPLAY_*
   PRUint8 mOriginalDisplay;     // [reset] saved mDisplay for position:absolute/fixed
@@ -1578,19 +1593,19 @@ struct nsStyleDisplay {
   PRUint8 mOverflowX;           // [reset] see nsStyleConsts.h
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8 mResize;              // [reset] see nsStyleConsts.h
-  PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
+  PRUint8 mClipFlags;           // [reset] see nsStyleConsts.h
   PRUint8 mOrient;              // [reset] see nsStyleConsts.h
 
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or
   // initial are replaced by an actual list of transform functions, or
   // null, as appropriate.) (owned by the style rule)
+  PRUint8 mBackfaceVisibility;
+  PRUint8 mTransformStyle;
   const nsCSSValueList *mSpecifiedTransform; // [reset]
   nsStyleCoord mTransformOrigin[3]; // [reset] percent, coord, calc, 3rd param is coord, calc only
   nsStyleCoord mChildPerspective; // [reset] coord
   nsStyleCoord mPerspectiveOrigin[2]; // [reset] percent, coord, calc
-  PRUint8 mBackfaceVisibility;
-  PRUint8 mTransformStyle;
 
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating

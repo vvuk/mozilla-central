@@ -86,7 +86,7 @@ public:
 
   void ContentViewScaleChanged(nsContentView* aView);
 
-  virtual void ShadowLayersUpdated() MOZ_OVERRIDE;
+  virtual void ShadowLayersUpdated(bool isFirstPaint) MOZ_OVERRIDE;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder* aBuilder,
                               nsSubDocumentFrame* aFrame,
@@ -111,7 +111,6 @@ protected:
 private:
   void BuildViewMap();
 
-  LayerManager* GetLayerManager() const;
   ShadowLayersParent* GetShadowLayers() const;
   ContainerLayer* GetRootLayer() const;
 
@@ -198,8 +197,9 @@ public:
     , mId(aId)
   {}
 
-  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder)
+  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
+    *aSnap = false;
     return mRect;
   }
 

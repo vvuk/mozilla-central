@@ -13,6 +13,7 @@ import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.AlreadySyncingException;
 import org.mozilla.gecko.sync.GlobalConstants;
 import org.mozilla.gecko.sync.GlobalSession;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.SyncConfigurationException;
@@ -21,7 +22,9 @@ import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
 import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
+import org.mozilla.gecko.sync.net.ConnectionMonitorThread;
 import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
 
 import android.accounts.Account;
@@ -51,7 +54,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
   private static final int     SHARED_PREFERENCES_MODE = 0;
   private static final int     BACKOFF_PAD_SECONDS = 5;
-  private static final int     MINIMUM_SYNC_INTERVAL_MILLISECONDS = 5 * 60 * 1000;   // 5 minutes.
+  public  static final int     MULTI_DEVICE_INTERVAL_MILLISECONDS = 5 * 60 * 1000;         // 5 minutes.
+  public  static final int     SINGLE_DEVICE_INTERVAL_MILLISECONDS = 24 * 60 * 60 * 1000;  // 24 hours.
 
   private final AccountManager mAccountManager;
   private final Context        mContext;
@@ -171,7 +175,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public Object syncMonitor = new Object();
   private SyncResult syncResult;
 
-  private Account localAccount;
+  public Account localAccount;
 
   /**
    * Return the number of milliseconds until we're allowed to sync again,
@@ -208,7 +212,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                             final String authority,
                             final ContentProviderClient provider,
                             final SyncResult syncResult) {
+
     Utils.reseedSharedRandom(); // Make sure we don't work with the same random seed for too long.
+
+    // Set these so that we don't need to thread them through assorted calls and callbacks.
+    this.syncResult   = syncResult;
+    this.localAccount = account;
 
     boolean force = (extras != null) && (extras.getBoolean("force", false));
     long delay = delayMilliseconds();
@@ -251,18 +260,42 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
           Log.d(LOG_TAG, "Server:   " + serverURL);
           Log.d(LOG_TAG, "Password? " + (password != null));
           Log.d(LOG_TAG, "Key?      " + (syncKey != null));
+
+          if (password  == null &&
+              username  == null &&
+              syncKey   == null &&
+              serverURL == null) {
+
+            // Totally blank. Most likely the user has two copies of Firefox
+            // installed, and something is misbehaving.
+            // Disable this account.
+            Logger.error(LOG_TAG, "No credentials attached to account. Aborting sync.");
+            try {
+              SyncAccounts.setSyncAutomatically(account, false);
+            } catch (Exception e) {
+              Logger.error(LOG_TAG, "Unable to disable account " + account.name + " for " + authority + ".", e);
+            }
+            syncResult.stats.numAuthExceptions++;
+            localAccount = null;
+            notifyMonitor();
+            return;
+          }
+
+          // Now catch the individual cases.
           if (password == null) {
             Log.e(LOG_TAG, "No password: aborting sync.");
             syncResult.stats.numAuthExceptions++;
             notifyMonitor();
             return;
           }
+
           if (syncKey == null) {
             Log.e(LOG_TAG, "No Sync Key: aborting sync.");
             syncResult.stats.numAuthExceptions++;
             notifyMonitor();
             return;
           }
+
           KeyBundle keyBundle = new KeyBundle(username, syncKey);
 
           // Support multiple accounts by mapping each server/account pair to a branch of the
@@ -290,17 +323,38 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
       // notify us in a failure case. Oh, concurrent programming.
       new Thread(fetchAuthToken).start();
 
+      // Start our stale connection monitor thread.
+      ConnectionMonitorThread stale = new ConnectionMonitorThread();
+      stale.start();
+
       Log.i(LOG_TAG, "Waiting on sync monitor.");
       try {
         syncMonitor.wait();
-        long next = System.currentTimeMillis() + MINIMUM_SYNC_INTERVAL_MILLISECONDS;
+        long next = System.currentTimeMillis() + getSyncInterval();
         Log.i(LOG_TAG, "Setting minimum next sync time to " + next);
         extendEarliestNextSync(next);
       } catch (InterruptedException e) {
         Log.i(LOG_TAG, "Waiting on sync monitor interrupted.", e);
+      } finally {
+        // And we're done with HTTP stuff.
+        stale.shutdown();
       }
     }
  }
+
+  public int getSyncInterval() {
+    // Must have been a problem that means we can't access the Account.
+    if (this.localAccount == null) {
+      return SINGLE_DEVICE_INTERVAL_MILLISECONDS;
+    }
+
+    int clientsCount = this.getClientsCount();
+    if (clientsCount <= 1) {
+      return SINGLE_DEVICE_INTERVAL_MILLISECONDS;
+    }
+
+    return MULTI_DEVICE_INTERVAL_MILLISECONDS;
+  }
 
 
   /**
@@ -327,8 +381,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                                         IOException, ParseException,
                                         NonObjectJSONException {
     Log.i(LOG_TAG, "Performing sync.");
-    this.syncResult   = syncResult;
-    this.localAccount = account;
+
     // TODO: default serverURL.
     GlobalSession globalSession = new GlobalSession(SyncConfiguration.DEFAULT_USER_API,
                                                     serverURL, username, password, prefsPath,
@@ -400,10 +453,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public synchronized String getAccountGUID() {
     String accountGUID = mAccountManager.getUserData(localAccount, Constants.ACCOUNT_GUID);
     if (accountGUID == null) {
+      Logger.info(LOG_TAG, "Account GUID was null. Creating a new one.");
       accountGUID = Utils.generateGuid();
-      mAccountManager.setUserData(localAccount, Constants.ACCOUNT_GUID, accountGUID);
+      setAccountGUID(mAccountManager, localAccount, accountGUID);
     }
     return accountGUID;
+  }
+
+  public static void setAccountGUID(AccountManager accountManager, Account account, String accountGUID) {
+    accountManager.setUserData(account, Constants.ACCOUNT_GUID, accountGUID);
   }
 
   @Override
@@ -411,15 +469,24 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     String clientName = mAccountManager.getUserData(localAccount, Constants.CLIENT_NAME);
     if (clientName == null) {
       clientName = GlobalConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
-      mAccountManager.setUserData(localAccount, Constants.CLIENT_NAME, clientName);
+      setClientName(mAccountManager, localAccount, clientName);
     }
     return clientName;
+  }
+
+  public static void setClientName(AccountManager accountManager, Account account, String clientName) {
+    accountManager.setUserData(account, Constants.CLIENT_NAME, clientName);
   }
 
   @Override
   public synchronized void setClientsCount(int clientsCount) {
     mAccountManager.setUserData(localAccount, Constants.NUM_CLIENTS,
         Integer.toString(clientsCount));
+  }
+
+  @Override
+  public boolean isLocalGUID(String guid) {
+    return getAccountGUID().equals(guid);
   }
 
   @Override

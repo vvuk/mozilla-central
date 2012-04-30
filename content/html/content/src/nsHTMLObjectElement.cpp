@@ -155,6 +155,8 @@ public:
                                                      nsGenericHTMLFormElement)
 
   virtual nsXPCClassInfo* GetClassInfo();
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.
@@ -265,6 +267,11 @@ nsHTMLObjectElement::BindToTree(nsIDocument *aDocument,
                                                      aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = nsObjectLoadingContent::BindToTree(aDocument, aParent,
+                                          aBindingParent,
+                                          aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
     void (nsHTMLObjectElement::*start)() = &nsHTMLObjectElement::StartObjectLoad;
@@ -279,6 +286,7 @@ nsHTMLObjectElement::UnbindFromTree(bool aDeep,
                                     bool aNullParent)
 {
   RemovedFromDocument();
+  nsObjectLoadingContent::UnbindFromTree(aDeep, aNullParent);
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 

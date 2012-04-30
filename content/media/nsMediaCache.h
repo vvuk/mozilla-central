@@ -230,16 +230,16 @@ public:
   // aClient provides the underlying transport that cache will use to read
   // data for this stream.
   nsMediaCacheStream(ChannelMediaResource* aClient)
-    : mClient(aClient), mResourceID(0), mInitialized(false),
+    : mClient(aClient), mInitialized(false),
       mHasHadUpdate(false),
+      mClosed(false),
+      mDidNotifyDataEnded(false), mResourceID(0),
       mIsSeekable(false), mCacheSuspended(false),
-      mChannelEnded(false), mDidNotifyDataEnded(false),
-      mUsingNullPrincipal(false),
+      mChannelEnded(false),
       mChannelOffset(0), mStreamLength(-1),  
       mStreamOffset(0), mPlaybackBytesPerSecond(10000),
       mPinCount(0), mCurrentMode(MODE_PLAYBACK),
-      mMetadataInPartialBlockBuffer(false),
-      mClosed(false) {}
+      mMetadataInPartialBlockBuffer(false) {}
   ~nsMediaCacheStream();
 
   // Set up this stream with the cache. Can fail on OOM. One
@@ -266,7 +266,14 @@ public:
   void Close();
   // This returns true when the stream has been closed
   bool IsClosed() const { return mClosed; }
-  // Get the principal for this stream.
+  // Returns true when this stream is can be shared by a new resource load
+  bool IsAvailableForSharing() const
+  {
+    return !mClosed &&
+      (!mDidNotifyDataEnded || NS_SUCCEEDED(mNotifyDataEndedStatus));
+  }
+  // Get the principal for this stream. Anything accessing the contents of
+  // this stream must have a principal that subsumes this principal.
   nsIPrincipal* GetCurrentPrincipal() { return mPrincipal; }
   // Ensure a global media cache update has run with this stream present.
   // This ensures the cache has had a chance to suspend or unsuspend this stream.
@@ -319,7 +326,8 @@ public:
   // If we've successfully read data beyond the originally reported length,
   // we return the end of the data we've read.
   PRInt64 GetLength();
-  // Returns the unique resource ID
+  // Returns the unique resource ID. Call only on the main thread or while
+  // holding the media cache lock.
   PRInt64 GetResourceID() { return mResourceID; }
   // Returns the end of the bytes starting at the given offset
   // which are in cache.
@@ -452,24 +460,30 @@ private:
   // blocked on reading from this stream.
   void CloseInternal(ReentrantMonitorAutoEnter& aReentrantMonitor);
   // Update mPrincipal given that data has been received from aPrincipal
-  void UpdatePrincipal(nsIPrincipal* aPrincipal);
+  bool UpdatePrincipal(nsIPrincipal* aPrincipal);
 
   // These fields are main-thread-only.
   ChannelMediaResource*  mClient;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  // This is a unique ID representing the resource we're loading.
-  // All streams with the same mResourceID are loading the same
-  // underlying resource and should share data.
-  PRInt64                mResourceID;
   // Set to true when Init or InitAsClone has been called
   bool                   mInitialized;
   // Set to true when nsMediaCache::Update() has finished while this stream
   // was present.
   bool                   mHasHadUpdate;
+  // Set to true when the stream has been closed either explicitly or
+  // due to an internal cache error
+  bool                   mClosed;
+  // True if CacheClientNotifyDataEnded has been called for this stream.
+  bool                   mDidNotifyDataEnded;
 
-  // The following fields are protected by the cache's monitor but are
-  // only written on the main thread. 
+  // The following fields must be written holding the cache's monitor and
+  // only on the main thread, thus can be read either on the main thread
+  // or while holding the cache's monitor.
 
+  // This is a unique ID representing the resource we're loading.
+  // All streams with the same mResourceID are loading the same
+  // underlying resource and should share data.
+  PRInt64 mResourceID;
   // The last reported seekability state for the underlying channel
   bool mIsSeekable;
   // True if the cache has suspended our channel because the cache is
@@ -478,11 +492,6 @@ private:
   bool mCacheSuspended;
   // True if the channel ended and we haven't seeked it again.
   bool mChannelEnded;
-  // True if CacheClientNotifyDataEnded has been called for this stream.
-  bool mDidNotifyDataEnded;
-  // True if mPrincipal is a null principal because we saw data from
-  // multiple origins
-  bool mUsingNullPrincipal;
   // The offset where the next data from the channel will arrive
   PRInt64      mChannelOffset;
   // The reported or discovered length of the data, or -1 if nothing is
@@ -510,15 +519,13 @@ private:
   // The number of times this stream has been Pinned without a
   // corresponding Unpin
   PRUint32          mPinCount;
-  // The status used when we did CacheClientNotifyDataEnded
+  // The status used when we did CacheClientNotifyDataEnded. Only valid
+  // when mDidNotifyDataEnded is true.
   nsresult          mNotifyDataEndedStatus;
   // The last reported read mode
   ReadMode          mCurrentMode;
   // True if some data in mPartialBlockBuffer has been read as metadata
   bool              mMetadataInPartialBlockBuffer;
-  // Set to true when the stream has been closed either explicitly or
-  // due to an internal cache error
-  bool              mClosed;
 
   // The following field is protected by the cache's monitor but are
   // only written on the main thread.

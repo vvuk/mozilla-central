@@ -58,7 +58,6 @@
 #include "nsIFrame.h"
 #include "nsIDocShell.h"
 #include "nsIEditorDocShell.h"
-#include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
 #include "jsapi.h"
 
@@ -133,6 +132,7 @@ public:
   virtual already_AddRefed<nsIEditor> GetAssociatedEditor();
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 private:
   nsresult GetColorHelper(nsIAtom* aAtom, nsAString& aColor);
 

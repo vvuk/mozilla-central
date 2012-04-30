@@ -204,7 +204,7 @@ nsHTMLOutputAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = nsAccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_CONTROLLED_BY)
-    rel.AppendIter(new IDRefsIterator(mContent, nsGkAtoms::_for));
+    rel.AppendIter(new IDRefsIterator(mDoc, mContent, nsGkAtoms::_for));
 
   return rel;
 }
@@ -259,6 +259,9 @@ nsHTMLLIAccessible::Shutdown()
 role
 nsHTMLLIAccessible::NativeRole()
 {
+  if (mContent->Tag() == nsGkAtoms::dt)
+    return roles::TERM;
+
   return roles::LISTITEM;
 }
 
@@ -410,6 +413,9 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 role
 nsHTMLListAccessible::NativeRole()
 {
+  if (mContent->Tag() == nsGkAtoms::dl)
+    return roles::DEFINITION_LIST;
+
   return roles::LIST;
 }
 

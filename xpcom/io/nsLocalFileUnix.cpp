@@ -165,7 +165,15 @@ nsDirEnumeratorUnix : public nsISimpleEnumerator,
     DIR           *mDir;
     struct dirent *mEntry;
     nsCString      mParentPath;
+#ifdef ANDROID
+    off_t          mNextOffset;
+#endif
 };
+
+#ifdef ANDROID
+#define YAFFS2_MAGIC 0x5941FF53
+static uint32_t sFSMagic = 0;
+#endif
 
 nsDirEnumeratorUnix::nsDirEnumeratorUnix() :
                          mDir(nsnull), 
@@ -191,6 +199,22 @@ nsDirEnumeratorUnix::Init(nsLocalFile *parent, bool resolveSymlinks /*ignored*/)
 
     if (NS_FAILED(parent->GetNativePath(mParentPath)))
         return NS_ERROR_FAILURE;
+
+#ifdef ANDROID
+    mNextOffset = -1;
+    if (!sFSMagic) {
+        struct STATFS fs;
+        if (!STATFS("/data", &fs)) {
+            sFSMagic = fs.f_type;
+            if (sFSMagic == YAFFS2_MAGIC) {
+                printf_stderr("Using YAFFS2 workarounds");
+            }
+        } else {
+            printf_stderr("Could not determine the fs of /data");
+            sFSMagic = 0xFFFFFFFF;
+        }
+    }
+#endif
 
     mDir = opendir(dirPath.get());
     if (!mDir)
@@ -221,6 +245,25 @@ nsDirEnumeratorUnix::GetNext(nsISupports **_retval)
 NS_IMETHODIMP
 nsDirEnumeratorUnix::GetNextEntry()
 {
+#ifdef ANDROID
+    /* Workaround yaffs2 bug
+     *
+     * This is only used on Android if /data is a yaffs2 partition.
+     * However, this workaround would apply to any linux system
+     * unlucky enough to be using yaffs2.
+     *
+     * yaffs2 may reset the offset on readdir calls if we've done something
+     * to a file in the directory since the last call.
+     * This can end up in an infinite loop.
+     */
+    if (sFSMagic == YAFFS2_MAGIC && mNextOffset >= 0) {
+        // Let yaffs2 clobber the offset
+        mEntry = readdir(mDir);
+        // And then set the right offset we cached from last time
+        lseek(dirfd(mDir), mNextOffset, SEEK_SET);
+    }
+#endif
+
     do {
         errno = 0;
         mEntry = readdir(mDir);
@@ -234,6 +277,14 @@ nsDirEnumeratorUnix::GetNextEntry()
             (mEntry->d_name[1] == '\0'    ||   // .\0
             (mEntry->d_name[1] == '.'     &&
             mEntry->d_name[2] == '\0')));      // ..\0
+
+#ifdef ANDROID
+    // Save the correct offset for the next entry
+    if (sFSMagic == YAFFS2_MAGIC) {
+        mNextOffset = lseek(dirfd(mDir), 0, SEEK_CUR);
+    }
+#endif
+
     return NS_OK;
 }
 
@@ -334,7 +385,7 @@ nsLocalFile::Clone(nsIFile **file)
 NS_IMETHODIMP
 nsLocalFile::InitWithNativePath(const nsACString &filePath)
 {
-    if (Substring(filePath, 0, 2).EqualsLiteral("~/")) {
+    if (filePath.Equals("~") || Substring(filePath, 0, 2).EqualsLiteral("~/")) {
         nsCOMPtr<nsIFile> homeDir;
         nsCAutoString homePath;
         if (NS_FAILED(NS_GetSpecialDirectory(NS_OS_HOME_DIR,
@@ -342,8 +393,10 @@ nsLocalFile::InitWithNativePath(const nsACString &filePath)
             NS_FAILED(homeDir->GetNativePath(homePath))) {
             return NS_ERROR_FAILURE;
         }
-        
-        mPath = homePath + Substring(filePath, 1, filePath.Length() - 1);
+ 
+        mPath = homePath;
+        if (filePath.Length() > 2)
+          mPath.Append(Substring(filePath, 1, filePath.Length() - 1));
     } else {
         if (filePath.IsEmpty() || filePath.First() != '/')
             return NS_ERROR_FILE_UNRECOGNIZED_PATH;
@@ -989,7 +1042,7 @@ nsLocalFile::Remove(bool recursive)
             rv = file->Remove(recursive);
 
 #ifdef ANDROID
-            // See bug 580434 - Bionic gives us just deleted files
+            // See bug 580434 - Yaffs2 gives us just deleted files
             if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
                 continue;
 #endif
@@ -2440,7 +2493,35 @@ nsLocalFile::GetBundleIdentifier(nsACString& outBundleIdentifier)
   return rv;
 }
 
-NS_IMETHODIMP nsLocalFile::InitWithFile(nsILocalFile *aFile)
+NS_IMETHODIMP
+nsLocalFile::GetBundleContentsLastModifiedTime(PRInt64 *aLastModTime)
+{
+  CHECK_mPath();
+  NS_ENSURE_ARG_POINTER(aLastModTime);
+
+  bool isPackage = false;
+  nsresult rv = IsPackage(&isPackage);
+  if (NS_FAILED(rv) || !isPackage) {
+    return GetLastModifiedTime(aLastModTime);
+  }
+
+  nsCAutoString infoPlistPath(mPath);
+  infoPlistPath.AppendLiteral("/Contents/Info.plist");
+  PRFileInfo64 info;
+  if (PR_GetFileInfo64(infoPlistPath.get(), &info) != PR_SUCCESS) {
+    return GetLastModifiedTime(aLastModTime);
+  }
+  PRInt64 modTime = PRInt64(info.modifyTime);
+  if (modTime == 0) {
+    *aLastModTime = 0;
+  } else {
+    *aLastModTime = modTime / PRInt64(PR_USEC_PER_MSEC);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsLocalFile::InitWithFile(nsIFile *aFile)
 {
   NS_ENSURE_ARG(aFile);
 

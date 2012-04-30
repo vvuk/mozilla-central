@@ -47,8 +47,12 @@
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
 #include <QKeyEvent>
-#ifdef MOZ_X11
+#if defined(MOZ_X11)
+#if defined(Q_WS_X11)
 #include <QX11Info>
+#else
+#include "gfxQtPlatform.h"
+#endif
 #endif
 #undef slots
 #endif
@@ -96,6 +100,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIScrollableFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsIDocShell.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"
@@ -116,12 +121,10 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 #include <gtk/gtk.h>
-#include "gfxXlibNativeRenderer.h"
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
-#include "android_npapi.h"
 #include "AndroidBridge.h"
 #include "AndroidMediaLayer.h"
 using namespace mozilla::dom;
@@ -402,10 +405,12 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
   }
 }
 
-NS_IMPL_ISUPPORTS3(nsPluginInstanceOwner,
+NS_IMPL_ISUPPORTS5(nsPluginInstanceOwner,
                    nsIPluginInstanceOwner,
                    nsIPluginTagInfo,
-                   nsIDOMEventListener)
+                   nsIDOMEventListener,
+                   nsIPrivacyTransitionObserver,
+                   nsISupportsWeakReference)
 
 nsresult
 nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
@@ -415,10 +420,26 @@ nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
   // If we're going to null out mInstance after use, be sure to call
   // mInstance->InvalidateOwner() here, since it now won't be called
   // from our destructor.  This fixes bug 613376.
-  if (mInstance && !aInstance)
+  if (mInstance && !aInstance) {
     mInstance->InvalidateOwner();
 
+#ifdef MOZ_WIDGET_ANDROID
+    RemovePluginView();
+#endif
+  }
+
   mInstance = aInstance;
+
+  nsCOMPtr<nsIDocument> doc;
+  GetDocument(getter_AddRefs(doc));
+  if (doc) {
+    nsCOMPtr<nsPIDOMWindow> domWindow = doc->GetWindow();
+    if (domWindow) {
+      nsCOMPtr<nsIDocShell> docShell = domWindow->GetDocShell();
+      if (docShell)
+        docShell->AddWeakPrivacyTransitionObserver(this);
+    }
+  }
 
   return NS_OK;
 }
@@ -748,7 +769,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   }
 
   return rv;
-#elif defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#elif (defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
   if (!win)
@@ -1752,71 +1773,23 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
     return false;
   }
 
-  JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return false;
-
-  AndroidBridge::AutoLocalJNIFrame frame(env, 1);
-
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-#ifdef MOZ_JAVA_COMPOSITOR
-  nsAutoString metadata;
-  nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
-      AndroidBridge::Bridge()->GetDrawMetadataProvider();
-  metadataProvider->GetDrawMetadata(metadata);
-
-  jstring jMetadata = env->NewString(nsPromiseFlatString(metadata).get(), metadata.Length());
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "addPluginView",
-                                            "(Landroid/view/View;IIIILjava/lang/String;)V");
-
-  env->CallStaticVoidMethod(cls,
-                            method,
-                            javaSurface,
-                            (int)aRect.x,
-                            (int)aRect.y,
-                            (int)aRect.width,
-                            (int)aRect.height,
-                            jMetadata);
-#else
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "addPluginView",
-                                            "(Landroid/view/View;DDDD)V");
-
-  env->CallStaticVoidMethod(cls,
-                            method,
-                            javaSurface,
-                            aRect.x,
-                            aRect.y,
-                            aRect.width,
-                            aRect.height);
-#endif
+  if (AndroidBridge::Bridge())
+    AndroidBridge::Bridge()->AddPluginView((jobject)javaSurface, aRect);
 
   return true;
 }
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance || !mObjectFrame)
+  if (!mInstance)
     return;
 
   void* surface = mInstance->GetJavaSurface();
   if (!surface)
     return;
 
-  JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return;
-
-  AndroidBridge::AutoLocalJNIFrame frame(env, 1);
-
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "removePluginView",
-                                            "(Landroid/view/View;)V");
-  env->CallStaticVoidMethod(cls, method, surface);
+  if (AndroidBridge::Bridge())
+    AndroidBridge::Bridge()->RemovePluginView((jobject)surface);
 }
 
 void nsPluginInstanceOwner::Invalidate() {
@@ -2112,10 +2085,10 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 static unsigned int XInputEventState(const nsInputEvent& anEvent)
 {
   unsigned int state = 0;
-  if (anEvent.isShift) state |= ShiftMask;
-  if (anEvent.isControl) state |= ControlMask;
-  if (anEvent.isAlt) state |= Mod1Mask;
-  if (anEvent.isMeta) state |= Mod4Mask;
+  if (anEvent.IsShift()) state |= ShiftMask;
+  if (anEvent.IsControl()) state |= ControlMask;
+  if (anEvent.IsAlt()) state |= Mod1Mask;
+  if (anEvent.IsMeta()) state |= Mod4Mask;
   return state;
 }
 #endif
@@ -2426,7 +2399,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
-        Window root = QX11Info::appRootWindow();
+        Window root = RootWindowOfScreen(DefaultScreenOfDisplay(mozilla::DefaultXDisplay()));
 #else
         Window root = None; // Could XQueryTree, but this is not important.
 #endif
@@ -2542,8 +2515,13 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           event.time = anEvent.time;
 
           QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
+
           if (qWidget)
+#if defined(Q_WS_X11)
             event.root = qWidget->x11Info().appRootWindow();
+#else
+            event.root = RootWindowOfScreen(DefaultScreenOfDisplay(gfxQtPlatform::GetXDisplay(qWidget)));
+#endif
 
           // deduce keycode from the information in the attached QKeyEvent
           const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
@@ -2713,33 +2691,13 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
      {
        const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
        LOG("Firing NS_KEY_EVENT %d %d\n", keyEvent.keyCode, keyEvent.charCode);
-       
-       int modifiers = 0;
-       if (keyEvent.isShift)
-         modifiers |= kShift_ANPKeyModifier;
-       if (keyEvent.isAlt)
-         modifiers |= kAlt_ANPKeyModifier;
-
-       ANPEvent event;
-       event.inSize = sizeof(ANPEvent);
-       event.eventType = kKey_ANPEventType;
-       event.data.key.nativeCode = keyEvent.keyCode;
-       event.data.key.virtualCode = keyEvent.charCode;
-       event.data.key.modifiers = modifiers;
-       event.data.key.repeatCount = 0;
-       event.data.key.unichar = 0;
-       switch (anEvent.message)
-         {
-         case NS_KEY_DOWN:
-           event.data.key.action = kDown_ANPKeyAction;
-           mInstance->HandleEvent(&event, nsnull);
-           break;
-           
-         case NS_KEY_UP:
-           event.data.key.action = kUp_ANPKeyAction;
-           mInstance->HandleEvent(&event, nsnull);
-           break;
-         }
+       // pluginEvent is initialized by nsWindow::InitKeyEvent().
+       ANPEvent* pluginEvent = reinterpret_cast<ANPEvent*>(keyEvent.pluginEvent);
+       if (pluginEvent) {
+         MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
+         MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
+         mInstance->HandleEvent(pluginEvent, nsnull);
+       }
      }
     }
     rv = nsEventStatus_eConsumeNoDefault;
@@ -2917,8 +2875,21 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
 
   PRInt32 model = mInstance->GetANPDrawingModel();
 
+  // Get the offset of the content relative to the page
+
+  nsPoint offset = nsPoint(0, 0);
+  nsIFrame* current = (nsIFrame*)mObjectFrame;
+  while (current && current->GetContent() && current->GetContent()->Tag() != nsGkAtoms::html) {    
+    offset += current->GetPosition();
+    current = current->GetParent();
+  }
+
+  nsRect bounds = nsRect(offset, mObjectFrame->GetSize());
+  nsIntRect intBounds = bounds.ToNearestPixels(mObjectFrame->PresContext()->AppUnitsPerDevPixel());
+  gfxRect pluginRect(intBounds);
+
   if (model == kSurface_ANPDrawingModel) {
-    if (!AddPluginView(aFrameRect)) {
+    if (!AddPluginView(pluginRect)) {
       Invalidate();
     }
     return;
@@ -2928,11 +2899,13 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
     if (!mLayer)
       mLayer = new AndroidMediaLayer();
 
-    // FIXME: this is gross
-    float zoomLevel = aFrameRect.width / (float)mPluginWindow->width;
-    mLayer->UpdatePosition(aFrameRect, zoomLevel);
+    mLayer->UpdatePosition(pluginRect);
 
-    SendSize((int)aFrameRect.width, (int)aFrameRect.height);
+    float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
+    float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
+    pluginRect.Scale(xResolution, yResolution);
+
+    SendSize((int)pluginRect.width, (int)pluginRect.height);
     return;
   }
 
@@ -3054,11 +3027,10 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   Visual* visual = gdk_x11_visual_get_xvisual(gdkVisual);
   Screen* screen =
     gdk_x11_screen_get_xscreen(gdk_visual_get_screen(gdkVisual));
-#endif
-#ifdef MOZ_WIDGET_QT
-  Display* dpy = QX11Info().display();
-  Screen* screen = ScreenOfDisplay(dpy, QX11Info().screen());
-  Visual* visual = static_cast<Visual*>(QX11Info().visual());
+#else
+  Display* dpy = mozilla::DefaultXDisplay();
+  Screen* screen = DefaultScreenOfDisplay(dpy);
+  Visual* visual = DefaultVisualOfScreen(screen);
 #endif
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);
@@ -3811,6 +3783,11 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
     if (!newURL.IsEmpty())
       value = newURL;
   }
+}
+
+NS_IMETHODIMP nsPluginInstanceOwner::PrivateModeChanged(bool aEnabled)
+{
+  return mInstance ? mInstance->PrivateModeStateChanged(aEnabled) : NS_OK;
 }
 
 // nsPluginDOMContextMenuListener class implementation

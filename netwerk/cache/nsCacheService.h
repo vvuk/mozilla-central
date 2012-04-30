@@ -99,6 +99,10 @@ public:
     static nsresult  IsStorageEnabledForPolicy(nsCacheStoragePolicy  storagePolicy,
                                                bool *              result);
 
+    static nsresult  DoomEntry(nsCacheSession   *session,
+                               const nsACString &key,
+                               nsICacheListener *listener);
+
     /**
      * Methods called by nsCacheEntryDescriptor
      */
@@ -133,8 +137,7 @@ public:
     static
     nsCacheService * GlobalInstance()   { return gService; }
 
-    static
-    PRInt64 MemoryDeviceSize();
+    static PRInt64   MemoryDeviceSize();
     
     static nsresult  DoomEntry(nsCacheEntry * entry);
 
@@ -198,6 +201,7 @@ private:
     friend class nsSetSmartSizeEvent;
     friend class nsBlockOnCacheThreadEvent;
     friend class nsSetDiskSmartSizeCallback;
+    friend class nsDoomEvent;
 
     /**
      * Internal Methods
@@ -285,6 +289,7 @@ private:
     nsCOMPtr<nsITimer>              mSmartSizeTimer;
     
     bool                            mInitialized;
+    bool                            mClearingEntries;
     
     bool                            mEnableMemoryDevice;
     bool                            mEnableDiskDevice;

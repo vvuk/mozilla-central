@@ -19,24 +19,49 @@ function test()
   let SourceEditor = tempScope.SourceEditor;
 
   let contextMenu = null;
+  let scriptShown = false;
+  let framesAdded = false;
+  let resumed = false;
+  let testStarted = false;
 
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
     gDebugger = gPane.debuggerWindow;
+    resumed = true;
 
-    gPane.activeThread.addOneTimeListener("scriptsadded", function() {
-      Services.tm.currentThread.dispatch({ run: onScriptsAdded }, 0);
+    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+      framesAdded = true;
+      executeSoon(startTest);
     });
-    gDebuggee.firstCall();
+
+    executeSoon(function() {
+      gDebuggee.firstCall();
+    });
   });
 
-  function onScriptsAdded()
+  function onScriptShown(aEvent) {
+    scriptShown = aEvent.detail.url.indexOf("-02.js") != -1;
+    executeSoon(startTest);
+  }
+
+  window.addEventListener("Debugger:ScriptShown", onScriptShown);
+
+  function startTest()
+  {
+    if (scriptShown && framesAdded && resumed && !testStarted) {
+      testStarted = true;
+      window.removeEventListener("Debugger:ScriptShown", onScriptShown);
+      Services.tm.currentThread.dispatch({ run: performTest }, 0);
+    }
+  }
+
+  function performTest()
   {
     let scripts = gDebugger.DebuggerView.Scripts._scripts;
 
-    is(gDebugger.StackFrames.activeThread.state, "paused",
+    is(gDebugger.DebuggerController.activeThread.state, "paused",
       "Should only be getting stack frames while paused.");
 
     is(scripts.itemCount, 2, "Found the expected number of scripts.");
@@ -88,7 +113,7 @@ function test()
 
     executeSoon(function() {
       contextMenu.hidePopup();
-      gDebugger.StackFrames.activeThread.resume(finish);
+      gDebugger.DebuggerController.activeThread.resume(finish);
     });
   }
 

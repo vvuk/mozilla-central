@@ -64,6 +64,10 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
 
     private static final Uri BOOKMARKS_CONTENT_URI_POST_11 = Uri.parse("content://com.android.browser/bookmarks");
 
+    public void invalidateCachedState() {
+        // Do nothing
+    }
+
     private Cursor filterAllSites(ContentResolver cr, String[] projection, CharSequence constraint, int limit, CharSequence urlFilter) {
         Cursor c = cr.query(Browser.BOOKMARKS_URI,
                             projection,
@@ -177,11 +181,6 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
                             Browser.BookmarkColumns.DATE + " DESC LIMIT " + limit);
 
         return new AndroidDBCursor(c);
-    }
-
-    public int getMaxHistoryCount() {
-        // Valid for Android versions up to 4.0.
-        return 250;
     }
 
     public void clearHistory(ContentResolver cr) {

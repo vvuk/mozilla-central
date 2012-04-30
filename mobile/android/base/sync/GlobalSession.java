@@ -8,8 +8,14 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.crypto.CryptoException;
@@ -22,6 +28,8 @@ import org.mozilla.gecko.sync.delegates.KeyUploadDelegate;
 import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
 import org.mozilla.gecko.sync.delegates.WipeServerDelegate;
 import org.mozilla.gecko.sync.net.BaseResource;
+import org.mozilla.gecko.sync.net.HttpResponseObserver;
+import org.mozilla.gecko.sync.net.SyncResponse;
 import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
@@ -31,13 +39,15 @@ import org.mozilla.gecko.sync.stage.AndroidBrowserHistoryServerSyncStage;
 import org.mozilla.gecko.sync.stage.CheckPreconditionsStage;
 import org.mozilla.gecko.sync.stage.CompletedStage;
 import org.mozilla.gecko.sync.stage.EnsureClusterURLStage;
-import org.mozilla.gecko.sync.stage.EnsureKeysStage;
+import org.mozilla.gecko.sync.stage.EnsureCrypto5KeysStage;
 import org.mozilla.gecko.sync.stage.FennecTabsServerSyncStage;
 import org.mozilla.gecko.sync.stage.FetchInfoCollectionsStage;
 import org.mozilla.gecko.sync.stage.FetchMetaGlobalStage;
+import org.mozilla.gecko.sync.stage.FormHistoryServerSyncStage;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
 import org.mozilla.gecko.sync.stage.NoSuchStageException;
+import org.mozilla.gecko.sync.stage.PasswordsServerSyncStage;
 import org.mozilla.gecko.sync.stage.SyncClientsEngineStage;
 
 import android.content.Context;
@@ -46,14 +56,11 @@ import android.os.Bundle;
 import android.util.Log;
 import ch.boye.httpclientandroidlib.HttpResponse;
 
-public class GlobalSession implements CredentialsSource, PrefsSource {
+public class GlobalSession implements CredentialsSource, PrefsSource, HttpResponseObserver {
   private static final String LOG_TAG = "GlobalSession";
 
   public static final String API_VERSION   = "1.1";
   public static final long STORAGE_VERSION = 5;
-
-  private static final String HEADER_RETRY_AFTER     = "retry-after";
-  private static final String HEADER_X_WEAVE_BACKOFF = "x-weave-backoff";
 
   public SyncConfiguration config = null;
 
@@ -67,16 +74,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
   /*
    * Key accessors.
    */
-  public void setCollectionKeys(CollectionKeys k) {
-    config.setCollectionKeys(k);
-  }
-  @Override
-  public CollectionKeys getCollectionKeys() {
-    return config.collectionKeys;
-  }
-  @Override
-  public KeyBundle keyForCollection(String collection) throws NoCollectionKeysSetException {
-    return config.keyForCollection(collection);
+  public KeyBundle keyBundleForCollection(String collection) throws NoCollectionKeysSetException {
+    return config.getCollectionKeys().keyBundleForCollection(collection);
   }
 
   /*
@@ -155,31 +154,112 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     config.password      = password;
     config.syncKeyBundle = syncKeyBundle;
 
+    registerCommands();
     prepareStages();
+
+    // TODO: data-driven plan for the sync, referring to prepareStages.
+  }
+
+  protected void registerCommands() {
+    CommandProcessor processor = CommandProcessor.getProcessor();
+
+    processor.registerCommand("resetEngine", new CommandRunner() {
+      @Override
+      public void executeCommand(List<String> args) {
+        HashSet<String> names = new HashSet<String>();
+        names.add(args.get(0));
+        resetStagesByName(names);
+      }
+    });
+
+    processor.registerCommand("resetAll", new CommandRunner() {
+      @Override
+      public void executeCommand(List<String> args) {
+        resetAllStages();
+      }
+    });
+
+    processor.registerCommand("wipeEngine", new CommandRunner() {
+      @Override
+      public void executeCommand(List<String> args) {
+        HashSet<String> names = new HashSet<String>();
+        names.add(args.get(0));
+        wipeStagesByName(names);
+      }
+    });
+
+    processor.registerCommand("wipeAll", new CommandRunner() {
+      @Override
+      public void executeCommand(List<String> args) {
+        wipeAllStages();
+      }
+    });
+
+    processor.registerCommand("displayURI", new CommandRunner() {
+      @Override
+      public void executeCommand(List<String> args) {
+        CommandProcessor.getProcessor().displayURI(args, getContext());
+      }
+    });
   }
 
   protected void prepareStages() {
-    stages = new HashMap<Stage, GlobalSyncStage>();
-    stages.put(Stage.checkPreconditions,      new CheckPreconditionsStage());
-    stages.put(Stage.ensureClusterURL,        new EnsureClusterURLStage());
-    stages.put(Stage.fetchInfoCollections,    new FetchInfoCollectionsStage());
-    stages.put(Stage.fetchMetaGlobal,         new FetchMetaGlobalStage());
-    stages.put(Stage.ensureKeysStage,         new EnsureKeysStage());
-    stages.put(Stage.syncClientsEngine,       new SyncClientsEngineStage());
+    HashMap<Stage, GlobalSyncStage> stages = new HashMap<Stage, GlobalSyncStage>();
 
-    // TODO: more stages.
-    stages.put(Stage.syncTabs,                new FennecTabsServerSyncStage());
-    stages.put(Stage.syncBookmarks,           new AndroidBrowserBookmarksServerSyncStage());
-    stages.put(Stage.syncHistory,             new AndroidBrowserHistoryServerSyncStage());
-    stages.put(Stage.completed,               new CompletedStage());
+    stages.put(Stage.checkPreconditions,      new CheckPreconditionsStage(this));
+    stages.put(Stage.ensureClusterURL,        new EnsureClusterURLStage(this));
+    stages.put(Stage.fetchInfoCollections,    new FetchInfoCollectionsStage(this));
+    stages.put(Stage.fetchMetaGlobal,         new FetchMetaGlobalStage(this));
+    stages.put(Stage.ensureKeysStage,         new EnsureCrypto5KeysStage(this));
+    stages.put(Stage.syncClientsEngine,       new SyncClientsEngineStage(this));
+
+    stages.put(Stage.syncTabs,                new FennecTabsServerSyncStage(this));
+    stages.put(Stage.syncPasswords,           new PasswordsServerSyncStage(this));
+    stages.put(Stage.syncBookmarks,           new AndroidBrowserBookmarksServerSyncStage(this));
+    stages.put(Stage.syncHistory,             new AndroidBrowserHistoryServerSyncStage(this));
+    stages.put(Stage.syncFormHistory,         new FormHistoryServerSyncStage(this));
+
+    stages.put(Stage.completed,               new CompletedStage(this));
+
+    this.stages = Collections.unmodifiableMap(stages);
   }
 
-  protected GlobalSyncStage getStageByName(Stage next) throws NoSuchStageException {
+  public GlobalSyncStage getSyncStageByName(String name) throws NoSuchStageException {
+    return getSyncStageByName(Stage.byName(name));
+  }
+
+  public GlobalSyncStage getSyncStageByName(Stage next) throws NoSuchStageException {
     GlobalSyncStage stage = stages.get(next);
     if (stage == null) {
       throw new NoSuchStageException(next);
     }
     return stage;
+  }
+
+  public Collection<GlobalSyncStage> getSyncStagesByEnum(Collection<Stage> enums) {
+    ArrayList<GlobalSyncStage> out = new ArrayList<GlobalSyncStage>();
+    for (Stage name : enums) {
+      try {
+        GlobalSyncStage stage = this.getSyncStageByName(name);
+        out.add(stage);
+      } catch (NoSuchStageException e) {
+        Logger.warn(LOG_TAG, "Unable to find stage with name " + name);
+      }
+    }
+    return out;
+  }
+
+  public Collection<GlobalSyncStage> getSyncStagesByName(Collection<String> names) {
+    ArrayList<GlobalSyncStage> out = new ArrayList<GlobalSyncStage>();
+    for (String name : names) {
+      try {
+        GlobalSyncStage stage = this.getSyncStageByName(name);
+        out.add(stage);
+      } catch (NoSuchStageException e) {
+        Logger.warn(LOG_TAG, "Unable to find stage with name " + name);
+      }
+    }
+    return out;
   }
 
   /**
@@ -198,11 +278,18 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
    * Move to the next stage in the syncing process.
    */
   public void advance() {
+    // If we have a backoff, request a backoff and don't advance to next stage.
+    long existingBackoff = largestBackoffObserved.get();
+    if (existingBackoff > 0) {
+      this.abort(null, "Aborting sync because of backoff of " + existingBackoff + " milliseconds.");
+      return;
+    }
+
     this.callback.handleStageCompleted(this.currentState, this);
     Stage next = nextStage(this.currentState);
     GlobalSyncStage nextStage;
     try {
-      nextStage = this.getStageByName(next);
+      nextStage = this.getSyncStageByName(next);
     } catch (NoSuchStageException e) {
       this.abort(e, "No such stage " + next);
       return;
@@ -210,10 +297,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     this.currentState = next;
     Logger.info(LOG_TAG, "Running next stage " + next + " (" + nextStage + ")...");
     try {
-      nextStage.execute(this);
+      nextStage.execute();
     } catch (Exception ex) {
       Logger.warn(LOG_TAG, "Caught exception " + ex + " running stage " + next);
       this.abort(ex, "Uncaught exception in stage.");
+      return;
     }
   }
 
@@ -234,27 +322,27 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     return this.getContext().getSharedPreferences(name, mode);
   }
 
-  @Override
   public Context getContext() {
     return this.context;
   }
 
   /**
    * Begin a sync.
-   *
+   * <p>
    * The caller is responsible for:
-   *
-   * * Verifying that any backoffs/minimum next sync are respected
-   * * Ensuring that the device is online
-   * * Ensuring that dependencies are ready
+   * <ul>
+   * <li>Verifying that any backoffs/minimum next sync requests are respected.</li>
+   * <li>Ensuring that the device is online.</li>
+   * <li>Ensuring that dependencies are ready.</li>
+   * </ul>
    *
    * @throws AlreadySyncingException
-   *
    */
   public void start() throws AlreadySyncingException {
     if (this.currentState != GlobalSyncStage.Stage.idle) {
       throw new AlreadySyncingException(this.currentState);
     }
+    installAsHttpResponseObserver(); // Uninstalled by completeSync or abort.
     this.advance();
   }
 
@@ -272,12 +360,18 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
   }
 
   public void completeSync() {
+    uninstallAsHttpResponseObserver();
     this.currentState = GlobalSyncStage.Stage.idle;
     this.callback.handleSuccess(this);
   }
 
   public void abort(Exception e, String reason) {
     Logger.warn(LOG_TAG, "Aborting sync: " + reason, e);
+    uninstallAsHttpResponseObserver();
+    long existingBackoff = largestBackoffObserved.get();
+    if (existingBackoff > 0) {
+      callback.requestBackoff(existingBackoff);
+    }
     this.callback.handleError(this, e);
   }
 
@@ -294,21 +388,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
    */
   public void interpretHTTPFailure(HttpResponse response) {
     // TODO: handle permanent rejection.
-    long retryAfter = 0;
-    long weaveBackoff = 0;
-    if (response.containsHeader(HEADER_RETRY_AFTER)) {
-      // Handles non-decimals just fine.
-      String headerValue = response.getFirstHeader(HEADER_RETRY_AFTER).getValue();
-      retryAfter = Utils.decimalSecondsToMilliseconds(headerValue);
-    }
-    if (response.containsHeader(HEADER_X_WEAVE_BACKOFF)) {
-      // Handles non-decimals just fine.
-      String headerValue = response.getFirstHeader(HEADER_X_WEAVE_BACKOFF).getValue();
-      weaveBackoff = Utils.decimalSecondsToMilliseconds(headerValue);
-    }
-    long backoff = Math.max(retryAfter, weaveBackoff);
-    if (backoff > 0) {
-      callback.requestBackoff(backoff);
+    long responseBackoff = (new SyncResponse(response)).totalBackoffInMilliseconds();
+    if (responseBackoff > 0) {
+      callback.requestBackoff(responseBackoff);
     }
 
     if (response.getStatusLine() != null && response.getStatusLine().getStatusCode() == 401) {
@@ -319,13 +401,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
        */
       callback.informUnauthorizedResponse(this, config.getClusterURL());
     }
-  }
-
-  public void fetchMetaGlobal(MetaGlobalDelegate callback) throws URISyntaxException {
-    if (this.config.metaGlobal == null) {
-      this.config.metaGlobal = new MetaGlobal(config.metaURL(), credentials());
-    }
-    this.config.metaGlobal.fetch(callback);
   }
 
   public void fetchInfoCollections(InfoCollectionsDelegate callback) throws URISyntaxException {
@@ -395,6 +470,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
    * meta/global callbacks.
    */
   public void processMetaGlobal(MetaGlobal global) {
+    config.metaGlobal = global;
+
     Long storageVersion = global.getStorageVersion();
     if (storageVersion < STORAGE_VERSION) {
       // Outdated server.
@@ -415,12 +492,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     String localSyncID = this.getSyncID();
     if (!remoteSyncID.equals(localSyncID)) {
       // Sync ID has changed. Reset timestamps and fetch new keys.
-      resetClient();
-      if (config.collectionKeys != null) {
-        config.collectionKeys.clear();
-      }
+      resetAllStages();
+      config.purgeCryptoKeys();
       config.syncID = remoteSyncID;
-      // TODO TODO TODO
     }
     config.persistToPrefs();
     advance();
@@ -468,8 +542,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
 
       @Override
       public void onWiped(long timestamp) {
-        session.resetClient();
-        session.config.collectionKeys.clear();      // TODO: make sure we clear our keys timestamp.
+        session.resetAllStages();
+        session.config.purgeCryptoKeys();
         session.config.persistToPrefs();
 
         MetaGlobal mg = new MetaGlobal(metaURL, credentials);
@@ -531,54 +605,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
             Logger.warn(LOG_TAG, "Got error uploading new meta/global.", e);
             freshStartDelegate.onFreshStartFailed(e);
           }
-
-          @Override
-          public MetaGlobalDelegate deferred() {
-            final MetaGlobalDelegate self = this;
-            return new MetaGlobalDelegate() {
-
-              @Override
-              public void handleSuccess(final MetaGlobal global, final SyncStorageResponse response) {
-                ThreadPool.run(new Runnable() {
-                  @Override
-                  public void run() {
-                    self.handleSuccess(global, response);
-                  }});
-              }
-
-              @Override
-              public void handleMissing(final MetaGlobal global, final SyncStorageResponse response) {
-                ThreadPool.run(new Runnable() {
-                  @Override
-                  public void run() {
-                    self.handleMissing(global, response);
-                  }});
-              }
-
-              @Override
-              public void handleFailure(final SyncStorageResponse response) {
-                ThreadPool.run(new Runnable() {
-                  @Override
-                  public void run() {
-                    self.handleFailure(response);
-                  }});
-              }
-
-              @Override
-              public void handleError(final Exception e) {
-                ThreadPool.run(new Runnable() {
-                  @Override
-                  public void run() {
-                    self.handleError(e);
-                  }});
-              }
-
-              @Override
-              public MetaGlobalDelegate deferred() {
-                return this;
-              }
-            };
-          }
         });
       }
 
@@ -588,8 +614,25 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
         freshStartDelegate.onFreshStartFailed(e);
       }
     });
-
   }
+
+  // Note that we do not yet implement wipeRemote: it's only necessary for
+  // first sync options.
+  // -- reset local stages, wipe server for each stage *except* clients
+  //    (stages only, not whole server!), send wipeEngine commands to each client.
+  //
+  // Similarly for startOver (because we don't receive that notification).
+  // -- remove client data from server, reset local stages, clear keys, reset
+  //    backoff, clear all prefs, discard credentials.
+  //
+  // Change passphrase: wipe entire server, reset client to force upload, sync.
+  //
+  // When an engine is disabled: wipe its collections on the server, reupload
+  // meta/global.
+  //
+  // On syncing each stage: if server has engine version 0 or old, wipe server,
+  // reset client to prompt reupload.
+  // If sync ID mismatch: take that syncID and reset client.
 
   private void wipeServer(final CredentialsSource credentials, final WipeServerDelegate wipeDelegate) {
     SyncStorageRequest request;
@@ -639,14 +682,62 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
     request.delete();
   }
 
-  /**
-   * Reset our state. Clear our sync ID, reset each engine, drop any
-   * cached records.
-   */
-  private void resetClient() {
-    // TODO: futz with config?!
-    // TODO: engines?!
+  public void wipeAllStages() {
+    Logger.info(LOG_TAG, "Wiping all stages.");
+    // Includes "clients".
+    this.wipeStagesByEnum(Stage.getNamedStages());
+  }
 
+  public static void wipeStages(Collection<GlobalSyncStage> stages) {
+    for (GlobalSyncStage stage : stages) {
+      try {
+        Logger.info(LOG_TAG, "Wiping " + stage);
+        stage.wipeLocal();
+      } catch (Exception e) {
+        Logger.error(LOG_TAG, "Ignoring wipe failure for stage " + stage, e);
+      }
+    }
+  }
+
+  public void wipeStagesByEnum(Collection<Stage> stages) {
+    GlobalSession.wipeStages(this.getSyncStagesByEnum(stages));
+  }
+
+  public void wipeStagesByName(Collection<String> names) {
+    GlobalSession.wipeStages(this.getSyncStagesByName(names));
+  }
+
+  public void resetAllStages() {
+    Logger.info(LOG_TAG, "Resetting all stages.");
+    // Includes "clients".
+    this.resetStagesByEnum(Stage.getNamedStages());
+  }
+
+  public static void resetStages(Collection<GlobalSyncStage> stages) {
+    for (GlobalSyncStage stage : stages) {
+      try {
+        Logger.info(LOG_TAG, "Resetting " + stage);
+        stage.resetLocal();
+      } catch (Exception e) {
+        Logger.error(LOG_TAG, "Ignoring reset failure for stage " + stage, e);
+      }
+    }
+  }
+
+  public void resetStagesByEnum(Collection<Stage> stages) {
+    GlobalSession.resetStages(this.getSyncStagesByEnum(stages));
+  }
+
+  public void resetStagesByName(Collection<String> names) {
+    for (String name : names) {
+      try {
+        GlobalSyncStage stage = this.getSyncStageByName(name);
+        Logger.info(LOG_TAG, "Resetting " + name + "(" + stage + ")");
+        stage.resetLocal();
+      } catch (NoSuchStageException e) {
+        Logger.warn(LOG_TAG, "Cannot reset stage " + name + ": no such stage.");
+      }
+    }
   }
 
   /**
@@ -663,24 +754,88 @@ public class GlobalSession implements CredentialsSource, PrefsSource {
    * Otherwise, returns true if there is an entry for this engine in the
    * meta/global "engines" object.
    *
-   * @param engineName
+   * @param engineName the name to check (e.g., "bookmarks").
+   * @param engineSettings
+   *        if non-null, verify that the server engine settings are congruent
+   *        with this, throwing the appropriate MetaGlobalException if not.
    * @return
    *        true if the engine with the provided name is present in the
-   *        meta/global "engines" object.
+   *        meta/global "engines" object, and verification passed.
    *
    * @throws MetaGlobalException
    */
-  public boolean engineIsEnabled(String engineName) throws MetaGlobalException {
+  public boolean engineIsEnabled(String engineName, EngineSettings engineSettings) throws MetaGlobalException {
     if (this.config.metaGlobal == null) {
       throw new MetaGlobalNotSetException();
     }
     if (this.config.metaGlobal.engines == null) {
       throw new MetaGlobalMissingEnginesException();
     }
-    return this.config.metaGlobal.engines.get(engineName) != null;
+    ExtendedJSONObject engineEntry;
+    try {
+      engineEntry = this.config.metaGlobal.engines.getObject(engineName);
+    } catch (NonObjectJSONException e) {
+      Logger.error(LOG_TAG, "Engine field for " + engineName + " in meta/global is not an object.");
+      throw new MetaGlobalMissingEnginesException();
+    }
+
+    if (engineEntry == null) {
+      Logger.debug(LOG_TAG, "Engine " + engineName + " not enabled: no meta/global entry.");
+      return false;
+    }
+
+    if (engineSettings != null) {
+      MetaGlobal.verifyEngineSettings(engineEntry, engineSettings);
+    }
+    return true;
   }
 
   public ClientsDataDelegate getClientsDelegate() {
     return this.clientsDelegate;
+  }
+
+  /**
+   * The longest backoff observed to date; -1 means no backoff observed.
+   */
+  protected final AtomicLong largestBackoffObserved = new AtomicLong(-1);
+
+  /**
+   * Reset any observed backoff and start observing HTTP responses for backoff
+   * requests.
+   */
+  protected void installAsHttpResponseObserver() {
+    Logger.debug(LOG_TAG, "Installing " + this + " as BaseResource HttpResponseObserver.");
+    BaseResource.setHttpResponseObserver(this);
+    largestBackoffObserved.set(-1);
+  }
+
+  /**
+   * Stop observing HttpResponses for backoff requests.
+   */
+  protected void uninstallAsHttpResponseObserver() {
+    Logger.debug(LOG_TAG, "Uninstalling " + this + " as BaseResource HttpResponseObserver.");
+    BaseResource.setHttpResponseObserver(null);
+  }
+
+  /**
+   * Observe all HTTP response for backoff requests on all status codes, not just errors.
+   */
+  @Override
+  public void observeHttpResponse(HttpResponse response) {
+    long responseBackoff = (new SyncResponse(response)).totalBackoffInMilliseconds(); // TODO: don't allocate object?
+    if (responseBackoff <= 0) {
+      return;
+    }
+
+    Logger.debug(LOG_TAG, "Observed " + responseBackoff + " millisecond backoff request.");
+    while (true) {
+      long existingBackoff = largestBackoffObserved.get();
+      if (existingBackoff >= responseBackoff) {
+        return;
+      }
+      if (largestBackoffObserved.compareAndSet(existingBackoff, responseBackoff)) {
+        return;
+      }
+    }
   }
 }

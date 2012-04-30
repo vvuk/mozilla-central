@@ -105,6 +105,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
+
+  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   virtual StringAttributesInfo GetStringInfo();
 
@@ -177,18 +179,9 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 // nsIDOMSVGScriptElement methods
 
 /* attribute DOMString type; */
-NS_IMETHODIMP
-nsSVGScriptElement::GetType(nsAString & aType)
-{
-  GetAttr(kNameSpaceID_None, nsGkAtoms::type, aType);
-
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsSVGScriptElement::SetType(const nsAString & aType)
-{
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, true); 
-}
+NS_IMPL_STRING_ATTR(nsSVGScriptElement, Type, type)
+/* attribute DOMString crossOrigin */
+NS_IMPL_STRING_ATTR(nsSVGScriptElement, CrossOrigin, crossorigin)
 
 //----------------------------------------------------------------------
 // nsIDOMSVGURIReference methods

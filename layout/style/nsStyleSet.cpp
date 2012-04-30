@@ -136,12 +136,12 @@ static const nsStyleSet::sheetType gCSSSheetTypes[] = {
 
 nsStyleSet::nsStyleSet()
   : mRuleTree(nsnull),
-    mUnusedRuleNodeCount(0),
     mBatching(0),
     mInShutdown(false),
     mAuthorStyleDisabled(false),
     mInReconstruct(false),
-    mDirty(0)
+    mDirty(0),
+    mUnusedRuleNodeCount(0)
 {
 }
 
@@ -985,7 +985,7 @@ nsStyleSet::ResolveStyleFor(Element* aElement,
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     nsCSSRuleProcessor::IsLink(aElement),
-                    nsCSSRuleProcessor::GetContentState(aElement).
+                    nsCSSRuleProcessor::GetContentState(aElement, aTreeMatchContext).
                       HasState(NS_EVENT_STATE_VISITED),
                     nsnull, nsCSSPseudoElements::ePseudo_NotPseudoElement,
                     true, aElement);

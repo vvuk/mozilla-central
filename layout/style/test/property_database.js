@@ -250,16 +250,21 @@ var gCSSProperties = {
 						"repeat 27 27 27 27 / 10 10 10 / 10 10 url('border.png')",
 						"url('border.png') 27 27 27 27 / / 10 10 1em",
 						"fill 27 27 27 27 / / 10 10 1em url('border.png')",
-						"url('border.png') 27 27 27 27 /",
 						"url('border.png') 27 27 27 27 / 1em 1em 1em 1em repeat",
 						"url('border.png') 27 27 27 27 / 1em 1em 1em 1em stretch round" ],
 		invalid_values: [ "url('border.png') 27 27 27 27 27",
 						  "url('border.png') 27 27 27 27 / 1em 1em 1em 1em 1em",
+						  "url('border.png') 27 27 27 27 /",
 						  "url('border.png') fill",
 						  "url('border.png') fill repeat",
 						  "fill repeat",
 						  "url('border.png') fill / 1em",
-						  "url('border.png') / repeat" ]
+						  "url('border.png') / repeat",
+						  "url('border.png') 1 /",
+						  "url('border.png') 1 / /",
+						  "1 / url('border.png')",
+						  "url('border.png') / 1",
+						  "url('border.png') / / 1"]
 	},
 	"-moz-border-image-source": {
 		domProp: "MozBorderImageSource",
@@ -1018,7 +1023,9 @@ var gCSSProperties = {
 			"translatex(-moz-max(5px,10%))",
 			"translate(10px, -moz-calc(min(5px,10%)))",
 			"translate(-moz-calc(max(5px,10%)), 10%)",
-			"matrix(1, 0, 0, 1, -moz-max(5px * 3), -moz-calc(10% - 3px))"
+			"matrix(1, 0, 0, 1, -moz-max(5px * 3), -moz-calc(10% - 3px))",
+			// Bug 734953
+			"skew(45deg)", "skew(45deg, 45deg)",
 		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
             "perspective(0px)", "perspective(-10px)", "matrix3d(dinosaur)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15%, 16)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16px)", "rotatey(words)", "rotatex(7)", "translate3d(3px, 4px, 1px, 7px)"
 		] : [])
@@ -2039,8 +2046,19 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
-		other_values: [ "'liga=1'", "\"liga=1\"", "'foo,bar=\"hello\"'" ],
-		invalid_values: [ "liga=1", "foo,bar=\"hello\"" ]
+		other_values: [
+			"'liga' on", "'liga'", "\"liga\" 1", "'liga', 'clig' 1",
+			"\"liga\" off", "\"liga\" 0", '"cv01" 3, "cv02" 4',
+			'"cswh", "smcp" off, "salt" 4', '"cswh" 1, "smcp" off, "salt" 4',
+			'"cswh" 0, \'blah\', "liga", "smcp" off, "salt" 4',
+			'"liga"        ,"smcp" 0         , "blah"'
+		],
+		invalid_values: [
+			'liga', 'liga 1', 'liga normal', '"liga" normal', 'normal liga', 
+			'normal "liga"', 'normal, "liga"', '"liga=1"', "'foobar' on",
+			'"blahblah" 0', '"liga" 3.14', '"liga" 1 3.14', '"liga" 1 normal',
+			'"liga" 1 off', '"liga" on off', '"liga" , 0 "smcp"', '"liga" "smcp"'
+		]
 	},
 	"-moz-font-language-override": {
 		domProp: "MozFontLanguageOverride",
@@ -2048,7 +2066,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
 		other_values: [ "'ENG'", "'TRK'", "\"TRK\"", "'N\\'Ko'" ],
-		invalid_values: [ "TRK" ]
+		invalid_values: [ "TRK", "ja" ]
 	},
 	"font-size": {
 		domProp: "fontSize",

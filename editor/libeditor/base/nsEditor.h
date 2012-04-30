@@ -153,6 +153,8 @@ public:
                                            nsIEditor)
 
   /* ------------ utility methods   -------------- */
+  already_AddRefed<nsIDOMDocument> GetDOMDocument();
+  already_AddRefed<nsIDocument> GetDocument();
   already_AddRefed<nsIPresShell> GetPresShell();
   void NotifyEditorObservers();
 
@@ -215,32 +217,7 @@ public:
 
   void SwitchTextDirectionTo(PRUint32 aDirection);
 
-  void BeginKeypressHandling() { mLastKeypressEventWasTrusted = eTriTrue; }
-  void BeginKeypressHandling(nsIDOMNSEvent* aEvent);
-  void EndKeypressHandling() { mLastKeypressEventWasTrusted = eTriUnset; }
-
-  class FireTrustedInputEvent {
-  public:
-    explicit FireTrustedInputEvent(nsEditor* aSelf, bool aActive = true)
-      : mEditor(aSelf)
-      , mShouldAct(aActive && mEditor->mLastKeypressEventWasTrusted == eTriUnset) {
-      if (mShouldAct) {
-        mEditor->BeginKeypressHandling();
-      }
-    }
-    ~FireTrustedInputEvent() {
-      if (mShouldAct) {
-        mEditor->EndKeypressHandling();
-      }
-    }
-  private:
-    nsEditor* mEditor;
-    bool mShouldAct;
-  };
-
 protected:
-  nsCString mContentMIMEType;       // MIME type of the doc we are editing.
-
   nsresult DetermineCurrentDirection();
 
   /** create a transaction for setting aAttribute to aValue on aElement
@@ -715,7 +692,7 @@ public:
     return (mFlags & nsIPlaintextEditor::eEditorDontEchoPassword) != 0;
   }
   
-  PRBool ShouldSkipSpellCheck() const
+  bool ShouldSkipSpellCheck() const
   {
     return (mFlags & nsIPlaintextEditor::eEditorSkipSpellCheck) != 0;
   }
@@ -725,6 +702,9 @@ public:
     return IsSingleLineEditor() || IsPasswordEditor() || IsFormWidget() ||
            IsInteractionAllowed();
   }
+
+  // Get the input event target. This might return null.
+  virtual already_AddRefed<nsIContent> GetInputEventTargetContent() = 0;
 
   // Get the focused content, if we're focused.  Returns null otherwise.
   virtual already_AddRefed<nsIContent> GetFocusedContent();
@@ -771,60 +751,102 @@ public:
 
   virtual already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode) { return nsnull; }
 
+  NS_STACK_CLASS class HandlingTrustedAction
+  {
+  public:
+    explicit HandlingTrustedAction(nsEditor* aSelf, bool aIsTrusted = true)
+    {
+      Init(aSelf, aIsTrusted);
+    }
+
+    HandlingTrustedAction(nsEditor* aSelf, nsIDOMNSEvent* aEvent);
+
+    ~HandlingTrustedAction()
+    {
+      mEditor->mHandlingTrustedAction = mWasHandlingTrustedAction;
+      mEditor->mHandlingActionCount--;
+    }
+
+  private:
+    nsRefPtr<nsEditor> mEditor;
+    bool mWasHandlingTrustedAction;
+
+    void Init(nsEditor* aSelf, bool aIsTrusted)
+    {
+      MOZ_ASSERT(aSelf);
+
+      mEditor = aSelf;
+      mWasHandlingTrustedAction = aSelf->mHandlingTrustedAction;
+      if (aIsTrusted) {
+        // If action is nested and the outer event is not trusted,
+        // we shouldn't override it.
+        if (aSelf->mHandlingActionCount == 0) {
+          aSelf->mHandlingTrustedAction = true;
+        }
+      } else {
+        aSelf->mHandlingTrustedAction = false;
+      }
+      aSelf->mHandlingActionCount++;
+    }
+  };
+
 protected:
-
-  PRUint32        mModCount;     // number of modifications (for undo/redo stack)
-  PRUint32        mFlags;        // behavior flags. See nsIPlaintextEditor.idl for the flags we use.
-
-  nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
-  PRInt32         mUpdateCount;
-
-  // Spellchecking
   enum Tristate {
     eTriUnset,
     eTriFalse,
     eTriTrue
-  }                 mSpellcheckCheckboxState;
+  };
+  // Spellchecking
+  nsCString mContentMIMEType;       // MIME type of the doc we are editing.
+
   nsCOMPtr<nsIInlineSpellChecker> mInlineSpellChecker;
 
   nsCOMPtr<nsITransactionManager> mTxnMgr;
-  nsWeakPtr         mPlaceHolderTxn;     // weak reference to placeholder for begin/end batch purposes
-  nsIAtom          *mPlaceHolderName;    // name of placeholder transaction
-  PRInt32           mPlaceHolderBatch;   // nesting count for batching
-  nsSelectionState *mSelState;           // saved selection state for placeholder txn batching
-  nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset
-  nsRangeUpdater    mRangeUpdater;       // utility class object for maintaining preserved ranges
-  nsCOMPtr<mozilla::dom::Element> mRootElement;   // cached root node
-  PRInt32           mAction;             // the current editor action
-  EDirection        mDirection;          // the current direction of editor action
-  
-  // data necessary to build IME transactions
+  nsCOMPtr<mozilla::dom::Element> mRootElement; // cached root node
   nsCOMPtr<nsIPrivateTextRangeList> mIMETextRangeList; // IME special selection ranges
   nsCOMPtr<nsIDOMCharacterData>     mIMETextNode;      // current IME text node
-  PRUint32                          mIMETextOffset;    // offset in text node where IME comp string begins
-  PRUint32                          mIMEBufferLength;  // current length of IME comp string
-  bool                              mInIMEMode;        // are we inside an IME composition?
-  bool                              mIsIMEComposing;   // is IME in composition state?
-                                                       // This is different from mInIMEMode. see Bug 98434.
+  nsCOMPtr<nsIDOMEventTarget> mEventTarget; // The form field as an event receiver
+  nsCOMPtr<nsIDOMEventListener> mEventListener;
+  nsWeakPtr        mSelConWeak;          // weak reference to the nsISelectionController
+  nsWeakPtr        mPlaceHolderTxn;      // weak reference to placeholder for begin/end batch purposes
+  nsWeakPtr        mDocWeak;             // weak reference to the nsIDOMDocument
+  nsIAtom          *mPlaceHolderName;    // name of placeholder transaction
+  nsSelectionState *mSelState;           // saved selection state for placeholder txn batching
+  nsString         *mPhonetic;
 
-  bool                          mShouldTxnSetSelection;  // turn off for conservative selection adjustment by txns
-  bool                          mDidPreDestroy;    // whether PreDestroy has been called
-  bool                          mDidPostCreate;    // whether PostCreate has been called
-   // various listeners
+  // various listeners
   nsCOMArray<nsIEditActionListener> mActionListeners;  // listens to all low level actions on the doc
   nsCOMArray<nsIEditorObserver> mEditorObservers;  // just notify once per high level change
   nsCOMArray<nsIDocumentStateListener> mDocStateListeners;// listen to overall doc state (dirty or not, just created, etc)
 
-  PRInt8                        mDocDirtyState;		// -1 = not initialized
-  nsWeakPtr        mDocWeak;  // weak reference to the nsIDOMDocument
-  // The form field as an event receiver
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset
+  nsRangeUpdater    mRangeUpdater;       // utility class object for maintaining preserved ranges
 
-  nsString* mPhonetic;
+  PRUint32          mModCount;     // number of modifications (for undo/redo stack)
+  PRUint32          mFlags;        // behavior flags. See nsIPlaintextEditor.idl for the flags we use.
 
- nsCOMPtr<nsIDOMEventListener> mEventListener;
+  PRInt32           mUpdateCount;
 
-  Tristate mLastKeypressEventWasTrusted;
+  PRInt32           mPlaceHolderBatch;   // nesting count for batching
+  PRInt32           mAction;             // the current editor action
+  PRUint32          mHandlingActionCount;
+
+  PRUint32          mIMETextOffset;    // offset in text node where IME comp string begins
+  PRUint32          mIMEBufferLength;  // current length of IME comp string
+
+  EDirection        mDirection;          // the current direction of editor action
+  PRInt8            mDocDirtyState;      // -1 = not initialized
+  PRUint8           mSpellcheckCheckboxState; // a Tristate value
+
+  bool mInIMEMode;        // are we inside an IME composition?
+  bool mIsIMEComposing;   // is IME in composition state?
+                                                       // This is different from mInIMEMode. see Bug 98434.
+
+  bool mShouldTxnSetSelection;  // turn off for conservative selection adjustment by txns
+  bool mDidPreDestroy;    // whether PreDestroy has been called
+  bool mDidPostCreate;    // whether PostCreate has been called
+  bool mHandlingTrustedAction;
+  bool mDispatchInputEvent;
 
   friend bool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;

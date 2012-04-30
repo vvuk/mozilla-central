@@ -291,6 +291,8 @@ CustomElf::GetSymbolPtrInDeps(const char *symbol) const
       return FunctionPtr(__wrap_dlsym);
     if (strcmp(symbol + 2, "addr") == 0)
       return FunctionPtr(__wrap_dladdr);
+    if (strcmp(symbol + 2, "_iterate_phdr") == 0)
+      return FunctionPtr(__wrap_dl_iterate_phdr);
   } else if (symbol[0] == '_' && symbol[1] == '_') {
   /* Resolve a few C++ ABI specific functions to point to ours */
 #ifdef __ARM_EABI__
@@ -705,7 +707,8 @@ CustomElf::CallInit()
 
   for (Array<void *>::iterator it = init_array.begin();
        it < init_array.end(); ++it) {
-    if (*it)
+    /* Android x86 NDK wrongly puts 0xffffffff in INIT_ARRAY */
+    if (*it && *it != reinterpret_cast<void *>(-1))
       CallFunction(*it);
   }
   initialized = true;
@@ -719,7 +722,8 @@ CustomElf::CallFini()
     return;
   for (Array<void *>::iterator it = fini_array.begin();
        it < fini_array.end(); ++it) {
-    if (*it)
+    /* Android x86 NDK wrongly puts 0xffffffff in FINI_ARRAY */
+    if (*it && *it != reinterpret_cast<void *>(-1))
       CallFunction(*it);
   }
   if (fini)

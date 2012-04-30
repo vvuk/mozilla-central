@@ -53,7 +53,6 @@
 #include "nsWeakPtr.h"
 #include "nsIPrompt.h"
 #include "nsISupportsArray.h"
-#include "nsIPrefBranch.h"
 #include "nsWeakReference.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
@@ -111,11 +110,9 @@ public:
   NS_DECL_NSITIMERCALLBACK
 
   nsresult Init();
-  nsresult Destroy();
   nsresult LoadPlugins();
-  nsresult CreateListenerForChannel(nsIChannel* aChannel,
-                                    nsObjectLoadingContent* aContent,
-                                    nsIStreamListener** aListener);
+  nsresult UnloadPlugins();
+
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
                                nsIPluginInstanceOwner *aOwner);
@@ -219,37 +216,35 @@ public:
 
   // The last argument should be false if we already have an in-flight stream
   // and don't need to set up a new stream.
-  nsresult InstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
-                                     nsObjectLoadingContent *aContent,
-                                     nsPluginInstanceOwner** aOwner);
+  nsresult InstantiateEmbeddedPluginInstance(const char *aMimeType, nsIURI* aURL,
+                                             nsObjectLoadingContent *aContent,
+                                             nsPluginInstanceOwner** aOwner);
 
-  nsresult InstantiateFullPagePlugin(const char *aMimeType,
-                                     nsIURI* aURI,
-                                     nsObjectLoadingContent *aContent,
-                                     nsPluginInstanceOwner **aOwner,
-                                     nsIStreamListener **aStreamListener);
+  nsresult InstantiateFullPagePluginInstance(const char *aMimeType,
+                                             nsIURI* aURI,
+                                             nsObjectLoadingContent *aContent,
+                                             nsPluginInstanceOwner **aOwner,
+                                             nsIStreamListener **aStreamListener);
 
   // Does not accept NULL and should never fail.
   nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 
   nsresult GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin);
 
+  nsresult NewEmbeddedPluginStreamListener(nsIURI* aURL, nsObjectLoadingContent *aContent,
+                                           nsNPAPIPluginInstance* aInstance,
+                                           nsIStreamListener **aStreamListener);
+
+  nsresult NewFullPagePluginStreamListener(nsIURI* aURI,
+                                           nsNPAPIPluginInstance *aInstance,
+                                           nsIStreamListener **aStreamListener);
+
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
-  NewEmbeddedPluginStreamListener(nsIURI* aURL, nsObjectLoadingContent *aContent,
-                                  nsNPAPIPluginInstance* aInstance,
-                                  nsIStreamListener** aListener);
-
-  nsresult
   NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
-
-  nsresult
-  NewFullPagePluginStream(nsIURI* aURI,
-                          nsNPAPIPluginInstance *aInstance,
-                          nsIStreamListener **aStreamListener);
 
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
@@ -275,9 +270,9 @@ private:
                            bool aCreatePluginList,
                            bool *aPluginsChanged);
 
-  nsresult EnsurePluginLoaded(nsPluginTag* plugin);
+  nsresult EnsurePluginLoaded(nsPluginTag* aPluginTag);
 
-  bool IsRunningPlugin(nsPluginTag * plugin);
+  bool IsRunningPlugin(nsPluginTag * aPluginTag);
 
   // Stores all plugins info into the registry
   nsresult WritePluginInfo();
@@ -309,7 +304,6 @@ private:
   nsRefPtr<nsInvalidPluginTag> mInvalidPlugins;
   bool mPluginsLoaded;
   bool mDontShowBadPluginMessage;
-  bool mIsDestroyed;
 
   // set by pref plugin.override_internal_types
   bool mOverrideInternalTypes;
@@ -322,7 +316,6 @@ private:
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
-  nsCOMPtr<nsIPrefBranch> mPrefService;
 #ifdef XP_WIN
   nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
 #endif

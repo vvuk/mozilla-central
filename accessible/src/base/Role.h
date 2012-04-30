@@ -40,10 +40,17 @@
 #ifndef _role_h_
 #define _role_h_
 
+/**
+ * @note Make sure to update the localized role names when changing the list.
+ * @note When adding a new role, be sure to also add it to base/RoleMap.h and
+ *       update nsIAccessibleRole.
+ */
+
 namespace mozilla {
 namespace a11y {
 namespace roles {
-  enum Role {
+
+enum Role {
   /**
    * Used when accessible hans't strong defined role.
    */
@@ -790,13 +797,30 @@ namespace roles {
   FIGURE = 124,
 
   /**
-   * It's not role actually. This constant is important to help ensure
-   * nsRoleMap's are synchronized.
+   * Represents a rich item with a check box.
    */
-  LAST_ENTRY = 125
-  };
+  CHECK_RICH_OPTION = 125,
+
+  /**
+   * Represent a definition list (dl in HTML).
+   */
+  DEFINITION_LIST = 126,
+
+  /**
+   * Represent a term in a definition list (dt in HTML).
+   */
+  TERM = 127,
+
+  /**
+   * Represent a definition in a definition list (dd in HTML)
+   */
+  DEFINITION = 128,
+};
+
 } // namespace role
+
 typedef enum mozilla::a11y::roles::Role role;
+
 } // namespace a11y
 } // namespace mozilla
 

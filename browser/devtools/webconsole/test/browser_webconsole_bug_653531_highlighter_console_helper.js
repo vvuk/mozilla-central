@@ -131,13 +131,8 @@ function finishUp() {
   finish();
 }
 
-registerCleanupFunction(function() {
-  Services.prefs.clearUserPref("devtools.gcli.enable");
-});
-
 function test()
 {
-  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   waitForExplicitFinish();
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {
@@ -146,6 +141,6 @@ function test()
     waitForFocus(createDocument, content);
   }, true);
 
-  content.location = "data:text/html,test for highlighter helper in web console";
+  content.location = "data:text/html;charset=utf-8,test for highlighter helper in web console";
 }
 
