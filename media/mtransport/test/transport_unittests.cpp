@@ -3,23 +3,26 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Original author: ekr@rtfm.com
-#include <talk/base/sigslot.h>
 
 #include <iostream>
+
+// From libjingle.
+#include <talk/base/sigslot.h>
+
+#include "nsThreadUtils.h"
+#include "nsXPCOM.h"
+
+#include "mtransport_test_utils.h"
+
 #include "transportflow.h"
 #include "transportlayer.h"
 #include "transportlayerlog.h"
 #include "transportlayerloopback.h"
-#include "nsNetCID.h"
-#include "nsXPCOMGlue.h"
-#include "nsXPCOM.h"
-#include "nsCOMPtr.h"
-#include "nsIIOService.h"
-#include "nsThreadUtils.h"
-#include "nsIServiceManager.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIComponentManager.h"
-#include "nsIComponentRegistrar.h"
+
+#include "TestHarness.h"
+
+MtransportTestUtils *test_utils;
+
 
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
@@ -91,36 +94,7 @@ public:
 
 int main(int argc, char **argv)
 {
-  nsresult rv;
-
-  nsCOMPtr<nsIServiceManager> servMan;
-  NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
-  
-   nsCOMPtr<nsIComponentManager> manager = do_QueryInterface(servMan);
-
-   // Create an instance of our component
-   nsCOMPtr<nsIIOService> myservice;
-   rv = manager->CreateInstanceByContractID(NS_IOSERVICE_CONTRACTID,
-     nsnull,
-     NS_GET_IID(nsIIOService),
-     getter_AddRefs(myservice));
-
-   if (NS_FAILED (rv)) {
-     std::cout << "FAILED!!!\n";
-   }
-
-   
-   nsCOMPtr<nsIEventTarget> stsTarget
-     = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-   if (NS_SUCCEEDED(rv)) {
-     rv = stsTarget->Dispatch(new MyEvent(),
-       NS_DISPATCH_NORMAL);
-   }
-
-  TransportTest test;
-
-  test.Connect();
-  test.TransferTest(10);
+  test_utils = new MtransportTestUtils();
 
   return 0;
 }

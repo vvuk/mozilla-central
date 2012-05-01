@@ -22,10 +22,13 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 
+#include "mtransport_test_utils.h"
+
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+MtransportTestUtils test_utils;
 
 namespace {
 class SocketTransportServiceTest : public ::testing::Test {
@@ -191,19 +194,8 @@ TEST_F(SocketTransportServiceTest, SendPacket) {
 
 
 int main(int argc, char **argv) {
-  nsresult rv;
+    test_utils.InitServices();
 
-  // Start the IO and socket transport service
-  nsCOMPtr<nsIServiceManager> servMan;
-  NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
-  nsCOMPtr<nsIComponentManager> manager = do_QueryInterface(servMan);
-  nsCOMPtr<nsIIOService> ioservice;
-
-  rv = manager->CreateInstanceByContractID(NS_IOSERVICE_CONTRACTID,
-                                            nsnull, NS_GET_IID(nsIIOService),
-                                            getter_AddRefs(ioservice));
-  assert(NS_SUCCEEDED(rv));
-  
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
   
