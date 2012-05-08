@@ -59,13 +59,13 @@ class RunnableArgsTest : public ::testing::Test {
   RunnableArgsTest() : ran_(0), cl_(&ran_){}
 
   void Test1Arg() {
-    nsRunnable * r = runnable(&cl_, &TargetClass::m1, 1);
+    nsRunnable * r = WrapRunnable(&cl_, &TargetClass::m1, 1);
     r->Run();
     ASSERT_EQ(1, ran_);
   }
 
   void Test2Args() {
-    nsRunnable* r = runnable(&cl_, &TargetClass::m2, 1, 2);
+    nsRunnable* r = WrapRunnable(&cl_, &TargetClass::m2, 1, 2);
     r->Run();
     ASSERT_EQ(2, ran_);
   }
@@ -86,20 +86,20 @@ class DispatchTest : public ::testing::Test {
   }
 
   void Test1Arg() {
-    nsRunnable* r = runnable(&cl_, &TargetClass::m1, 1);
+    nsRunnable* r = WrapRunnable(&cl_, &TargetClass::m1, 1);
     target_->Dispatch(r, NS_DISPATCH_SYNC);
     ASSERT_EQ(1, ran_);
   }
 
   void Test2Args() {
-    nsRunnable* r = runnable(&cl_, &TargetClass::m2, 1, 2);
+    nsRunnable* r = WrapRunnable(&cl_, &TargetClass::m2, 1, 2);
     target_->Dispatch(r, NS_DISPATCH_SYNC);
     ASSERT_EQ(2, ran_);
   }
 
   void Test1Set() {
     bool x = false;
-    target_->Dispatch(runnable(&cl_, &TargetClass::m1set, &x),
+    target_->Dispatch(WrapRunnable(&cl_, &TargetClass::m1set, &x),
                       NS_DISPATCH_SYNC);
     ASSERT_TRUE(x);
   }

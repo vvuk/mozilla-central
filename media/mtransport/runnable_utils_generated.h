@@ -210,63 +210,63 @@ template<typename C, typename M, typename A0, typename A1, typename A2, typename
 
 // 1 arguments --
 template<typename C, typename M, typename A0>
-runnable_args1<C, M, A0>* runnable(C o, M m, A0 a0) {
+runnable_args1<C, M, A0>* WrapRunnable(C o, M m, A0 a0) {
   return new runnable_args1<C, M, A0>
     (o, m, a0);
 }
 
 // 2 arguments --
 template<typename C, typename M, typename A0, typename A1>
-runnable_args2<C, M, A0, A1>* runnable(C o, M m, A0 a0, A1 a1) {
+runnable_args2<C, M, A0, A1>* WrapRunnable(C o, M m, A0 a0, A1 a1) {
   return new runnable_args2<C, M, A0, A1>
     (o, m, a0, a1);
 }
 
 // 3 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2>
-runnable_args3<C, M, A0, A1, A2>* runnable(C o, M m, A0 a0, A1 a1, A2 a2) {
+runnable_args3<C, M, A0, A1, A2>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2) {
   return new runnable_args3<C, M, A0, A1, A2>
     (o, m, a0, a1, a2);
 }
 
 // 4 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3>
-runnable_args4<C, M, A0, A1, A2, A3>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3) {
+runnable_args4<C, M, A0, A1, A2, A3>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3) {
   return new runnable_args4<C, M, A0, A1, A2, A3>
     (o, m, a0, a1, a2, a3);
 }
 
 // 5 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3, typename A4>
-runnable_args5<C, M, A0, A1, A2, A3, A4>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4) {
+runnable_args5<C, M, A0, A1, A2, A3, A4>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4) {
   return new runnable_args5<C, M, A0, A1, A2, A3, A4>
     (o, m, a0, a1, a2, a3, a4);
 }
 
 // 6 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5>
-runnable_args6<C, M, A0, A1, A2, A3, A4, A5>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5) {
+runnable_args6<C, M, A0, A1, A2, A3, A4, A5>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5) {
   return new runnable_args6<C, M, A0, A1, A2, A3, A4, A5>
     (o, m, a0, a1, a2, a3, a4, a5);
 }
 
 // 7 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-runnable_args7<C, M, A0, A1, A2, A3, A4, A5, A6>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6) {
+runnable_args7<C, M, A0, A1, A2, A3, A4, A5, A6>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6) {
   return new runnable_args7<C, M, A0, A1, A2, A3, A4, A5, A6>
     (o, m, a0, a1, a2, a3, a4, a5, a6);
 }
 
 // 8 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-runnable_args8<C, M, A0, A1, A2, A3, A4, A5, A6, A7>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
+runnable_args8<C, M, A0, A1, A2, A3, A4, A5, A6, A7>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7) {
   return new runnable_args8<C, M, A0, A1, A2, A3, A4, A5, A6, A7>
     (o, m, a0, a1, a2, a3, a4, a5, a6, a7);
 }
 
 // 9 arguments --
 template<typename C, typename M, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
-runnable_args9<C, M, A0, A1, A2, A3, A4, A5, A6, A7, A8>* runnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8) {
+runnable_args9<C, M, A0, A1, A2, A3, A4, A5, A6, A7, A8>* WrapRunnable(C o, M m, A0 a0, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8) {
   return new runnable_args9<C, M, A0, A1, A2, A3, A4, A5, A6, A7, A8>
     (o, m, a0, a1, a2, a3, a4, a5, a6, a7, a8);
 }

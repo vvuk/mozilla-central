@@ -64,7 +64,7 @@ def generate_class_template(args):
 def generate_function_template(args):
     print "// %d arguments --"%args
     print "template<typename C, typename M, "+ gen_typenames(args) + ">"
-    print "runnable_args%d<C, M, "%args + gen_types(args) + ">* runnable(C o, M m, " + gen_args_type(args) + ") {"
+    print "runnable_args%d<C, M, "%args + gen_types(args) + ">* WrapRunnable(C o, M m, " + gen_args_type(args) + ") {"
     print "  return new runnable_args%d<C, M, "%args + gen_types(args) + ">"
     print "    (o, m, " + gen_args(args) + ");"
     print "}"
