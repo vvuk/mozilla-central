@@ -23,13 +23,18 @@ class TransportLayer : public sigslot::has_slots<> {
   // Is this a stream or datagram flow
   enum Mode { STREAM, DGRAM };
 
+  // Write errors
+  enum WriteResult { ERR_WOULDBLOCK = -1, ERR_ERROR = -2, ERR_INTERNAL = -3 };
+
   // NULL constructor
   TransportLayer() : state_(INIT), flow_(NULL), downward_(NULL) {}
   virtual ~TransportLayer() {}
 
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
-  
+
+  // Get the state
+  State state() const { return state_; }
   // Must be implemented by derived classes
   virtual int SendPacket(const unsigned char *data, size_t len) = 0;
   
@@ -42,6 +47,7 @@ class TransportLayer : public sigslot::has_slots<> {
   
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
+
 
  protected:
   // Called by Inserted

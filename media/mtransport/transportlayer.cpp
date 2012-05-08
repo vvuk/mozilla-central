@@ -18,7 +18,7 @@ void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
 
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "Inserted: downward='" << 
     (downward ? downward->id(): "none") << "'");
-
+  
   WasInserted();
 }
 

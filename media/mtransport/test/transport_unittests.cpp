@@ -17,26 +17,27 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 #include "transportlayerlog.h"
-#include "transportlayerloopback.h"
+#include "transportlayerprsock.h"
 
-#include "TestHarness.h"
+#include "mtransport_test_utils.h"
+#define GTEST_HAS_RTTI 0
+#include "gtest/gtest.h"
+#include "gtest_utils.h"
 
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
 
-
+namespace {
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
   TransportTestPeer() : received_(0), flow_(), 
-                        loopback_(new TransportLayerLoopback()),
+                        prsock_(new TransportLayerPrsock()),
                         logging_(new TransportLayerLogging()) {
-    flow_.PushLayer(loopback_);
-    flow_.PushLayer(logging_);
-    logging_->SignalPacketReceived.connect(this,
-                                           &TransportTestPeer::PacketReceived);
   }
 
-  void Connect(TransportTestPeer* peer) {
-    loopback_->Connect(peer->loopback_);
+  void Connect(PRFileDesc *fd) {
+    ASSERT_TRUE(NS_SUCCEEDED(prsock_->Import(fd, false)));
+    flow_.PushLayer(prsock_);
+    flow_.PushLayer(logging_);
   }
 
   void SendPacket(const unsigned char* data, size_t len) {
@@ -53,15 +54,26 @@ class TransportTestPeer : public sigslot::has_slots<> {
  private:
   size_t received_;
   TransportFlow flow_;
-  TransportLayerLoopback *loopback_;
+  TransportLayerPrsock *prsock_;
   TransportLayerLogging *logging_;
 };
 
-class TransportTest {
+
+class TransportTest : public ::testing::Test {
  public:
+  TransportTest() : fd1_(NULL), fd2_(NULL) {}
+
+  ~TransportTest() {
+    PR_Close(fd1_);
+    PR_Close(fd2_);
+  }
+
   void Connect() {
-    p1_.Connect(&p2_);
-    p2_.Connect(&p1_);
+    PRStatus status = PR_CreatePipe(&fd1_, &fd2_);
+    ASSERT_EQ(status, PR_SUCCESS);
+
+    p1_.Connect(fd1_);
+    p2_.Connect(fd2_);
   }
 
   void TransferTest(size_t count) {
@@ -72,29 +84,30 @@ class TransportTest {
       p1_.SendPacket(buf, sizeof(buf));
     }
     
-    std::cout << "received => " << p2_.received() << std::endl;
+    ASSERT_TRUE_WAIT(count == p2_.received(), 1000);
   }
 
  private:
+  PRFileDesc *fd1_;
+  PRFileDesc *fd2_;
   TransportTestPeer p1_;
   TransportTestPeer p2_;
 };
 
-class MyEvent : public nsRunnable {
-public:
-    MyEvent() {};
-    
-    NS_IMETHOD Run() {
-      // do stuff
-      std::cout << "RAN!!!!!\n";
 
-      return NS_OK;
-  }
-};
+TEST_F(TransportTest, TestTransfer) {
+  Connect();
+  TransferTest(1000);
+}
+
+}  // end namespace
 
 int main(int argc, char **argv)
 {
-  test_utils = new MtransportTestUtils();
+  test_utils.InitServices();
 
-  return 0;
+  // Start the tests
+  ::testing::InitGoogleTest(&argc, argv);
+  
+  return RUN_ALL_TESTS();
 }

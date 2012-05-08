@@ -5,6 +5,7 @@
 // Original author: ekr@rtfm.com
 
 #include "nspr.h"
+#include "prerror.h"
 #include "prio.h"
 
 #include "nsCOMPtr.h"
@@ -26,8 +27,9 @@ std::string TransportLayerPrsock::ID("mt_prsock");
 
 NS_IMPL_ISUPPORTS0(TransportLayerPrsock);
 
-nsresult TransportLayerPrsock::Import(PRFileDesc *fd) {
+nsresult TransportLayerPrsock::Import(PRFileDesc *fd, bool owned) {
   fd_ = fd;
+  owned_ = owned;
 
   // Get the transport service as a transport service
   nsresult rv;
@@ -39,17 +41,57 @@ nsresult TransportLayerPrsock::Import(PRFileDesc *fd) {
   if (!NS_SUCCEEDED(rv))
     return rv;
   
+  SetState(OPEN);
+
   return NS_OK;
 }
 
 int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
+  if (state_ != OPEN) {
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Can't send packet on closed interface");
+    return ERR_INTERNAL;
+  }
 
   PRInt32 status;
   status = PR_Write(fd_, data, len);
-  
-  if (status <= 0)
-    return -1;
+  if (status >= 0) {
+    return status;
+  }
 
-  return status;
+  PRErrorCode err = PR_GetError();
+  if (err == PR_WOULD_BLOCK_ERROR) {
+    return ERR_WOULDBLOCK;
+  }
+
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write error; channel closed");
+  SetState(ERROR);
+  return ERR_ERROR;
+}
+
+void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "OnSocketReady(flags=" << outflags << ")");
+  if (!(outflags & PR_POLL_READ)) {
+    return;
+  }
+  
+  unsigned char buf[1600];
+  PRInt32 rv = PR_Recv(fd, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
+
+  if (rv > 0) {
+    // Successful read
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes");
+    SignalPacketReceived(this, buf, rv);
+  } else if (rv == 0) {
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read 0 bytes; channel closed");
+    SetState(CLOSED);
+  } else {
+    PRErrorCode err = PR_GetError();
+    
+    if (err != PR_WOULD_BLOCK_ERROR) {
+      MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read error; channel closed");
+      SetState(ERROR);
+    }
+  }
 }

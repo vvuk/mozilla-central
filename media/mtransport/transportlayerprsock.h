@@ -20,14 +20,18 @@
 
 class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
  public:
+  TransportLayerPrsock() : fd_(NULL), owned_(false) {}
+  ~TransportLayerPrsock() { if (owned_) PR_Close(fd_); }
+
   // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
   // Should we require that or provide a way to pump requests across
   // threads?
-  nsresult Import(PRFileDesc *fd);
+  nsresult Import(PRFileDesc *fd, bool owned_);
 
-  // Overrides for TransportLayer
+  // Implement TransportLayer
   virtual int SendPacket(const unsigned char *data, size_t len);
-  
+
+
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
 
@@ -37,13 +41,15 @@ class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
   // nsISupports methods
   NS_DECL_ISUPPORTS
 
-  // nsASocketHandler methods
-  void OnSocketDetached(PRFileDesc *fd) {}  
-
  private:
+  // Implement nsASocket
+  void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
+  void OnSocketDetached(PRFileDesc *fd) { SetState(CLOSED); }  
+
   void RegisterHandler();
 
   PRFileDesc *fd_;
+  bool owned_;
   nsCOMPtr<nsISocketTransportService> stservice_;
 };
 

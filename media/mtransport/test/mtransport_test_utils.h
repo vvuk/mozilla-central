@@ -4,6 +4,9 @@
 
 // Original author: ekr@rtfm.com
 
+#ifndef mtransport_test_utils_h__
+#define mtransport_test_utils_h__
+
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
 #include "nsXPCOMGlue.h"
@@ -40,4 +43,6 @@ class MtransportTestUtils {
   nsCOMPtr<nsIIOService> ioservice_;
 };
 
+
+#endif
 
