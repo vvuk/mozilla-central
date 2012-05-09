@@ -48,6 +48,11 @@ class TransportLayer : public sigslot::has_slots<> {
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
 
+  virtual const std::string& flow_id() { 
+    static std::string empty;
+
+    return flow_ ? flow_->id() : empty;
+  }
 
  protected:
   // Called by Inserted
@@ -59,6 +64,6 @@ class TransportLayer : public sigslot::has_slots<> {
   TransportLayer *downward_; // The next layer in the stack
 };
 
-#define LAYER_INFO "Flow[" << flow_->id() << "]; Layer[" << id() << "]: "
+#define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "
 
 #endif

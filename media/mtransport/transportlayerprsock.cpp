@@ -25,25 +25,29 @@ MLOG_INIT("mtransport");
 std::string TransportLayerPrsock::ID("mt_prsock");
 
 
-NS_IMPL_ISUPPORTS0(TransportLayerPrsock);
+NS_IMPL_THREADSAFE_ISUPPORTS0(TransportLayerPrsock);
 
-nsresult TransportLayerPrsock::Import(PRFileDesc *fd, bool owned) {
+void TransportLayerPrsock::Import(PRFileDesc *fd, bool owned, nsresult *result) {
   fd_ = fd;
   owned_ = owned;
 
   // Get the transport service as a transport service
   nsresult rv;
   stservice_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-  if (!NS_SUCCEEDED(rv))
-    return rv;
+  if (!NS_SUCCEEDED(rv)) {
+    *result = rv;
+    return;
+  }
 
   rv = stservice_->AttachSocket(fd_, this);
-  if (!NS_SUCCEEDED(rv))
-    return rv;
+  if (!NS_SUCCEEDED(rv)) {
+    *result = rv;
+    return;
+  }
   
   SetState(OPEN);
 
-  return NS_OK;
+  *result = NS_OK;
 }
 
 int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
@@ -71,13 +75,14 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
 }
 
 void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "OnSocketReady(flags=" << outflags << ")");
   if (!(outflags & PR_POLL_READ)) {
     return;
   }
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "OnSocketReady(flags=" << outflags << ")");
   
   unsigned char buf[1600];
-  PRInt32 rv = PR_Recv(fd, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
+  PRInt32 rv = PR_Read(fd, buf, sizeof(buf));
 
   if (rv > 0) {
     // Successful read

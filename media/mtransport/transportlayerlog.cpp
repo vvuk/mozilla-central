@@ -18,6 +18,7 @@ void TransportLayerLogging::WasInserted() {
         this, &TransportLayerLogging::StateChange);
     downward_->SignalPacketReceived.connect(
         this, &TransportLayerLogging::PacketReceived);
+    SetState(downward_->state());
   }
 }
 
