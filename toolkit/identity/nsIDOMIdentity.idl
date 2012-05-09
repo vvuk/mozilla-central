@@ -1,0 +1,46 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+
+[scriptable, uuid(2f744abf-e017-4801-b1cb-5d28d0ae3a3e)]
+interface nsIDOMIdentity : nsISupports
+{
+  /**
+   * Register a set of callbacks which will notify the calling page on
+   * events like login and logout. Valid properties for the calling object
+   * are:
+   *
+   *  
+   *  onlogin                   : function(assertion) {}
+   *  Called when the user has chosen to login to the site and the corresponding
+   *  assertion is obtained. The site should proceed to verify this assertion on
+   *  their servers and start the user session.
+   *
+   *  onlogout                  : function() {}
+   *  Called when the user has chosen to logout of the site. The current
+   *  session must be cleared.
+   *
+   *  onready                   : function() {}
+   *  If "loggedInEmail" is non-null, this callback indicates that the user
+   *  specified by that argument is already signed in and that the site may
+   *  retain the existing user session.
+   *
+   *  loggedInEmail             : string
+   *  If there is an active session with the site, the caller must populate
+   *  this field with the user identifier. May be null if there is no user
+   *  logged in to the site at the time of calling watch()
+   *
+   * All properties not in the list above will be ignored.
+   */
+  void watch(in jsval params);
+
+  /**
+   * Request the user to sign in to the calling site. This will result in
+   * UI that will require user action. When an assertion is successfully
+   * obtained, the onlogin callback as registered via a preceiding call to
+   * watch() will be invoked.
+   */
+  void request();
+};

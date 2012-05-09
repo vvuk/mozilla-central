@@ -49,6 +49,7 @@ PARALLEL_DIRS = \
   components \
   content \
   devtools \
+  identity \
   locales \
   mozapps/downloads \
   mozapps/extensions \
