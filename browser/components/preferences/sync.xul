@@ -114,6 +114,10 @@
                             oncommand="gSyncPane.resetSync();"/>
                 </menupopup>
               </button>
+              <spacer flex="1"/>
+              <!-- N.B: we're relying on sync stuff to not show 'logout' unless you're 'logged in' -->
+              <button label="Logout…"
+                      oncommand="gSyncPane.logoutFromBrowser();"/>
             </hbox>
 
             <hbox>

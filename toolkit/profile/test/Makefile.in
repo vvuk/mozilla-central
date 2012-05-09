@@ -44,8 +44,11 @@ relativesrcdir = toolkit/profile/test
 
 include $(DEPTH)/config/autoconf.mk
 
+# XPCSHELL_TESTS = unit
+
 _CHROME_FILES   = \
                 test_create_profile.xul \
+                test_ProfileIdentityUtils.xul \
                 $(NULL)
 
 libs:: $(_CHROME_FILES)
