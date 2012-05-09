@@ -18,24 +18,33 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
-class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
+class TransportLayerPrsock : public TransportLayer {
  public:
-  TransportLayerPrsock() : fd_(NULL), owned_(false) {
-        mPollFlags = PR_POLL_READ;
-  }
+  TransportLayerPrsock() :
+      fd_(NULL),
+      owned_(false),
+      handler_(new SocketHandler(this)) {}
+  
 
-  ~TransportLayerPrsock() { if (owned_) PR_Close(fd_); }
+  ~TransportLayerPrsock() {
+    Detach();
+
+    if (owned_)
+      PR_Close(fd_);
+  }
 
   // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
   // Should we require that or provide a way to pump requests across
   // threads?
   void Import(PRFileDesc *fd, bool owned_, nsresult *result);
 
+  void Detach() {
+    handler_->Detach();
+  }
+
   // Implement TransportLayer
   virtual int SendPacket(const unsigned char *data, size_t len);
   
-  // Implement nsASocket
-  void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
   
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
@@ -43,17 +52,53 @@ class TransportLayerPrsock : public TransportLayer, public nsASocketHandler {
   // A static version of the layer ID
   static std::string ID;
 
-  // nsISupports methods
-  NS_DECL_ISUPPORTS
-
  private:
-  void OnSocketDetached(PRFileDesc *fd) { SetState(CLOSED); }  
 
-  void RegisterHandler();
+  // Inner class
+  class SocketHandler : public nsASocketHandler {
+   public:
+    SocketHandler(TransportLayerPrsock *prsock) : prsock_(prsock) {
+        mPollFlags = PR_POLL_READ;
+    }
+    void Detach() {
+      prsock_ = NULL;
+    }
 
+    // Implement nsASocket
+    void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+      if (prsock_) {
+        prsock_->OnSocketReady(fd, outflags);
+      }
+    }
+
+    void OnSocketDetached(PRFileDesc *fd) {
+      if (prsock_) {
+        prsock_->OnSocketDetached(fd);
+      }  
+    }
+  
+    // nsISupports methods
+    NS_DECL_ISUPPORTS
+
+  private:
+    TransportLayerPrsock *prsock_;
+  };
+
+  // Allow SocketHandler to talk to our APIs
+  friend class SocketHandler;
+
+  // Functions to be called by SocketHandler
+  void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
+  void OnSocketDetached(PRFileDesc *fd) {
+    SetState(CLOSED);
+  }
+  
   PRFileDesc *fd_;
   bool owned_;
+  nsCOMPtr<SocketHandler> handler_;
   nsCOMPtr<nsISocketTransportService> stservice_;
 };
+
+
 
 #endif

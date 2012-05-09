@@ -25,7 +25,6 @@ MLOG_INIT("mtransport");
 std::string TransportLayerPrsock::ID("mt_prsock");
 
 
-NS_IMPL_THREADSAFE_ISUPPORTS0(TransportLayerPrsock);
 
 void TransportLayerPrsock::Import(PRFileDesc *fd, bool owned, nsresult *result) {
   fd_ = fd;
@@ -39,7 +38,7 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, bool owned, nsresult *result) 
     return;
   }
 
-  rv = stservice_->AttachSocket(fd_, this);
+  rv = stservice_->AttachSocket(fd_, handler_);
   if (!NS_SUCCEEDED(rv)) {
     *result = rv;
     return;
@@ -100,3 +99,6 @@ void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
     }
   }
 }
+
+
+NS_IMPL_THREADSAFE_ISUPPORTS0(TransportLayerPrsock::SocketHandler);

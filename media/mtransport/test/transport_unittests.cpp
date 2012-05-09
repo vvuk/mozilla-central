@@ -38,7 +38,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   void Connect(PRFileDesc *fd) {
     nsresult res;
     target_->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
-                                   fd, true, &res), NS_DISPATCH_SYNC);
+                                   fd, false, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
     flow_.PushLayer(prsock_);
     flow_.PushLayer(logging_);
@@ -70,8 +70,8 @@ class TransportTest : public ::testing::Test {
   TransportTest() : fd1_(NULL), fd2_(NULL) {}
 
   ~TransportTest() {
-    //    delete p1_;
-    //    delete p2_;
+    delete p1_;
+    delete p2_;
 #if 0
     // Can't close pipes in NSPR.
     PR_Close(fd1_);  
