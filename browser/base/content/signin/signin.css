@@ -1,0 +1,100 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+label, input, button {
+  font-size: inherit;
+}
+
+html {
+  background-color: hsl(0,0%,90%);
+  background-image: url(chrome://browser/content/abouthome/noise.png),
+                    -moz-linear-gradient(hsla(0,0%,100%,.7), hsla(0,0%,100%,.4));
+  background-attachment: fixed;
+}
+
+body {
+  display: block;
+  margin: 0;
+  font: message-box;
+  font-size: .9em;
+}
+
+#title,
+#form,
+#success {
+  width: 500px;
+  margin: auto;
+}
+
+div {
+  width: 500px;
+  margin: 15px 0;
+}
+
+#title {
+  margin-top: 50px;
+  font-weight: bold;
+}
+
+.field {
+  width: 420px;
+  padding: 0 40px;
+}
+
+label {
+  display: -moz-box;
+  width: 200px;
+}
+
+.field > input {
+  width: 210px;
+}
+
+.button {
+  float: right;
+  padding: 3px 10px;
+  border: 1px solid #ccc;
+  border-radius: 2.5px;
+  background-image: -moz-linear-gradient(#fff, #f3f3f3);
+  background-clip: padding-box;
+  -moz-margin-end: 15px;
+}
+
+#next,
+#done {
+  -moz-margin-end: 42px;
+}
+
+.button:hover,
+.button:focus {
+  background-image: -moz-linear-gradient(hsl(200,100%,60%),hsl(200,100%,50%));
+  border-color: hsl(200,50%,50%);
+  color: white;
+}
+
+.button:hover:active {
+  background-image: -moz-linear-gradient(hsl(200,100%,50%),hsl(200,100%,40%));
+  box-shadow: inset 0 0 1px #333;
+}
+
+input[type=email],
+input[type=password] {
+  border: 1px solid #ccc;
+  padding: 3px;
+}
+
+input[type=email]:focus:not(:-moz-ui-invalid),
+input[type=password]:focus:not(:-moz-ui-invalid) {
+  border-color: hsl(200,100%,50%);
+  box-shadow: 0 0 2px hsl(200,100%,60%);
+}
+
+a {
+  color: -moz-nativehyperlinktext;
+  text-decoration: none;
+}
+
+#successEmail {
+  font-weight: bold;
+}

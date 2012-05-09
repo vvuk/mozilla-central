@@ -158,6 +158,8 @@ __defineSetter__("PluralForm", function (val) {
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
                                   "resource://gre/modules/TelemetryStopwatch.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "SignInToBrowser",
+                                  "resource:///modules/SignInToBrowser.jsm");
 
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
@@ -2730,6 +2732,15 @@ function BrowserOnAboutPageLoad(document) {
              getService(Components.interfaces.nsISessionStore);
     if (!ss.canRestoreLastSession)
       document.getElementById("launcher").removeAttribute("session");
+
+    // Check SITB status
+    if (SignInToBrowser.signedIn) {
+      document.getElementById("signin").textContent = SignInToBrowser.userInfo.email;
+    }
+    else {
+      // TODO: we need to update the page when the user logs in
+    }
+
   }
 }
 
@@ -2738,7 +2749,8 @@ function BrowserOnAboutPageLoad(document) {
  */
 function BrowserOnClick(event) {
     if (!event.isTrusted || // Don't trust synthetic events
-        event.button == 2 || event.target.localName != "button")
+        event.button == 2 ||
+        (event.target.localName != "button" && event.target.localName != "a"))
       return;
 
     var ot = event.originalTarget;
@@ -2888,6 +2900,14 @@ function BrowserOnClick(event) {
       }
       else if (ot == ownerDoc.getElementById("settings")) {
         openPreferences();
+      }
+      else if (ot == ownerDoc.getElementById("signin")) {
+        if (false && SignInToBrowser.signedIn) { // TODO: enable this later
+          openPreferences("paneSync");
+        }
+        else {
+          openUILinkIn("about:signin", "current");
+        }
       }
     }
 }
