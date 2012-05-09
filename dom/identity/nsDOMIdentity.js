@@ -81,6 +81,8 @@ nsDOMIdentity.prototype = {
     Services.obs.removeObserver(this, "inner-window-destroyed");       
     this._window = null;
     this._watcher = null;
+
+    // Also send message to DOMIdentity.jsm notifiying window is no longer valid
     this._messages.forEach((function(msgName) {
       cpmm.removeMessageListener(msgName, this);
     }).bind(this));
@@ -88,6 +90,8 @@ nsDOMIdentity.prototype = {
 
   // nsIDOMGlobalPropertyInitializer
   init: function(aWindow) {
+    dump("init was called from " + aWindow.document.location + "\n\n");
+
     // Store window and origin URI.
     this._watcher = null;
     this._window = aWindow;

@@ -13,19 +13,6 @@ MODULE = identity
 MODULE_NAME = identity
 GRE_MODULE = 1
 
-LIBRARY_NAME = identity
-XPIDL_MODULE = identity
-IS_COMPONENT = 1
-
-XPIDLSRCS = \
-  nsIDOMIdentity.idl \
-  $(NULL)
-
-EXTRA_COMPONENTS = \
-    nsDOMIdentity.js \
-    Identity.manifest \
-    $(NULL)
-
 ifdef ENABLE_TESTS
     DIRS += tests
 endif
