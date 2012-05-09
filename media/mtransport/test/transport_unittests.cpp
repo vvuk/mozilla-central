@@ -38,7 +38,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   void Connect(PRFileDesc *fd) {
     nsresult res;
     target_->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
-                                   fd, false, &res), NS_DISPATCH_SYNC);
+                                   fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
     flow_.PushLayer(prsock_);
     flow_.PushLayer(logging_);
@@ -67,16 +67,18 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
 class TransportTest : public ::testing::Test {
  public:
-  TransportTest() : fd1_(NULL), fd2_(NULL) {}
+  TransportTest() {
+    fds_[0] = NULL;
+    fds_[1] = NULL;
+  }
 
   ~TransportTest() {
     delete p1_;
     delete p2_;
-#if 0
-    // Can't close pipes in NSPR.
-    PR_Close(fd1_);  
-    PR_Close(fd2_);
-#endif
+
+    //    Can't detach these
+    //    PR_Close(fds_[0]);  
+    //    PR_Close(fds_[1]);
   }
 
   void SetUp() {
@@ -89,22 +91,20 @@ class TransportTest : public ::testing::Test {
   }
 
   void Connect() {
-    PRStatus status = PR_CreatePipe(&fd1_, &fd2_);
+
+    PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
 
-#if 0    
-    // Can't make pipes nonblocking
     PRSocketOptionData opt;
     opt.option = PR_SockOpt_Nonblocking;
     opt.value.non_blocking = PR_FALSE;
-    status = PR_SetSocketOption(fd1_, &opt);
+    status = PR_SetSocketOption(fds_[0], &opt);
+    ASSERT_EQ(status, PR_SUCCESS);
+    status = PR_SetSocketOption(fds_[1], &opt);
     ASSERT_EQ(status, PR_SUCCESS);    
-    status = PR_SetSocketOption(fd2_, &opt);
-    ASSERT_EQ(status, PR_SUCCESS);    
-#endif
     
-    p1_->Connect(fd2_);  // Write side.
-    p2_->Connect(fd1_);  // Read side.
+    p1_->Connect(fds_[0]);
+    p2_->Connect(fds_[1]);
   }
 
   void TransferTest(size_t count) {
@@ -120,8 +120,7 @@ class TransportTest : public ::testing::Test {
   }
 
  private:
-  PRFileDesc *fd1_;
-  PRFileDesc *fd2_;
+  PRFileDesc *fds_[2];
   TransportTestPeer *p1_;
   TransportTestPeer *p2_;
   nsCOMPtr<nsIEventTarget> target_;  

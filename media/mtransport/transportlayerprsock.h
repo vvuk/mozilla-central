@@ -20,23 +20,17 @@
 
 class TransportLayerPrsock : public TransportLayer {
  public:
-  TransportLayerPrsock() :
-      fd_(NULL),
-      owned_(false),
-      handler_(new SocketHandler(this)) {}
+  TransportLayerPrsock() : fd_(NULL), handler_() {}
   
 
   ~TransportLayerPrsock() {
     Detach();
-
-    if (owned_)
-      PR_Close(fd_);
   }
 
   // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
   // Should we require that or provide a way to pump requests across
   // threads?
-  void Import(PRFileDesc *fd, bool owned_, nsresult *result);
+  void Import(PRFileDesc *fd, nsresult *result);
 
   void Detach() {
     handler_->Detach();
@@ -57,31 +51,35 @@ class TransportLayerPrsock : public TransportLayer {
   // Inner class
   class SocketHandler : public nsASocketHandler {
    public:
-    SocketHandler(TransportLayerPrsock *prsock) : prsock_(prsock) {
+      SocketHandler(TransportLayerPrsock *prsock, PRFileDesc *fd) :
+        prsock_(prsock), fd_(fd) {
         mPollFlags = PR_POLL_READ;
-    }
-    void Detach() {
-      prsock_ = NULL;
-    }
-
-    // Implement nsASocket
-    void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
-      if (prsock_) {
-        prsock_->OnSocketReady(fd, outflags);
       }
-    }
+      
+      void Detach() {
+        prsock_ = NULL;
+      }
+      
+      // Implement nsASocket
+      void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+        if (prsock_) {
+          prsock_->OnSocketReady(fd, outflags);
+        }
+      }
 
-    void OnSocketDetached(PRFileDesc *fd) {
-      if (prsock_) {
-        prsock_->OnSocketDetached(fd);
-      }  
-    }
-  
-    // nsISupports methods
-    NS_DECL_ISUPPORTS
-
-  private:
-    TransportLayerPrsock *prsock_;
+      void OnSocketDetached(PRFileDesc *fd) {
+        if (prsock_) {
+          prsock_->OnSocketDetached(fd);
+        }
+        PR_Close(fd_);
+      }
+      
+      // nsISupports methods
+      NS_DECL_ISUPPORTS
+      
+      private:
+      TransportLayerPrsock *prsock_;
+      PRFileDesc *fd_;
   };
 
   // Allow SocketHandler to talk to our APIs
@@ -94,7 +92,6 @@ class TransportLayerPrsock : public TransportLayer {
   }
   
   PRFileDesc *fd_;
-  bool owned_;
   nsCOMPtr<SocketHandler> handler_;
   nsCOMPtr<nsISocketTransportService> stservice_;
 };

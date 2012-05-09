@@ -26,9 +26,10 @@ std::string TransportLayerPrsock::ID("mt_prsock");
 
 
 
-void TransportLayerPrsock::Import(PRFileDesc *fd, bool owned, nsresult *result) {
+void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
   fd_ = fd;
-  owned_ = owned;
+
+  handler_ = new SocketHandler(this, fd);
 
   // Get the transport service as a transport service
   nsresult rv;
