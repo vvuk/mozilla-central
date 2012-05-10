@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: js; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80 filetype=javascript: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -32,6 +32,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "gProfileService",
                                    "@mozilla.org/toolkit/profile-service;1",
                                    "nsIToolkitProfileService");
 
+const DEFAULT_PROFILE_NAME = "Default";
+
 ////////////////////////////////////////////////////////////////////////////////
 //// ProfileIdentityUtils
 
@@ -48,8 +50,7 @@ const ProfileIdentityUtils = {
    * Returns an array of identities (e-mail addresses) that already have an
    * associated local profile.
    */
-  get localIdentities()
-  {
+  get localIdentities() {
     let identities = [];
     let profiles = gProfileService.profiles;
     while (profiles.hasMoreElements()) {
@@ -80,6 +81,7 @@ const ProfileIdentityUtils = {
       return true;
   },
 
+  // TODO: could use GetProfileByName?
   _getProfileForIdentity: function(aIdentity) {
     let profileList = gProfileService.profiles;
     while (profileList.hasMoreElements()) {
@@ -102,6 +104,28 @@ const ProfileIdentityUtils = {
       throw new Error("Not in nsIToolkitProfileService: " + profD.path);
   },
 
+  _createProfile: function() {
+    // TODO: create default prefs.js with better first-run. (firstrun page, know your rights?)
+    let profile = gProfileService.getProfileByName(DEFAULT_PROFILE_NAME);
+    if (!profile) {
+      gProfileService.createProfile(null, null, DEFAULT_PROFILE_NAME);
+      gProfileService.flush();
+      return profile;
+    }
+    for (let i = 1; i < 100; i++) { // TODO: const for max default profiles
+      // Look for a profile name that doesn't already exist
+      let name = DEFAULT_PROFILE_NAME + " " + i;
+      profile = gProfileService.getProfileByName(name);
+      if (profile)
+        continue;
+      gProfileService.createProfile(null, null, name);
+      break;
+    }
+    gProfileService.flush();
+    return profile;
+  }
+
+  // TODO: may not need this since we may only allow associating an existing profile with an identity
   _createProfileForIdentity: function(aIdentity) {
     let profile = gProfileService.createProfile(null, null, aIdentity);
     gProfileService.flush();
@@ -137,6 +161,7 @@ const ProfileIdentityUtils = {
     env.set("XRE_PROFILE_NAME", aProfile.name);
 
     gProfileService.selectedProfile = aProfile;
+    gProfileService.flush();
 
     let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
     appStartup.quit(Ci.nsIAppStartup.eRestart | Ci.nsIAppStartup.eAttemptQuit);
