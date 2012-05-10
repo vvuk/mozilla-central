@@ -52,7 +52,7 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
   if (state_ != OPEN) {
     MLOG(PR_LOG_DEBUG, LAYER_INFO << "Can't send packet on closed interface");
-    return ERR_INTERNAL;
+    return TE_INTERNAL;
   }
 
   PRInt32 status;
@@ -63,13 +63,13 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
 
   PRErrorCode err = PR_GetError();
   if (err == PR_WOULD_BLOCK_ERROR) {
-    return ERR_WOULDBLOCK;
+    return TE_WOULDBLOCK;
   }
 
 
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write error; channel closed");
   SetState(ERROR);
-  return ERR_ERROR;
+  return TE_ERROR;
 }
 
 void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {

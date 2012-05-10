@@ -13,7 +13,7 @@
 class TransportLayerLogging : public TransportLayer {
 public:
   // Overrides for TransportLayer
-  virtual int SendPacket(const unsigned char *data, size_t len);
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len);
   
   // Signals (forwarded to upper layer)
   void StateChange(TransportLayer *layer, State state);

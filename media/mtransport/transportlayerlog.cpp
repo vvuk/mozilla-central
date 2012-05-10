@@ -22,14 +22,15 @@ void TransportLayerLogging::WasInserted() {
   }
 }
 
-int TransportLayerLogging::SendPacket(const unsigned char *data, size_t len) {
+TransportResult
+TransportLayerLogging::SendPacket(const unsigned char *data, size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
 
   if (downward_) {
     return downward_->SendPacket(data, len);
   }
   else {
-    return len;
+    return static_cast<TransportResult>(len);
   }
 }
 

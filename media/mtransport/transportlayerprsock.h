@@ -36,7 +36,7 @@ class TransportLayerPrsock : public TransportLayer {
   }
 
   // Implement TransportLayer
-  virtual int SendPacket(const unsigned char *data, size_t len);
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len);
   
   
   // Return the layer id for this layer

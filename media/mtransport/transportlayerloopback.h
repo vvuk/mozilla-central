@@ -19,7 +19,7 @@ class TransportLayerLoopback : public TransportLayer {
   void Connect(TransportLayerLoopback* peer);
 
   // Overrides for TransportLayer
-  virtual int SendPacket(const unsigned char *data, size_t len);
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len);
 
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }

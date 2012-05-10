@@ -14,17 +14,20 @@
 
 class TransportFlow;
 
+typedef int TransportResult;
+
+enum { 
+  TE_WOULDBLOCK = -1, TE_ERROR = -2, TE_INTERNAL = -3
+};
+
 // Abstract base class for network transport layers.
 class TransportLayer : public sigslot::has_slots<> {
  public:
   // The state of the transport flow
   enum State { INIT, CONNECTING, OPEN, CLOSED, ERROR };
-
-  // Is this a stream or datagram flow
   enum Mode { STREAM, DGRAM };
 
-  // Write errors
-  enum WriteResult { ERR_WOULDBLOCK = -1, ERR_ERROR = -2, ERR_INTERNAL = -3 };
+  // Is this a stream or datagram flow
 
   // NULL constructor
   TransportLayer() : state_(INIT), flow_(NULL), downward_(NULL) {}
@@ -36,7 +39,7 @@ class TransportLayer : public sigslot::has_slots<> {
   // Get the state
   State state() const { return state_; }
   // Must be implemented by derived classes
-  virtual int SendPacket(const unsigned char *data, size_t len) = 0;
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len) = 0;
   
   // Event definitions that one can register for
   // State has changed

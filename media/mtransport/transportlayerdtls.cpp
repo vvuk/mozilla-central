@@ -4,6 +4,8 @@
 
 // Original author: ekr@rtfm.com
 
+#include <queue>
+
 #include "nspr.h"
 #include "prerror.h"
 #include "prio.h"
@@ -19,6 +21,75 @@ std::string TransportLayerDtls::ID("mt_dtls");
 #define UNIMPLEMENTED MLOG(PR_LOG_ERROR, \
     "Call to unimplemented function "<< __FUNCTION__); PR_ASSERT(false)
 
+// TODO(ekr@rtfm.com): Surely there is something floating around in
+// the Moz code base that will do this job.
+// Note: using NSPR signatures rather than more modern signatures
+// because this is only useful for NSPR.
+struct Packet {
+  Packet() : data_(NULL), len_(0), offset_(0) {}
+  ~Packet() {
+    delete data_;
+  }
+  void Assign(const void *data, PRInt32 len) {
+    data_ = new unsigned char[len];
+    memcpy(data_, data, len);
+  }
+
+  unsigned char *data_;
+  PRInt32 len_;
+  PRInt32 offset_;
+};
+
+class NSPRHelper {
+ public:
+  NSPRHelper(TransportLayer *output) :
+      output_(output),
+      input_() {}
+  
+  
+  void PacketReceived(const void *data, PRInt32 len) {
+    input_.push(Packet());
+    input_.back().Assign(data, len);
+  }
+
+  PRInt32 Read(void *data, PRInt32 len) {
+    if (input_.empty()) {
+      PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
+      return -1;
+    }
+    
+    Packet& front = input_.front();
+    PRInt32 to_read = std::min(len, front.len_ - front.offset_);
+    memcpy(data, front.data_, to_read);
+    front.offset_ += to_read;
+    
+    if (front.offset_ == front.len_)
+      input_.pop();
+
+    return to_read;
+  }
+  
+  PRInt32 Write(const void *buf, PRInt32 length) {
+    TransportResult r = output_->SendPacket(
+        static_cast<const unsigned char *>(buf), length);
+    if (r >= 0) {
+      return r;
+    }
+
+    if (r == TE_WOULDBLOCK) {
+      PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
+    } else {
+      PR_SetError(PR_IO_ERROR, 0);
+    }
+
+    return -1;
+  }
+
+ private:
+  TransportLayer *output_;
+  std::queue<Packet> input_;
+};
+
 // Implementation of NSPR methods
 static PRStatus TransportLayerClose(PRFileDesc *f) {
   // Noop
@@ -26,13 +97,14 @@ static PRStatus TransportLayerClose(PRFileDesc *f) {
 }
 
 static PRInt32 TransportLayerRead(PRFileDesc *f, void *buf, PRInt32 length) {
-  UNIMPLEMENTED;
+  NSPRHelper *io = reinterpret_cast<NSPRHelper *>(f->secret);
+  return io->Read(buf, length);
   return -1;
 }
 
 static PRInt32 TransportLayerWrite(PRFileDesc *f, const void *buf, PRInt32 length) {
-  UNIMPLEMENTED;
-  return -1;
+  NSPRHelper *io = reinterpret_cast<NSPRHelper *>(f->secret);
+  return io->Write(buf, length);
 }
 
 static PRInt32 TransportLayerAvailable(PRFileDesc *f) {
