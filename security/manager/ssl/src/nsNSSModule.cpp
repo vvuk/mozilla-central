@@ -46,7 +46,7 @@
 #include "nsSSLSocketProvider.h"
 #include "nsTLSSocketProvider.h"
 #include "nsKeygenHandler.h"
-
+#include "nsIdentityServiceKeyPair.h"
 #include "nsSDR.h"
 
 #include "nsPK11TokenDB.h"
@@ -250,6 +250,7 @@ NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsStreamCipher)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsKeyObject)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsKeyObjectFactory)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsDataSignatureVerifier)
+NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsIdentityServiceKeyPair)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsCertOverrideService, Init)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR(nssEnsure, nsRandomGenerator)
 NS_NSS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nssEnsure, nsRecentBadCertsService, Init)
@@ -296,6 +297,7 @@ NS_DEFINE_NAMED_CID(NS_SSLSTATUS_CID);
 NS_DEFINE_NAMED_CID(TRANSPORTSECURITYINFO_CID);
 NS_DEFINE_NAMED_CID(NS_NSSERRORSSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_NSSVERSION_CID);
+NS_DEFINE_NAMED_CID(NS_IDENTITYSERVICEKEYPAIR_CID);
 
 static const mozilla::Module::CIDEntry kNSSCIDs[] = {
   { &kNS_NSSCOMPONENT_CID, false, NULL, nsNSSComponentConstructor },
@@ -314,6 +316,7 @@ static const mozilla::Module::CIDEntry kNSSCIDs[] = {
 #endif
   { &kNS_PKCS11_CID, false, NULL, nsPkcs11Constructor },
   { &kNS_CRYPTO_CID, false, NULL, nsCryptoConstructor },
+  { &kNS_IDENTITYSERVICEKEYPAIR_CID, false, NULL, nsIdentityServiceKeyPairConstructor },
   { &kNS_CMSSECUREMESSAGE_CID, false, NULL, nsCMSSecureMessageConstructor },
   { &kNS_CMSDECODER_CID, false, NULL, nsCMSDecoderConstructor },
   { &kNS_CMSENCODER_CID, false, NULL, nsCMSEncoderConstructor },
@@ -354,6 +357,7 @@ static const mozilla::Module::ContractIDEntry kNSSContracts[] = {
   { NS_CERTTREE_CONTRACTID, &kNS_CERTTREE_CID },
 #endif
   { NS_PKCS11_CONTRACTID, &kNS_PKCS11_CID },
+  { NS_IDENTITYSERVICEKEYPAIR_CONTRACTID, &kNS_IDENTITYSERVICEKEYPAIR_CID },
   { NS_CRYPTO_CONTRACTID, &kNS_CRYPTO_CID },
   { NS_CMSSECUREMESSAGE_CONTRACTID, &kNS_CMSSECUREMESSAGE_CID },
   { NS_CMSDECODER_CONTRACTID, &kNS_CMSDECODER_CID },
