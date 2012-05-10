@@ -13,6 +13,10 @@ MODULE = identity
 MODULE_NAME = identity
 GRE_MODULE = 1
 
+EXTRA_JS_MODULES = \
+	Identity.jsm \
+	$(NULL)
+
 ifdef ENABLE_TESTS
     DIRS += tests
 endif

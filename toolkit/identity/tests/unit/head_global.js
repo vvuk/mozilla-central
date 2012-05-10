@@ -36,3 +36,8 @@ let registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
 registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"),
                           "XULAppInfo", "@mozilla.org/xre/app-info;1",
                           XULAppInfoFactory);
+
+function log(aMsg)
+{
+  dump("ID Tests: " + aMsg + "\n");
+}
