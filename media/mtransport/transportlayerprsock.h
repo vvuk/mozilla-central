@@ -21,9 +21,8 @@
 class TransportLayerPrsock : public TransportLayer {
  public:
   TransportLayerPrsock() : fd_(NULL), handler_() {}
-  
-
-  ~TransportLayerPrsock() {
+ 
+  virtual ~TransportLayerPrsock() {
     Detach();
   }
 

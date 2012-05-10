@@ -24,8 +24,6 @@ MLOG_INIT("mtransport");
 
 std::string TransportLayerPrsock::ID("mt_prsock");
 
-
-
 void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
   fd_ = fd;
 

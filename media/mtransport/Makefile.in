@@ -59,6 +59,7 @@ EXPORTS_NAMESPACES = mtransport
 EXPORTS_mtransport = \
   transportflow.h \
   transportlayer.h \
+  transportlayerdtls.h \
   transportlayerlog.h \
   transportlayerloopback.h \
   transportlayerprsock.h \
@@ -67,6 +68,7 @@ EXPORTS_mtransport = \
 CPPSRCS = \
   transportflow.cpp \
   transportlayer.cpp \
+  transportlayerdtls.cpp \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
