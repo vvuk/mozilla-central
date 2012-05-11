@@ -341,17 +341,22 @@ void TransportLayerDtls::WasInserted() {
     SetState(ERROR);
   pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_);
 
+#if 0
+  // NSS not available here yet
   PRFileDesc *ssl_fd;
   if (mode_ == DGRAM) {
+    abort();
     ssl_fd = DTLS_ImportFD(NULL, pr_fd_);
   } else {
     ssl_fd = SSL_ImportFD(NULL, pr_fd_);
   }
+
   PR_ASSERT(ssl_fd != NULL);  // This should never happen
   if (!ssl_fd) {
     PR_Close(pr_fd_);
     pr_fd_ = NULL;
     SetState(ERROR);
   }
+#endif
 
 }
