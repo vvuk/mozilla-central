@@ -16,8 +16,11 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService",];
 
+const ALGORITHMS = { RS256: 1, DS160: 2, };
+
 XPCOMUtils.defineLazyGetter(this, "IDKeyPair", function () {
-  return Cc["@mozilla.org/identityservice-keypair;1"].createInstance(Ci.nsIIdentityServiceKeyPair);
+  return Cc["@mozilla.org/identityservice-keypair;1"].
+    createInstance(Ci.nsIIdentityServiceKeyPair);
 });
 
 XPCOMUtils.defineLazyServiceGetter(this,
@@ -35,14 +38,110 @@ function log(aMsg)
   dump("IDService: " + aMsg + "\n");
 }
 
-const ALGORITHMS = { RS256: 1, DS160: 2, };
+function supString(aString)
+{
+  let str = Cc["@mozilla.org/supports-string;1"].
+    createInstance(Ci.nsISupportsString);
+  str.data = aString;
+  return str;
+}
 
 function IDService()
 {
   Services.obs.addObserver(this, "quit-application-granted", false);
 }
-
 IDService.prototype = {
+  // DOM Methods.
+
+  /**
+   * Register a listener for a given windowID as a result of a call to
+   * navigator.id.watch().
+   *
+   * @param aOptions
+   *        (Object)  An object containing the same properties as handed
+   *                  to the watch call made in DOM. See nsIDOMIdentity.idl
+   *                  for more information on each property.
+   *
+   * @param aWindowID
+   *        (int)     A unique number representing the window from which this
+   *                  call was made.
+   */
+  watch: function watch(aOptions, aWindowID)
+  {
+
+  },
+
+  /**
+   * Initiate a login with user interaction as a result of a call to
+   * navigator.id.request().
+   *
+   * @param aWindowID
+   *        int       A unique number representing a window which is requesting
+   *                  the assertion.
+   *
+   * If an assertion is obtained successfully, aOptions.onlogin will be called,
+   * as registered with a preceding call to watch for the same window ID. It is
+   * an error to invoke request() without first calling watch().
+   */
+  request: function request(aWindowID)
+  {
+
+  },
+
+  /**
+   * Notify the Identity module that content has finished loading its
+   * provisioning context and is ready to being the provisioning process.
+   * 
+   * @param aCallback
+   *        (Function)  A callback that will be called with (email, time), where
+   *                    email is the address for which a certificate is
+   *                    requested, and the time is the *maximum* time allowed
+   *                    for the validity of the ceritificate.
+   *
+   * @param aWindowID
+   *        int         A unique number representing the window in which the
+   *                    provisioning page for the IdP has been loaded.
+   */
+  beginProvisioning: function beginProvisioning(aCallback, aWindowID)
+  {
+
+  },
+
+  /**
+   * Generates a keypair for the current user being provisioned and returns
+   * the public key via the callback.
+   *
+   * @param aCallback
+   *        (Function)  A callback that will be called with the public key
+   *                    of the generated keypair.
+   *
+   * @param aWindowID
+   *        int         A unique number representing the window in which this
+   *                    call was made.
+   *
+   * It is an error to call genKeypair without receiving the callback for
+   * the beginProvisioning() call first.
+   */
+  genKeypair: function genKeypair(aCallback, aWindowID)
+  {
+
+  },
+
+  /**
+   * Sets the certificate for the user for which a certificate was requested
+   * via a preceding call to beginProvisioning (and genKeypair).
+   *
+   * @param aCert
+   *        (String)  A JWT representing the signed certificate for the user
+   *                  being provisioned, provided by the IdP.
+   */
+  registerCertificate: function registerCertificate(aCert)
+  {
+
+  },
+
+  // Public utility methods.
+
   /**
    * Obtain a BrowserID assertion with the specified characteristics.
    *
@@ -76,7 +175,7 @@ IDService.prototype = {
    *
    *        Any properties not listed above will be ignored.
    */
-  getAssertion: function IS_getAssertion(aCallback, aOptions)
+  getAssertion: function getAssertion(aCallback, aOptions)
   {
 
   },
@@ -102,22 +201,11 @@ IDService.prototype = {
    *        (iframe) A XUL iframe element where the login dialog will be
    *        rendered.
    */
-  getAssertionWithLogin: function IS_getAssertionWithLogin(aCallback, aOptions, aFrame)
+  getAssertionWithLogin: function getAssertionWithLogin(
+    aCallback, aOptions, aFrame)
   {
 
   },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-
-  observe: function IS_observe(aSubject, aTopic, aData)
-  {
-    if (aTopic == "quit-application-granted") {
-      Services.obs.removeObserver(this, "quit-application-granted", false);
-      this.shutdown();
-    }
-  },
-
-  _registry: { },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -134,7 +222,7 @@ IDService.prototype = {
    *          "id-service-key-gen-finished" when the keypair is ready.
    *          Access to the keypair is via the getIdentityServiceKeyPair() method
    **/
-  generateKeyPair: function IS_generateKeyPair(aAlgorithm, aOrigin, aUserID)
+  generateKeyPair: function generateKeyPair(aAlgorithm, aOrigin, aUserID)
   {
     if (!ALGORITHMS[aAlgorithm]) {
       throw new Error("IdentityService: Unsupported algorithm");
@@ -204,13 +292,13 @@ IDService.prototype = {
     IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithm], new keyGenCallback());
   },
 
-  shutdown: function IS_shutdown()
+  shutdown: function shutdown()
   {
     this._registry = null;
   },
 
   /**
-   * Returns a keypair object from the Identitiy in-memory storage
+   * Returns a keypair object from the Identity in-memory storage
    *
    * @param string aUserID
    *        Most likely an email address
@@ -218,9 +306,9 @@ IDService.prototype = {
    *        a "prepath" url: https://www.mozilla.org:1234/
    * @returns object
    *
-   * The returned obejct will have different properties based on which algorithm was used
-   * to generate the keypair. Check the 'algorithm' property before accessing
-   * additional properties.
+   * The returned obejct will have different properties based on which algorithm
+   * was used to generate the keypair. Check the 'algorithm' property before
+   * accessing additional properties.
    *
    * RSA keypair properties:
    *   algorithm
@@ -241,7 +329,7 @@ IDService.prototype = {
    *   prime
    *   subPrime
    **/
-  getIdentityServiceKeyPair: function IS_getIdentityServiceKeypair(aUserID, aUrl)
+  getIdentityServiceKeyPair: function getIdentityServiceKeypair(aUserID, aUrl)
   {
     let uri = Services.io.newURI(aUrl, null, null);
     let key = aUserID + "__" + uri.prePath;
@@ -252,14 +340,48 @@ IDService.prototype = {
     }
     return keyObj;
   },
-};
 
-function supString(aString)
-{
-  let str = Cc["@mozilla.org/supports-string;1"].
-    createInstance(Ci.nsISupportsString);
-  str.data = aString;
-  return str;
-}
+  // Private.
+  _registry: { },
+
+  /**
+   * Determine the IdP endpoints for provisioning an authorization for a
+   * given email address. The order of resolution is as follows:
+   *
+   * 1) Attempt to fetch /.well-known/browserid for the domain of the provided
+   * email address. If a delegation was found, follow to the delegated domain
+   * and repeat. If a valid IdP descriptin is found, parse and return values. 
+   *
+   * 2) Attempt to verify that the domain is supported by the ProxyIdP service
+   * by Persona/BrowserID. If the domain is supported, treat persona.org as the
+   * primary IdP and return the endpoint values accordingly.
+   *
+   * 3) Fallback to using persona.org as a secondary verifier. Return endpoints
+   * for secondary authorization and provisioning provided by BrowserID/Persona.
+   */
+  _getEndpoints: function _getEndpoints(email)
+  {
+
+  },
+  
+  /**
+   * Load the provisioning URL in a hidden frame to start the provisioning
+   * process.
+   */
+  _beginProvisioning: function _beginProvisioning(aURL)
+  {
+
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+  observe: function observe(aSubject, aTopic, aData)
+  {
+    if (aTopic == "quit-application-granted") {
+      Services.obs.removeObserver(this, "quit-application-granted", false);
+      this.shutdown();
+    }
+  },
+};
 
 var IdentityService = new IDService();

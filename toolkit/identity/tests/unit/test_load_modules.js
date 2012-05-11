@@ -4,8 +4,7 @@
 
 const modules = [
   "Identity.jsm",
-  "Sandbox.jsm",
-  "DOMIdentity.jsm"
+  "Sandbox.jsm"
 ];
 
 function run_test() {
