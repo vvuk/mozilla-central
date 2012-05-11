@@ -29,8 +29,12 @@ class TransportLayer : public sigslot::has_slots<> {
 
   // Is this a stream or datagram flow
 
-  // NULL constructor
-  TransportLayer() : state_(INIT), flow_(NULL), downward_(NULL) {}
+  TransportLayer(Mode mode = STREAM) : 
+    mode_(mode),
+    state_(INIT),
+    flow_(NULL),
+    downward_(NULL) {}
+
   virtual ~TransportLayer() {}
 
   // Inserted
@@ -62,9 +66,11 @@ class TransportLayer : public sigslot::has_slots<> {
   virtual void WasInserted() {}
   virtual void SetState(State state);
 
+  Mode mode_;
   State state_;
   TransportFlow *flow_;  // The flow this is part of
   TransportLayer *downward_; // The next layer in the stack
+  
 };
 
 #define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "

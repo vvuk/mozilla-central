@@ -7,14 +7,20 @@
 #include <queue>
 
 #include "nspr.h"
+#include "nss.h"
 #include "prerror.h"
 #include "prio.h"
+#include "ssl.h"
+#include "sslerr.h"
+#include "sslproto.h"
 
 #include "logging.h"
 #include "transportflow.h"
 #include "transportlayerdtls.h"
 
 MLOG_INIT("mtransport");
+
+PRDescIdentity TransportLayerDtls::nspr_layer_identity = PR_INVALID_IO_LAYER;
 
 std::string TransportLayerDtls::ID("mt_dtls");
 
@@ -40,55 +46,46 @@ struct Packet {
   PRInt32 offset_;
 };
 
-class NSPRHelper {
- public:
-  NSPRHelper(TransportLayer *output) :
-      output_(output),
-      input_() {}
-  
-  
-  void PacketReceived(const void *data, PRInt32 len) {
-    input_.push(Packet());
-    input_.back().Assign(data, len);
-  }
+void NSPRHelper::PacketReceived(const void *data, PRInt32 len) {
+  input_.push(new Packet());
+  input_.back()->Assign(data, len);
+}
 
-  PRInt32 Read(void *data, PRInt32 len) {
-    if (input_.empty()) {
-      PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
-      return -1;
-    }
-    
-    Packet& front = input_.front();
-    PRInt32 to_read = std::min(len, front.len_ - front.offset_);
-    memcpy(data, front.data_, to_read);
-    front.offset_ += to_read;
-    
-    if (front.offset_ == front.len_)
-      input_.pop();
-
-    return to_read;
-  }
-  
-  PRInt32 Write(const void *buf, PRInt32 length) {
-    TransportResult r = output_->SendPacket(
-        static_cast<const unsigned char *>(buf), length);
-    if (r >= 0) {
-      return r;
-    }
-
-    if (r == TE_WOULDBLOCK) {
-      PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
-    } else {
-      PR_SetError(PR_IO_ERROR, 0);
-    }
-
+PRInt32 NSPRHelper::Read(void *data, PRInt32 len) {
+  if (input_.empty()) {
+    PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
     return -1;
   }
+    
+  Packet* front = input_.front();
+  PRInt32 to_read = std::min(len, front->len_ - front->offset_);
+  memcpy(data, front->data_, to_read);
+  front->offset_ += to_read;
+    
+  if (front->offset_ == front->len_) {
+    input_.pop();
+    delete front;
+  }
 
- private:
-  TransportLayer *output_;
-  std::queue<Packet> input_;
-};
+  return to_read;
+}
+
+PRInt32 NSPRHelper::Write(const void *buf, PRInt32 length) {
+  TransportResult r = output_->SendPacket(
+      static_cast<const unsigned char *>(buf), length);
+  if (r >= 0) {
+    return r;
+  }
+
+  if (r == TE_WOULDBLOCK) {
+    PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
+  } else {
+    PR_SetError(PR_IO_ERROR, 0);
+  }
+
+  return -1;
+}
+
 
 // Implementation of NSPR methods
 static PRStatus TransportLayerClose(PRFileDesc *f) {
@@ -332,3 +329,29 @@ static const struct PRIOMethods nss_methods = {
   TransportLayerReserved
 };
 
+void TransportLayerDtls::WasInserted() {
+  helper_ = new NSPRHelper(downward_);
+
+  if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
+    nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
+  }
+  pr_fd_ = PR_CreateIOLayerStub(nspr_layer_identity, &nss_methods);
+  PR_ASSERT(pr_fd_ != NULL);
+  if (!pr_fd_)
+    SetState(ERROR);
+  pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_);
+
+  PRFileDesc *ssl_fd;
+  if (mode_ == DGRAM) {
+    ssl_fd = DTLS_ImportFD(NULL, pr_fd_);
+  } else {
+    ssl_fd = SSL_ImportFD(NULL, pr_fd_);
+  }
+  PR_ASSERT(ssl_fd != NULL);  // This should never happen
+  if (!ssl_fd) {
+    PR_Close(pr_fd_);
+    pr_fd_ = NULL;
+    SetState(ERROR);
+  }
+
+}
