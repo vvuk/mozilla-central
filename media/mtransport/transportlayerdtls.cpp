@@ -341,7 +341,6 @@ void TransportLayerDtls::WasInserted() {
     SetState(ERROR);
   pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_);
 
-  // NSS not available here yet
   PRFileDesc *ssl_fd;
   if (mode_ == DGRAM) {
     abort();
@@ -359,6 +358,7 @@ void TransportLayerDtls::WasInserted() {
 }
 
 void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
+  
   ;
 }
 
@@ -368,4 +368,10 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
   
   SignalPacketReceived(this, data, len);
+}
+
+TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
+                                               size_t len) {
+
+  return 0;
 }

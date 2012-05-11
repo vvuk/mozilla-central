@@ -14,6 +14,7 @@
 
 #include "transportflow.h"
 #include "transportlayer.h"
+#include "transportlayerdtls.h"
 #include "transportlayerlog.h"
 #include "transportlayerprsock.h"
 
@@ -32,6 +33,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   TransportTestPeer(nsCOMPtr<nsIEventTarget> target) : target_(target),
                                                        received_(0), flow_(), 
                                                        prsock_(new TransportLayerPrsock()),
+                                                       dtls_(new TransportLayerDtls()),
                                                        logging_(new TransportLayerLogging()) {
   }
 
@@ -61,6 +63,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   size_t received_;
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
+  TransportLayerDtls *dtls_;
   TransportLayerLogging *logging_;
 };
 

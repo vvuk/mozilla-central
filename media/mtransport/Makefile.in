@@ -57,6 +57,7 @@ LOCAL_INCLUDES += \
 EXPORTS_NAMESPACES = mtransport
 
 EXPORTS_mtransport = \
+  dtlsidentity.h \
   transportflow.h \
   transportlayer.h \
   transportlayerdtls.h \
@@ -66,6 +67,7 @@ EXPORTS_mtransport = \
   $(NULL)
 
 CPPSRCS = \
+  dtlsidentity.cpp \
   transportflow.cpp \
   transportlayer.cpp \
   transportlayerdtls.cpp \
