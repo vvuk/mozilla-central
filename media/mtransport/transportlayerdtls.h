@@ -47,6 +47,11 @@ public:
   // Transport layer overrides.
   virtual void WasInserted();
 
+  // Signals
+  void StateChange(TransportLayer *layer, State state);
+  void PacketReceived(TransportLayer* layer, const unsigned char *data,
+      size_t len);
+
   // A static version of the layer ID
   static std::string ID;
   
