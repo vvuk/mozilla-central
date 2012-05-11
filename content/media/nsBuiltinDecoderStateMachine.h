@@ -117,6 +117,8 @@ hardware (via nsAudioStream and libsydneyaudio).
 #include "nsHTMLMediaElement.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsITimer.h"
+#include "AudioSegment.h"
+#include "VideoSegment.h"
 
 /*
   The state machine class. This manages the decoding and seeking in the
@@ -138,8 +140,9 @@ public:
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
   typedef nsBuiltinDecoder::OutputMediaStream OutputMediaStream;
-  typedef mozilla::media::InputStream InputStream;
-  typedef mozilla::media::AudioFrame AudioFrame;
+  typedef mozilla::SourceMediaStream SourceMediaStream;
+  typedef mozilla::AudioSegment AudioSegment;
+  typedef mozilla::VideoSegment VideoSegment;
 
   nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDecoder, nsBuiltinDecoderReader* aReader, bool aRealTime = false);
   ~nsBuiltinDecoderStateMachine();
@@ -284,7 +287,8 @@ public:
   // Copy queued audio/video data in the reader to any output MediaStreams that
   // need it.
   void SendOutputStreamData();
-  bool HaveEnoughDecodedAudio(PRInt64 aAmpleAudio);
+  void FinishOutputStreams();
+  bool HaveEnoughDecodedAudio(PRInt64 aAmpleAudioUSecs);
   bool HaveEnoughDecodedVideo();
 
 protected:
@@ -450,8 +454,10 @@ protected:
   // to call.
   void DecodeThreadRun();
 
+  // Copy audio from an AudioData packet to aOutput. This may require
+  // inserting silence depending on the timing of the audio packet.
   void SendOutputStreamAudio(AudioData* aAudio, OutputMediaStream* aStream,
-                             nsTArray<AudioFrame>* aOutput);
+                             AudioSegment* aOutput);
 
   // State machine thread run function. Defers to RunStateMachine().
   nsresult CallRunStateMachine();
@@ -657,6 +663,9 @@ protected:
   // True is we are decoding a realtime stream, like a camera stream
   bool mRealTime;
 
+  // Record whether audio and video decoding were throttled during the
+  // previous iteration of DecodeLooop. When we transition from
+  // throttled to not-throttled we need to pump decoding.
   bool mDidThrottleAudioDecoding;
   bool mDidThrottleVideoDecoding;
 

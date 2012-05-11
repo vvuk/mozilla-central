@@ -107,6 +107,10 @@ nsTableCellFrame::Init(nsIContent*      aContent,
   // Let the base class do its initialization
   nsresult rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
+  if (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
+    AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
+  }
+
   if (aPrevInFlow) {
     // Set the column index
     nsTableCellFrame* cellFrame = (nsTableCellFrame*)aPrevInFlow;
@@ -401,7 +405,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap);
 
   NS_DISPLAY_DECL_NAME("TableCellBackground", TYPE_TABLE_CELL_BACKGROUND)
 };
@@ -415,11 +419,12 @@ void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 nsRect
-nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder)
+nsDisplayTableCellBackground::GetBounds(nsDisplayListBuilder* aBuilder,
+                                        bool* aSnap)
 {
   // revert from nsDisplayTableItem's implementation ... cell backgrounds
   // don't overflow the cell
-  return nsDisplayItem::GetBounds(aBuilder);
+  return nsDisplayItem::GetBounds(aBuilder, aSnap);
 }
 
 static void
@@ -434,77 +439,77 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                    const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
-  if (!IsVisibleInSelection(aBuilder))
-    return NS_OK;
-
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTableCellFrame");
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-  PRInt32 emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
-                              GetStyleTableBorder()->mEmptyCells
-                              : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
-  // take account of 'empty-cells'
-  if (GetStyleVisibility()->IsVisible() &&
-      (NS_STYLE_TABLE_EMPTY_CELLS_HIDE != emptyCellStyle)) {
-
-
-    bool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
-    if (!isRoot) {
-      nsDisplayTableItem* currentItem = aBuilder->GetCurrentTableItem();
-      if (currentItem) {
-        currentItem->UpdateForFrameBackground(this);
+  if (IsVisibleInSelection(aBuilder)) {
+    nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+    PRInt32 emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
+                                GetStyleTableBorder()->mEmptyCells
+                                : NS_STYLE_TABLE_EMPTY_CELLS_SHOW;
+    // take account of 'empty-cells'
+    if (GetStyleVisibility()->IsVisible() &&
+        (NS_STYLE_TABLE_EMPTY_CELLS_HIDE != emptyCellStyle)) {
+    
+    
+      bool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
+      if (!isRoot) {
+        nsDisplayTableItem* currentItem = aBuilder->GetCurrentTableItem();
+        if (currentItem) {
+          currentItem->UpdateForFrameBackground(this);
+        }
+      }
+    
+      // display outset box-shadows if we need to.
+      const nsStyleBorder* borderStyle = GetStyleBorder();
+      bool hasBoxShadow = !!borderStyle->mBoxShadow;
+      if (hasBoxShadow) {
+        nsresult rv = aLists.BorderBackground()->AppendNewToTop(
+            new (aBuilder) nsDisplayBoxShadowOuter(aBuilder, this));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    
+      // display background if we need to.
+      if (aBuilder->IsForEventDelivery() ||
+          (((!tableFrame->IsBorderCollapse() || isRoot) &&
+          (!GetStyleBackground()->IsTransparent() || GetStyleDisplay()->mAppearance)))) {
+        // The cell background was not painted by the nsTablePainter,
+        // so we need to do it. We have special background processing here
+        // so we need to duplicate some code from nsFrame::DisplayBorderBackgroundOutline
+        nsDisplayTableItem* item =
+          new (aBuilder) nsDisplayTableCellBackground(aBuilder, this);
+        nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
+        NS_ENSURE_SUCCESS(rv, rv);
+        item->UpdateForFrameBackground(this);
+      }
+    
+      // display inset box-shadows if we need to.
+      if (hasBoxShadow) {
+        nsresult rv = aLists.BorderBackground()->AppendNewToTop(
+            new (aBuilder) nsDisplayBoxShadowInner(aBuilder, this));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    
+      // display borders if we need to
+      if (!tableFrame->IsBorderCollapse() && borderStyle->HasBorder() &&
+          emptyCellStyle == NS_STYLE_TABLE_EMPTY_CELLS_SHOW) {
+        nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+            nsDisplayBorder(aBuilder, this));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    
+      // and display the selection border if we need to
+      if (IsSelected()) {
+        nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+            nsDisplayGeneric(aBuilder, this, ::PaintTableCellSelection,
+                             "TableCellSelection",
+                             nsDisplayItem::TYPE_TABLE_CELL_SELECTION));
+        NS_ENSURE_SUCCESS(rv, rv);
       }
     }
-
-    // display outset box-shadows if we need to.
-    bool hasBoxShadow = !!(GetStyleBorder()->mBoxShadow);
-    if (hasBoxShadow) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(
-          new (aBuilder) nsDisplayBoxShadowOuter(aBuilder, this));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    // display background if we need to.
-    if (aBuilder->IsForEventDelivery() ||
-        (((!tableFrame->IsBorderCollapse() || isRoot) &&
-        (!GetStyleBackground()->IsTransparent() || GetStyleDisplay()->mAppearance)))) {
-      // The cell background was not painted by the nsTablePainter,
-      // so we need to do it. We have special background processing here
-      // so we need to duplicate some code from nsFrame::DisplayBorderBackgroundOutline
-      nsDisplayTableItem* item =
-        new (aBuilder) nsDisplayTableCellBackground(aBuilder, this);
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
-      NS_ENSURE_SUCCESS(rv, rv);
-      item->UpdateForFrameBackground(this);
-    }
-
-    // display inset box-shadows if we need to.
-    if (hasBoxShadow) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(
-          new (aBuilder) nsDisplayBoxShadowInner(aBuilder, this));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    // display borders if we need to
-    if (!tableFrame->IsBorderCollapse() && HasBorder() &&
-        emptyCellStyle == NS_STYLE_TABLE_EMPTY_CELLS_SHOW) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayBorder(aBuilder, this));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    // and display the selection border if we need to
-    if (IsSelected()) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayGeneric(aBuilder, this, ::PaintTableCellSelection,
-                           "TableCellSelection",
-                           nsDisplayItem::TYPE_TABLE_CELL_SELECTION));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    
+    // the 'empty-cells' property has no effect on 'outline'
+    nsresult rv = DisplayOutline(aBuilder, aLists);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  // the 'empty-cells' property has no effect on 'outline'
-  nsresult rv = DisplayOutline(aBuilder, aLists);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // Push a null 'current table item' so that descendant tables can't
   // accidentally mess with our table

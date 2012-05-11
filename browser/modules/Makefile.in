@@ -52,7 +52,6 @@ EXTRA_JS_MODULES = \
 	NewTabUtils.jsm \
 	offlineAppCache.jsm \
 	TelemetryTimestamps.jsm \
-	KeywordURLResetPrompter.jsm \
 	webappsUI.jsm \
 	$(NULL)
 
@@ -62,5 +61,9 @@ EXTRA_JS_MODULES += \
 	WindowsJumpLists.jsm \
 	$(NULL)
 endif
+
+EXTRA_PP_JS_MODULES = \
+	WebappsInstaller.jsm \
+	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

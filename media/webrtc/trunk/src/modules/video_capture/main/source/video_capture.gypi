@@ -1,4 +1,4 @@
-# Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
+# Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
 #
 # Use of this source code is governed by a BSD-style license
 # that can be found in the LICENSE file in the root of the source
@@ -13,7 +13,7 @@
       'type': '<(library)',
       'dependencies': [
         'webrtc_utility',
-          '<(webrtc_root)/common_video/common_video.gyp:webrtc_libyuv',
+        '<(webrtc_root)/common_video/common_video.gyp:webrtc_libyuv',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
       'include_dirs': [
@@ -93,11 +93,15 @@
               },
             }],  # mac
             ['OS=="win"', {
+              'conditions': [
+                ['build_with_mozilla==0', {
+                  'dependencies': [
+                    '<(webrtc_root)/modules/video_capture/main/source/Windows/direct_show_base_classes.gyp:direct_show_base_classes',
+                  ],
+                }],
+              ],
               'include_dirs': [
                 'Windows',
-              ],
-              'defines!': [
-                'NOMINMAX',
               ],
               'sources': [
                 'Windows/help_functions_windows.h',
@@ -121,6 +125,17 @@
                 },
               },
             }],  # win
+            ['OS=="android"', {
+              'include_dirs': [
+                'android',
+              ],
+              'sources': [
+                'android/device_info_android.cc',
+                'android/device_info_android.h',
+                'android/video_capture_android.cc',
+                'android/video_capture_android.h',
+              ],
+            }],  # android
           ], # conditions
         }],  # include_internal_video_capture
       ], # conditions

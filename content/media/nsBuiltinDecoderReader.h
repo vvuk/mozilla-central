@@ -43,7 +43,8 @@
 #include "ImageLayers.h"
 #include "nsSize.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "GraphManager.h"
+#include "MediaStreamGraph.h"
+#include "SharedBuffer.h"
 
 // Stores info relevant to presenting media frames.
 class nsVideoInfo {
@@ -95,11 +96,9 @@ typedef short AudioDataValue;
 // Convert the output of vorbis_synthesis_pcmout to a AudioDataValue
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) \
  (static_cast<AudioDataValue>(MOZ_CLIP_TO_15((x)>>9)))
-#define MOZ_CONVERT_S16_LE_TO_VORBIS(x) ((x) << 9)
 // Convert a AudioDataValue to a float for the Audio API
 #define MOZ_CONVERT_AUDIO_SAMPLE(x) ((x)*(1.F/32768))
 #define MOZ_SAMPLE_TYPE_S16LE 1
-#define MOZ_VORBIS_PCM_INT32 1
 
 #else /*MOZ_VORBIS*/
 
@@ -110,14 +109,13 @@ typedef float AudioDataValue;
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
 #define MOZ_CONVERT_AUDIO_SAMPLE(x) (x)
 #define MOZ_SAMPLE_TYPE_FLOAT32 1
-#define MOZ_VORBIS_PCM_FLOAT32 1
 
 #endif
 
 // Holds chunk a decoded audio frames.
 class AudioData {
 public:
-  typedef mozilla::media::AudioBuffer AudioBuffer;
+  typedef mozilla::SharedBuffer SharedBuffer;
 
   AudioData(PRInt64 aOffset,
             PRInt64 aTime,
@@ -130,8 +128,7 @@ public:
     mDuration(aDuration),
     mFrames(aFrames),
     mChannels(aChannels),
-    mAudioData(aData),
-    mPlayed(false)
+    mAudioData(aData)
   {
     MOZ_COUNT_CTOR(AudioData);
   }
@@ -155,10 +152,10 @@ public:
   const PRUint32 mFrames;
   const PRUint32 mChannels;
   // At least one of mAudioBuffer/mAudioData must be non-null.
-  nsRefPtr<AudioBuffer> mAudioBuffer;
+  // mChannels channels, each with mFrames frames
+  nsRefPtr<SharedBuffer> mAudioBuffer;
   // mFrames frames, each with mChannels values
   nsAutoArrayPtr<AudioDataValue> mAudioData;
-  bool mPlayed;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -426,7 +423,7 @@ public:
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
 
   nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder);
-  ~nsBuiltinDecoderReader();
+  virtual ~nsBuiltinDecoderReader();
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
@@ -471,13 +468,6 @@ public:
   // Queue of audio frames. This queue is threadsafe, and is accessed from
   // the audio, decoder, state machine, and main threads.
   MediaQueue<AudioData> mAudioQueue;
-
-  void PushAudioData(PRInt64 aOffset,
-                     PRInt64 aTime,
-                     PRInt64 aDuration,
-                     PRUint32 aFrames,
-                     PRUint32 aChannels,
-                     VorbisPCMValue** aChannelBuffers);
 
   // Queue of video frames. This queue is threadsafe, and is accessed from
   // the decoder, state machine, and main threads.

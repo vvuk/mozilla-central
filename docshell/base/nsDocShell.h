@@ -520,11 +520,14 @@ protected:
      * @param aChannelRedirectFlags
      *        For redirects, the redirect flags from nsIChannelEventSink
      *        (0 otherwise)
+     * @param aResponseStatus
+     *        For HTTP channels, the response code (0 otherwise).
      */
     void AddURIVisit(nsIURI* aURI,
                      nsIURI* aReferrerURI,
                      nsIURI* aPreviousURI,
-                     PRUint32 aChannelRedirectFlags);
+                     PRUint32 aChannelRedirectFlags,
+                     PRUint32 aResponseStatus=0);
 
     // Helper Routines
     nsresult   ConfirmRepost(bool * aRepost);
@@ -844,7 +847,9 @@ protected:
 private:
     nsCOMPtr<nsIAtom> mForcedCharset;
     nsCOMPtr<nsIAtom> mParentCharset;
-    PRInt32          mParentCharsetSource;
+    nsTObserverArray<nsWeakPtr> mPrivacyObservers;
+    PRInt32           mParentCharsetSource;
+    nsCString         mOriginalUriString;
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks

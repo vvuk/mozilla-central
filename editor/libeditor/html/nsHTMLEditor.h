@@ -161,6 +161,7 @@ public:
   virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget();
   virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
   virtual bool IsAcceptableInputEvent(nsIDOMEvent* aEvent);
+  virtual already_AddRefed<nsIContent> GetInputEventTargetContent();
 
   /* ------------ nsStubMutationObserver overrides --------- */
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
@@ -708,7 +709,7 @@ protected:
   nsresult RemoveStyleInside(nsIDOMNode *aNode, 
                              nsIAtom *aProperty, 
                              const nsAString *aAttribute, 
-                             bool aChildrenOnly = false);
+                             const bool aChildrenOnly = false);
   nsresult RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAString *aAttribute);
 
   bool NodeIsProperty(nsIDOMNode *aNode);
@@ -719,9 +720,13 @@ protected:
   bool IsOnlyAttribute(nsIDOMNode *aElement, const nsAString *aAttribute);
 
   nsresult RemoveBlockContainer(nsIDOMNode *inNode);
+  nsINode* GetPriorHTMLSibling(nsINode* aNode);
   nsresult GetPriorHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode);
+  nsINode* GetPriorHTMLSibling(nsINode* aParent, PRInt32 aOffset);
   nsresult GetPriorHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<nsIDOMNode> *outNode);
+  nsINode* GetNextHTMLSibling(nsINode* aNode);
   nsresult GetNextHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode);
+  nsINode* GetNextHTMLSibling(nsINode* aParent, PRInt32 aOffset);
   nsresult GetNextHTMLSibling(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<nsIDOMNode> *outNode);
   nsresult GetPriorHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
   nsresult GetPriorHTMLNode(nsIDOMNode *inParent, PRInt32 inOffset, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
@@ -965,6 +970,14 @@ public:
 friend class nsHTMLEditRules;
 friend class nsTextEditRules;
 friend class nsWSRunObject;
+friend class nsHTMLEditorEventListener;
+
+private:
+  // Helper
+  nsresult SetInlinePropertyOnNodeImpl(nsIDOMNode *aNode,
+                                       nsIAtom *aProperty,
+                                       const nsAString *aAttribute,
+                                       const nsAString *aValue);
 
 };
 #endif //nsHTMLEditor_h__

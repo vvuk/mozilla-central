@@ -1324,12 +1324,13 @@ nsComputedDOMStyle::DoGetMozFontFeatureSettings()
   nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
 
   const nsStyleFont* font = GetStyleFont();
-  if (font->mFont.featureSettings.IsEmpty()) {
+  if (font->mFont.fontFeatureSettings.IsEmpty()) {
     val->SetIdent(eCSSKeyword_normal);
   } else {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(font->mFont.featureSettings, str);
-    val->SetString(str);
+    nsAutoString result;
+    nsStyleUtil::AppendFontFeatureSettings(font->mFont.fontFeatureSettings,
+                                           result);
+    val->SetString(result);
   }
   return val;
 }
@@ -3541,9 +3542,11 @@ nsComputedDOMStyle::GetLineHeightCoord(nscoord& aCoord)
   // font->mSize as the font size.  Adjust for that.  Also adjust for
   // the text zoom, if any.
   const nsStyleFont* font = GetStyleFont();
-  aCoord = NSToCoordRound((float(aCoord) *
-                           (float(font->mSize) / float(font->mFont.size))) /
-                          mPresShell->GetPresContext()->TextZoom());
+  float fCoord = float(aCoord) / mPresShell->GetPresContext()->TextZoom();
+  if (font->mFont.size != font->mSize) {
+    fCoord = fCoord * (float(font->mSize) / float(font->mFont.size));
+  }
+  aCoord = NSToCoordRound(fCoord);
 
   return true;
 }

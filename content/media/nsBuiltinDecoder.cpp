@@ -91,17 +91,23 @@ void nsBuiltinDecoder::SetAudioCaptured(bool aCaptured)
   }
 }
 
-void nsBuiltinDecoder::AddOutputStream(InputStream* aStream, bool aFinishWhenEnded)
+void nsBuiltinDecoder::AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  OutputMediaStream* ms = mOutputStreams.AppendElement();
-  ms->Init(PRInt64(mCurrentTime*USECS_PER_S), aStream, aFinishWhenEnded);
 
+  {
+    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    OutputMediaStream* ms = mOutputStreams.AppendElement();
+    ms->Init(PRInt64(mCurrentTime*USECS_PER_S), aStream, aFinishWhenEnded);
+  }
+
+  // This can be called before Load(), in which case our mDecoderStateMachine
+  // won't have been created yet and we can rely on Load() to schedule it
+  // once it is created.
   if (mDecoderStateMachine) {
-    // Queue data for this stream now in case the decode loop doesn't take
-    // any more steps for a while.
-    static_cast<nsBuiltinDecoderStateMachine*>(mDecoderStateMachine.get())->SendOutputStreamData();
+    // Make sure the state machine thread runs so that any buffered data
+    // is fed into our stream.
+    ScheduleStateMachineThread();
   }
 }
 
@@ -431,7 +437,8 @@ void nsBuiltinDecoder::AudioAvailable(float* aFrameBuffer,
 }
 
 void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
-                                      PRUint32 aRate)
+                                      PRUint32 aRate,
+                                      bool aHasAudio)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   if (mShuttingDown) {
@@ -458,7 +465,7 @@ void nsBuiltinDecoder::MetadataLoaded(PRUint32 aChannels,
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    mElement->MetadataLoaded(aChannels, aRate);
+    mElement->MetadataLoaded(aChannels, aRate, aHasAudio);
   }
 
   if (!mResourceLoaded) {
@@ -712,6 +719,13 @@ void nsBuiltinDecoder::NotifyDownloadEnded(nsresult aStatus)
     NetworkError();
   }
   UpdateReadyStateForData();
+}
+
+void nsBuiltinDecoder::NotifyPrincipalChanged()
+{
+  if (mElement) {
+    mElement->NotifyDecoderPrincipalChanged();
+  }
 }
 
 void nsBuiltinDecoder::NotifyBytesConsumed(PRInt64 aBytes)

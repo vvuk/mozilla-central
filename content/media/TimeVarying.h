@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-*/
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11,9 +11,26 @@
 namespace mozilla {
 
 /**
+ * This is just for CTOR/DTOR tracking. We can't put this in
+ * TimeVarying directly because the different template instances have
+ * different sizes and that confuses things.
+ */
+class TimeVaryingBase {
+protected:
+  TimeVaryingBase()
+  {
+    MOZ_COUNT_CTOR(TimeVaryingBase);
+  }
+  ~TimeVaryingBase()
+  {
+    MOZ_COUNT_DTOR(TimeVaryingBase);
+  }
+};
+
+/**
  * Objects of this class represent values that can change over time ---
  * a mathematical function of time.
- * Time is measured in PRInt64s.
+ * Time is the type of time values, T is the value that changes over time.
  * There are a finite set of "change times"; at each change time, the function
  * instantly changes to a new value.
  * There is also a "current time" which must always advance (not go backward).
@@ -25,8 +42,8 @@ namespace mozilla {
  * and an array of "change times" (greater than the current time) and the
  * new value for each change time. This is a simple but dumb implementation.
  */
-template <class T>
-class TimeVarying {
+template <typename Time, typename T>
+class TimeVarying : public TimeVaryingBase {
 public:
   TimeVarying(const T& aInitial) : mCurrent(aInitial) {}
   /**
@@ -34,13 +51,14 @@ public:
    * constructor.
    */
   TimeVarying() : mCurrent() {}
+
   /**
    * Sets the value for all times >= aTime to aValue.
    */
-  void SetAt(PRInt64 aTime, const T& aValue)
+  void SetAtAndAfter(Time aTime, const T& aValue)
   {
     for (PRInt32 i = mChanges.Length() - 1; i >= 0; --i) {
-      NS_ASSERTION(i == (PRInt32) mChanges.Length() - 1, 
+      NS_ASSERTION(i == PRInt32(mChanges.Length() - 1),
                    "Always considering last element of array");
       if (aTime > mChanges[i].mTime) {
         if (mChanges[i].mValue != aValue) {
@@ -65,7 +83,7 @@ public:
    * sets aTime to the time at which the function changes to that final value.
    * If there are no changes after the current time, returns PR_INT64_MIN in aTime.
    */
-  const T& GetLast(PRInt64* aTime = nsnull) const
+  const T& GetLast(Time* aTime = nsnull) const
   {
     if (mChanges.IsEmpty()) {
       if (aTime) {
@@ -79,6 +97,26 @@ public:
     return mChanges[mChanges.Length() - 1].mValue;
   }
   /**
+   * Returns the value of the function just before time aTime.
+   */
+  const T& GetBefore(Time aTime) const
+  {
+    if (mChanges.IsEmpty() || aTime <= mChanges[0].mTime) {
+      return mCurrent;
+    }
+    PRInt32 changesLength = mChanges.Length();
+    if (mChanges[changesLength - 1].mTime < aTime) {
+      return mChanges[changesLength - 1].mValue;
+    }
+    for (PRUint32 i = 1; ; ++i) {
+      if (aTime <= mChanges[i].mTime) {
+        NS_ASSERTION(mChanges[i].mValue != mChanges[i - 1].mValue,
+                     "Only changed values appear in array");
+        return mChanges[i - 1].mValue;
+      }
+    }
+  }
+  /**
    * Returns the value of the function at time aTime.
    * If aEnd is non-null, sets *aEnd to the time at which the function will
    * change from the returned value to a new value, or PR_INT64_MAX if that
@@ -89,7 +127,7 @@ public:
    *
    * Currently uses a linear search, but could use a binary search.
    */
-  const T& GetAt(PRInt64 aTime, PRInt64* aEnd = nsnull, PRInt64* aStart = nsnull) const
+  const T& GetAt(Time aTime, Time* aEnd = nsnull, Time* aStart = nsnull) const
   {
     if (mChanges.IsEmpty() || aTime < mChanges[0].mTime) {
       if (aStart) {
@@ -128,7 +166,7 @@ public:
   /**
    * Advance the current time to aTime.
    */
-  void AdvanceCurrentTime(PRInt64 aTime)
+  void AdvanceCurrentTime(Time aTime)
   {
     for (PRUint32 i = 0; i < mChanges.Length(); ++i) {
       if (aTime < mChanges[i].mTime) {
@@ -143,7 +181,7 @@ public:
    * Make all currently pending changes happen aDelta later than their
    * current change times.
    */
-  void InsertTimeAtStart(PRInt64 aDelta)
+  void InsertTimeAtStart(Time aDelta)
   {
     for (PRUint32 i = 0; i < mChanges.Length(); ++i) {
       mChanges[i].mTime += aDelta;
@@ -156,25 +194,24 @@ public:
    * then this function will be V at time T + aTimeOffset. aOther's current
    * time must be >= 0.
    */
-  void Append(const TimeVarying& aOther, PRInt64 aTimeOffset)
+  void Append(const TimeVarying& aOther, Time aTimeOffset)
   {
     NS_ASSERTION(aOther.mChanges.IsEmpty() || aOther.mChanges[0].mTime >= 0,
                  "Negative time not allowed here");
     NS_ASSERTION(&aOther != this, "Can't self-append");
-    SetAt(aTimeOffset, aOther.mCurrent);
+    SetAtAndAfter(aTimeOffset, aOther.mCurrent);
     for (PRUint32 i = 0; i < aOther.mChanges.Length(); ++i) {
       const Entry& e = aOther.mChanges[i];
-      SetAt(aTimeOffset + e.mTime, e.mValue);
+      SetAtAndAfter(aTimeOffset + e.mTime, e.mValue);
     }
   }
 
 private:
   struct Entry {
-    Entry(PRInt64 aTime, const T& aValue) : mTime(aTime), mValue(aValue) {}
-    PRInt64 Time() { return mTime; }
+    Entry(Time aTime, const T& aValue) : mTime(aTime), mValue(aValue) {}
 
     // The time at which the value changes to mValue
-    PRInt64 mTime;
+    Time mTime;
     T mValue;
   };
   nsTArray<Entry> mChanges;

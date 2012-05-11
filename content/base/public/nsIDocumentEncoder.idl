@@ -238,6 +238,18 @@ interface nsIDocumentEncoder : nsISupports
   const unsigned long OutputFormatDelSp  = (1 << 20);
  
   /**
+   * Drop <br> elements considered "invisible" by the editor. OutputPreformatted
+   * implies this flag.
+   */
+  const unsigned long OutputDropInvisibleBreak = (1 << 21);
+
+  /**
+   * Don't check for _moz_dirty attributes when deciding whether to
+   * pretty-print if this flag is set (bug 599983).
+   */
+  const unsigned long OutputIgnoreMozDirty = (1 << 22);
+
+  /**
    * Initialize with a pointer to the document and the mime type.
    * @param aDocument Document to encode.
    * @param aMimeType MimeType to use. May also be set by SetMimeType.

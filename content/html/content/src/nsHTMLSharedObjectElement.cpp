@@ -151,6 +151,11 @@ public:
     return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
   }
   nsIClassInfo* GetClassInfoInternal();
+
+  virtual nsIDOMNode* AsDOMNode()
+  {
+    return static_cast<nsIDOMHTMLAppletElement*>(this);
+  }
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.
@@ -283,6 +288,11 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = nsObjectLoadingContent::BindToTree(aDocument, aParent,
+                                          aBindingParent,
+                                          aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
     void (nsHTMLSharedObjectElement::*start)() =
@@ -298,6 +308,7 @@ nsHTMLSharedObjectElement::UnbindFromTree(bool aDeep,
                                           bool aNullParent)
 {
   RemovedFromDocument();
+  nsObjectLoadingContent::UnbindFromTree(aDeep, aNullParent);
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 

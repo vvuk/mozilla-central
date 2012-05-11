@@ -8,7 +8,7 @@
  * Keeps thumbnails of open web pages up-to-date.
  */
 let gBrowserThumbnails = {
-  _captureDelayMS: 2000,
+  _captureDelayMS: 1000,
 
   /**
    * Map of capture() timeouts assigned to their browsers.
@@ -26,6 +26,11 @@ let gBrowserThumbnails = {
   _tabEvents: ["TabClose", "TabSelect"],
 
   init: function Thumbnails_init() {
+    try {
+      if (Services.prefs.getBoolPref("browser.pagethumbnails.capturing_disabled"))
+        return;
+    } catch (e) {}
+
     gBrowser.addTabsProgressListener(this);
 
     this._tabEvents.forEach(function (aEvent) {
@@ -93,6 +98,14 @@ let gBrowserThumbnails = {
   },
 
   _shouldCapture: function Thumbnails_shouldCapture(aBrowser) {
+    // Capture only if it's the currently selected tab.
+    if (aBrowser != gBrowser.selectedBrowser)
+      return false;
+
+    // Don't capture in private browsing mode.
+    if (gPrivateBrowsingUI.privateBrowsingEnabled)
+      return false;
+
     let doc = aBrowser.contentDocument;
 
     // FIXME Bug 720575 - Don't capture thumbnails for SVG or XML documents as
@@ -109,6 +122,15 @@ let gBrowserThumbnails = {
       return false;
 
     let channel = aBrowser.docShell.currentDocumentChannel;
+
+    // No valid document channel. We shouldn't take a screenshot.
+    if (!channel)
+      return false;
+
+    // Don't take screenshots of internally redirecting about: pages.
+    // This includes error pages.
+    if (channel.originalURI.schemeIs("about"))
+      return false;
 
     try {
       // If the channel is a nsIHttpChannel get its http status code.

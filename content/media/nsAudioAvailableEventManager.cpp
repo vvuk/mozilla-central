@@ -171,6 +171,9 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     if (audioData) {
       audioData += signalBufferTail;
     }
+
+    NS_ASSERTION(audioDataLength >= signalBufferTail,
+                 "audioDataLength about to wrap past zero to +infinity!");
     audioDataLength -= signalBufferTail;
 
     if (mPendingEvents.Length() > 0) {
@@ -198,7 +201,6 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(AudioDataValue* aAudioD
     mSignalBuffer = new float[currentBufferSize];
     mSignalBufferPosition = 0;
     signalBufferTail = currentBufferSize;
-    NS_ASSERTION(audioDataLength >= 0, "Past new signal data length.");
   }
 
   NS_ASSERTION(mSignalBufferPosition + audioDataLength < mSignalBufferLength,

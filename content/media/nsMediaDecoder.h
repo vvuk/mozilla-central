@@ -41,7 +41,7 @@
 #include "ImageLayers.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "VideoFrameContainer.h"
-#include "GraphManager.h"
+#include "MediaStreamGraph.h"
 
 class nsHTMLMediaElement;
 class nsIStreamListener;
@@ -72,10 +72,9 @@ class nsMediaDecoder : public nsIObserver
 public:
   typedef mozilla::layers::Image Image;
   typedef mozilla::layers::ImageContainer ImageContainer;
-  typedef mozilla::media::InputStream InputStream;
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
-  typedef mozilla::media::Stream Stream;
+  typedef mozilla::SourceMediaStream SourceMediaStream;
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
@@ -137,7 +136,7 @@ public:
   virtual void SetAudioCaptured(bool aCaptured) = 0;
 
   // Add an output stream. All decoder output will be sent to the stream.
-  virtual void AddOutputStream(InputStream* aStream, bool aFinishWhenEnded) = 0;
+  virtual void AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded) = 0;
 
   // Start playback of a video. 'Load' must have previously been
   // called.
@@ -340,6 +339,10 @@ public:
   // download has ended. Called on the main thread only. aStatus is
   // the result from OnStopRequest.
   virtual void NotifyDownloadEnded(nsresult aStatus) = 0;
+
+  // Called by MediaResource when the principal of the resource has
+  // changed. Called on main thread only.
+  virtual void NotifyPrincipalChanged() = 0;
 
   // Called as data arrives on the stream and is read into the cache.  Called
   // on the main thread only.

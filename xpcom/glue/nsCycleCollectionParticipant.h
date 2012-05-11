@@ -40,10 +40,6 @@
 
 #include "nsISupports.h"
 
-// NOTE: If you use header files to define DEBUG_CC, you must do so here
-// *and* in nsCycleCollector.h
-//#define DEBUG_CC
-
 #define NS_CYCLECOLLECTIONPARTICIPANT_IID                                      \
 {                                                                              \
     0x9674489b,                                                                \
@@ -226,7 +222,7 @@ public:
 
     NS_IMETHOD_(void) Trace(void *p, TraceCallback cb, void *closure);
 
-    NS_IMETHOD_(void) UnmarkPurple(nsISupports *p);
+    NS_IMETHOD_(void) UnmarkIfPurple(nsISupports *p);
 
     bool CheckForRightISupports(nsISupports *s);
 };
@@ -593,9 +589,9 @@ public:
 public:                                                                        \
   NS_IMETHOD Traverse(void *p,                                                 \
                       nsCycleCollectionTraversalCallback &cb);                 \
-  NS_IMETHOD_(void) UnmarkPurple(nsISupports *s)                               \
+  NS_IMETHOD_(void) UnmarkIfPurple(nsISupports *s)                             \
   {                                                                            \
-    Downcast(s)->UnmarkPurple();                                               \
+    Downcast(s)->UnmarkIfPurple();                                             \
   }                                                                            \
   static _class* Downcast(nsISupports* s)                                      \
   {                                                                            \
@@ -758,13 +754,13 @@ public:                                                                        \
 NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 /**
- * This implements a stub UnmarkPurple function for classes that want to be
+ * This implements a stub UnmarkIfPurple function for classes that want to be
  * traversed but whose AddRef/Release functions don't add/remove them to/from
  * the purple buffer. If you're just using NS_DECL_CYCLE_COLLECTING_ISUPPORTS
  * then you don't need this.
  */
 #define NS_DECL_CYCLE_COLLECTION_UNMARK_PURPLE_STUB(_class)                    \
-  NS_IMETHODIMP_(void) UnmarkPurple()                                          \
+  NS_IMETHODIMP_(void) UnmarkIfPurple()                                        \
   {                                                                            \
   }                                                                            \
 

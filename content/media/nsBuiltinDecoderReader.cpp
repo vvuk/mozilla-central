@@ -76,15 +76,14 @@ AudioData::EnsureAudioBuffer()
 {
   if (mAudioBuffer)
     return;
-  AudioDataValue* data = static_cast<AudioDataValue*>
-    (moz_xmalloc(mFrames*mChannels*sizeof(AudioDataValue)));
+  mAudioBuffer = SharedBuffer::Create(mFrames*mChannels*sizeof(AudioDataValue));
+
+  AudioDataValue* data = static_cast<AudioDataValue*>(mAudioBuffer->Data());
   for (PRUint32 i = 0; i < mFrames; ++i) {
     for (PRUint32 j = 0; j < mChannels; ++j) {
       data[j*mFrames + i] = mAudioData[i*mChannels + j];
     }
   }
-  mAudioBuffer = new AudioBuffer(mFrames, mChannels, MOZ_AUDIO_DATA_FORMAT,
-                                 data);
 }
 
 static bool
@@ -408,25 +407,4 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
   return NS_OK;
 }
 
-void nsBuiltinDecoderReader::PushAudioData(PRInt64 aOffset,
-                                           PRInt64 aTime,
-                                           PRInt64 aDuration,
-                                           PRUint32 aFrames,
-                                           PRUint32 aChannels,
-                                           VorbisPCMValue** aChannelBuffers)
-{
-  nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[aFrames * aChannels]);
-  for (PRUint32 j = 0; j < aChannels; ++j) {
-    VorbisPCMValue* channel = aChannelBuffers[j];
-    for (PRUint32 i = 0; i < PRUint32(aFrames); ++i) {
-      buffer[i*aChannels + j] = MOZ_CONVERT_VORBIS_SAMPLE(channel[i]);
-    }
-  }
 
-  mAudioQueue.Push(new AudioData(aOffset,
-                                 aTime,
-                                 aDuration,
-                                 aFrames,
-                                 buffer.forget(),
-                                 aChannels));
-}

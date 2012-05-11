@@ -248,8 +248,7 @@ public:
           mHasIdAttribute(false),
           mHasClassAttribute(false),
           mHasStyleAttribute(false),
-          mHoldsScriptObject(false),
-          mScriptTypeID(nsIProgrammingLanguage::UNKNOWN)
+          mHoldsScriptObject(false)
     {
     }
 
@@ -297,11 +296,6 @@ public:
     bool                     mHasStyleAttribute:1;
     bool                     mHoldsScriptObject:1;
 
-    // The language ID can not be set on a per-node basis, but is tracked
-    // so that the language ID from the originating root can be used
-    // (eg, when a node from an overlay ends up in our document, that node
-    // must use its original script language, not our document's default.
-    PRUint16                 mScriptTypeID;
 };
 
 class nsXULDocument;
@@ -309,7 +303,7 @@ class nsXULDocument;
 class nsXULPrototypeScript : public nsXULPrototypeNode
 {
 public:
-    nsXULPrototypeScript(PRUint32 aLangID, PRUint32 aLineNo, PRUint32 version);
+    nsXULPrototypeScript(PRUint32 aLineNo, PRUint32 version);
     virtual ~nsXULPrototypeScript();
 
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -338,23 +332,18 @@ public:
 
     void Set(nsScriptObjectHolder<JSScript>& aHolder)
     {
-        NS_ASSERTION(mScriptObject.mLangID == aHolder.getScriptTypeID(),
-                     "Wrong language, this will leak the previous object.");
-
-        mScriptObject.mLangID = aHolder.getScriptTypeID();
         Set(aHolder.get());
     }
     void Set(JSScript* aObject);
 
     struct ScriptObjectHolder
     {
-        ScriptObjectHolder(PRUint32 aLangID) : mLangID(aLangID),
-                                               mObject(nsnull)
+        ScriptObjectHolder() : mObject(nsnull)
         {
         }
-        PRUint32 mLangID;
         JSScript* mObject;
     };
+
     nsCOMPtr<nsIURI>         mSrcURI;
     PRUint32                 mLineNo;
     bool                     mSrcLoading;
@@ -482,7 +471,7 @@ public:
                                 nsIContent* aBindingParent,
                                 bool aCompileEventHandlers);
     virtual void UnbindFromTree(bool aDeep, bool aNullParent);
-    virtual nsresult RemoveChildAt(PRUint32 aIndex, bool aNotify);
+    virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
     virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
     virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
@@ -570,6 +559,8 @@ public:
     virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
     virtual nsXPCClassInfo* GetClassInfo();
+
+    virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
     //     access to mPrototype anymore.

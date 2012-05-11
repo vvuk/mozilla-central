@@ -51,31 +51,38 @@ XPIDLSRCS = \
   $(NULL)
 
 EXPORTS = \
-  GraphManager.h \
+  AudioSegment.h \
+  FileBlockCache.h \
   MediaResource.h \
+  MediaSegment.h \
+  MediaStreamGraph.h \
   nsAudioAvailableEventManager.h \
   nsBuiltinDecoder.h \
   nsBuiltinDecoderStateMachine.h \
   nsBuiltinDecoderReader.h \
   nsDOMMediaStream.h \
-  nsMediaDecoder.h \
   nsMediaCache.h \
+  nsMediaDecoder.h \
+  SharedBuffer.h \
   StreamBuffer.h \
   TimeVarying.h \
   VideoFrameContainer.h \
   VideoUtils.h \
+  VideoSegment.h \
   $(NULL)
 
 CPPSRCS = \
-  GraphManager.cpp \
+  AudioSegment.cpp \
+  FileBlockCache.cpp \
   MediaResource.cpp \
+  MediaStreamGraph.cpp \
   nsAudioAvailableEventManager.cpp \
   nsBuiltinDecoder.cpp \
   nsBuiltinDecoderStateMachine.cpp \
   nsBuiltinDecoderReader.cpp \
   nsDOMMediaStream.cpp \
-  nsMediaDecoder.cpp \
   nsMediaCache.cpp \
+  nsMediaDecoder.cpp \
   StreamBuffer.cpp \
   VideoFrameContainer.cpp \
   VideoUtils.cpp \
@@ -89,8 +96,6 @@ CPPSRCS += \
   nsAudioStream.cpp \
   $(NULL)
 endif
-
-PARALLEL_DIRS =
 
 ifdef MOZ_RAW
 PARALLEL_DIRS += raw
@@ -106,6 +111,10 @@ endif
 
 ifdef MOZ_WEBM
 PARALLEL_DIRS += webm
+endif
+
+ifdef MOZ_GSTREAMER
+PARALLEL_DIRS += gstreamer
 endif
 
 ifdef ENABLE_TESTS

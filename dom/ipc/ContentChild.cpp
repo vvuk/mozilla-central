@@ -76,6 +76,7 @@
 #include "nsIConsoleService.h"
 #include "nsJSEnvironment.h"
 #include "SandboxHal.h"
+#include "nsDebugImpl.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -95,8 +96,6 @@
 #include "nsPermission.h"
 #include "nsPermissionManager.h"
 #endif
-
-#include "nsDeviceMotion.h"
 
 #if defined(MOZ_WIDGET_ANDROID)
 #include "APKOpen.h"
@@ -234,11 +233,14 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
+ : mID(PRUint64(-1))
 #ifdef ANDROID
- : mScreenSize(0, 0)
- , mID(PRUint64(-1))
+ , mScreenSize(0, 0)
 #endif
 {
+    // This process is a content process, so it's clearly running in
+    // multiprocess mode!
+    nsDebugImpl::SetMultiprocessMode("Child");
 }
 
 ContentChild::~ContentChild()
@@ -364,8 +366,7 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
 
     InfallibleTArray<MemoryReport> reports;
 
-    static const int maxLength = 31;   // big enough; pid is only a few chars
-    nsPrintfCString process(maxLength, "Content (%d)", getpid());
+    nsPrintfCString process("Content (%d)", getpid());
 
     // First do the vanilla memory reporters.
     nsCOMPtr<nsISimpleEnumerator> e;
@@ -380,14 +381,16 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
       PRInt32 units;
       PRInt64 amount;
       nsCString desc;
-      r->GetPath(path);
-      r->GetKind(&kind);
-      r->GetUnits(&units);
-      r->GetAmount(&amount);
-      r->GetDescription(desc);
 
-      MemoryReport memreport(process, path, kind, units, amount, desc);
-      reports.AppendElement(memreport);
+      if (NS_SUCCEEDED(r->GetPath(path)) &&
+          NS_SUCCEEDED(r->GetKind(&kind)) &&
+          NS_SUCCEEDED(r->GetUnits(&units)) &&
+          NS_SUCCEEDED(r->GetAmount(&amount)) &&
+          NS_SUCCEEDED(r->GetDescription(desc)))
+      {
+        MemoryReport memreport(process, path, kind, units, amount, desc);
+        reports.AppendElement(memreport);
+      }
     }
 
     // Then do the memory multi-reporters, by calling CollectReports on each
@@ -742,18 +745,6 @@ ContentChild::RecvAddPermission(const IPC::Permission& permission)
 }
 
 bool
-ContentChild::RecvDeviceMotionChanged(const long int& type,
-                                      const double& x, const double& y,
-                                      const double& z)
-{
-    nsCOMPtr<nsIDeviceMotionUpdate> dmu = 
-        do_GetService(NS_DEVICE_MOTION_CONTRACTID);
-    if (dmu)
-        dmu->DeviceMotionChanged(type, x, y, z);
-    return true;
-}
-
-bool
 ContentChild::RecvScreenSizeChanged(const gfxIntSize& size)
 {
 #ifdef ANDROID
@@ -827,6 +818,14 @@ ContentChild::RecvSetID(const PRUint64 &id)
         NS_WARNING("Setting content child's ID twice?");
     }
     mID = id;
+    return true;
+}
+
+bool
+ContentChild::RecvLastPrivateDocShellDestroyed()
+{
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    obs->NotifyObservers(nsnull, "last-pb-context-exited", nsnull);
     return true;
 }
 

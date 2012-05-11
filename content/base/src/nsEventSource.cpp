@@ -117,10 +117,8 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
       NS_UNMARK_LISTENER_WRAPPER(Message)
       NS_UNMARK_LISTENER_WRAPPER(Error)
     }
-    if (!isBlack) {
-      xpc_UnmarkGrayObject(tmp->PreservingWrapper() ? 
-                           tmp->GetWrapperPreserveColor() :
-                           tmp->GetExpandoObjectPreserveColor());
+    if (!isBlack && tmp->PreservingWrapper()) {
+      xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
     }
     return true;
   }
@@ -469,7 +467,7 @@ nsEventSource::Observe(nsISupports* aSubject,
     return NS_OK;
   }
 
-  nsresult rv;
+  DebugOnly<nsresult> rv;
   if (strcmp(aTopic, DOM_WINDOW_FROZEN_TOPIC) == 0) {
     rv = Freeze();
     NS_ASSERTION(rv, "Freeze() failed");
@@ -1112,7 +1110,6 @@ nsEventSource::SetReconnectionTimeout()
     NS_ENSURE_STATE(mTimer);
   }
 
-  NS_ASSERTION(mReconnectionTime >= 0, "mReconnectionTime lies");
   nsresult rv = mTimer->InitWithFuncCallback(TimerCallback, this,
                                              mReconnectionTime,
                                              nsITimer::TYPE_ONE_SHOT);

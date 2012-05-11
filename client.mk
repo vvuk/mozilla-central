@@ -101,7 +101,6 @@ ifeq (,$(strip $(AUTOCONF)))
 AUTOCONF=$(error Could not find autoconf 2.13)
 endif
 
-MKDIR := mkdir
 SH := /bin/sh
 PERL ?= perl
 PYTHON ?= python
@@ -181,6 +180,9 @@ OBJDIR_TARGETS = install export libs clean realclean distclean alldep maybe_clob
 build::
 	$(MAKE) -f $(TOPSRCDIR)/client.mk $(if $(MOZ_PGO),profiledbuild,realbuild)
 
+# Define mkdir
+include $(TOPSRCDIR)/config/makefiles/makeutils.mk
+include $(TOPSRCDIR)/config/makefiles/autotargets.mk
 
 # Print out any options loaded from mozconfig.
 all realbuild clean depend distclean export libs install realclean::
@@ -195,6 +197,9 @@ build_all: build
 build_all_dep: alldep
 build_all_depend: alldep
 clobber clobber_all: clean
+
+# helper target for mobile
+build_and_deploy: build package install
 
 # Do everything from scratch
 everything: clean build
@@ -291,11 +296,12 @@ EXTRA_CONFIG_DEPS := \
 	$(TOPSRCDIR)/media/webrtc/trunk/peerconnection.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_video/common_video.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_video/libyuv/libyuv.gypi \
-	$(TOPSRCDIR)/media/webrtc/trunk/src/common_video/jpeg/main/source/jpeg.gypi \
+	$(TOPSRCDIR)/media/webrtc/trunk/src/common_video/jpeg/jpeg.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/voice_engine/voice_engine.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/voice_engine/main/test/voice_engine_tests.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/voice_engine/main/source/voice_engine_core.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/video_engine/test/auto_test/vie_auto_test.gypi \
+	$(TOPSRCDIR)/media/webrtc/trunk/src/video_engine/test/libvietest/libvietest.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/video_engine/video_engine_core.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/video_engine/video_engine.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/video_engine/main/test/WindowsTest/windowstest.gypi \
@@ -342,14 +348,11 @@ EXTRA_CONFIG_DEPS := \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/modules/utility/source/utility.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/build/merge_libs.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/build/protoc.gypi \
-	$(TOPSRCDIR)/media/webrtc/trunk/src/build/external_code.gypi \
-	$(TOPSRCDIR)/media/webrtc/trunk/src/build/common_standalone.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/build/common.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_audio/vad/vad.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_audio/signal_processing/signal_processing.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_audio/common_audio.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/common_audio/resampler/resampler.gypi \
-	$(TOPSRCDIR)/media/webrtc/trunk/src/common_settings.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/supplement.gypi \
 	$(TOPSRCDIR)/media/webrtc/trunk/src/system_wrappers/source/system_wrappers.gyp \
 	$(TOPSRCDIR)/media/webrtc/trunk/tools/gyp/test/module/src/module.gyp \
@@ -564,13 +567,15 @@ $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 	cd $(@D); $(AUTOCONF)
 
 CONFIG_STATUS_DEPS := \
-	$(wildcard $(CONFIGURES)) \
-	$(TOPSRCDIR)/allmakefiles.sh \
-	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
-	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/js/src/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/browser/config/version.txt) \
-	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
+	$(wildcard \
+        $(CONFIGURES) \
+        $(TOPSRCDIR)/allmakefiles.sh \
+        $(TOPSRCDIR)/nsprpub/configure \
+        $(TOPSRCDIR)/config/milestone.txt \
+        $(TOPSRCDIR)/js/src/config/milestone.txt \
+        $(TOPSRCDIR)/browser/config/version.txt \
+        $(TOPSRCDIR)/*/confvars.sh \
+	) \
 	$(NULL)
 
 CONFIGURE_ENV_ARGS += \
@@ -588,11 +593,17 @@ endif
 
 configure-files: $(CONFIGURES)
 
-configure:: configure-files
-ifdef MOZ_BUILD_PROJECTS
-	@if test ! -d $(MOZ_OBJDIR); then $(MKDIR) $(MOZ_OBJDIR); else true; fi
-endif
-	@if test ! -d $(OBJDIR); then $(MKDIR) $(OBJDIR); else true; fi
+configure-preqs = \
+  configure-files \
+  $(call mkdir_deps,$(OBJDIR)) \
+  $(if $(MOZ_BUILD_PROJECTS),$(call mkdir_deps,$(MOZ_OBJDIR))) \
+  save-mozconfig \
+  $(NULL)
+
+save-mozconfig:
+	-cp $(FOUND_MOZCONFIG) $(OBJDIR)/.mozconfig
+
+configure:: $(configure-preqs)
 	@echo cd $(OBJDIR);
 	@echo $(CONFIGURE) $(CONFIGURE_ARGS)
 	@cd $(OBJDIR) && $(BUILD_PROJECT_ARG) $(CONFIGURE_ENV_ARGS) $(CONFIGURE) $(CONFIGURE_ARGS) \
@@ -636,8 +647,7 @@ endif
 ####################################
 # Build it
 
-realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
-	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/config $(TOPSRCDIR)/config
+realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status check-sync-dirs-config
 	$(MOZ_MAKE)
 
 ####################################
@@ -694,6 +704,12 @@ cleansrcdir:
 	          -o \( -name '*.[ao]' -o -name '*.so' \) -type f -print`; \
 	   build/autoconf/clean-config.sh; \
 	fi;
+
+## Sanity check $X and js/src/$X are in sync
+.PHONY: check-sync-dirs
+check-sync-dirs: check-sync-dirs-build check-sync-dirs-config
+check-sync-dirs-%:
+	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/$* $(TOPSRCDIR)/$*
 
 echo-variable-%:
 	@echo $($*)

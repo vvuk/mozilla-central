@@ -40,6 +40,8 @@
 #include "File.h"
 
 #include "nsIDOMFile.h"
+#include "nsDOMBlobBuilder.h"
+#include "nsDOMError.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
@@ -57,7 +59,7 @@
 
 USING_WORKERS_NAMESPACE
 
-using mozilla::dom::workers::exceptions::ThrowFileExceptionForCode;
+using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
 
 namespace {
 
@@ -110,16 +112,34 @@ private:
     return NULL;
   }
 
+  static nsIDOMBlob*
+  Unwrap(JSContext* aCx, JSObject* aObj)
+  {
+    return GetPrivate(aObj);
+  }
+
   static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
-                         sClass.name);
-    return false;
+    nsRefPtr<nsDOMMultipartFile> file = new nsDOMMultipartFile();
+    nsresult rv = file->InitInternal(aCx, aArgc, JS_ARGV(aCx, aVp),
+                                     Unwrap);
+    if (NS_FAILED(rv)) {
+      ThrowDOMExceptionForNSResult(aCx, rv);
+      return false;
+    }
+
+    JSObject* obj = file::CreateBlob(aCx, file);
+    if (!obj) {
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
+    return true;
   }
 
   static void
-  Finalize(JSContext* aCx, JSObject* aObj)
+  Finalize(JSFreeOp* aFop, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == &sClass);
 
@@ -137,7 +157,8 @@ private:
 
     PRUint64 size;
     if (NS_FAILED(blob->GetSize(&size))) {
-      ThrowFileExceptionForCode(aCx, FILE_NOT_READABLE_ERR);
+      ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);
+      return false;
     }
 
     if (!JS_NewNumberValue(aCx, double(size), aVp)) {
@@ -157,7 +178,8 @@ private:
 
     nsString type;
     if (NS_FAILED(blob->GetType(type))) {
-      ThrowFileExceptionForCode(aCx, FILE_NOT_READABLE_ERR);
+      ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);
+      return false;
     }
 
     JSString* jsType = JS_NewUCStringCopyN(aCx, type.get(), type.Length());
@@ -201,7 +223,7 @@ private:
                               static_cast<PRUint64>(end),
                               contentType, optionalArgc,
                               getter_AddRefs(rtnBlob)))) {
-      ThrowFileExceptionForCode(aCx, FILE_NOT_READABLE_ERR);
+      ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);
       return false;
     }
 
@@ -219,8 +241,7 @@ JSClass Blob::sClass = {
   "Blob",
   JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-  JSCLASS_NO_OPTIONAL_MEMBERS
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
 JSPropertySpec Blob::sProperties[] = {
@@ -309,7 +330,7 @@ private:
   }
 
   static void
-  Finalize(JSContext* aCx, JSObject* aObj)
+  Finalize(JSFreeOp* aFop, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == &sClass);
 
@@ -329,7 +350,7 @@ private:
 
     if (GetWorkerPrivateFromContext(aCx)->UsesSystemPrincipal() &&
         NS_FAILED(file->GetMozFullPathInternal(fullPath))) {
-      ThrowFileExceptionForCode(aCx, FILE_NOT_READABLE_ERR);
+      ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_FILE_NOT_READABLE_ERR);
       return false;
     }
 
@@ -370,8 +391,7 @@ JSClass File::sClass = {
   "File",
   JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
-  JSCLASS_NO_OPTIONAL_MEMBERS
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
 JSPropertySpec File::sProperties[] = {

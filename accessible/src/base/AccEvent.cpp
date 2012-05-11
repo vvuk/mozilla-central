@@ -39,15 +39,13 @@
 
 #include "AccEvent.h"
 
+#include "ApplicationAccessibleWrap.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsApplicationAccessibleWrap.h"
 #include "nsDocAccessible.h"
 #include "nsIAccessibleText.h"
-#ifdef MOZ_XUL
-#include "nsXULTreeAccessible.h"
-#endif
 #include "nsAccEvent.h"
+#include "States.h"
 
 #include "nsIDOMDocument.h"
 #include "nsEventStateManager.h"
@@ -55,6 +53,8 @@
 #ifdef MOZ_XUL
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #endif
+
+using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccEvent
@@ -101,7 +101,10 @@ AccEvent::GetNode()
 nsDocAccessible*
 AccEvent::GetDocAccessible()
 {
-  nsINode *node = GetNode();
+  if (mAccessible)
+    return mAccessible->Document();
+
+  nsINode* node = GetNode();
   if (node)
     return GetAccService()->GetDocAccessible(node->OwnerDoc());
 
@@ -152,7 +155,7 @@ AccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
     // XXX: remove this hack during reorganization of 506907. Meanwhile we
     // want to get rid an assertion for application accessible events which
     // don't have DOM node (see bug 506206).
-    nsApplicationAccessible *applicationAcc =
+    ApplicationAccessible* applicationAcc =
       nsAccessNode::GetApplicationAccessible();
 
     if (mAccessible != static_cast<nsIAccessible*>(applicationAcc))
@@ -254,6 +257,10 @@ AccTextChangeEvent::
   , mIsInserted(aIsInserted)
   , mModifiedText(aModifiedText)
 {
+  // XXX We should use IsFromUserInput here, but that isn't always correct
+  // when the text change isn't related to content insertion or removal.
+   mIsFromUserInput = mAccessible->State() &
+    (states::FOCUSED | states::EDITABLE);
 }
 
 already_AddRefed<nsAccEvent>

@@ -1,12 +1,13 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMMediaStream.h"
 #include "nsDOMClassInfoID.h"
+#include "nsContentUtils.h"
 
-using namespace mozilla::media;
+using namespace mozilla;
 
 DOMCI_DATA(MediaStream, nsDOMMediaStream)
 
@@ -37,7 +38,7 @@ nsDOMMediaStream::~nsDOMMediaStream()
 NS_IMETHODIMP
 nsDOMMediaStream::GetCurrentTime(double *aCurrentTime)
 {
-  *aCurrentTime = mStream ? double(mStream->GetCurrentTime())/1000000 : 0.0;
+  *aCurrentTime = mStream ? MediaTimeToSeconds(mStream->GetCurrentTime()) : 0.0;
   return NS_OK;
 }
 
@@ -45,7 +46,13 @@ already_AddRefed<nsDOMMediaStream>
 nsDOMMediaStream::CreateInputStream()
 {
   nsRefPtr<nsDOMMediaStream> stream = new nsDOMMediaStream();
-  GraphManager* gm = GraphManager::GetInstance();
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   stream->mStream = gm->CreateInputStream(stream);
   return stream.forget();
+}
+
+bool
+nsDOMMediaStream::CombineWithPrincipal(nsIPrincipal* aPrincipal)
+{
+  return nsContentUtils::CombineResourcePrincipals(&mPrincipal, aPrincipal);
 }

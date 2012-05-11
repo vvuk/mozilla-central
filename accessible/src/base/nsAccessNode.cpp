@@ -38,9 +38,9 @@
 
 #include "nsAccessNode.h"
 
+#include "ApplicationAccessibleWrap.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
 #include "nsRootAccessible.h"
 
@@ -67,7 +67,7 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 
 bool nsAccessNode::gIsFormFillEnabled = false;
 
-nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
+ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
 
 /*
  * Class nsAccessNode
@@ -117,12 +117,6 @@ void nsAccessNode::LastRelease()
 // nsAccessNode public
 
 bool
-nsAccessNode::IsDefunct() const
-{
-  return !mContent;
-}
-
-bool
 nsAccessNode::Init()
 {
   return true;
@@ -136,18 +130,16 @@ nsAccessNode::Shutdown()
   mDoc = nsnull;
 }
 
-nsApplicationAccessible*
+ApplicationAccessible*
 nsAccessNode::GetApplicationAccessible()
 {
   NS_ASSERTION(!nsAccessibilityService::IsShutdown(),
                "Accessibility wasn't initialized!");
 
   if (!gApplicationAccessible) {
-    nsApplicationAccessibleWrap::PreCreate();
+    ApplicationAccessibleWrap::PreCreate();
 
-    gApplicationAccessible = new nsApplicationAccessibleWrap();
-    if (!gApplicationAccessible)
-      return nsnull;
+    gApplicationAccessible = new ApplicationAccessibleWrap();
 
     // Addref on create. Will Release in ShutdownXPAccessibility()
     NS_ADDREF(gApplicationAccessible);
@@ -206,24 +198,13 @@ void nsAccessNode::ShutdownXPAccessibility()
 
   // Release gApplicationAccessible after everything else is shutdown
   // so we don't accidently create it again while tearing down root accessibles
-  nsApplicationAccessibleWrap::Unload();
+  ApplicationAccessibleWrap::Unload();
   if (gApplicationAccessible) {
     gApplicationAccessible->Shutdown();
     NS_RELEASE(gApplicationAccessible);
   }
 
   NotifyA11yInitOrShutdown(false);
-}
-
-// nsAccessNode protected
-nsPresContext* nsAccessNode::GetPresContext()
-{
-  if (IsDefunct())
-    return nsnull;
-
-  nsIPresShell* presShell(mDoc->PresShell());
-
-  return presShell ? presShell->GetPresContext() : nsnull;
 }
 
 nsRootAccessible*
@@ -258,37 +239,12 @@ nsAccessNode::IsPrimaryForNode() const
   return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void
-nsAccessNode::ScrollTo(PRUint32 aScrollType)
-{
-  if (IsDefunct())
-    return;
-
-  nsIPresShell* shell = mDoc->PresShell();
-  if (!shell)
-    return;
-
-  nsIFrame *frame = GetFrame();
-  if (!frame)
-    return;
-
-  nsIContent* content = frame->GetContent();
-  if (!content)
-    return;
-
-  PRInt16 vPercent, hPercent;
-  nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
-  shell->ScrollContentIntoView(content, vPercent, hPercent,
-                               nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
-}
-
 void
 nsAccessNode::Language(nsAString& aLanguage)
 {
   aLanguage.Truncate();
 
-  if (IsDefunct())
+  if (!mDoc)
     return;
 
   nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);

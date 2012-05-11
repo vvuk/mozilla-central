@@ -363,11 +363,22 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endFrame = aPacket->granulepos;
   while ((frames = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, frames);
+    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[frames * channels]);
+    for (PRUint32 j = 0; j < channels; ++j) {
+      VorbisPCMValue* channel = pcm[j];
+      for (PRUint32 i = 0; i < PRUint32(frames); ++i) {
+        buffer[i*channels + j] = MOZ_CONVERT_VORBIS_SAMPLE(channel[i]);
+      }
+    }
+
     PRInt64 duration = mVorbisState->Time((PRInt64)frames);
     PRInt64 startTime = mVorbisState->Time(endFrame - frames);
-
-    PushAudioData(mPageOffset, startTime, duration, frames, channels, pcm);
-
+    mAudioQueue.Push(new AudioData(mPageOffset,
+                                   startTime,
+                                   duration,
+                                   frames,
+                                   buffer.forget(),
+                                   channels));
     endFrame -= frames;
     if (vorbis_synthesis_read(&mVorbisState->mDsp, frames) != 0) {
       return NS_ERROR_FAILURE;
@@ -1154,7 +1165,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
   ogg_int64_t seekTarget = aTarget;
   PRInt64 seekLowerBound = NS_MAX(static_cast<PRInt64>(0), aTarget - aFuzz);
   int hops = 0;
-  ogg_int64_t previousGuess = -1;
+  DebugOnly<ogg_int64_t> previousGuess = -1;
   int backsteps = 0;
   const int maxBackStep = 10;
   NS_ASSERTION(static_cast<PRUint64>(PAGE_STEP) * pow(2.0, maxBackStep) < PR_INT32_MAX,

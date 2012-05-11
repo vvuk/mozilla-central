@@ -33,6 +33,9 @@ public final class GeckoProfile {
     private File mMozDir;
     private File mDir;
 
+    // this short timeout is a temporary fix until bug 735399 is implemented
+    private static final long SESSION_TIMEOUT = 30 * 1000; // 30 seconds
+
     public static GeckoProfile get(Context context) {
         return get(context, null);
     }
@@ -80,12 +83,19 @@ public final class GeckoProfile {
         return mDir;
     }
 
-    public boolean hasSession() {
+    public boolean shouldRestoreSession() {
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - start check sessionstore.js exists");
         File dir = getDir();
-        boolean hasSession = (dir != null && new File(dir, "sessionstore.js").exists());
+        if (dir == null)
+            return false;
+
+        File sessionFile = new File(dir, "sessionstore.js");
+        if (!sessionFile.exists())
+            return false;
+
+        boolean shouldRestore = (System.currentTimeMillis() - sessionFile.lastModified() < SESSION_TIMEOUT);
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - finish check sessionstore.js exists");
-        return hasSession;
+        return shouldRestore;
     }
 
     public String readSessionFile(boolean geckoReady) {
@@ -145,11 +155,7 @@ public final class GeckoProfile {
     }
 
     public File getFilesDir() {
-        if (isOnInternalStorage()) {
-            return mContext.getFilesDir();
-        } else {
-            return mContext.getExternalFilesDir(null);
-        }
+        return mContext.getFilesDir();
     }
 
     private boolean isOnInternalStorage() {
@@ -176,16 +182,10 @@ public final class GeckoProfile {
         // check normal install directory
         moveProfilesFrom(new File("/data/data/" + mContext.getPackageName()));
 
-        if (isOnInternalStorage()) {
-            if (Build.VERSION.SDK_INT >= 8) {
-                // if we're currently on internal storage, but we're on API >= 8, so it's possible that
-                // we were previously on external storage, check there for profiles to pull in
-                moveProfilesFrom(mContext.getExternalFilesDir(null));
-            }
-        } else {
-            // we're currently on external storage, but could have been on internal storage previously,
-            // so pull in those profiles
-            moveProfilesFrom(mContext.getFilesDir());
+        if (Build.VERSION.SDK_INT >= 8) {
+            // if we're on API >= 8, it's possible that
+            // we were previously on external storage, check there for profiles to pull in
+            moveProfilesFrom(mContext.getExternalFilesDir(null));
         }
     }
 
@@ -199,7 +199,6 @@ public final class GeckoProfile {
         }
 
         // if we get here, we know that oldMozDir exists
-
         File currentMozDir;
         try {
             currentMozDir = ensureMozillaDirectory();

@@ -69,10 +69,11 @@ class XPCShellTests(object):
   oldcwd = os.getcwd()
 
   def __init__(self, log=sys.stdout):
-    """ Init logging """
+    """ Init logging and node status """
     handler = logging.StreamHandler(log)
     self.log.setLevel(logging.INFO)
     self.log.addHandler(handler)
+    self.nodeProc = None
 
   def buildTestList(self):
     """
@@ -254,24 +255,29 @@ class XPCShellTests(object):
         # Simply remove optional ending separator.
         self.testPath = self.testPath.rstrip("/")
 
+  def getHeadAndTailFiles(self, test):
+      """Obtain the list of head and tail files.
 
-  def getHeadFiles(self, test):
-    """
-      test['head'] is a whitespace delimited list of head files.
-      return the list of head files as paths including the subdir if the head file exists
+      Returns a 2-tuple. The first element is a list of head files. The second
+      is a list of tail files.
+      """
+      def sanitize_list(s, kind):
+          for f in s.strip().split(' '):
+              f = f.strip()
+              if len(f) < 1:
+                  continue
 
-      On a remote system, this may be overloaded to list files in a remote directory structure.
-    """
-    return [os.path.join(test['here'], f).strip() for f in sorted(test['head'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
+              path = os.path.normpath(os.path.join(test['here'], f))
+              if not os.path.exists(path):
+                  raise Exception('%s file does not exist: %s' % (kind, path))
 
-  def getTailFiles(self, test):
-    """
-      test['tail'] is a whitespace delimited list of head files.
-      return the list of tail files as paths including the subdir if the tail file exists
+              if not os.path.isfile(path):
+                  raise Exception('%s file is not a file: %s' % (kind, path))
 
-      On a remote system, this may be overloaded to list files in a remote directory structure.
-    """
-    return [os.path.join(test['here'], f).strip() for f in sorted(test['tail'].split(' ')) if os.path.isfile(os.path.join(test['here'], f))]
+              yield path
+
+      return (list(sanitize_list(test['head'], 'head')),
+              list(sanitize_list(test['tail'], 'tail')))
 
   def setupProfileDir(self):
     """
@@ -387,6 +393,54 @@ class XPCShellTests(object):
     """
     return ['-e', 'const _TEST_FILE = ["%s"];' %
               replaceBackSlashes(name)]
+
+  def trySetupNode(self):
+    """
+      Run node for SPDY tests, if available, and updates mozinfo as appropriate.
+    """
+    nodeMozInfo = {'hasNode': False} # Assume the worst
+    nodeBin = None
+
+    # We try to find the node executable in the path given to us by the user in
+    # the MOZ_NODE_PATH environment variable
+    localPath = os.getenv('MOZ_NODE_PATH', None)
+    if localPath and os.path.exists(localPath) and os.path.isfile(localPath):
+      nodeBin = localPath
+
+    if nodeBin:
+      self.log.info('Found node at %s' % (nodeBin,))
+      myDir = os.path.split(os.path.abspath(__file__))[0]
+      mozSpdyJs = os.path.join(myDir, 'moz-spdy', 'moz-spdy.js')
+
+      if os.path.exists(mozSpdyJs):
+        # OK, we found our SPDY server, let's try to get it running
+        self.log.info('Found moz-spdy at %s' % (mozSpdyJs,))
+        stdout, stderr = self.getPipes()
+        try:
+          # We pipe stdin to node because the spdy server will exit when its
+          # stdin reaches EOF
+          self.nodeProc = Popen([nodeBin, mozSpdyJs], stdin=PIPE, stdout=PIPE,
+                  stderr=STDOUT, env=self.env, cwd=os.getcwd())
+
+          # Check to make sure the server starts properly by waiting for it to
+          # tell us it's started
+          msg = self.nodeProc.stdout.readline()
+          if msg.startswith('SPDY server listening'):
+              nodeMozInfo['hasNode'] = True
+        except OSError, e:
+          # This occurs if the subprocess couldn't be started
+          self.log.error('Could not run node SPDY server: %s' % (str(e),))
+
+    mozinfo.update(nodeMozInfo)
+
+  def shutdownNode(self):
+    """
+      Shut down our node process, if it exists
+    """
+    if self.nodeProc:
+      self.log.info('Node SPDY server shutting down ...')
+      # moz-spdy exits when its stdin reaches EOF, so force that to happen here
+      self.nodeProc.communicate()
 
   def writeXunitResults(self, results, name=None, filename=None, fh=None):
     """
@@ -592,6 +646,10 @@ class XPCShellTests(object):
         return False
       self.mozInfo = parse_json(open(mozInfoFile).read())
     mozinfo.update(self.mozInfo)
+
+    # We have to do this before we build the test list so we know whether or
+    # not to run tests that depend on having the node spdy server
+    self.trySetupNode()
     
     pStdout, pStderr = self.getPipes()
 
@@ -637,8 +695,7 @@ class XPCShellTests(object):
 
       testdir = os.path.dirname(name)
       self.buildXpcsCmd(testdir)
-      testHeadFiles = self.getHeadFiles(test)
-      testTailFiles = self.getTailFiles(test)
+      testHeadFiles, testTailFiles = self.getHeadAndTailFiles(test)
       cmdH = self.buildCmdHead(testHeadFiles, testTailFiles, self.xpcsCmd)
 
       # create a temp dir that the JS harness can stick a profile in
@@ -652,11 +709,21 @@ class XPCShellTests(object):
       if 'debug' in test:
           args.insert(0, '-d')
 
+      completeCmd = cmdH + cmdT + args
+
       try:
         self.log.info("TEST-INFO | %s | running test ..." % name)
+        if verbose:
+            self.log.info("TEST-INFO | %s | full command: %r" % (name, completeCmd))
+            self.log.info("TEST-INFO | %s | current directory: %r" % (name, testdir))
+            # Show only those environment variables that are changed from
+            # the ambient environment.
+            changedEnv = (set("%s=%s" % i for i in self.env.iteritems())
+                          - set("%s=%s" % i for i in os.environ.iteritems()))
+            self.log.info("TEST-INFO | %s | environment: %s" % (name, list(changedEnv)))
         startTime = time.time()
 
-        proc = self.launchProcess(cmdH + cmdT + args,
+        proc = self.launchProcess(completeCmd,
                     stdout=pStdout, stderr=pStderr, env=self.env, cwd=testdir)
 
         # Allow user to kill hung subprocess with SIGINT w/o killing this script
@@ -754,6 +821,8 @@ class XPCShellTests(object):
           break
 
       xunitResults.append(xunitResult)
+
+    self.shutdownNode()
 
     if self.testCount == 0:
       self.log.error("TEST-UNEXPECTED-FAIL | runxpcshelltests.py | No tests run. Did you pass an invalid --test-path?")

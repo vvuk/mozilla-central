@@ -71,8 +71,9 @@ interface nsIDOMStorage;
 interface nsIPrincipal;
 interface nsIWebBrowserPrint;
 interface nsIVariant;
+interface nsIPrivacyTransitionObserver;
 
-[scriptable, uuid(DBD39C21-5788-4C68-9D97-0FCEE289BCE1)]
+[scriptable, uuid(6f60ac96-fa2c-41a5-92b4-29aaadbd7a7b)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -603,6 +604,12 @@ interface nsIDocShell : nsISupports
    */
   attribute PRInt32 parentCharsetSource;
 
+  /**
+   * Add an observer to the list of parties to be notified when this docshell's
+   * private browsing status is changed. |obs| must support weak references.
+   */
+  void addWeakPrivacyTransitionObserver(in nsIPrivacyTransitionObserver obs);
+
   /*
    * Is this docshell a browser frame (i.e., does it correspond to an <iframe
    * mozbrowser>)?  The frameloader is responsible for setting this property
@@ -614,4 +621,10 @@ interface nsIDocShell : nsISupports
    * See also nsIMozBrowserFrame.
    */
   attribute bool isBrowserFrame;
+
+  /*
+   * Is this docshell contained in an <iframe mozbrowser>, either directly or
+   * indirectly?
+   */
+  readonly attribute bool containedInBrowserFrame;
 };

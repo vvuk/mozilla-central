@@ -362,12 +362,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
     }
   }
 
-  if (cleanupJS) {
-    nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments(sGeneration);
-    MarkMessageManagers();
-    xpc_UnmarkSkippableJSHolders();
-  }
-
 #ifdef MOZ_XUL
   nsXULPrototypeCache* xulCache = nsXULPrototypeCache::GetInstance();
   if (xulCache) {
@@ -375,6 +369,47 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   }
 #endif
 
+  static bool previousWasJSCleanup = false;
+  if (cleanupJS) {
+    nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments(sGeneration);
+    MarkMessageManagers();
+    previousWasJSCleanup = true;
+  } else if (previousWasJSCleanup) {
+    previousWasJSCleanup = false;
+    if (!prepareForCC) {
+      xpc_UnmarkSkippableJSHolders();
+    }
+  }
+
   return NS_OK;
 }
 
+static PLDHashOperator
+TraceActiveWindowGlobal(const PRUint64& aId, nsGlobalWindow*& aWindow, void* aClosure)
+{
+  if (aWindow->GetDocShell() && aWindow->IsOuterWindow()) {
+    if (JSObject* global = aWindow->FastGetGlobalJSObject()) {
+      JSTracer* trc = static_cast<JSTracer *>(aClosure);
+      JS_CALL_OBJECT_TRACER(trc, global, "active window global");
+    }
+  }
+  return PL_DHASH_NEXT;
+}
+
+void
+mozilla::dom::TraceBlackJS(JSTracer* aTrc)
+{
+  if (!nsCCUncollectableMarker::sGeneration) {
+    return;
+  }
+
+  // Mark globals of active windows black.
+  nsGlobalWindow::WindowByIdTable* windowsById =
+    nsGlobalWindow::GetWindowsTable();
+  if (windowsById) {
+    windowsById->Enumerate(TraceActiveWindowGlobal, aTrc);
+  }
+
+  // Mark the safe context black
+  nsContentUtils::TraceSafeJSContext(aTrc);
+}

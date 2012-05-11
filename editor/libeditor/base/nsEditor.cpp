@@ -147,32 +147,28 @@ extern nsIParserService *sParserService;
 //---------------------------------------------------------------------------
 
 nsEditor::nsEditor()
-:  mModCount(0)
+:  mPlaceHolderName(nsnull)
+,  mSelState(nsnull)
+,  mPhonetic(nsnull)
+,  mModCount(0)
 ,  mFlags(0)
 ,  mUpdateCount(0)
-,  mSpellcheckCheckboxState(eTriUnset)
-,  mPlaceHolderTxn(nsnull)
-,  mPlaceHolderName(nsnull)
 ,  mPlaceHolderBatch(0)
-,  mSelState(nsnull)
-,  mSavedSel()
-,  mRangeUpdater()
 ,  mAction(nsnull)
-,  mDirection(eNone)
-,  mIMETextNode(nsnull)
+,  mHandlingActionCount(0)
 ,  mIMETextOffset(0)
 ,  mIMEBufferLength(0)
+,  mDirection(eNone)
+,  mDocDirtyState(-1)
+,  mSpellcheckCheckboxState(eTriUnset)
 ,  mInIMEMode(false)
 ,  mIsIMEComposing(false)
 ,  mShouldTxnSetSelection(true)
 ,  mDidPreDestroy(false)
 ,  mDidPostCreate(false)
-,  mDocDirtyState(-1)
-,  mDocWeak(nsnull)
-,  mPhonetic(nsnull)
-,  mLastKeypressEventWasTrusted(eTriUnset)
+,  mHandlingTrustedAction(false)
+,  mDispatchInputEvent(true)
 {
-  //initialize member variables here
 }
 
 nsEditor::~nsEditor()
@@ -341,6 +337,13 @@ nsEditor::PostCreate()
     if (target) {
       InitializeSelection(target);
     }
+
+    // If the text control gets reframed during focus, Focus() would not be
+    // called, so take a chance here to see if we need to spell check the text
+    // control.
+    nsEditorEventListener* listener =
+      reinterpret_cast<nsEditorEventListener*> (mEventListener.get());
+    listener->SpellCheckIfNeeded();
   }
   return NS_OK;
 }
@@ -537,23 +540,34 @@ NS_IMETHODIMP
 nsEditor::GetIsDocumentEditable(bool *aIsDocumentEditable)
 {
   NS_ENSURE_ARG_POINTER(aIsDocumentEditable);
-  nsCOMPtr<nsIDOMDocument> doc;
-  GetDocument(getter_AddRefs(doc));
-  *aIsDocumentEditable = doc ? true : false;
+  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
+  *aIsDocumentEditable = !!doc;
 
   return NS_OK;
+}
+
+already_AddRefed<nsIDocument>
+nsEditor::GetDocument()
+{
+  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  return doc.forget();
+}
+
+already_AddRefed<nsIDOMDocument>
+nsEditor::GetDOMDocument()
+{
+  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(mDocWeak);
+  return doc.forget();
 }
 
 NS_IMETHODIMP 
 nsEditor::GetDocument(nsIDOMDocument **aDoc)
 {
-  NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
-  *aDoc = nsnull; // init out param
-  NS_PRECONDITION(mDocWeak, "bad state, mDocWeak weak pointer not initialized");
-  nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
-  NS_ADDREF(*aDoc = doc);
-  return NS_OK;
+  nsCOMPtr<nsIDOMDocument> doc = GetDOMDocument();
+  doc.forget(aDoc);
+  return *aDoc ? NS_OK : NS_ERROR_NOT_INITIALIZED;
 }
 
 already_AddRefed<nsIPresShell>
@@ -1250,14 +1264,28 @@ nsEditor::RemoveAttribute(nsIDOMElement *aElement, const nsAString& aAttribute)
 }
 
 
+bool
+nsEditor::OutputsMozDirty()
+{
+  // Return true for Composer (!eEditorAllowInteraction) or mail
+  // (eEditorMailMask), but false for webpages.
+  return !(mFlags & nsIPlaintextEditor::eEditorAllowInteraction) ||
+          (mFlags & nsIPlaintextEditor::eEditorMailMask);
+}
+
+
 NS_IMETHODIMP
 nsEditor::MarkNodeDirty(nsIDOMNode* aNode)
 {  
-  //  mark the node dirty.
-  nsCOMPtr<nsIContent> element (do_QueryInterface(aNode));
-  if (element)
+  // Mark the node dirty, but not for webpages (bug 599983)
+  if (!OutputsMozDirty()) {
+    return NS_OK;
+  }
+  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
+  if (element) {
     element->SetAttr(kNameSpaceID_None, nsEditProperty::mozdirty,
                      EmptyString(), false);
+  }
   return NS_OK;
 }
 
@@ -1748,12 +1776,67 @@ nsEditor::RemoveEditorObserver(nsIEditorObserver *aObserver)
   return NS_OK;
 }
 
+class EditorInputEventDispatcher : public nsRunnable
+{
+public:
+  EditorInputEventDispatcher(nsEditor* aEditor,
+                             bool aIsTrusted,
+                             nsIContent* aTarget) :
+    mEditor(aEditor), mTarget(aTarget), mIsTrusted(aIsTrusted)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    // Note that we don't need to check mDispatchInputEvent here.  We need
+    // to check it only when the editor requests to dispatch the input event.
+
+    if (!mTarget->IsInDoc()) {
+      return NS_OK;
+    }
+
+    nsCOMPtr<nsIPresShell> ps = mEditor->GetPresShell();
+    if (!ps) {
+      return NS_OK;
+    }
+
+    nsEvent inputEvent(mIsTrusted, NS_FORM_INPUT);
+    inputEvent.flags |= NS_EVENT_FLAG_CANT_CANCEL;
+    inputEvent.time = static_cast<PRUint64>(PR_Now() / 1000);
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsresult rv =
+      ps->HandleEventWithTarget(&inputEvent, nsnull, mTarget, &status);
+    NS_ENSURE_SUCCESS(rv, NS_OK); // print the warning if error
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<nsEditor> mEditor;
+  nsCOMPtr<nsIContent> mTarget;
+  bool mIsTrusted;
+};
+
 void nsEditor::NotifyEditorObservers(void)
 {
-  for (PRInt32 i = 0; i < mEditorObservers.Count(); i++)
+  for (PRInt32 i = 0; i < mEditorObservers.Count(); i++) {
     mEditorObservers[i]->EditAction();
-}
+  }
 
+  if (!mDispatchInputEvent) {
+    return;
+  }
+
+  // We don't need to dispatch multiple input events if there is a pending
+  // input event.  However, it may have different event target.  If we resolved
+  // this issue, we need to manage the pending events in an array.  But it's
+  // overwork.  We don't need to do it for the very rare case.
+
+  nsCOMPtr<nsIContent> target = GetInputEventTargetContent();
+  NS_ENSURE_TRUE(target, );
+
+  nsContentUtils::AddScriptRunner(
+     new EditorInputEventDispatcher(this, mHandlingTrustedAction, target));
+}
 
 NS_IMETHODIMP
 nsEditor::AddEditActionListener(nsIEditActionListener *aListener)
@@ -3064,26 +3147,10 @@ nsresult
 nsEditor::GetLengthOfDOMNode(nsIDOMNode *aNode, PRUint32 &aCount) 
 {
   aCount = 0;
-  if (!aNode) { return NS_ERROR_NULL_POINTER; }
-  nsresult result=NS_OK;
-  nsCOMPtr<nsIDOMCharacterData>nodeAsChar = do_QueryInterface(aNode);
-  if (nodeAsChar) {
-    nodeAsChar->GetLength(&aCount);
-  }
-  else
-  {
-    bool hasChildNodes;
-    aNode->HasChildNodes(&hasChildNodes);
-    if (hasChildNodes)
-    {
-      nsCOMPtr<nsIDOMNodeList>nodeList;
-      result = aNode->GetChildNodes(getter_AddRefs(nodeList));
-      if (NS_SUCCEEDED(result) && nodeList) {
-        nodeList->GetLength(&aCount);
-      }
-    }
-  }
-  return result;
+  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+  aCount = node->Length();
+  return NS_OK;
 }
 
 
@@ -4097,17 +4164,8 @@ nsEditor::JoinNodeDeep(nsIDOMNode *aLeftNode,
   {
     // adjust out params
     PRUint32 length;
-    if (IsTextNode(leftNodeToJoin))
-    {
-      nsCOMPtr<nsIDOMCharacterData>nodeAsText;
-      nodeAsText = do_QueryInterface(leftNodeToJoin);
-      nodeAsText->GetLength(&length);
-    }
-    else
-    {
-      res = GetLengthOfDOMNode(leftNodeToJoin, length);
-      NS_ENSURE_SUCCESS(res, res);
-    }
+    res = GetLengthOfDOMNode(leftNodeToJoin, length);
+    NS_ENSURE_SUCCESS(res, res);
     
     *aOutJoinNode = rightNodeToJoin;
     *outOffset = length;
@@ -4956,10 +5014,7 @@ nsresult nsEditor::ClearSelection()
 nsresult
 nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
 {
-  nsCOMPtr<nsIDOMDocument> tempDoc;
-  GetDocument(getter_AddRefs(tempDoc));
-
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(tempDoc);
+  nsCOMPtr<nsIDocument> doc = GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   // XXX Wallpaper over editor bug (editor tries to create elements with an
@@ -5023,8 +5078,8 @@ nsEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       aKeyEvent->PreventDefault(); // consumed
       return NS_OK;
     case nsIDOMKeyEvent::DOM_VK_BACK_SPACE:
-      if (nativeKeyEvent->isControl || nativeKeyEvent->isAlt ||
-          nativeKeyEvent->isMeta) {
+      if (nativeKeyEvent->IsControl() || nativeKeyEvent->IsAlt() ||
+          nativeKeyEvent->IsMeta()) {
         return NS_OK;
       }
       DeleteSelection(nsIEditor::ePrevious);
@@ -5034,8 +5089,8 @@ nsEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       // on certain platforms (such as windows) the shift key
       // modifies what delete does (cmd_cut in this case).
       // bailing here to allow the keybindings to do the cut.
-      if (nativeKeyEvent->isShift || nativeKeyEvent->isControl ||
-          nativeKeyEvent->isAlt || nativeKeyEvent->isMeta) {
+      if (nativeKeyEvent->IsShift() || nativeKeyEvent->IsControl() ||
+          nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
         return NS_OK;
       }
       DeleteSelection(nsIEditor::eNext);
@@ -5371,31 +5426,6 @@ nsEditor::IsAcceptableInputEvent(nsIDOMEvent* aEvent)
   return IsActiveInDOMWindow();
 }
 
-NS_IMETHODIMP
-nsEditor::GetLastKeypressEventTrusted(bool *aWasTrusted)
-{
-  NS_ENSURE_ARG_POINTER(aWasTrusted);
-
-  if (mLastKeypressEventWasTrusted == eTriUnset) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  *aWasTrusted = (mLastKeypressEventWasTrusted == eTriTrue);
-  return NS_OK;
-}
-
-void
-nsEditor::BeginKeypressHandling(nsIDOMNSEvent* aEvent)
-{
-  NS_ASSERTION(mLastKeypressEventWasTrusted == eTriUnset, "How come our status is not clear?");
-
-  if (aEvent) {
-    bool isTrusted = false;
-    aEvent->GetIsTrusted(&isTrusted);
-    mLastKeypressEventWasTrusted = isTrusted ? eTriTrue : eTriFalse;
-  }
-}
-
 void
 nsEditor::OnFocus(nsIDOMEventTarget* aFocusEventTarget)
 {
@@ -5403,4 +5433,29 @@ nsEditor::OnFocus(nsIDOMEventTarget* aFocusEventTarget)
   if (mInlineSpellChecker) {
     mInlineSpellChecker->UpdateCurrentDictionary();
   }
+}
+
+NS_IMETHODIMP
+nsEditor::GetSuppressDispatchingInputEvent(bool *aSuppressed)
+{
+  NS_ENSURE_ARG_POINTER(aSuppressed);
+  *aSuppressed = !mDispatchInputEvent;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditor::SetSuppressDispatchingInputEvent(bool aSuppress)
+{
+  mDispatchInputEvent = !aSuppress;
+  return NS_OK;
+}
+
+nsEditor::HandlingTrustedAction::HandlingTrustedAction(nsEditor* aSelf,
+                                                       nsIDOMNSEvent* aEvent)
+{
+  MOZ_ASSERT(aEvent);
+
+  bool isTrusted = false;
+  aEvent->GetIsTrusted(&isTrusted);
+  Init(aSelf, isTrusted);
 }

@@ -875,14 +875,6 @@ nsTextInputListener::EditAction()
     mTxtCtrlElement->OnValueChanged(true);
   }
 
-  // Fire input event
-  bool trusted = false;
-  editor->GetLastKeypressEventTrusted(&trusted);
-  frame->FireOnInput(trusted);
-
-  // mFrame may be dead after this, but we don't need to check for it, because
-  // we are not uisng it in this function any more.
-
   return NS_OK;
 }
 
@@ -978,22 +970,24 @@ nsTextEditorState::Clear()
   NS_IF_RELEASE(mTextListener);
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsTextEditorState)
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTextEditorState, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTextEditorState, Release)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsTextEditorState)
+void nsTextEditorState::Unlink()
+{
+  nsTextEditorState* tmp = this;
   tmp->Clear();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelCon)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEditor)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPlaceholderDiv)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTextEditorState)
+}
+
+void nsTextEditorState::Traverse(nsCycleCollectionTraversalCallback& cb)
+{
+  nsTextEditorState* tmp = this;
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSelCon, nsISelectionController)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEditor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRootNode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPlaceholderDiv)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+}
 
 nsFrameSelection*
 nsTextEditorState::GetConstFrameSelection() {
@@ -1775,7 +1769,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput)
     // this is necessary to avoid infinite recursion
     if (!currentValue.Equals(aValue))
     {
-      nsTextControlFrame::ValueSetter valueSetter(mBoundFrame,
+      nsTextControlFrame::ValueSetter valueSetter(mBoundFrame, mEditor,
                                                   mBoundFrame->mFocusedValue.Equals(currentValue));
 
       // \r is an illegal character in the dom, but people use them,

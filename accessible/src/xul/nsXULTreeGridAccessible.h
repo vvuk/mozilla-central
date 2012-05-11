@@ -39,15 +39,17 @@
 #ifndef __nsXULTreeGridAccessible_h__
 #define __nsXULTreeGridAccessible_h__
 
-#include "nsIAccessibleTable.h"
-
 #include "nsXULTreeAccessible.h"
+#include "TableAccessible.h"
+#include "xpcAccessibleTable.h"
 
 /**
  * Represents accessible for XUL tree in the case when it has multiple columns.
  */
 class nsXULTreeGridAccessible : public nsXULTreeAccessible,
-                                public nsIAccessibleTable
+                                public xpcAccessibleTable,
+                                public nsIAccessibleTable,
+                                public mozilla::a11y::TableAccessible
 {
 public:
   nsXULTreeGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
@@ -56,9 +58,18 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessibleTable
-  NS_DECL_NSIACCESSIBLETABLE
+  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLE_WITH_XPCACCESSIBLETABLE
+
+  // TableAccessible
+  virtual PRUint32 ColCount();
+  virtual PRUint32 RowCount();
+  virtual void UnselectRow(PRUint32 aRowIdx);
+
+  // nsAccessNode
+  virtual void Shutdown();
 
   // nsAccessible
+  virtual mozilla::a11y::TableAccessible* AsTable() { return this; }
   virtual mozilla::a11y::role NativeRole();
 
 protected:
@@ -155,7 +166,6 @@ public:
   NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessNode
-  virtual bool IsDefunct() const;
   virtual bool Init();
   virtual bool IsPrimaryForNode() const;
 
@@ -200,7 +210,7 @@ protected:
   enum { eAction_Click = 0 };
 
   nsCOMPtr<nsITreeBoxObject> mTree;
-  nsCOMPtr<nsITreeView> mTreeView;
+  nsITreeView* mTreeView;
 
   PRInt32 mRow;
   nsCOMPtr<nsITreeColumn> mColumn;

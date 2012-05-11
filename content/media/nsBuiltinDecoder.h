@@ -400,10 +400,10 @@ public:
   virtual void SetVolume(double aVolume);
   virtual void SetAudioCaptured(bool aCaptured);
 
-  virtual void AddOutputStream(InputStream* aStream, bool aFinishWhenEnded);
+  virtual void AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded);
   // Protected by mReentrantMonitor. All decoder output is copied to these streams.
   struct OutputMediaStream {
-    void Init(PRInt64 aInitialTime, InputStream* aStream, bool aFinishWhenEnded)
+    void Init(PRInt64 aInitialTime, SourceMediaStream* aStream, bool aFinishWhenEnded)
     {
       mLastAudioPacketTime = -1;
       mLastAudioPacketEndTime = -1;
@@ -411,17 +411,18 @@ public:
       mAudioFramesWritten = 0;
       mNextVideoTime = aInitialTime;
       mStream = aStream;
-      mIsInitialized = false;
+      mStreamInitialized = false;
       mFinishWhenEnded = aFinishWhenEnded;
       mHaveSentFinish = false;
       mHaveSentFinishAudio = false;
+      mHaveSentFinishVideo = false;
     }
     PRInt64 mLastAudioPacketTime; // microseconds
     PRInt64 mLastAudioPacketEndTime; // microseconds
     // Count of audio frames written to the stream
     PRInt64 mAudioFramesWritten;
     // Timestamp of the first audio packet whose frames we wrote.
-   PRInt64 mAudioFramesWrittenBaseTime; // microseconds
+    PRInt64 mAudioFramesWrittenBaseTime; // microseconds
     // mNextVideoTime is the end timestamp for the last packet sent to the stream.
     // Therefore video packets starting at or after this time need to be copied
     // to the output stream.
@@ -429,12 +430,15 @@ public:
     // The last video image sent to the stream. Useful if we need to replicate
     // the image.
     nsRefPtr<Image> mLastVideoImage;
-    nsRefPtr<InputStream> mStream;
+    nsRefPtr<SourceMediaStream> mStream;
     gfxIntSize mLastVideoImageDisplaySize;
-    bool mIsInitialized;
+    // This is set to true when the stream is initialized (audio and
+    // video tracks added).
+    bool mStreamInitialized;
     bool mFinishWhenEnded;
     bool mHaveSentFinish;
     bool mHaveSentFinishAudio;
+    bool mHaveSentFinishVideo;
   };
   nsTArray<OutputMediaStream>& OutputStreams()
   {
@@ -453,6 +457,7 @@ public:
   virtual void NotifySuspendedStatusChanged();
   virtual void NotifyBytesDownloaded();
   virtual void NotifyDownloadEnded(nsresult aStatus);
+  virtual void NotifyPrincipalChanged();
   // Called by the decode thread to keep track of the number of bytes read
   // from the resource.
   void NotifyBytesConsumed(PRInt64 aBytes);
@@ -600,7 +605,8 @@ public:
   // Called when the metadata from the media file has been read.
   // Call on the main thread only.
   void MetadataLoaded(PRUint32 aChannels,
-                      PRUint32 aRate);
+                      PRUint32 aRate,
+                      bool aHasAudio);
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.
@@ -733,6 +739,7 @@ public:
   // state change.
   ReentrantMonitor mReentrantMonitor;
 
+  // Data about MediaStreams that are being fed by this decoder.
   nsTArray<OutputMediaStream> mOutputStreams;
 
   // Set to one of the valid play states. It is protected by the

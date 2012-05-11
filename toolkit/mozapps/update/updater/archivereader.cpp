@@ -221,17 +221,17 @@ ArchiveReader::VerifyProductInformation(const char *MARChannelID,
 
   if (rv == OK) {
     /* Compare both versions to ensure we don't have a downgrade
-        1 if appVersion is older than productInfoBlock.productVersion
-        -1 if appVersion is newer than productInfoBlock.productVersion 
-        0 if appVersion is the same as productInfoBlock.productVersion 
+        -1 if appVersion is older than productInfoBlock.productVersion
+        1 if appVersion is newer than productInfoBlock.productVersion
+        0 if appVersion is the same as productInfoBlock.productVersion
        This even works with strings like:
         - 12.0a1 being older than 12.0a2
         - 12.0a2 being older than 12.0b1
         - 12.0a1 being older than 12.0
         - 12.0 being older than 12.1a1 */
     int versionCompareResult = 
-      NS_CompareVersions(appVersion, productInfoBlock.productVersion);
-    if (-1 == versionCompareResult) {
+      mozilla::CompareVersions(appVersion, productInfoBlock.productVersion);
+    if (1 == versionCompareResult) {
       rv = VERSION_DOWNGRADE_ERROR;
     }
   }

@@ -56,6 +56,8 @@
 
 #include "nsWindowsDllInterceptor.h"
 
+using namespace mozilla;
+
 #if defined(MOZ_CRASHREPORTER) && !defined(NO_BLOCKLIST_CRASHREPORTER)
 #include "nsExceptionHandler.h"
 #endif
@@ -138,9 +140,6 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   {"rf-firefox.dll", MAKE_VERSION(7,6,1,0)},
   {"roboform.dll", MAKE_VERSION(7,6,1,0)},
 
-  // Topcrash in Firefox 10
-  {"bexternal.dll", ALL_VERSIONS},
-
   // leave these two in always for tests
   { "mozdllblockingtest.dll", ALL_VERSIONS },
   { "mozdllblockingtest_versioned.dll", 0x0000000400000000ULL },
@@ -177,7 +176,8 @@ struct RVAMap {
     mRealView = ::MapViewOfFile(map, FILE_MAP_READ, 0, alignedOffset,
                                 sizeof(T) + (offset - alignedOffset));
 
-    mMappedView = reinterpret_cast<T*>((char*)mRealView + (offset - alignedOffset));
+    mMappedView = mRealView ? reinterpret_cast<T*>((char*)mRealView + (offset - alignedOffset)) :
+                              nsnull;
   }
   ~RVAMap() {
     if (mRealView) {

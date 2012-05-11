@@ -46,18 +46,22 @@ cd webrtc_update
 # Note: must be in trunk; won't work with --name (error during sync)
 gclient config --name trunk http://webrtc.googlecode.com/svn/trunk/peerconnection
 gclient sync --force
-export date=`date`
+if [ $2 ] ; then
+    sed -i -e "s/\"webrtc_revision\":.*,/\"webrtc_revision\": \"$1\",/" -e "s/\"libjingle_revision\":.*,/\"libjingle_revision\": \"$2\",/" trunk/DEPS
+    gclient sync --force
+fi
 
 cd trunk
 
-export revision=`svn info | grep Revision:`
+export date=`date`
+export revision=`svnversion -n`
+if [ $1 ] ; then
+  echo "WebRTC revision overridden from $revision to $1" 
+  export revision=$1
+else
+  echo "WebRTC revision = $revision"
+fi
 
-echo "WebRTC revision = $revision"
-
-# put the output in the Mozilla object dir
-#cd ..
-#python trunk/build/gyp_chromium --depth=trunk -G output_dir='$(OBJDIR)/media/webrtc/out' trunk/webrtc.gyp
-#cd ..
 cd ../../media/webrtc
 
 # safety - make it easy to find our way out of the forest
@@ -72,14 +76,15 @@ rm -rf trunk
 mv ../../webrtc_update/trunk trunk
 mv -f ../../webrtc_update/.g* .
 rmdir ../../webrtc_update
-(hg addremove --exclude "**.svn" --exclude "**.git" --exclude "**.pyc" --exclude "**.yuv" --similarity 90 --dry-run trunk; hg status -m) | less
+(hg addremove --exclude "**webrtcsessionobserver.h" --exclude "**webrtcjson.h" --exclude "**.svn" --exclude "**.git" --exclude "**.pyc" --exclude "**.yuv" --similarity 70 --dry-run trunk; hg status -m; echo "************* Please look at the filenames found by rename and see if they match!!! ***********" ) | less
 
 # FIX! Query user about add-removes better!!
 echo "Waiting 30 seconds - Hit ^C now to stop addremove and commit!"
 sleep 30  # let them ^C
 
 # Add/remove files, detect renames
-hg addremove --exclude "**.svn" --exclude "**.git" --exclude "**.pyc" --exclude "**.yuv" --similarity 90 trunk
+hg addremove --exclude "**webrtcsessionobserver.h" --exclude "**webrtcjson.h" --exclude "**.svn" --exclude "**.git" --exclude "**.pyc" --exclude "**.yuv" --similarity 70 trunk
+hg status -a -r >/tmp/changed_webrtc_files
 
 # leave this for the user for now until we're comfortable it works safely
 
@@ -108,7 +113,13 @@ echo "cd your_tree"
 echo "hg qpop -a"
 echo "hg pull --bookmark webrtc-trim path-to-webrtc-import-repo"
 echo "hg merge"
+echo "echo '#define WEBRTC_SVNVERSION $revision' >media/webrtc/webrtc_version.h"
+echo "echo '#define WEBRTC_PULL_DATE \"$date\"' >>media/webrtc/webrtc_version.h"
 echo "hg commit -m 'Webrtc updated to $revision; pull made on $date'"
+echo ""
+echo "Please check for added/removed/moved .gyp/.gypi files, and if so update EXTRA_CONFIG_DEPS in client.mk!"
+echo "possible gyp* file changes:"
+grep gyp /tmp/changed_webrtc_files
 echo ""
 echo "Once you feel safe:"
 echo "hg push"

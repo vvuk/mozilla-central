@@ -61,7 +61,6 @@ using mozilla::dom::StorageChild;
 #include "nsReadableUtils.h"
 #include "nsIObserverService.h"
 #include "nsNetUtil.h"
-#include "nsIPrefBranch.h"
 #include "nsICookiePermission.h"
 #include "nsIPermission.h"
 #include "nsIPermissionManager.h"
@@ -589,12 +588,12 @@ nsDOMStorageManager::RemoveFromStoragesHash(DOMStorageImpl* aStorage)
 nsDOMStorageDBWrapper* DOMStorageImpl::gStorageDB = nsnull;
 
 nsDOMStorageEntry::nsDOMStorageEntry(KeyTypePointer aStr)
-  : nsVoidPtrHashKey(aStr), mStorage(nsnull)
+  : nsPtrHashKey<const void>(aStr), mStorage(nsnull)
 {
 }
 
 nsDOMStorageEntry::nsDOMStorageEntry(const nsDOMStorageEntry& aToCopy)
-  : nsVoidPtrHashKey(aToCopy), mStorage(nsnull)
+  : nsPtrHashKey<const void>(aToCopy), mStorage(nsnull)
 {
   NS_ERROR("DOMStorage horked.");
 }
@@ -1131,10 +1130,6 @@ IndexFinder(nsSessionStorageEntry* aEntry, void* userArg)
 nsresult
 DOMStorageImpl::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
 {
-  // XXXjst: This is as retarded as the DOM spec is, takes an unsigned
-  // int, but the spec talks about what to do if a negative value is
-  // passed in.
-
   // XXX: This does a linear search for the key at index, which would
   // suck if there's a large numer of indexes. Do we care? If so,
   // maybe we need to have a lazily populated key array here or
@@ -1148,8 +1143,9 @@ DOMStorageImpl::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
   mItems.EnumerateEntries(IndexFinder, &data);
 
   if (!data.mItem) {
-    // aIndex was larger than the number of accessible keys. Throw.
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+    // aIndex was larger than the number of accessible keys. Return null.
+    aKey.SetIsVoid(true);
+    return NS_OK;
   }
 
   aKey = data.mItem->GetKey();
@@ -1248,6 +1244,9 @@ DOMStorageImpl::RemoveValue(bool aCallerSecure, const nsAString& aKey,
     nsresult rv = InitDB();
     NS_ENSURE_SUCCESS(rv, rv);
 
+    CacheKeysFromDB();
+    entry = mItems.GetEntry(aKey);
+
     nsAutoString value;
     bool secureItem;
     rv = GetDBValue(aKey, value, &secureItem);
@@ -1318,8 +1317,6 @@ nsDOMStorage::nsDOMStorage()
   : mStorageType(nsPIDOMStorage::Unknown)
   , mEventBroadcaster(nsnull)
 {
-  mSecurityChecker = this;
-
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     mStorageImpl = new StorageChild(this);
   else
@@ -1328,10 +1325,9 @@ nsDOMStorage::nsDOMStorage()
 
 nsDOMStorage::nsDOMStorage(nsDOMStorage& aThat)
   : mStorageType(aThat.mStorageType)
+  , mPrincipal(aThat.mPrincipal)
   , mEventBroadcaster(nsnull)
 {
-  mSecurityChecker = this;
-
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
     StorageChild* other = static_cast<StorageChild*>(aThat.mStorageImpl.get());
     mStorageImpl = new StorageChild(this, *other);
@@ -1382,6 +1378,7 @@ nsDOMStorage::InitAsSessionStorage(nsIPrincipal *aPrincipal, const nsSubstring &
   NS_ENSURE_SUCCESS(rv, rv);
 
   mDocumentURI = aDocumentURI;
+  mPrincipal = aPrincipal;
 
   mStorageType = SessionStorage;
 
@@ -1397,6 +1394,7 @@ nsDOMStorage::InitAsLocalStorage(nsIPrincipal *aPrincipal, const nsSubstring &aD
   NS_ENSURE_SUCCESS(rv, rv);
 
   mDocumentURI = aDocumentURI;
+  mPrincipal = aPrincipal;
 
   mStorageType = LocalStorage;
 
@@ -1495,8 +1493,7 @@ nsDOMStorage::CacheStoragePermissions()
   nsresult rv = ssm->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   NS_ENSURE_SUCCESS(rv, false);
 
-  NS_ASSERTION(mSecurityChecker, "Has non-null mSecurityChecker");
-  return mSecurityChecker->CanAccess(subjectPrincipal);
+  return CanAccess(subjectPrincipal);
 }
 
 // static
@@ -1729,42 +1726,23 @@ nsDOMStorage::CanAccessSystem(nsIPrincipal *aPrincipal)
 bool
 nsDOMStorage::CanAccess(nsIPrincipal *aPrincipal)
 {
-  // Allow C++/system callers to access the storage
-  if (CanAccessSystem(aPrincipal))
+  // Allow C++ callers to access the storage
+  if (!aPrincipal)
     return true;
 
-  nsCAutoString domain;
-  nsCOMPtr<nsIURI> unused;
-  nsresult rv = GetPrincipalURIAndHost(aPrincipal,
-                                       getter_AddRefs(unused), domain);
-  NS_ENSURE_SUCCESS(rv, false);
+  // Allow more powerful principals (e.g. system) to access the storage
+  bool subsumes;
+  nsresult rv = aPrincipal->SubsumesIgnoringDomain(mPrincipal, &subsumes);
+  if (NS_FAILED(rv))
+    return false;
 
-  return domain.Equals(mStorageImpl->mDomain);
+  return subsumes;
 }
 
 nsPIDOMStorage::nsDOMStorageType
 nsDOMStorage::StorageType()
 {
   return mStorageType;
-}
-
-void
-nsDOMStorage::BroadcastChangeNotification(const nsSubstring &aKey,
-                                          const nsSubstring &aOldValue,
-                                          const nsSubstring &aNewValue)
-{
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService) {
-    return;
-  }
-
-  // Fire off a notification that a storage object changed. If the
-  // storage object is a session storage object, we don't pass a
-  // domain, but if it's a global storage object we do.
-  observerService->NotifyObservers((nsIDOMStorageObsolete *)this,
-                                   "dom-storage-changed",
-                                   NS_ConvertUTF8toUTF16(mStorageImpl->mDomain).get());
 }
 
 //
@@ -1797,7 +1775,6 @@ nsDOMStorage2::nsDOMStorage2()
 nsDOMStorage2::nsDOMStorage2(nsDOMStorage2& aThat)
 {
   mStorage = new nsDOMStorage(*aThat.mStorage.get());
-  mStorage->mSecurityChecker = mStorage;
   mPrincipal = aThat.mPrincipal;
 }
 
@@ -1808,7 +1785,6 @@ nsDOMStorage2::InitAsSessionStorage(nsIPrincipal *aPrincipal, const nsSubstring 
   if (!mStorage)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mStorage->mSecurityChecker = this;
   mPrincipal = aPrincipal;
   mDocumentURI = aDocumentURI;
 
@@ -1822,7 +1798,6 @@ nsDOMStorage2::InitAsLocalStorage(nsIPrincipal *aPrincipal, const nsSubstring &a
   if (!mStorage)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mStorage->mSecurityChecker = this;
   mPrincipal = aPrincipal;
   mDocumentURI = aDocumentURI;
 
@@ -1892,20 +1867,7 @@ nsDOMStorage2::Principal()
 bool
 nsDOMStorage2::CanAccess(nsIPrincipal *aPrincipal)
 {
-  if (mStorage->mSecurityChecker != this)
-    return mStorage->mSecurityChecker->CanAccess(aPrincipal);
-
-  // Allow C++ callers to access the storage
-  if (!aPrincipal)
-    return true;
-
-  // Allow more powerful principals (e.g. system) to access the storage
-  bool subsumes;
-  nsresult rv = aPrincipal->SubsumesIgnoringDomain(mPrincipal, &subsumes);
-  if (NS_FAILED(rv))
-    return false;
-
-  return subsumes;
+  return mStorage->CanAccess(aPrincipal);
 }
 
 nsPIDOMStorage::nsDOMStorageType
@@ -1947,8 +1909,8 @@ StorageNotifierRunnable::Run()
 
 void
 nsDOMStorage2::BroadcastChangeNotification(const nsSubstring &aKey,
-                                          const nsSubstring &aOldValue,
-                                          const nsSubstring &aNewValue)
+                                           const nsSubstring &aOldValue,
+                                           const nsSubstring &aNewValue)
 {
   nsresult rv;
   nsCOMPtr<nsIDOMStorageEvent> event = new nsDOMStorageEvent();
@@ -2005,176 +1967,6 @@ nsDOMStorage2::Clear()
 {
   mStorage->mEventBroadcaster = this;
   return mStorage->Clear();
-}
-
-//
-// nsDOMStorageList
-//
-
-DOMCI_DATA(StorageList, nsDOMStorageList)
-
-NS_INTERFACE_MAP_BEGIN(nsDOMStorageList)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageList)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageList)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_ADDREF(nsDOMStorageList)
-NS_IMPL_RELEASE(nsDOMStorageList)
-
-nsIDOMStorageObsolete*
-nsDOMStorageList::GetNamedItem(const nsAString& aDomain, nsresult* aResult)
-{
-  nsCAutoString requestedDomain;
-
-  // Normalize the requested domain
-  nsCOMPtr<nsIIDNService> idn = do_GetService(NS_IDNSERVICE_CONTRACTID);
-  if (idn) {
-    *aResult = idn->ConvertUTF8toACE(NS_ConvertUTF16toUTF8(aDomain),
-                                     requestedDomain);
-    NS_ENSURE_SUCCESS(*aResult, nsnull);
-  } else {
-    // Don't have the IDN service, best we can do is URL escape.
-    NS_EscapeURL(NS_ConvertUTF16toUTF8(aDomain),
-                 esc_OnlyNonASCII | esc_AlwaysCopy,
-                 requestedDomain);
-  }
-  ToLowerCase(requestedDomain);
-
-  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  if (!ssm) {
-    *aResult = NS_ERROR_FAILURE;
-    return nsnull;
-  }
-
-  nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  *aResult = ssm->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(*aResult, nsnull);
-
-  nsCAutoString currentDomain;
-  if (subjectPrincipal) {
-    nsCOMPtr<nsIURI> unused;
-    *aResult = GetPrincipalURIAndHost(subjectPrincipal, getter_AddRefs(unused),
-                                      currentDomain);
-    NS_ENSURE_SUCCESS(*aResult, nsnull);
-
-    bool sessionOnly;
-    if (!nsDOMStorage::CanUseStorage(&sessionOnly)) {
-      *aResult = NS_ERROR_DOM_SECURITY_ERR;
-      return nsnull;
-    }
-  }
-
-  bool isSystem = nsContentUtils::IsCallerTrustedForRead();
-  if (currentDomain.IsEmpty() && !isSystem) {
-    *aResult = NS_ERROR_DOM_SECURITY_ERR;
-    return nsnull;
-  }
-
-  return GetStorageForDomain(requestedDomain,
-                             currentDomain, isSystem, aResult);
-}
-
-NS_IMETHODIMP
-nsDOMStorageList::NamedItem(const nsAString& aDomain,
-                            nsIDOMStorageObsolete** aStorage)
-{
-  nsresult rv;
-  NS_IF_ADDREF(*aStorage = GetNamedItem(aDomain, &rv));
-  return rv;
-}
-
-// static
-bool
-nsDOMStorageList::CanAccessDomain(const nsACString& aRequestedDomain,
-                                  const nsACString& aCurrentDomain)
-{
-  return aRequestedDomain.Equals(aCurrentDomain);
-}
-
-nsIDOMStorageObsolete*
-nsDOMStorageList::GetStorageForDomain(const nsACString& aRequestedDomain,
-                                      const nsACString& aCurrentDomain,
-                                      bool aNoCurrentDomainCheck,
-                                      nsresult* aResult)
-{
-  nsTArray<nsCString> requestedDomainArray;
-  if ((!aNoCurrentDomainCheck &&
-       !CanAccessDomain(aRequestedDomain, aCurrentDomain)) ||
-    !ConvertDomainToArray(aRequestedDomain, &requestedDomainArray)) {
-    *aResult = NS_ERROR_DOM_SECURITY_ERR;
-
-    return nsnull;
-  }
-
-  // now rebuild a string for the domain.
-  nsCAutoString usedDomain;
-  PRUint32 requestedPos = 0;
-  for (requestedPos = 0; requestedPos < requestedDomainArray.Length();
-       requestedPos++) {
-    if (!usedDomain.IsEmpty())
-      usedDomain.Append('.');
-    usedDomain.Append(requestedDomainArray[requestedPos]);
-  }
-
-  *aResult = NS_OK;
-
-  // now have a valid domain, so look it up in the storage table
-  nsIDOMStorageObsolete* storage = mStorages.GetWeak(usedDomain);
-  if (!storage) {
-    nsRefPtr<nsDOMStorage> newstorage;
-    newstorage = new nsDOMStorage();
-    if (newstorage && mStorages.Put(usedDomain, newstorage)) {
-      storage = newstorage;
-    }
-    else {
-      *aResult = NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  return storage;
-}
-
-// static
-bool
-nsDOMStorageList::ConvertDomainToArray(const nsACString& aDomain,
-                                       nsTArray<nsCString> *aArray)
-{
-  PRInt32 length = aDomain.Length();
-  PRInt32 n = 0;
-  while (n < length) {
-    PRInt32 dotpos = aDomain.FindChar('.', n);
-    nsCAutoString domain;
-
-    if (dotpos == -1) // no more dots
-      domain.Assign(Substring(aDomain, n));
-    else if (dotpos - n == 0) // no point continuing in this case
-      return false;
-    else if (dotpos >= 0)
-      domain.Assign(Substring(aDomain, n, dotpos - n));
-
-    ToLowerCase(domain);
-    aArray->AppendElement(domain);
-
-    if (dotpos == -1)
-      break;
-
-    n = dotpos + 1;
-  }
-
-  // if n equals the length, there is a dot at the end, so treat it as invalid
-  return (n != length);
-}
-
-nsresult
-NS_NewDOMStorageList(nsIDOMStorageList** aResult)
-{
-  *aResult = new nsDOMStorageList();
-  if (!*aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aResult);
-  return NS_OK;
 }
 
 //

@@ -24,6 +24,7 @@
 
   const Cc = Components.classes;
   const Ci = Components.interfaces;
+  const Cr = Components.results;
 
   const kUnknown = -1;
   const NONHEAP = Ci.nsIMemoryReporter.KIND_NONHEAP;
@@ -44,7 +45,7 @@
 
   let areJsCompartmentsPresent = false;
   let isSandboxLocationShown = false;
-  let areInnerWindowsPresent = false;
+  let areWindowObjectsPresent = false;
   let isPlacesPresent = false;
   let isImagesPresent = false;
   let isXptiWorkingSetPresent = false;
@@ -62,7 +63,7 @@
       vsizeAmounts.push(aAmount);
     } else if (aPath === "resident") {
       residentAmounts.push(aAmount);
-    } else if (aPath === "js-gc-heap") {
+    } else if (aPath === "js-main-runtime-gc-heap-committed") {
       jsGcHeapAmounts.push(aAmount); 
     } else if (aPath === "heap-allocated") {
       heapAllocatedAmounts.push(aAmount);
@@ -72,8 +73,8 @@
     // Check the presence of some other notable reporters.
     } else if (aPath.search(/^explicit\/js\/compartment\(/) >= 0) {
       areJsCompartmentsPresent = true;
-    } else if (aPath.search(/^explicit\/window-objects\/.*inner-window\(/) >= 0) {
-      areInnerWindowsPresent = true;
+    } else if (aPath.search(/^explicit\/window-objects\/top\(/) >= 0) {
+      areWindowObjectsPresent = true;
     } else if (aPath.search(/^explicit\/storage\/sqlite\/places.sqlite/) >= 0) {
       isPlacesPresent = true;
     } else if (aPath.search(/^explicit\/images/) >= 0) {
@@ -94,7 +95,18 @@
 
   // Access mgr.explicit and mgr.resident just to make sure they don't crash.
   // We can't check their actual values because they're non-deterministic.
-  let dummy = mgr.explicit;
+  //
+  // Nb: mgr.explicit will throw NS_ERROR_NOT_AVAILABLE if this is a
+  // --enable-trace-malloc build.  Allow for that exception, but *only* that
+  // exception.
+  let dummy;
+  let haveExplicit = true;
+  try {
+    dummy = mgr.explicit;
+  } catch (ex) {
+    is(ex.result, Cr.NS_ERROR_NOT_AVAILABLE, "mgr.explicit exception");
+    haveExplicit = false;
+  }
   dummy = mgr.resident;
 
   let e = mgr.enumerateReporters();
@@ -122,16 +134,19 @@
        aName + "'s size is reasonable");
   }
 
-  checkSpecialReport("explicit",       explicitAmounts);
+  // If mgr.explicit failed, we won't have "heap-allocated" either.
+  if (haveExplicit) {
+    checkSpecialReport("explicit",       explicitAmounts);
+    checkSpecialReport("heap-allocated", heapAllocatedAmounts);
+  }
   checkSpecialReport("vsize",          vsizeAmounts);
   checkSpecialReport("resident",       residentAmounts);
-  checkSpecialReport("js-gc-heap",     jsGcHeapAmounts);
-  checkSpecialReport("heap-allocated", heapAllocatedAmounts);
+  checkSpecialReport("js-main-runtime-gc-heap-committed", jsGcHeapAmounts);
   checkSpecialReport("storage-sqlite", storageSqliteAmounts);
 
   ok(areJsCompartmentsPresent,  "js compartments are present");
   ok(isSandboxLocationShown,    "sandbox locations are present");
-  ok(areInnerWindowsPresent,    "inner-windows are present");
+  ok(areWindowObjectsPresent,   "window objects are present");
   ok(isPlacesPresent,           "places is present");
   ok(isImagesPresent,           "images is present");
   ok(isXptiWorkingSetPresent,   "xpti-working-set is present");

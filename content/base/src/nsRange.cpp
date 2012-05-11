@@ -48,6 +48,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentFragment.h"
+#include "nsIDOMDocumentType.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDOMText.h"
@@ -61,6 +62,9 @@
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
+#include "mozilla/Telemetry.h"
+
+using namespace mozilla;
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -78,9 +82,6 @@ nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
     }                                                                              \
     if (!nsContentUtils::CanCallerAccess(node_)) {                                 \
       return NS_ERROR_DOM_SECURITY_ERR;                                            \
-    }                                                                              \
-    if (mIsDetached) {                                                             \
-      return NS_ERROR_DOM_INVALID_STATE_ERR;                                       \
     }                                                                              \
   PR_END_MACRO
 
@@ -241,6 +242,9 @@ nsRange::IsNodeSelected(nsINode* aNode, PRUint32 aStartOffset,
 nsRange::~nsRange() 
 {
   NS_ASSERTION(!IsInSelection(), "deleting nsRange that is in use");
+
+  // Maybe we can remove Detach() -- bug 702948.
+  Telemetry::Accumulate(Telemetry::DOM_RANGE_DETACHED, mIsDetached);
 
   // we want the side effects (releases and list removals)
   DoSetRange(nsnull, 0, nsnull, 0, nsnull);
@@ -646,9 +650,6 @@ nsRange::IsPointInRange(nsIDOMNode* aParent, PRInt32 aOffset, bool* aResult)
 NS_IMETHODIMP
 nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
 {
-  if (mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   // our range is in a good state?
   if (!mIsPositioned) 
     return NS_ERROR_NOT_INITIALIZED;
@@ -658,6 +659,14 @@ nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
 
   if (!nsContentUtils::ContentIsDescendantOf(parent, mRoot)) {
     return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
+  }
+  
+  if (parent->NodeType() == nsIDOMNode::DOCUMENT_TYPE_NODE) {
+    return NS_ERROR_DOM_INVALID_NODE_TYPE_ERR;
+  }
+
+  if (aOffset < 0 || PRUint32(aOffset) > parent->Length()) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
   
   PRInt32 cmp;
@@ -680,16 +689,6 @@ nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
 /******************************************************
  * Private helper routines
  ******************************************************/
-
-// Get the length of aNode
-static PRUint32 GetNodeLength(nsINode *aNode)
-{
-  if(aNode->IsNodeOfType(nsINode::eDATA_NODE)) {
-    return static_cast<nsIContent*>(aNode)->TextLength();
-  }
-
-  return aNode->GetChildCount();
-}
 
 // It's important that all setting of the range start/end points 
 // go through this function, which will do all the right voodoo
@@ -750,8 +749,7 @@ nsRange::DoSetRange(nsINode* aStartN, PRInt32 aStartOffset,
       if (newCommonAncestor) {
         RegisterCommonAncestor(newCommonAncestor);
       } else {
-        NS_ASSERTION(mIsDetached || !mIsPositioned,
-                     "unexpected disconnected nodes");
+        NS_ASSERTION(!mIsPositioned, "unexpected disconnected nodes");
         mInSelection = false;
       }
     }
@@ -839,8 +837,6 @@ nsRange::GetEndOffset(PRInt32* aEndOffset)
 NS_IMETHODIMP
 nsRange::GetCollapsed(bool* aIsCollapsed)
 {
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -853,8 +849,6 @@ NS_IMETHODIMP
 nsRange::GetCommonAncestorContainer(nsIDOMNode** aCommonParent)
 {
   *aCommonParent = nsnull;
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -930,9 +924,9 @@ nsRange::SetStart(nsINode* aParent, PRInt32 aOffset)
   nsINode* newRoot = IsValidBoundary(aParent);
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
 
-  PRInt32 len = GetNodeLength(aParent);
-  if (aOffset < 0 || aOffset > len)
+  if (aOffset < 0 || PRUint32(aOffset) > aParent->Length()) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
 
   // Collapse if not positioned yet, if positioned in another doc or
   // if the new start is after end.
@@ -994,8 +988,7 @@ nsRange::SetEnd(nsINode* aParent, PRInt32 aOffset)
   nsINode* newRoot = IsValidBoundary(aParent);
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
 
-  PRInt32 len = GetNodeLength(aParent);
-  if (aOffset < 0 || aOffset > len) {
+  if (aOffset < 0 || PRUint32(aOffset) > aParent->Length()) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -1045,8 +1038,6 @@ nsRange::SetEndAfter(nsIDOMNode* aSibling)
 NS_IMETHODIMP
 nsRange::Collapse(bool aToStart)
 {
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1092,7 +1083,7 @@ nsRange::SelectNodeContents(nsIDOMNode* aN)
   NS_ENSURE_TRUE(newRoot, NS_ERROR_DOM_INVALID_NODE_TYPE_ERR);
   
   AutoInvalidateSelection atEndOfBlock(this);
-  DoSetRange(node, 0, node, GetNodeLength(node), newRoot);
+  DoSetRange(node, 0, node, node->Length(), newRoot);
   
   return NS_OK;
 }
@@ -1498,9 +1489,6 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
     *aFragment = nsnull;
   }
 
-  if (IsDetached())
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   nsresult rv;
 
   nsCOMPtr<nsIDocument> doc = mStartParent->OwnerDoc();
@@ -1528,6 +1516,26 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
   PRInt32              startOffset = mStartOffset;
   nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(mEndParent);
   PRInt32              endOffset = mEndOffset;
+
+  if (retval) {
+    // For extractContents(), abort early if there's a doctype (bug 719533).
+    // This can happen only if the common ancestor is a document, in which case
+    // we just need to find its doctype child and check if that's in the range.
+    nsCOMPtr<nsIDOMDocument> commonAncestorDocument(do_QueryInterface(commonAncestor));
+    if (commonAncestorDocument) {
+      nsCOMPtr<nsIDOMDocumentType> doctype;
+      rv = commonAncestorDocument->GetDoctype(getter_AddRefs(doctype));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (doctype &&
+          nsContentUtils::ComparePoints(startContainer, startOffset,
+                                        doctype.get(), 0) < 0 &&
+          nsContentUtils::ComparePoints(doctype.get(), 0,
+                                        endContainer, endOffset) < 0) {
+        return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+      }
+    }
+  }
 
   // Create and initialize a subtree iterator that will give
   // us all the subtrees within the range.
@@ -1758,8 +1766,6 @@ nsRange::CompareBoundaryPoints(PRUint16 aHow, nsIDOMRange* aOtherRange,
   nsRange* otherRange = static_cast<nsRange*>(aOtherRange);
   NS_ENSURE_TRUE(otherRange, NS_ERROR_NULL_POINTER);
 
-  if(mIsDetached || otherRange->IsDetached())
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned || !otherRange->IsPositioned())
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1859,9 +1865,6 @@ nsRange::CloneParentsBetween(nsIDOMNode *aAncestor,
 NS_IMETHODIMP
 nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
 {
-  if (IsDetached())
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   nsresult res;
   nsCOMPtr<nsIDOMNode> commonAncestor;
   res = GetCommonAncestorContainer(getter_AddRefs(commonAncestor));
@@ -2054,9 +2057,6 @@ nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
 nsresult
 nsRange::CloneRange(nsRange** aReturn) const
 {
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   if (aReturn == 0)
     return NS_ERROR_NULL_POINTER;
 
@@ -2081,9 +2081,9 @@ nsRange::CloneRange(nsIDOMRange** aReturn)
 }
 
 NS_IMETHODIMP
-nsRange::InsertNode(nsIDOMNode* aN)
+nsRange::InsertNode(nsIDOMNode* aNode)
 {
-  VALIDATE_ACCESS(aN);
+  VALIDATE_ACCESS(aNode);
   
   nsresult res;
   PRInt32 tStartOffset;
@@ -2091,51 +2091,63 @@ nsRange::InsertNode(nsIDOMNode* aN)
 
   nsCOMPtr<nsIDOMNode> tStartContainer;
   res = this->GetStartContainer(getter_AddRefs(tStartContainer));
-  if(NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
+
+  // This is the node we'll be inserting before, and its parent
+  nsCOMPtr<nsIDOMNode> referenceNode;
+  nsCOMPtr<nsIDOMNode> referenceParentNode = tStartContainer;
 
   nsCOMPtr<nsIDOMText> startTextNode(do_QueryInterface(tStartContainer));
-  if (startTextNode)
-  {
-    nsCOMPtr<nsIDOMNode> tSCParentNode;
-    res = tStartContainer->GetParentNode(getter_AddRefs(tSCParentNode));
-    if(NS_FAILED(res)) return res;
-    NS_ENSURE_STATE(tSCParentNode);
-
-    PRInt32 tEndOffset;
-    GetEndOffset(&tEndOffset);
-
-    nsCOMPtr<nsIDOMNode> tEndContainer;
-    res = this->GetEndContainer(getter_AddRefs(tEndContainer));
-    if(NS_FAILED(res)) return res;
+  nsCOMPtr<nsIDOMNodeList> tChildList;
+  if (startTextNode) {
+    res = tStartContainer->GetParentNode(getter_AddRefs(referenceParentNode));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(referenceParentNode, NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
 
     nsCOMPtr<nsIDOMText> secondPart;
     res = startTextNode->SplitText(tStartOffset, getter_AddRefs(secondPart));
-    if (NS_FAILED(res)) return res;
+    NS_ENSURE_SUCCESS(res, res);
 
-    nsCOMPtr<nsIDOMNode> tResultNode;
-    res = tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
-    if (NS_FAILED(res)) return res;
+    referenceNode = secondPart;
+  } else {
+    res = tStartContainer->GetChildNodes(getter_AddRefs(tChildList));
+    NS_ENSURE_SUCCESS(res, res);
 
-    if (tEndContainer == tStartContainer && tEndOffset != tStartOffset)
-      res = SetEnd(secondPart, tEndOffset - tStartOffset);
+    // find the insertion point in the DOM and insert the Node
+    res = tChildList->Item(tStartOffset, getter_AddRefs(referenceNode));
+    NS_ENSURE_SUCCESS(res, res);
+  }
 
-    return res;
-  }  
+  // We might need to update the end to include the new node (bug 433662)
+  PRInt32 newOffset;
 
-  nsCOMPtr<nsIDOMNodeList>tChildList;
-  res = tStartContainer->GetChildNodes(getter_AddRefs(tChildList));
-  if(NS_FAILED(res)) return res;
-  PRUint32 tChildListLength;
-  res = tChildList->GetLength(&tChildListLength);
-  if(NS_FAILED(res)) return res;
+  if (Collapsed()) {
+    if (referenceNode) {
+      newOffset = IndexOf(referenceNode);
+    } else {
+      PRUint32 length;
+      res = tChildList->GetLength(&length);
+      NS_ENSURE_SUCCESS(res, res);
+      newOffset = length;
+    }
 
-  // find the insertion point in the DOM and insert the Node
-  nsCOMPtr<nsIDOMNode>tChildNode;
-  res = tChildList->Item(tStartOffset, getter_AddRefs(tChildNode));
-  if(NS_FAILED(res)) return res;
-  
+    nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+    NS_ENSURE_STATE(node);
+    if (node->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
+      newOffset += node->GetChildCount();
+    } else {
+      newOffset++;
+    }
+  }
+
   nsCOMPtr<nsIDOMNode> tResultNode;
-  return tStartContainer->InsertBefore(aN, tChildNode, getter_AddRefs(tResultNode));
+  res = referenceParentNode->InsertBefore(aNode, referenceNode, getter_AddRefs(tResultNode));
+  NS_ENSURE_SUCCESS(res, res);
+
+  if (Collapsed()) {
+    return SetEnd(referenceParentNode, newOffset);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2163,11 +2175,22 @@ nsRange::SurroundContents(nsIDOMNode* aNewParent)
                    NS_ERROR_DOM_INVALID_STATE_ERR);
   }
 
+  // INVALID_NODE_TYPE_ERROR if aNewParent is something that can't be inserted
+  // (Document, DocumentType, DocumentFragment)
+  PRUint16 nodeType;
+  nsresult res = aNewParent->GetNodeType(&nodeType);
+  if (NS_FAILED(res)) return res;
+  if (nodeType == nsIDOMNode::DOCUMENT_NODE ||
+      nodeType == nsIDOMNode::DOCUMENT_TYPE_NODE ||
+      nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
+    return NS_ERROR_DOM_INVALID_NODE_TYPE_ERR;
+  }
+
   // Extract the contents within the range.
 
   nsCOMPtr<nsIDOMDocumentFragment> docFrag;
 
-  nsresult res = ExtractContents(getter_AddRefs(docFrag));
+  res = ExtractContents(getter_AddRefs(docFrag));
 
   if (NS_FAILED(res)) return res;
   if (!docFrag) return NS_ERROR_FAILURE;
@@ -2217,9 +2240,6 @@ nsRange::SurroundContents(nsIDOMNode* aNewParent)
 NS_IMETHODIMP
 nsRange::ToString(nsAString& aReturn)
 { 
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
   // clear the string
   aReturn.Truncate();
   
@@ -2311,17 +2331,8 @@ nsRange::ToString(nsAString& aReturn)
 NS_IMETHODIMP
 nsRange::Detach()
 {
-  if(mIsDetached)
-    return NS_ERROR_DOM_INVALID_STATE_ERR;
-
-  if (IsInSelection()) {
-    ::InvalidateAllFrames(GetRegisteredCommonAncestor());
-  }
-
+  // No-op, but still set mIsDetached for telemetry (bug 702948)
   mIsDetached = true;
-
-  DoSetRange(nsnull, 0, nsnull, 0, nsnull);
-  
   return NS_OK;
 }
 

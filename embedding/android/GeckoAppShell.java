@@ -62,8 +62,6 @@ import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
-import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.AccessibilityEvent;
 
 import android.util.*;
 import android.net.Uri;
@@ -114,8 +112,8 @@ public class GeckoAppShell
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadGeckoLibsNative(String apkName);
-    public static native void loadSQLiteLibsNative(String apkName);
-    public static native void loadNSSLibsNative(String apkName);
+    public static native void loadSQLiteLibsNative(String apkName, boolean shouldExtract);
+    public static native void loadNSSLibsNative(String apkName, boolean shouldExtract);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
 
@@ -398,8 +396,8 @@ public class GeckoAppShell
                 }
             }
         }
-        loadSQLiteLibsNative(apkName);
-        loadNSSLibsNative(apkName);
+        loadSQLiteLibsNative(apkName, extractLibs);
+        loadNSSLibsNative(apkName, extractLibs);
         loadGeckoLibsNative(apkName);
     }
 
@@ -605,9 +603,13 @@ public class GeckoAppShell
                 imm, text, start, end, newEnd);
     }
 
-    public static void notifyScreenShot(ByteBuffer data, int tabId, int width, int height) {
-        // this stub is never called in XUL Fennec, but we need it so that the JNI code
-        // shared between XUL and Native Fennec doesn't die.
+    // these 2 stubs are never called in XUL Fennec, but we need them so that
+    // the JNI code shared between XUL and Native Fennec doesn't die.
+    public static void notifyScreenShot(final ByteBuffer data, final int tabId, final int x, final int y,
+                                        final int width, final int height, final int token) {
+    }
+
+    public static void notifyPaintedRect(float top, float left, float bottom, float right) {
     }
 
     private static CountDownLatch sGeckoPendingAcks = null;
@@ -684,6 +686,10 @@ public class GeckoAppShell
                     }
                 }
             });
+    }
+
+    public static void enableLocationHighAccuracy(final boolean enable) {
+        // unsupported
     }
 
     /*
@@ -1105,9 +1111,13 @@ public class GeckoAppShell
         GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER);
     }
 
-    public static String showFilePicker(String aFilters) {
+    public static String showFilePickerForExtensions(String aExtensions) {
         return GeckoApp.mAppContext.
-            showFilePicker(getMimeTypeFromExtensions(aFilters));
+            showFilePicker(getMimeTypeFromExtensions(aExtensions));
+    }
+
+    public static String showFilePickerForMimeType(String aMimeType) {
+        return GeckoApp.mAppContext.showFilePicker(aMimeType);
     }
 
     public static void performHapticFeedback(boolean aIsLongPress) {
@@ -1434,12 +1444,6 @@ public class GeckoAppShell
         }
     }
 
-    public static boolean getAccessibilityEnabled() {
-        AccessibilityManager accessibilityManager =
-            (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-        return accessibilityManager.isEnabled();
-    }
-
     public static void addPluginView(final View view,
                                      final double x, final double y,
                                      final double w, final double h) {
@@ -1561,7 +1565,7 @@ public class GeckoAppShell
         Log.i("GeckoShell", "post to " + (mainThread ? "main " : "") + "java thread");
         getMainHandler().post(new GeckoRunnableCallback());
     }
-    
+
     public static android.hardware.Camera sCamera = null;
     
     static native void cameraCallbackBridge(byte[] data);
@@ -1822,9 +1826,6 @@ public class GeckoAppShell
         return false;
     }
 
-    public static void emitGeckoAccessibilityEvent (int eventType, String[] textList, String description, boolean enabled, boolean checked, boolean password) {
-    }
-
     public static double[] getCurrentNetworkInformation() {
         return GeckoNetworkManager.getInstance().getCurrentInformation();
     }
@@ -1838,5 +1839,31 @@ public class GeckoAppShell
     }
 
     // This is only used in Native Fennec.
-    public static void setPreventPanning(final boolean aPreventPanning) { }
+    public static void notifyDefaultPrevented(boolean defaultPrevented) { }
+
+    public static short getScreenOrientation() {
+        return GeckoScreenOrientationListener.getInstance().getScreenOrientation();
+    }
+
+    public static void enableScreenOrientationNotifications() {
+        GeckoScreenOrientationListener.getInstance().enableNotifications();
+    }
+
+    public static void disableScreenOrientationNotifications() {
+        GeckoScreenOrientationListener.getInstance().disableNotifications();
+    }
+
+    public static void lockScreenOrientation(int aOrientation) {
+        GeckoScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
+    }
+
+    public static void unlockScreenOrientation() {
+        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
+    }
+
+    static native void notifyFilePickerResult(String filePath, long id);
+
+    /* Stubbed out because this is called from AndroidBridge for Native Fennec */
+    public static void showFilePickerAsync(String aMimeType, long id) {
+    }
 }

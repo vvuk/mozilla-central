@@ -50,6 +50,9 @@
 #include "nsTableColFrame.h"
 #include "nsCOMPtr.h"
 #include "nsDisplayList.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 
 using namespace mozilla;
 
@@ -589,23 +592,21 @@ nsTableRowFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists)
 {
-  if (!IsVisibleInSelection(aBuilder))
-    return NS_OK;
-
-  bool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
-  if (isRoot) {
-    // This background is created regardless of whether this frame is
-    // visible or not. Visibility decisions are delegated to the
-    // table background painter.
-    // We would use nsDisplayGeneric for this rare case except that we
-    // need the background to be larger than the row frame in some
-    // cases.
-    item = new (aBuilder) nsDisplayTableRowBackground(aBuilder, this);
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (IsVisibleInSelection(aBuilder)) {
+    bool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
+    if (isRoot) {
+      // This background is created regardless of whether this frame is
+      // visible or not. Visibility decisions are delegated to the
+      // table background painter.
+      // We would use nsDisplayGeneric for this rare case except that we
+      // need the background to be larger than the row frame in some
+      // cases.
+      item = new (aBuilder) nsDisplayTableRowBackground(aBuilder, this);
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
-  
   return nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect, aLists, item);
 }
 
@@ -1348,7 +1349,19 @@ void nsTableRowFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
       NS_ERROR("invalid NS_SIDE arg");
   }
 }
+#ifdef ACCESSIBILITY
+already_AddRefed<nsAccessible>
+nsTableRowFrame::CreateAccessible()
+{
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLTableRowAccessible(mContent,
+                                                    PresContext()->PresShell());
+  }
 
+  return nsnull;
+}
+#endif
 /**
  * Sets the NS_ROW_HAS_CELL_WITH_STYLE_HEIGHT bit to indicate whether
  * this row has any cells that have non-auto-height.  (Row-spanning

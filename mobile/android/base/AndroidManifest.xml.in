@@ -9,7 +9,7 @@
       android:sharedUserId="@MOZ_ANDROID_SHARED_ID@"
 #endif
       >
-    <uses-sdk android:minSdkVersion="5"
+    <uses-sdk android:minSdkVersion="8"
               android:targetSdkVersion="11"/>
 
 #include ../sync/manifests/SyncAndroidManifest_permissions.xml.in
@@ -43,9 +43,13 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
+    <!-- App requires OpenGL ES 2.0 -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
  
     <application android:label="@MOZ_APP_DISPLAYNAME@"
 		 android:icon="@drawable/icon"
+                 android:name="org.mozilla.gecko.GeckoApplication"
 #if MOZILLA_OFFICIAL
 		 android:debuggable="false">
 #else
@@ -181,10 +185,15 @@
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.browser"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
+        <!--
+          Ensure that passwords provider runs in its own process. (Bug 718760.)
+          Process name is per-application to avoid loading CPs from multiple
+          Fennec versions into the same process. (Bug 749727.)
+          -->
         <provider android:name="@ANDROID_PACKAGE_NAME@.db.PasswordsProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.passwords"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER"
-                  android:process="org.mozilla.gecko.PasswordsProvider"/>
+                  android:process="@ANDROID_PACKAGE_NAME@.PasswordsProvider"/>
 
         <provider android:name="@ANDROID_PACKAGE_NAME@.db.FormHistoryProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.formhistory"

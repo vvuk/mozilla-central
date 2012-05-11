@@ -49,8 +49,6 @@
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
-#include "nsIParser.h"
-#include "nsParserCIID.h"
 #include "nsNetUtil.h"
 #include "plstr.h"
 #include "nsIContent.h"
@@ -85,7 +83,6 @@
 #include "nsXBLBinding.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsEventListenerManager.h"
 #include "nsGUIEvent.h"
 
 #include "prprf.h"
@@ -105,7 +102,7 @@
 // The JS class for XBLBinding
 //
 static void
-XBLFinalize(JSContext *cx, JSObject *obj)
+XBLFinalize(JSFreeOp *fop, JSObject *obj)
 {
   nsXBLDocumentInfo* docInfo =
     static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(obj));
@@ -258,10 +255,10 @@ nsXBLJSClass::Destroy()
 
 // Constructors/Destructors
 nsXBLBinding::nsXBLBinding(nsXBLPrototypeBinding* aBinding)
-  : mPrototypeBinding(aBinding),
-    mInsertionPointTable(nsnull),
-    mIsStyleBinding(true),
-    mMarkedForDeath(false)
+  : mIsStyleBinding(true),
+    mMarkedForDeath(false),
+    mPrototypeBinding(aBinding),
+    mInsertionPointTable(nsnull)
 {
   NS_ASSERTION(mPrototypeBinding, "Must have a prototype binding!");
   // Grab a ref to the document info so the prototype binding won't die
