@@ -330,20 +330,32 @@ static const struct PRIOMethods nss_methods = {
 };
 
 void TransportLayerDtls::WasInserted() {
-  helper_ = new NSPRHelper(downward_);
+  if (!Setup()) {
+    SetState(ERROR);
+  }
+};
 
+bool TransportLayerDtls::Setup() {
+  SECStatus rv;
+
+  if (!identity_) {
+    MLOG(PR_LOG_ERROR, "Can't start DTLS without an identity");
+    return false;
+  }
+
+  helper_ = new NSPRHelper(downward_);
+  
   if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
     nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
   }
   pr_fd_ = PR_CreateIOLayerStub(nspr_layer_identity, &nss_methods);
   PR_ASSERT(pr_fd_ != NULL);
   if (!pr_fd_)
-    SetState(ERROR);
+      return false;
   pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_);
 
   PRFileDesc *ssl_fd;
   if (mode_ == DGRAM) {
-    abort();
     ssl_fd = DTLS_ImportFD(NULL, pr_fd_);
   } else {
     ssl_fd = SSL_ImportFD(NULL, pr_fd_);
@@ -353,12 +365,72 @@ void TransportLayerDtls::WasInserted() {
   if (!ssl_fd) {
     PR_Close(pr_fd_);
     pr_fd_ = NULL;
-    SetState(ERROR);
+    return false;
   }
+  
+  if (role_ == CLIENT) {
+    
+
+  } else {
+    // Server side
+    rv = SSL_ConfigSecureServer(ssl_fd_, identity->certificate()
+                                identity->privkey(),
+                                kt_rsa);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Couldn't set identity");
+      return false;
+    }
+
+    // Insist on a certificate from the client
+    rv = SSL_OptionSet(ssl_fd_, SSL_REQUEST_CERTIFICATE, PR_TRUE);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Couldn't request certificate");
+      return false;
+    }
+
+    rv = SSL_OptionSet(ssl_fd_, SSL_REQUIRE_CERTIFICATE, PR_TRUE);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Couldn't require certificate");
+      return false;
+    }
+  }
+
+  if (mode_ != DGRAM) {
+    // Disable SSLv3
+    rv = SSL_OptionSet(ssl_fd_, SSL_ENABLE_SSL3, PR_FALSE);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Can't disable SSLv3");
+      return false;
+    }
+    
+    // Enable TLS
+    rv = SSL_OptionSet(ssl_fd_, SSL_DISABLE_TLS, PR_TRUE);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Can't disable SSLv3");
+      return false;
+    }
+  }
+
+    // Certificate validation
+  rv = SSL_AuthCertificateHook(ssl_fd_, AuthCertificateHook,
+                               reinterpret_cast<void *>(this));
+  if (rv != SECSuccess) {
+    MLOG(PR_LOG_ERROR, "Couldn't set certificate validation hook");
+    return false;
+  }
+
+  // Now start the handshake
+  rv = SSL_ResetHandshake(ssl_fd_, role_ == SERVER ? PR_TRUE : PR_FALSE);
+  if (rv != SECSuccess) {
+    MLOG(PR_LOG_ERROR, "Couldn't reset handshake");
+    return false;
+  }
+  
+  return true;
 }
 
+
 void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
-  
   ;
 }
 
@@ -367,7 +439,9 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
                                         size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
   
-  SignalPacketReceived(this, data, len);
+  helper_.PacketReceived(data, len);
+
+  rv = PR_Recv(
 }
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,

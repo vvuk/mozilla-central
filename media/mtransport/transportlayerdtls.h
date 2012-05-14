@@ -39,11 +39,19 @@ class TransportLayerDtls : public TransportLayer {
 public:
  TransportLayerDtls() :
      TransportLayer(DGRAM),
+     identity_(NULL),
+     role_(CLIENT),
      pr_fd_(NULL),
      ssl_fd_(NULL),
      helper_(NULL) {}
   virtual ~TransportLayerDtls() {}
   
+  enum Role { CLIENT, SERVER};
+
+  // DTLS-specific operations
+  void SetRole(Role role) { role_ = role;}
+  void SetIdentity(DtlsIdentity *identity) { identity_ = identity; }
+
   // Transport layer overrides.
   virtual void WasInserted();
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
@@ -56,14 +64,19 @@ public:
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
 
+ 
   // A static version of the layer ID
   static std::string ID;
   
 private:
+  bool Setup();
+
+  DtlsIdentity *identity_;
+  Role role_;
+
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
   NSPRHelper *helper_;
-
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity
 };
 
