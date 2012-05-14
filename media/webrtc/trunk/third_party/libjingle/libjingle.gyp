@@ -19,7 +19,8 @@
     'defines': [
       'FEATURE_ENABLE_SSL',
       'FEATURE_ENABLE_VOICEMAIL',  # TODO(ncarter): Do we really need this?
-      '_USE_32BIT_TIME_T',
+# breaks builds on Win64; plus no code calls _utime() or _wutime()
+#      '_USE_32BIT_TIME_T',
       'SAFE_TO_DEFINE_TALK_BASE_LOGGING_MACROS',
       'EXPAT_RELATIVE_PATH',
       'JSONCPP_RELATIVE_PATH',
