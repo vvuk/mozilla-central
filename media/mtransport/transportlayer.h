@@ -62,7 +62,6 @@ class TransportLayer : public sigslot::has_slots<> {
   }
 
  protected:
-  // Called by Inserted
   virtual void WasInserted() {}
   virtual void SetState(State state);
 

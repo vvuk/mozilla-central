@@ -5,13 +5,18 @@
 // Original author: ekr@rtfm.com
 
 #include <iostream>
+#include <string>
 
 // From libjingle.
 #include <talk/base/sigslot.h>
 
+#include "nspr.h"
+#include "nss.h"
+#include "ssl.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
+#include "dtlsidentity.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 #include "transportlayerdtls.h"
@@ -30,11 +35,17 @@ MtransportTestUtils test_utils;
 namespace {
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
-  TransportTestPeer(nsCOMPtr<nsIEventTarget> target) : target_(target),
-                                                       received_(0), flow_(), 
-                                                       prsock_(new TransportLayerPrsock()),
-                                                       dtls_(new TransportLayerDtls()),
-                                                       logging_(new TransportLayerLogging()) {
+  TransportTestPeer(nsCOMPtr<nsIEventTarget> target, std::string name) 
+  : target_(target),
+    received_(0), flow_(), 
+    prsock_(new TransportLayerPrsock()),
+    dtls_(new TransportLayerDtls()),
+    logging_(new TransportLayerLogging()),
+    identity_(DtlsIdentity::Generate(name)) {
+    dtls_->SetIdentity(identity_);
+    dtls_->SetRole(name == "P2" ?
+                   TransportLayerDtls::CLIENT :
+                   TransportLayerDtls::SERVER);
   }
 
   void Connect(PRFileDesc *fd) {
@@ -44,6 +55,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_TRUE(NS_SUCCEEDED(res));
     flow_.PushLayer(prsock_);
     flow_.PushLayer(logging_);
+    flow_.PushLayer(dtls_);
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
@@ -65,6 +77,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   TransportLayerPrsock *prsock_;
   TransportLayerDtls *dtls_;
   TransportLayerLogging *logging_;
+  DtlsIdentity *identity_;
 };
 
 
@@ -89,8 +102,8 @@ class TransportTest : public ::testing::Test {
     target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
     ASSERT_TRUE(NS_SUCCEEDED(rv));
 
-    p1_ = new TransportTestPeer(target_);
-    p2_ = new TransportTestPeer(target_);
+    p1_ = new TransportTestPeer(target_, "P1");
+    p2_ = new TransportTestPeer(target_, "P2");
   }
 
   void Connect() {
@@ -140,7 +153,8 @@ TEST_F(TransportTest, TestTransfer) {
 int main(int argc, char **argv)
 {
   test_utils.InitServices();
-
+  NSS_NoDB_Init(NULL);
+  NSS_SetDomesticPolicy();
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
   

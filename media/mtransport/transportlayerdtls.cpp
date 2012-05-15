@@ -14,6 +14,7 @@
 #include "sslerr.h"
 #include "sslproto.h"
 
+#include "dtlsidentity.h"
 #include "logging.h"
 #include "transportflow.h"
 #include "transportlayerdtls.h"
@@ -39,6 +40,7 @@ struct Packet {
   void Assign(const void *data, PRInt32 len) {
     data_ = new unsigned char[len];
     memcpy(data_, data, len);
+    len_ = len;
   }
 
   unsigned char *data_;
@@ -96,7 +98,6 @@ static PRStatus TransportLayerClose(PRFileDesc *f) {
 static PRInt32 TransportLayerRead(PRFileDesc *f, void *buf, PRInt32 length) {
   NSPRHelper *io = reinterpret_cast<NSPRHelper *>(f->secret);
   return io->Read(buf, length);
-  return -1;
 }
 
 static PRInt32 TransportLayerWrite(PRFileDesc *f, const void *buf, PRInt32 length) {
@@ -330,6 +331,7 @@ static const struct PRIOMethods nss_methods = {
 };
 
 void TransportLayerDtls::WasInserted() {
+  // Connect to the lower layers
   if (!Setup()) {
     SetState(ERROR);
   }
@@ -338,12 +340,19 @@ void TransportLayerDtls::WasInserted() {
 bool TransportLayerDtls::Setup() {
   SECStatus rv;
 
+  if (!downward_) {
+    MLOG(PR_LOG_ERROR, "DTLS layer with nothing below. This is useless");
+    return false;
+  }
+
   if (!identity_) {
     MLOG(PR_LOG_ERROR, "Can't start DTLS without an identity");
     return false;
   }
 
   helper_ = new NSPRHelper(downward_);
+  downward_->SignalStateChange.connect(this, &TransportLayerDtls::StateChange);
+  downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
   
   if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
     nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
@@ -373,8 +382,8 @@ bool TransportLayerDtls::Setup() {
 
   } else {
     // Server side
-    rv = SSL_ConfigSecureServer(ssl_fd_, identity->certificate()
-                                identity->privkey(),
+    rv = SSL_ConfigSecureServer(ssl_fd, identity_->cert(),
+                                identity_->privkey(),
                                 kt_rsa);
     if (rv != SECSuccess) {
       MLOG(PR_LOG_ERROR, "Couldn't set identity");
@@ -382,13 +391,13 @@ bool TransportLayerDtls::Setup() {
     }
 
     // Insist on a certificate from the client
-    rv = SSL_OptionSet(ssl_fd_, SSL_REQUEST_CERTIFICATE, PR_TRUE);
+    rv = SSL_OptionSet(ssl_fd, SSL_REQUEST_CERTIFICATE, PR_TRUE);
     if (rv != SECSuccess) {
       MLOG(PR_LOG_ERROR, "Couldn't request certificate");
       return false;
     }
 
-    rv = SSL_OptionSet(ssl_fd_, SSL_REQUIRE_CERTIFICATE, PR_TRUE);
+    rv = SSL_OptionSet(ssl_fd, SSL_REQUIRE_CERTIFICATE, PR_TRUE);
     if (rv != SECSuccess) {
       MLOG(PR_LOG_ERROR, "Couldn't require certificate");
       return false;
@@ -397,14 +406,14 @@ bool TransportLayerDtls::Setup() {
 
   if (mode_ != DGRAM) {
     // Disable SSLv3
-    rv = SSL_OptionSet(ssl_fd_, SSL_ENABLE_SSL3, PR_FALSE);
+    rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_SSL3, PR_FALSE);
     if (rv != SECSuccess) {
       MLOG(PR_LOG_ERROR, "Can't disable SSLv3");
       return false;
     }
     
     // Enable TLS
-    rv = SSL_OptionSet(ssl_fd_, SSL_DISABLE_TLS, PR_TRUE);
+    rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_TLS, PR_FALSE);
     if (rv != SECSuccess) {
       MLOG(PR_LOG_ERROR, "Can't disable SSLv3");
       return false;
@@ -412,7 +421,7 @@ bool TransportLayerDtls::Setup() {
   }
 
     // Certificate validation
-  rv = SSL_AuthCertificateHook(ssl_fd_, AuthCertificateHook,
+  rv = SSL_AuthCertificateHook(ssl_fd, AuthCertificateHook,
                                reinterpret_cast<void *>(this));
   if (rv != SECSuccess) {
     MLOG(PR_LOG_ERROR, "Couldn't set certificate validation hook");
@@ -420,32 +429,158 @@ bool TransportLayerDtls::Setup() {
   }
 
   // Now start the handshake
-  rv = SSL_ResetHandshake(ssl_fd_, role_ == SERVER ? PR_TRUE : PR_FALSE);
+  rv = SSL_ResetHandshake(ssl_fd, role_ == SERVER ? PR_TRUE : PR_FALSE);
   if (rv != SECSuccess) {
     MLOG(PR_LOG_ERROR, "Couldn't reset handshake");
     return false;
   }
-  
+
+  ssl_fd_ = ssl_fd;
+
+  if (downward_->state() == OPEN) {
+    Handshake();
+  }
+
   return true;
 }
 
 
 void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
-  ;
+  if (state <= state_) {
+    MLOG(PR_LOG_ERROR, "Lower layer state is going backwards from ours");
+    SetState(ERROR);
+    return;
+  }
+
+  switch (state) {
+    case INIT:
+      MLOG(PR_LOG_ERROR, LAYER_INFO << "State change of lower layer to INIT forbidden");
+      SetState(ERROR);
+      break;
+    case CONNECTING:
+      break;
+
+    case OPEN:
+      MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now open; starting TLS");
+      Handshake();
+      break;
+
+    case CLOSED:
+      MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now closed");
+      SetState(CLOSED);
+      break;
+
+    case ERROR:
+      MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower experienced an error");
+      SetState(ERROR);
+      break;
+  }
+}
+
+void TransportLayerDtls::Handshake() {
+  SetState(CONNECTING);
+  SECStatus rv = SSL_ForceHandshake(ssl_fd_);
+
+  if (rv == SECSuccess) {
+    MLOG(PR_LOG_NOTICE, "SSL handshake completed");
+    SetState(OPEN);
+  } else {
+    PRInt32 err = PR_GetError();
+    switch(err) {
+      case SSL_ERROR_RX_MALFORMED_HANDSHAKE:
+        if (mode_ != DGRAM) {
+          MLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed TLS message");
+          SetState(ERROR);
+        } else {
+          MLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
+        }
+        // Fall through
+      case PR_WOULD_BLOCK_ERROR:
+        MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
+        if (mode_ == DGRAM) {
+          // TODO(ekr@rtfm.com): Set timeout
+        }
+        break;
+      default:
+        MLOG(PR_LOG_ERROR, LAYER_INFO << "SSL handshake error "<< err);
+        SetState(ERROR);
+        break;
+    }
+  }
 }
 
 void TransportLayerDtls::PacketReceived(TransportLayer* layer,
                                         const unsigned char *data,
                                         size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
-  
-  helper_.PacketReceived(data, len);
 
-  rv = PR_Recv(
+  if (state_ != CONNECTING && state_ != OPEN) {
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Discarding packet in inappropriate state");
+    return;
+  }
+
+  helper_->PacketReceived(data, len);
+  
+  // If we're still connecting, try to handshake
+  if (state_ == CONNECTING) {
+    Handshake();
+  } 
+
+  // Now try a recv if we're open, since there might be data left
+  if (state_ == OPEN) {
+    unsigned char buf[2000];
+
+    PRInt32 rv = PR_Recv(ssl_fd_, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
+    if (rv > 0) {
+      // We have data
+      MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes from NSS");
+      SignalPacketReceived(this, buf, rv);
+    } else if (rv == 0) {
+      SetState(CLOSED);
+    } else {
+      PRInt32 err = PR_GetError();
+      
+      if (err == PR_WOULD_BLOCK_ERROR) {
+        // This gets ignored
+        MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
+      } else {
+        MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
+        SetState(ERROR);
+      }
+    }
+  }
 }
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
 
   return 0;
+}
+
+SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
+                                                    CERTDistNames *caNames,
+                                                    CERTCertificate **pRetCert,
+                                                    SECKEYPrivateKey **pRetKey) {
+  MLOG(PR_LOG_DEBUG, "Server requested client auth");
+      
+  TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
+
+  if (!stream->identity_) {
+    MLOG(PR_LOG_ERROR, "No identity available");
+    return SECFailure;
+  }
+
+  *pRetCert = stream->identity_->cert();
+  // Destroyed internally
+  *pRetKey = SECKEY_CopyPrivateKey(stream->identity_->privkey());
+
+  return SECSuccess;
+}
+
+SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
+                                                  PRFileDesc *fd,
+                                                  PRBool checksig,
+                                                  PRBool isServer) {
+  abort();
+  return SECFailure;
 }

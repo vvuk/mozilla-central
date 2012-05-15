@@ -14,6 +14,7 @@
 #include "nspr.h"
 #include "prio.h"
 
+#include "dtlsidentity.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 
@@ -70,6 +71,16 @@ public:
   
 private:
   bool Setup();
+  void Handshake();
+
+  static SECStatus GetClientAuthDataHook(void *arg, PRFileDesc *fd,
+                                         CERTDistNames *caNames,
+                                         CERTCertificate **pRetCert,
+                                         SECKEYPrivateKey **pRetKey);
+  static SECStatus AuthCertificateHook(void *arg,
+                                       PRFileDesc *fd,
+                                       PRBool checksig,
+                                       PRBool isServer);
 
   DtlsIdentity *identity_;
   Role role_;
