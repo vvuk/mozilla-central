@@ -12,7 +12,7 @@
 
 #include "nsASocketHandler.h"
 #include "nsCOMPtr.h"
-#include "nsISocketTransportService.h"o
+#include "nsISocketTransportService.h"
 #include "nsXPCOM.h"
 
 #include "transportflow.h"

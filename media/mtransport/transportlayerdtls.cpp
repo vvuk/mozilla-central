@@ -378,8 +378,12 @@ bool TransportLayerDtls::Setup() {
   }
   
   if (role_ == CLIENT) {
-    
-
+    rv = SSL_GetClientAuthDataHook(ssl_fd, GetClientAuthDataHook,
+                                   this);
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Couldn't set identity");
+      return false;
+    }
   } else {
     // Server side
     rv = SSL_ConfigSecureServer(ssl_fd, identity_->cert(),
@@ -553,8 +557,36 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
+  // TODO(ekr@rtfm.com): Clean up return values
+  if (state_ != OPEN) {
+    MLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
+         << state_);
+    return -1;
+  }
+  
+  PRInt32 rv = PR_Send(ssl_fd_, data, len, 0, PR_INTERVAL_NO_WAIT);
+  
+  if (rv > 0) {
+    // We have data
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << rv << " bytes to NSS");
+    return rv;
+  } 
+    
+  if (rv == 0) {
+    SetState(CLOSED);
+    return 0;
+  }
 
-  return 0;
+  PRInt32 err = PR_GetError();
+    
+  if (err == PR_WOULD_BLOCK_ERROR) {
+    // This gets ignored
+    MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
+  } else {
+    MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
+    SetState(ERROR);
+  }
+  return -1;
 }
 
 SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
@@ -577,10 +609,15 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
   return SECSuccess;
 }
 
+// This always returns true, but stores the certificate for 
+// later use.
 SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
                                                   PRFileDesc *fd,
                                                   PRBool checksig,
                                                   PRBool isServer) {
-  abort();
-  return SECFailure;
+  TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
+
+  stream->peer_cert_ = SSL_PeerCertificate(fd);
+
+  return SECSuccess;
 }

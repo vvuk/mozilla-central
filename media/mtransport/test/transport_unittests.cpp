@@ -56,6 +56,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     flow_.PushLayer(prsock_);
     flow_.PushLayer(logging_);
     flow_.PushLayer(dtls_);
+    
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
@@ -63,9 +64,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
     flow_.top()->SendPacket(data, len);
   }
 
+
   void PacketReceived(TransportLayer* flow, const unsigned char* data,
                       size_t len) {
+    std::cerr << "Received " << len << " bytes" << std::endl;
     ++received_;
+  }
+
+  bool connected() { 
+    return flow_.top()->state() == TransportLayer::OPEN;
   }
 
   size_t received() { return received_; }
@@ -121,6 +128,8 @@ class TransportTest : public ::testing::Test {
     
     p1_->Connect(fds_[0]);
     p2_->Connect(fds_[1]);
+    ASSERT_TRUE_WAIT(p1_->connected(), 5000);
+    ASSERT_TRUE_WAIT(p2_->connected(), 5000);
   }
 
   void TransferTest(size_t count) {
@@ -132,7 +141,7 @@ class TransportTest : public ::testing::Test {
     }
     
     std::cerr << "Received == " << p2_->received() << std::endl;
-    ASSERT_TRUE_WAIT(count == p2_->received(), 5000);
+    ASSERT_TRUE_WAIT(count == p2_->received(), 10000);
   }
 
  private:

@@ -18,7 +18,7 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
-class Packet;
+struct Packet;
 
 class NSPRHelper {
  public:
@@ -44,8 +44,12 @@ public:
      role_(CLIENT),
      pr_fd_(NULL),
      ssl_fd_(NULL),
-     helper_(NULL) {}
-  virtual ~TransportLayerDtls() {}
+     helper_(NULL),
+     peer_cert_(NULL) {}
+
+  virtual ~TransportLayerDtls() {
+    // TODO(ekr@rtfm.com): Implement
+  }
   
   enum Role { CLIENT, SERVER};
 
@@ -88,6 +92,7 @@ private:
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
   NSPRHelper *helper_;
+  CERTCertificate *peer_cert_;
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity
 };
 
