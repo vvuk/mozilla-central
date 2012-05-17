@@ -557,7 +557,6 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
-  // TODO(ekr@rtfm.com): Clean up return values
   if (state_ != OPEN) {
     MLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
          << state_);

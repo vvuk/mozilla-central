@@ -148,13 +148,13 @@ class TransportTest : public ::testing::Test {
   PRFileDesc *fds_[2];
   TransportTestPeer *p1_;
   TransportTestPeer *p2_;
-  nsCOMPtr<nsIEventTarget> target_;  
+  nsCOMPtr<nsIEventTarget> target_;
 };
 
 
 TEST_F(TransportTest, TestTransfer) {
   Connect();
-  TransferTest(1);
+  TransferTest(10);
 }
 
 }  // end namespace
