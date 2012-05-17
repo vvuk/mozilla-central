@@ -78,5 +78,4 @@ let DOMIdentity = {
   }
 };
 
-// Singleton.
-DOMIdentity._init();
+// Object is initialized by nsIDService.js
