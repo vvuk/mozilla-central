@@ -32,6 +32,44 @@
 
 MtransportTestUtils test_utils;
 
+
+// Class to simulate various kinds of network lossage
+class TransportLayerLossy : public TransportLayer {
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len) {
+    return downward_->SendPacket(data, len);
+  }
+
+  void StateChange(TransportLayer *layer, State state) {
+    SetState(state);
+  }
+
+  void PacketReceived(TransportLayer* layer, const unsigned char *data,
+                      size_t len) {
+    SignalPacketReceived(this, data, len);
+  }
+
+  // Return the layer id for this layer
+  virtual const std::string& id() { return ID; }
+
+  // A static version of the layer ID
+  static std::string ID;
+
+ protected:
+  virtual void WasInserted() {
+    downward_->SignalPacketReceived.
+        connect(this,
+                &TransportLayerLossy::PacketReceived);
+    downward_->SignalStateChange.
+        connect(this,
+                &TransportLayerLossy::StateChange);
+
+    SetState(downward_->state());
+  }
+};
+
+std::string TransportLayerLossy::ID = "lossy";
+
+
 namespace {
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
@@ -39,8 +77,9 @@ class TransportTestPeer : public sigslot::has_slots<> {
   : target_(target),
     received_(0), flow_(), 
     prsock_(new TransportLayerPrsock()),
-    dtls_(new TransportLayerDtls()),
     logging_(new TransportLayerLogging()),
+    lossy_(new TransportLayerLossy()),
+    dtls_(new TransportLayerDtls()),
     identity_(DtlsIdentity::Generate(name)) {
     dtls_->SetIdentity(identity_);
     dtls_->SetRole(name == "P2" ?
@@ -58,6 +97,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_TRUE(NS_SUCCEEDED(res));
     ASSERT_EQ(NS_OK, flow_.PushLayer(prsock_));
     ASSERT_EQ(NS_OK, flow_.PushLayer(logging_));
+    ASSERT_EQ(NS_OK, flow_.PushLayer(lossy_));
     ASSERT_EQ(NS_OK, flow_.PushLayer(dtls_));
     
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
@@ -85,8 +125,9 @@ class TransportTestPeer : public sigslot::has_slots<> {
   size_t received_;
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
-  TransportLayerDtls *dtls_;
   TransportLayerLogging *logging_;
+  TransportLayerLossy *lossy_;
+  TransportLayerDtls *dtls_;
   DtlsIdentity *identity_;
 };
 

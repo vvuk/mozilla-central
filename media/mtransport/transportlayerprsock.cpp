@@ -44,7 +44,6 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
     return;
   }
 
-
   fd_ = fd;
   handler_ = new SocketHandler(this, fd);
 

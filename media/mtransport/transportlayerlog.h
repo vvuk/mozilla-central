@@ -18,7 +18,7 @@ public:
   // Signals (forwarded to upper layer)
   void StateChange(TransportLayer *layer, State state);
   void PacketReceived(TransportLayer* layer, const unsigned char *data,
-      size_t len);
+                      size_t len);
 
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }

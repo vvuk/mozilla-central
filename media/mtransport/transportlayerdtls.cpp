@@ -14,6 +14,13 @@
 #include "sslerr.h"
 #include "sslproto.h"
 
+#include "nsCOMPtr.h"
+#include "nsComponentManagerUtils.h"
+#include "nsIEventTarget.h"
+#include "nsNetCID.h"
+#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
+
 #include "dtlsidentity.h"
 #include "logging.h"
 #include "transportflow.h"
@@ -330,6 +337,26 @@ static const struct PRIOMethods nss_methods = {
   TransportLayerReserved
 };
 
+nsresult TransportLayerDtls::InitInternal() {
+  // Get the transport service as an event target
+  nsresult rv;
+  target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+
+  if (!NS_SUCCEEDED(rv)) {
+    MLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
+    return rv;
+  }
+
+  timer_ = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+  if (!NS_SUCCEEDED(rv)) {
+    MLOG(PR_LOG_ERROR, "Couldn't get timer");
+    return rv;
+  }
+  
+  return NS_OK;
+}
+
+
 void TransportLayerDtls::WasInserted() {
   // Connect to the lower layers
   if (!Setup()) {
@@ -506,7 +533,15 @@ void TransportLayerDtls::Handshake() {
       case PR_WOULD_BLOCK_ERROR:
         MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
         if (mode_ == DGRAM) {
-          // TODO(ekr@rtfm.com): Set timeout
+          PRIntervalTime timeout;
+          rv = DTLS_GetTimeout(ssl_fd_, &timeout);
+          if (rv == SECSuccess) {
+            MLOG(PR_LOG_DEBUG, LAYER_INFO << "Setting DTLS timeout");
+            timer_->InitWithFuncCallback(TimerCallback,
+                                         this, 
+                                         PR_IntervalToMilliseconds(timeout),
+                                         nsITimer::TYPE_ONE_SHOT);
+          }
         }
         break;
       default:
@@ -626,4 +661,12 @@ SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
   stream->peer_cert_ = SSL_PeerCertificate(fd);
 
   return SECSuccess;
+}
+
+void TransportLayerDtls::TimerCallback(nsITimer *timer, void *arg) {
+ TransportLayerDtls *dtls = reinterpret_cast<TransportLayerDtls *>(arg);
+ 
+ MLOG(PR_LOG_DEBUG, "DTLS timer expired");
+
+ dtls->Handshake();
 }

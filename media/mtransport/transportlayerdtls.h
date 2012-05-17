@@ -14,6 +14,10 @@
 #include "nspr.h"
 #include "prio.h"
 
+#include "nsCOMPtr.h"
+#include "nsIEventTarget.h"
+#include "nsITimer.h"
+
 #include "dtlsidentity.h"
 #include "transportflow.h"
 #include "transportlayer.h"
@@ -58,6 +62,7 @@ public:
   void SetIdentity(DtlsIdentity *identity) { identity_ = identity; }
 
   // Transport layer overrides.
+  virtual nsresult InitInternal();
   virtual void WasInserted();
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
 
@@ -85,6 +90,7 @@ private:
                                        PRFileDesc *fd,
                                        PRBool checksig,
                                        PRBool isServer);
+  static void TimerCallback(nsITimer *timer, void *arg);
 
   DtlsIdentity *identity_;
   Role role_;
@@ -93,6 +99,9 @@ private:
   PRFileDesc *ssl_fd_;
   NSPRHelper *helper_;
   CERTCertificate *peer_cert_;
+  nsCOMPtr<nsIEventTarget> target_;  
+  nsCOMPtr<nsITimer> timer_;
+
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity
 };
 
