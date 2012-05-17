@@ -56,7 +56,7 @@ void NSPRHelper::PacketReceived(const void *data, PRInt32 len) {
 PRInt32 NSPRHelper::Read(void *data, PRInt32 len) {
   if (input_.empty()) {
     PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
-    return -1;
+    return TE_WOULDBLOCK;
   }
     
   Packet* front = input_.front();
@@ -561,7 +561,7 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
   if (state_ != OPEN) {
     MLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
          << state_);
-    return -1;
+    return TE_ERROR;
   }
   
   PRInt32 rv = PR_Send(ssl_fd_, data, len, 0, PR_INTERVAL_NO_WAIT);
@@ -582,11 +582,13 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
   if (err == PR_WOULD_BLOCK_ERROR) {
     // This gets ignored
     MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
-  } else {
-    MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
-    SetState(ERROR);
-  }
-  return -1;
+    return TE_WOULDBLOCK;
+  } 
+
+  
+  MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
+  SetState(ERROR);
+  return TE_ERROR;
 }
 
 SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
