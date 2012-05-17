@@ -26,11 +26,15 @@ class TransportLayerPrsock : public TransportLayer {
     Detach();
   }
 
+  
+  // Internal initializer
+  virtual nsresult InitInternal();
+
   // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
   // Should we require that or provide a way to pump requests across
   // threads?
   void Import(PRFileDesc *fd, nsresult *result);
-
+  
   void Detach() {
     handler_->Detach();
   }
@@ -54,6 +58,7 @@ class TransportLayerPrsock : public TransportLayer {
         prsock_(prsock), fd_(fd) {
         mPollFlags = PR_POLL_READ;
       }
+      virtual ~SocketHandler() {}
       
       void Detach() {
         prsock_ = NULL;

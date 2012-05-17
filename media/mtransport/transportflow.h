@@ -10,6 +10,8 @@
 #include <deque>
 #include <string>
 
+#include "nscore.h"
+
 class TransportLayer;
 
 // A stack of transport layers acts as a flow.
@@ -21,7 +23,7 @@ class TransportFlow {
   
   const std::string& id() const { return id_; }
   // Layer management
-  void PushLayer(TransportLayer *layer);
+  nsresult PushLayer(TransportLayer *layer);
   TransportLayer *top() const;
   TransportLayer *GetLayer(const std::string& id) const;
   

@@ -50,12 +50,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
   void Connect(PRFileDesc *fd) {
     nsresult res;
+    res = prsock_->Init();
+    ASSERT_EQ(NS_OK, res);
+    
     target_->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
                                    fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
-    flow_.PushLayer(prsock_);
-    flow_.PushLayer(logging_);
-    flow_.PushLayer(dtls_);
+    ASSERT_EQ(NS_OK, flow_.PushLayer(prsock_));
+    ASSERT_EQ(NS_OK, flow_.PushLayer(logging_));
+    ASSERT_EQ(NS_OK, flow_.PushLayer(dtls_));
     
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }

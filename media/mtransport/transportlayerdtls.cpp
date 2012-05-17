@@ -457,6 +457,10 @@ void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
   }
 
   switch (state) {
+    case NONE:
+      PR_ASSERT(false);  // Can't happen
+      break;
+
     case INIT:
       MLOG(PR_LOG_ERROR, LAYER_INFO << "State change of lower layer to INIT forbidden");
       SetState(ERROR);

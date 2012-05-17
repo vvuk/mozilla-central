@@ -12,6 +12,21 @@
 // Logging context
 MLOG_INIT("mtransport");
 
+nsresult TransportLayer::Init() {
+  if (state_ != NONE)
+    return state_ == ERROR ? false : true;
+
+  nsresult rv = InitInternal();
+
+  if (!NS_SUCCEEDED(rv)) {
+    state_ = ERROR;
+    return rv;
+  }
+  state_ = INIT;
+
+  return NS_OK;
+}
+
 void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
   flow_ = flow;
   downward_ = downward;

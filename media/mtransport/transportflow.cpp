@@ -15,11 +15,17 @@ TransportFlow::~TransportFlow() {
   }
 }
 
-void TransportFlow::PushLayer(TransportLayer *layer) {
+nsresult TransportFlow::PushLayer(TransportLayer *layer) {
+  nsresult rv = layer->Init();
+  if (!NS_SUCCEEDED(rv))
+    return rv;
+
   TransportLayer *old_layer = layers_.empty() ? NULL : layers_.front();
 
   layers_.push_front(layer);
   layer->Inserted(this, old_layer);
+
+  return NS_OK;
 }
 
 TransportLayer *TransportFlow::top() const {

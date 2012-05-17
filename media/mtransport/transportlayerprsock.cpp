@@ -24,20 +24,31 @@ MLOG_INIT("mtransport");
 
 std::string TransportLayerPrsock::ID("mt_prsock");
 
-void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
-  fd_ = fd;
 
-  handler_ = new SocketHandler(this, fd);
-
+nsresult TransportLayerPrsock::InitInternal() {
   // Get the transport service as a transport service
   nsresult rv;
   stservice_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+
   if (!NS_SUCCEEDED(rv)) {
-    *result = rv;
+    MLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
+    return rv;
+  }
+  
+  return NS_OK;
+}
+
+void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
+  if (state_ != INIT) {
+    *result = NS_ERROR_NOT_INITIALIZED;
     return;
   }
 
-  rv = stservice_->AttachSocket(fd_, handler_);
+
+  fd_ = fd;
+  handler_ = new SocketHandler(this, fd);
+
+  nsresult rv = stservice_->AttachSocket(fd_, handler_);
   if (!NS_SUCCEEDED(rv)) {
     *result = rv;
     return;

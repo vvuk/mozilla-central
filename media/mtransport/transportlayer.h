@@ -24,18 +24,22 @@ enum {
 class TransportLayer : public sigslot::has_slots<> {
  public:
   // The state of the transport flow
-  enum State { INIT, CONNECTING, OPEN, CLOSED, ERROR };
+  enum State { NONE, INIT, CONNECTING, OPEN, CLOSED, ERROR };
   enum Mode { STREAM, DGRAM };
 
   // Is this a stream or datagram flow
 
   TransportLayer(Mode mode = STREAM) : 
     mode_(mode),
-    state_(INIT),
+    state_(NONE),
     flow_(NULL),
     downward_(NULL) {}
 
   virtual ~TransportLayer() {}
+
+  // Called to initialize
+  nsresult Init();  // Called by Insert() to set up -- do not override
+  virtual nsresult InitInternal() { return NS_OK; } // Called by Init
 
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
