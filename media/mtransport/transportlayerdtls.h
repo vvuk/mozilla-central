@@ -61,6 +61,7 @@ public:
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
   void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) { identity_ = identity; }
+  const CERTCertificate *GetPeerCert() const { return peer_cert_; }
 
   // Transport layer overrides.
   virtual nsresult InitInternal();
