@@ -23,6 +23,7 @@
 #include "transportlayerlog.h"
 #include "transportlayerprsock.h"
 
+#include "logging.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
 
@@ -30,13 +31,32 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+MLOG_INIT("mtransport");
+
 MtransportTestUtils test_utils;
 
 
 // Class to simulate various kinds of network lossage
 class TransportLayerLossy : public TransportLayer {
+ public:
+  TransportLayerLossy() : loss_mask_(0), packet_(0) {}
+
   virtual TransportResult SendPacket(const unsigned char *data, size_t len) {
+    MLOG(PR_LOG_NOTICE, LAYER_INFO << "SendPacket(" << len << ")");
+    
+    if (loss_mask_ & (1 << (packet_ % 32))) {
+      MLOG(PR_LOG_NOTICE, "Dropping packet");
+      ++packet_;
+      return len;
+    }
+    
+    ++packet_;
+    
     return downward_->SendPacket(data, len);
+  }
+
+  void SetLoss(PRUint32 packet) {
+    loss_mask_ |= (1 << (packet & 32));
   }
 
   void StateChange(TransportLayer *layer, State state) {
@@ -65,6 +85,10 @@ class TransportLayerLossy : public TransportLayer {
 
     SetState(downward_->state());
   }
+
+ private:
+  PRUint32 loss_mask_;
+  PRUint32 packet_;
 };
 
 std::string TransportLayerLossy::ID = "lossy";
@@ -112,6 +136,10 @@ class TransportTestPeer : public sigslot::has_slots<> {
                       size_t len) {
     std::cerr << "Received " << len << " bytes" << std::endl;
     ++received_;
+  }
+
+  void SetLoss(PRUint32 loss) {
+    lossy_->SetLoss(loss);
   }
 
   bool connected() { 
@@ -172,8 +200,8 @@ class TransportTest : public ::testing::Test {
     
     p1_->Connect(fds_[0]);
     p2_->Connect(fds_[1]);
-    ASSERT_TRUE_WAIT(p1_->connected(), 5000);
-    ASSERT_TRUE_WAIT(p2_->connected(), 5000);
+    ASSERT_TRUE_WAIT(p1_->connected(), 10000);
+    ASSERT_TRUE_WAIT(p2_->connected(), 10000);
   }
 
   void TransferTest(size_t count) {
@@ -188,7 +216,7 @@ class TransportTest : public ::testing::Test {
     ASSERT_TRUE_WAIT(count == p2_->received(), 10000);
   }
 
- private:
+ protected:
   PRFileDesc *fds_[2];
   TransportTestPeer *p1_;
   TransportTestPeer *p2_;
@@ -199,6 +227,11 @@ class TransportTest : public ::testing::Test {
 TEST_F(TransportTest, TestTransfer) {
   Connect();
   TransferTest(1);
+}
+
+TEST_F(TransportTest, TestConnectLoseFirst) {
+  p1_->SetLoss(0);
+  Connect();
 }
 
 }  // end namespace
