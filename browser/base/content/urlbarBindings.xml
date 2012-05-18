@@ -1214,6 +1214,69 @@
     </implementation>
   </binding>
 
+  <binding id="identity-request-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
+    <content align="start">
+
+      <xul:image class="popup-notification-icon"
+                 xbl:inherits="popupid,src=icon"/>
+
+      <xul:vbox flex="1">
+        <xul:deck anonid="identity-deck">
+          <xul:vbox flex="1"> <!-- 1: add an email -->
+            <xul:textbox anonid="email" placeholder="Email"/>
+            <xul:description>Enter your email address to sign in to example.com</xul:description>
+          </xul:vbox>
+          <xul:vbox flex="1"> <!-- 2: choose an email -->
+            <xul:description>Sign in to example.com</xul:description>
+            <xul:radiogroup>
+              <xul:radio label="foo@bar.com" />
+              <xul:radio label="user@email.com" selected="true"/>
+              <xul:radio label="jim@bob.com"/>
+            </xul:radiogroup>
+            <xul:label class="text-link" value="Use a different email"/>
+          </xul:vbox>
+          <xul:vbox flex="1"> <!-- 3: Logged in -->
+            <xul:label value="Signed in as:"/>
+            <xul:label class="header" value="user@email.com"/>
+            <xul:hbox>
+              <xul:label class="text-link" value="Add another email"/>
+              <xul:label class="text-link" value="This is not me"/>
+            </xul:hbox>
+          </xul:vbox>
+        </xul:deck>
+        <xul:button anonid="button"
+                    type="menu-button"
+                    class="popup-notification-menubutton"
+                    xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
+          <xul:menupopup anonid="menupopup"
+                         xbl:inherits="oncommand=menucommand">
+            <children/>
+            <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+                          label="&closeNotificationItem.label;"
+                          xbl:inherits="oncommand=closeitemcommand"/>
+          </xul:menupopup>
+        </xul:button>
+      </xul:vbox>
+      <xul:vbox pack="start">
+        <xul:toolbarbutton anonid="closebutton"
+                           class="messageCloseButton popup-notification-closebutton tabbable"
+                           xbl:inherits="oncommand=closebuttoncommand"
+                           tooltiptext="&closeNotification.tooltip;"/>
+      </xul:vbox>
+    </content>
+    <implementation>
+      <constructor><![CDATA[
+        let button = document.getAnonymousElementByAttribute(this, "anonid", "button")
+        button.addEventListener("click", function(evt) {
+          let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
+          dump(deck.children.length + "\n");
+          deck.selectedIndex = ++deck.selectedIndex % deck.children.length;
+        }.bind(this));
+      ]]></constructor>
+    </implementation>
+  </binding>
+
+
   <binding id="splitmenu">
     <content>
       <xul:hbox anonid="menuitem" flex="1"

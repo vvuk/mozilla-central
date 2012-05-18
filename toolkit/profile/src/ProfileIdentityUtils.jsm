@@ -123,7 +123,7 @@ const ProfileIdentityUtils = {
     }
     gProfileService.flush();
     return profile;
-  }
+  },
 
   // TODO: may not need this since we may only allow associating an existing profile with an identity
   _createProfileForIdentity: function(aIdentity) {

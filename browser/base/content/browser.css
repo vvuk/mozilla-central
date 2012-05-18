@@ -459,6 +459,10 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#addon-progress-notification");
 }
 
+#identity-request-notification {
+  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#identity-request-notification");
+}
+
 /* override hidden="true" for the status bar compatibility shim
    in case it was persisted for the real status bar */
 #status-bar {
