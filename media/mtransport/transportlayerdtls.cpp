@@ -346,7 +346,6 @@ nsresult TransportLayerDtls::InitInternal() {
     MLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
     return rv;
   }
-  fprintf(stderr, "**** Socket thread = %p\n", target_.get());
 
   timer_ = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
   if (!NS_SUCCEEDED(rv)) {
@@ -515,6 +514,10 @@ void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
 
 void TransportLayerDtls::Handshake() {
   SetState(CONNECTING);
+
+  // Clear the retransmit timer
+  timer_->Cancel();
+
   SECStatus rv = SSL_ForceHandshake(ssl_fd_);
 
   if (rv == SECSuccess) {
@@ -541,6 +544,7 @@ void TransportLayerDtls::Handshake() {
 
             MLOG(PR_LOG_DEBUG, LAYER_INFO << "Setting DTLS timeout to " <<
                  timeout_ms);
+            timer_->SetTarget(target_);
             timer_->InitWithFuncCallback(TimerCallback,
                                          this, timeout_ms,
                                          nsITimer::TYPE_ONE_SHOT);
