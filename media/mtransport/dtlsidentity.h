@@ -44,13 +44,19 @@
 #include "keyhi.h"
 #include "nss.h"
 
+#include "mozilla/RefPtr.h"
+#include "nsISupportsImpl.h"
+
 class DtlsIdentity {
  public:
   ~DtlsIdentity();
   
-  static DtlsIdentity *Generate(const std::string name);
+  static mozilla::RefPtr<DtlsIdentity> Generate(const std::string name);
+
   CERTCertificate *cert() { return cert_; }
   SECKEYPrivateKey *privkey() { return privkey_; }
+
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DtlsIdentity);
 
  private:
   DtlsIdentity(SECKEYPrivateKey *privkey, CERTCertificate *cert)
@@ -59,6 +65,7 @@ class DtlsIdentity {
   SECKEYPrivateKey *privkey_;
   CERTCertificate *cert_;
 };
+
 
 
 #endif

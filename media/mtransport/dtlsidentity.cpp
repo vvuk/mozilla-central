@@ -39,7 +39,7 @@ template <class T> class scoped_c_ptr {
 };
 
 // Auto-generate an identity based on name=name
-DtlsIdentity *DtlsIdentity::Generate(const std::string name) {
+mozilla::RefPtr<DtlsIdentity> DtlsIdentity::Generate(const std::string name) {
   SECStatus rv;
 
   std::string subject_name_string = "CN=" + name;  
@@ -132,7 +132,8 @@ DtlsIdentity *DtlsIdentity::Generate(const std::string name) {
   }
   certificate.get()->derCert = *signedCert;
 
-  return new DtlsIdentity(private_key.forget(), certificate.forget());
+  return mozilla::RefPtr<DtlsIdentity>(new DtlsIdentity(
+      private_key.forget(), certificate.forget()));
 }
 
 DtlsIdentity::~DtlsIdentity() {

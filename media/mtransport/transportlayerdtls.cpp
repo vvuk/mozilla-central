@@ -6,8 +6,10 @@
 
 #include <queue>
 
+
 #include "nspr.h"
 #include "nss.h"
+#include "cert.h"
 #include "prerror.h"
 #include "prio.h"
 #include "ssl.h"
@@ -337,6 +339,13 @@ static const struct PRIOMethods nss_methods = {
   TransportLayerReserved
 };
 
+TransportLayerDtls::~TransportLayerDtls() {
+  timer_->Cancel();
+  if (peer_cert_) CERT_DestroyCertificate(peer_cert_);
+  // Must delete helper after ssl_fd_ b/c ssl_fd_ causes an alert
+  PR_Close(ssl_fd_);
+}
+
 nsresult TransportLayerDtls::InitInternal() {
   // Get the transport service as an event target
   nsresult rv;
@@ -388,7 +397,7 @@ bool TransportLayerDtls::Setup() {
   PR_ASSERT(pr_fd_ != NULL);
   if (!pr_fd_)
       return false;
-  pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_);
+  pr_fd_->secret = reinterpret_cast<PRFilePrivate *>(helper_.get());
 
   PRFileDesc *ssl_fd;
   if (mode_ == DGRAM) {
@@ -650,10 +659,16 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
     return SECFailure;
   }
 
-  *pRetCert = stream->identity_->cert();
-  // Destroyed internally
+  *pRetCert = CERT_DupCertificate(stream->identity_->cert());
+  if (!pRetCert) {
+    return SECFailure;
+  }
+  
   *pRetKey = SECKEY_CopyPrivateKey(stream->identity_->privkey());
-
+  if (!pRetKey) {
+    CERT_DestroyCertificate(*pRetCert);
+    return SECFailure;
+  }
   return SECSuccess;
 }
 

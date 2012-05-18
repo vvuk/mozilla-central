@@ -14,6 +14,8 @@
 #include "nspr.h"
 #include "prio.h"
 
+#include "mozilla/RefPtr.h"
+#include "mozilla/Scoped.h"
 #include "nsCOMPtr.h"
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
@@ -51,15 +53,14 @@ public:
      helper_(NULL),
      peer_cert_(NULL) {}
 
-  virtual ~TransportLayerDtls() {
-    // TODO(ekr@rtfm.com): Implement
-  }
+  virtual ~TransportLayerDtls();
+
   
   enum Role { CLIENT, SERVER};
 
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
-  void SetIdentity(DtlsIdentity *identity) { identity_ = identity; }
+  void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) { identity_ = identity; }
 
   // Transport layer overrides.
   virtual nsresult InitInternal();
@@ -92,12 +93,12 @@ private:
                                        PRBool isServer);
   static void TimerCallback(nsITimer *timer, void *arg);
 
-  DtlsIdentity *identity_;
+  mozilla::RefPtr<DtlsIdentity> identity_;
   Role role_;
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
-  NSPRHelper *helper_;
+  ScopedDeletePtr<NSPRHelper> helper_;
   CERTCertificate *peer_cert_;
   nsCOMPtr<nsIEventTarget> target_;  
   nsCOMPtr<nsITimer> timer_;

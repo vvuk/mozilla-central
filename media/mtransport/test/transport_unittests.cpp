@@ -156,7 +156,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   TransportLayerLogging *logging_;
   TransportLayerLossy *lossy_;
   TransportLayerDtls *dtls_;
-  DtlsIdentity *identity_;
+  mozilla::RefPtr<DtlsIdentity> identity_;
 };
 
 
