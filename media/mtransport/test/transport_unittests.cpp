@@ -114,21 +114,21 @@ class TransportTestPeer : public sigslot::has_slots<> {
   void Connect(PRFileDesc *fd) {
     nsresult res;
     res = prsock_->Init();
-    ASSERT_EQ(NS_OK, res);
+    ASSERT_EQ((nsresult)NS_OK, res);
     
     target_->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
                                    fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
-    ASSERT_EQ(NS_OK, flow_.PushLayer(prsock_));
-    ASSERT_EQ(NS_OK, flow_.PushLayer(logging_));
-    ASSERT_EQ(NS_OK, flow_.PushLayer(lossy_));
-    ASSERT_EQ(NS_OK, flow_.PushLayer(dtls_));
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(logging_));
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(lossy_));
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
     
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
-  void SendPacket(const unsigned char* data, size_t len) {
-    flow_.top()->SendPacket(data, len);
+  TransportResult SendPacket(const unsigned char* data, size_t len) {
+    return flow_.top()->SendPacket(data, len);
   }
 
 
@@ -209,7 +209,8 @@ class TransportTest : public ::testing::Test {
     
     for (size_t i= 0; i<count; ++i) {
       memset(buf, count & 0xff, sizeof(buf));
-      p1_->SendPacket(buf, sizeof(buf));
+      TransportResult rv = p1_->SendPacket(buf, sizeof(buf));
+      ASSERT_TRUE(rv > 0);
     }
     
     std::cerr << "Received == " << p2_->received() << std::endl;
@@ -224,9 +225,10 @@ class TransportTest : public ::testing::Test {
 };
 
 
+// TODO(ekr@rtfm.com): add a test with more values
 TEST_F(TransportTest, TestTransfer) {
   Connect();
-  TransferTest(10);
+  TransferTest(1);
 }
 
 TEST_F(TransportTest, TestConnectLoseFirst) {

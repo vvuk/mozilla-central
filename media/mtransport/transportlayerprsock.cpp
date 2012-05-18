@@ -69,11 +69,13 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
   PRInt32 status;
   status = PR_Write(fd_, data, len);
   if (status >= 0) {
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << len << " bytes");
     return status;
   }
 
   PRErrorCode err = PR_GetError();
   if (err == PR_WOULD_BLOCK_ERROR) {
+    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write blocked");
     return TE_WOULDBLOCK;
   }
 
