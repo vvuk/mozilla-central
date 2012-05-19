@@ -48,7 +48,7 @@ include $(DEPTH)/config/autoconf.mk
 
 _CHROME_FILES   = \
                 test_create_profile.xul \
-                test_ProfileIdentityUtils.xul \
+                # test_ProfileIdentityUtils.xul \
                 $(NULL)
 
 libs:: $(_CHROME_FILES)

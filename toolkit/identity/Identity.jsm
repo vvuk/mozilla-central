@@ -85,7 +85,7 @@ IDService.prototype = {
    */
   request: function request(aWindowID)
   {
-
+    Services.obs.notifyObservers(aWindowID, "identity-request", null);
   },
 
   /**

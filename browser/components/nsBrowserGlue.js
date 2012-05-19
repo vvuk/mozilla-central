@@ -71,6 +71,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
                                   "resource:///modules/PageThumbs.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
+                                  "resource:///modules/SignInToWebsite.jsm");
+
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -334,6 +337,7 @@ BrowserGlue.prototype = {
     if (this._isPlacesShutdownObserver)
       os.removeObserver(this, "places-shutdown");
     webappsUI.uninit();
+    SignInToWebsiteUX.uninit();
   },
 
   _onAppDefaults: function BG__onAppDefaults() {
@@ -362,6 +366,8 @@ BrowserGlue.prototype = {
     webappsUI.init();
 
     PageThumbs.init();
+
+    SignInToWebsiteUX.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },

@@ -16,31 +16,32 @@ Cu.import("resource:///modules/ProfileIdentityUtils.jsm");
 let SignInToWebsiteUX = {
 
   init: function SignInToWebsiteUX_init() {
-    Services.obs.addObserver(this, "identity-foo", false); // TODO
+    Services.obs.addObserver(this, "identity-request", false); // TODO
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
-    Services.obs.removeObserver(this, "identity-foo");
+    Services.obs.removeObserver(this, "identity-request");
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
     switch(aTopic) {
-      case "identity-foo":
-        this.requestLogin();
+      case "identity-request":
+        // XXX: as a hack just use the most recent window for now
+        let win = Services.wm.getMostRecentWindow('navigator:browser');
+        this.requestLogin(win);
         break;
     }
   },
 
-  requestLogin: function(aBrowser) {
-    // XXX: as a hack just use the most recent window for now
-    let win = Services.wm.getMostRecentWindow('navigator:browser');
-    let browser = win.gBrowser;
+  requestLogin: function(aWin) {
+    let browser = aWin.gBrowser;
     let message = "Login below:";
     let mainAction = {
       label: "replace this button",
       accessKey: "i", // TODO
       callback: function(notification) {
         // TODO
+        dump("requestLogin callback fired\n");
       },
     };
     let options = {
@@ -49,7 +50,7 @@ let SignInToWebsiteUX = {
       },
     };
     let secondaryActions = [];
-    win.PopupNotifications.show(browser.selectedBrowser, "identity-request", message, "identity-notification-icon", mainAction,
+    aWin.PopupNotifications.show(browser.selectedBrowser, "identity-request", message, "identity-notification-icon", mainAction,
                                 secondaryActions, options);
   },
 
