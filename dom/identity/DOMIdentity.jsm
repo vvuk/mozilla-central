@@ -6,7 +6,7 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-// This is the child process corresponding to nsDOMIdentity.
+// This is the parent process corresponding to nsDOMIdentity.
 let EXPORTED_SYMBOLS = ["DOMIdentity"];
 
 Cu.import("resource://gre/modules/Services.jsm");
