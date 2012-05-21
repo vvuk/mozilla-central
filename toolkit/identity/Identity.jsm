@@ -295,6 +295,7 @@ IDService.prototype = {
   shutdown: function shutdown()
   {
     this._registry = null;
+    this._endpoints = null;
   },
 
   /**
@@ -343,6 +344,7 @@ IDService.prototype = {
 
   // Private.
   _registry: { },
+  _endpoints: { },
 
   /**
    * Determine the IdP endpoints for provisioning an authorization for a
@@ -359,18 +361,58 @@ IDService.prototype = {
    * 3) Fallback to using persona.org as a secondary verifier. Return endpoints
    * for secondary authorization and provisioning provided by BrowserID/Persona.
    */
-  _getEndpoints: function _getEndpoints(email)
+  _getEndpoints: function _getEndpoints(email, aCallback)
   {
-
+    log("_getEndpoints\n");
+    // TODO: validate email
+    let domain = email.substring(email.indexOf("@") + 1);
+    log("_getEndpoints: " + domain + "\n");
+    // TODO: lookup in cache
+    let onSuccess = function(domain, wellKnown) {
+      this._endpoints[domain] = {};
+      this._endpoints[domain].authentication = wellKnown.authentication;
+      this._endpoints[domain].provisioning = wellKnown.provisioning;
+      aCallback(this._endpoints[domain]);
+    }.bind(this);
+    this._fetchWellKnownFile(domain, onSuccess, function onFailure() {
+      // TODO: use proxy IDP service
+      //this._fetchWellKnownFile(..., onSuccess);
+      // TODO: fallback to persona.org
+      aCallback(null);
+    }.bind(this));
   },
-  
+
+  _fetchWellKnownFile: function _fetchWellKnownFile(domain, aSuccess, aFailure) {
+    var XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
+                           .getService(Ci.nsIAppShellService)
+                           .hiddenDOMWindow.XMLHttpRequest;
+    var req  = new XMLHttpRequest();
+    req.open("GET", "https://" + domain + "/.well-known/browserid", true);
+    req.responseType = "json";
+    req.mozBackgroundRequest = true;
+    req.onreadystatechange = function(oEvent) {
+      if (req.readyState === 4) {
+        if (req.status === 200) {
+          // TODO validate format
+          aSuccess(domain, req.response);
+          log(req.response + "\n");
+          log(JSON.stringify(this._endpoints[domain], null, 4) + "\n");
+        } else {
+          log("Error: " + req.statusText + "\n");
+          aFailure(req.statusText);
+        }
+      }
+    }.bind(this);
+    req.send(null);
+  },
+
   /**
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
    */
   _beginProvisioning: function _beginProvisioning(aURL)
   {
-
+    // TODO: do something with toolkit/identity/Sandbox.jsm
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),

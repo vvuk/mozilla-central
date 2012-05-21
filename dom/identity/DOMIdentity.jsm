@@ -75,6 +75,9 @@ let DOMIdentity = {
       assertion: "fake.jwt.token"
     };
     ppmm.sendAsyncMessage("Identity:Watch:OnLogin", message);
+
+    // TODO: line below is a temporary hack until this is hooked up to identity.jsm
+    Services.obs.notifyObservers(null, "identity-request", message);
   }
 };
 
