@@ -436,7 +436,7 @@ fim_process_event (void *data, boolean cac_passed)
 
     FIM_DEBUG(DEB_L_C_F_PREFIX"Msg name = %s\n", DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname),
 		cc_msg_name(msg_id));
-
+		
     /*
      * Validate the incoming event.
      */
@@ -465,6 +465,7 @@ fim_process_event (void *data, boolean cac_passed)
         fim_process_options_msg(data);
         return(TRUE);
     }
+	
 
     if (platWlanISActive() && cac_passed == FALSE) {
         /* The WLAN will request for bandwidth only for the events received from
@@ -519,19 +520,25 @@ fim_process_event (void *data, boolean cac_passed)
         return(TRUE);
     }
 
+
     /*
-     * Get the call chain associated with this call_id.
-     */
+    * Get the call chain associated with this call_id.
+    */
     call_chn = fim_get_call_chn_by_call_id(call_id);
+
     if (call_chn == NULL) {
         /*
          * No call chain, so get a new call chain,
          * but only if the event is a call establishment event.
-         */
+         */   
         if ((event_id == CC_MSG_SETUP)      ||
             (event_id == CC_MSG_OFFHOOK)    ||
             (event_id == CC_MSG_DIALSTRING) ||
             (event_id == CC_MSG_LINE)       ||
+            (event_id == CC_MSG_CREATEOFFER) ||
+            (event_id == CC_MSG_CREATEANSWER) ||
+            (event_id == CC_MSG_SETLOCALDESC) ||
+            (event_id == CC_MSG_SETREMOTEDESC) ||            
             ((event_id == CC_MSG_FEATURE) &&
              ((((cc_feature_t *) msg)->feature_id == CC_FEATURE_NEW_CALL)))) {
             call_chn = fim_get_new_call_chn(call_id);

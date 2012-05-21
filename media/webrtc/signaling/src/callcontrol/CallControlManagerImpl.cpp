@@ -163,6 +163,21 @@ void CallControlManagerImpl::setLocalIpAddressAndGateway(const std::string& loca
     }
 }
 
+// Add local codecs
+void CallControlManagerImpl::setAudioCodecs(int codecMask)
+{
+  CSFLogDebug(logTag, "setAudioCodecs %X", codecMask); 
+
+  VcmSIPCCBinding::setAudioCodecs(codecMask);
+}
+
+void CallControlManagerImpl::setVideoCodecs(int codecMask)
+{
+  CSFLogDebug(logTag, "setVideoCodecs %X", codecMask); 
+
+  VcmSIPCCBinding::setVideoCodecs(codecMask);
+}
+
 AuthenticationStatusEnum::AuthenticationStatus CallControlManagerImpl::getAuthenticationStatus()
 {
     return authenticationStatus;
@@ -246,6 +261,33 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
     }
 
     return bStarted;
+}
+
+bool CallControlManagerImpl::startSDPMode()
+{
+    CSFLogInfoS(logTag, "startSDPMode");
+    if(phone != NULL)
+    {
+        CSFLogErrorS(logTag, "startSDPMode() failed - already started in SDP mode!");
+        return false;
+    }
+
+    // Check preconditions.
+    if(localIpAddress.empty())
+    {
+    	CSFLogErrorS(logTag, "startSDPMode() failed - No local IP address set!");
+    	return false;
+    }
+
+    softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
+    phone = softPhone;
+    phone->init("JSEP", "", "127.0.0.1", "sipdevice");
+    softPhone->setLoggingMask(sipccLoggingMask);
+    softPhone->setLocalAddressAndGateway(localIpAddress, defaultGW);
+    phone->addCCObserver(this);
+    phone->setSDPMode(true);
+ 
+    return phone->startService();
 }
 
 bool CallControlManagerImpl::startROAPProxy( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain )
@@ -502,9 +544,9 @@ void CallControlManagerImpl::onLineEvent(ccapi_line_event_e lineEvent,     CC_Li
 {
     notifyLineEventObservers(lineEvent, linePtr, info);
 }
-void CallControlManagerImpl::onCallEvent(ccapi_call_event_e callEvent,     CC_CallPtr callPtr, CC_CallInfoPtr info, char* sdp)
+void CallControlManagerImpl::onCallEvent(ccapi_call_event_e callEvent,     CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-    notifyCallEventObservers(callEvent, callPtr, info, sdp);
+    notifyCallEventObservers(callEvent, callPtr, info);
 }
 
 
@@ -538,13 +580,13 @@ void CallControlManagerImpl::notifyLineEventObservers (ccapi_line_event_e lineEv
     }
 }
 
-void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEvent, CC_CallPtr callPtr, CC_CallInfoPtr info, char* sdp)
+void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEvent, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
 	AutoLock lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
-        (*it)->onCallEvent(callEvent, callPtr, info, sdp);
+        (*it)->onCallEvent(callEvent, callPtr, info);
     }
 }
 

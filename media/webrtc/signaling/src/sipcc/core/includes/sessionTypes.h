@@ -77,6 +77,7 @@ typedef struct {
   string_t info;
   string_t info1;
   unsigned int state;
+  cc_jsep_action_t action;
 } ccSession_feature_t;
 
 typedef struct {
@@ -85,6 +86,8 @@ typedef struct {
   int          inst;
   line_t       line_id;
   int          cause;
+  string_t 	   sdp;
+  cc_media_track_table_t *media_track_tbl;
 } cc_call_state_data_t;
 /* CALL_SESSION_CREATED shall use the call_state as data*/
 

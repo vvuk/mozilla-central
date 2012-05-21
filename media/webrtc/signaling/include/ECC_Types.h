@@ -183,4 +183,5 @@ namespace CSF
     typedef void *VideoWindowHandle;
 	typedef void* ExternalRendererHandle;
 	typedef unsigned int VideoFormat;	
-};
+}
+

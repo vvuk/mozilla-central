@@ -46,6 +46,7 @@
 #include "CSFVideoTermination.h"
 #include "VcmSIPCCBinding.h"
 #include "csf_common.h"
+#include "PeerConnectionImpl.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -82,7 +83,8 @@ typedef enum {
 using namespace CSF;
 
 VcmSIPCCBinding * VcmSIPCCBinding::_pSelf = NULL;
-
+int VcmSIPCCBinding::mAudioCodecMask = 0;
+int VcmSIPCCBinding::mVideoCodecMask = 0;
 
 // The media provider passsed in here will be owned by VcmSIPCCBinding, and so it destroys
 // it later.
@@ -129,6 +131,28 @@ MediaProviderObserver * VcmSIPCCBinding::getMediaProviderObserver()
     	return _pSelf->mediaProviderObserver;
 
     return NULL;
+}
+
+void VcmSIPCCBinding::setAudioCodecs(int codecMask)
+{
+  printf("SETTING AUDIO %X", codecMask);
+  VcmSIPCCBinding::mAudioCodecMask = codecMask;
+}
+
+void VcmSIPCCBinding::setVideoCodecs(int codecMask)
+{
+  printf("SETTING VIDEO %X", codecMask);
+  VcmSIPCCBinding::mVideoCodecMask = codecMask;
+}
+
+int VcmSIPCCBinding::getAudioCodecs()
+{
+  return VcmSIPCCBinding::mAudioCodecMask;
+}
+
+int VcmSIPCCBinding::getVideoCodecs()
+{
+  return VcmSIPCCBinding::mVideoCodecMask;
 }
 
 
@@ -1149,6 +1173,9 @@ map_codec_request_type( int request_type )
 
 int vcmGetAudioCodecList(int request_type) 
 {
+// Direct access to media layer replaced by locally stored codecMask
+// set in PeerConnectionImpl
+#if 0
     const char fname[] = "vcmGetAudioCodecList";
     int retVal;
     int codecMask = 0;
@@ -1165,6 +1192,12 @@ int vcmGetAudioCodecList(int request_type)
 
     CSFLogDebug( logTag, "%s(codec_mask = %X)", fname, codecMask);
     return codecMask;
+#else
+  int codecMask = VcmSIPCCBinding::getAudioCodecs();
+  CSFLogDebug(logTag, "GetAudioCodecList returning %X", codecMask);
+  
+  return codecMask;
+#endif
 }
 
 /**
@@ -1189,6 +1222,9 @@ int vcmGetAudioCodecList(int request_type)
 
 int vcmGetVideoCodecList(int request_type)
 {
+// Direct access to media layer replaced by locally stored codecMask
+// set in PeerConnectionImpl
+#if 0
     const char fname[] = "vcmGetVideoCodecList";
     int retVal = 0;
     int codecMask = 0;
@@ -1204,6 +1240,12 @@ int vcmGetVideoCodecList(int request_type)
 
     //return codecMask;
 	return VCM_CODEC_RESOURCE_H264;
+#else
+  int codecMask = VcmSIPCCBinding::getVideoCodecs();
+  CSFLogDebug(logTag, "GetVideoCodecList returning %X", codecMask);
+  
+  return codecMask;
+#endif
 }
 
 /**

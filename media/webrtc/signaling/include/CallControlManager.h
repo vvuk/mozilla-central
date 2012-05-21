@@ -122,6 +122,10 @@ namespace CSF
          */
         virtual void setLocalIpAddressAndGateway(const std::string& localIpAddress, const std::string& defaultGW) = 0;
 
+        // Add local codecs
+        virtual void setAudioCodecs(int codecMask) = 0;
+        virtual void setVideoCodecs(int codecMask) = 0;
+
         virtual bool registerUser(const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain) = 0;
         virtual bool disconnect() = 0;
         virtual std::string getPreferredDeviceName() = 0;
@@ -129,8 +133,11 @@ namespace CSF
         virtual ConnectionStatusEnum::ConnectionStatus getConnectionStatus() = 0;
         virtual std::string getCurrentServer() = 0;
 
-        /* P2P API */
+        /* P2P MODE */
         virtual bool startP2PMode(const std::string& user) = 0;
+        
+        /* SDP MODE */
+        virtual bool startSDPMode() = 0;        
 
         /* ROAP Proxy Mode */
         virtual bool startROAPProxy( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain ) = 0;
@@ -164,4 +171,5 @@ namespace CSF
     };
 
 
-};//end namespace CSF
+} //end namespace CSF
+

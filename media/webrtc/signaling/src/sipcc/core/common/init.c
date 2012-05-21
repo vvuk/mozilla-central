@@ -310,10 +310,6 @@ thread_init ()
      */
     debugInit();
 
-    /* initialize adapter level debugs */
-    //debug_bind_keyword("sip-adapter", &TNPDebug);
-//    bind_clear_keyword("mwi", &ui_clear_mwi);
-
     /* create threads */
     ccapp_thread = cprCreateThread("CCAPP Task",
                                  (cprThreadStartRoutine) CCApp_task,
@@ -333,7 +329,7 @@ thread_init ()
     }
 #endif
 #endif
-
+	
     /* SIP main thread */
     sip_thread = cprCreateThread("SIPStack task",
                                  (cprThreadStartRoutine) sip_platform_task_loop,
@@ -376,7 +372,7 @@ thread_init ()
 #endif
 
     /* Associate the threads with the message queues */
-    (void) cprSetMessageQueueThread(sip_msgq, sip_thread);
+    (void) cprSetMessageQueueThread(sip_msgq, sip_thread);  
     (void) cprSetMessageQueueThread(gsm_msgq, gsm_thread);
     (void) cprSetMessageQueueThread(misc_app_msgq, misc_app_thread);
     (void) cprSetMessageQueueThread(ccapp_msgq, ccapp_thread);
@@ -493,6 +489,9 @@ send_task_unload_msg(cc_srcs_t dest_id)
     const char *fname = "send_task_unload_msg";
     uint16_t len = 4;
     cprBuffer_t  msg =  gsm_get_buffer(len);
+    int  sdpmode = 0;
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     if (msg == NULL) {
         err_msg("%s: failed to allocate  msg cprBuffer_t\n", fname);
@@ -512,7 +511,10 @@ send_task_unload_msg(cc_srcs_t dest_id)
             /* send this msg so phone can send unRegister msg */
             SIPTaskPostShutdown(SIP_EXTERNAL, CC_CAUSE_SHUTDOWN, "");
             /* allow unRegister msg to sent out and shutdown to complete */
-            cprSleep(2000);
+
+            if (sdpmode == FALSE) {
+                cprSleep(2000);
+            }
             /* send a unload message to the SIP Task to kill sip thread*/
             msg =  SIPTaskGetBuffer(len);
             if (msg == NULL) {

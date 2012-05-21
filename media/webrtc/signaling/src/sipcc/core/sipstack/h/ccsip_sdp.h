@@ -108,6 +108,7 @@ PMH_EXTERN cc_sdp_t *sipsdp_create_from_buf(char *buf, uint32_t nbytes,
 #define SIPSDP_ATTR_ENCNAME_ILBC      "iLBC"
 #define SIPSDP_ATTR_ENCNAME_H263v2    "H263-1998"
 #define SIPSDP_ATTR_ENCNAME_H264      "H264"
+#define SIPSDP_ATTR_ENCNAME_VP8       "VP8"
 #define SIPSDP_ATTR_ENCNAME_L16_256K  "L16"
 #define SIPSDP_ATTR_ENCNAME_ISAC      "ISAC"
 

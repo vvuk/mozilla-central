@@ -227,8 +227,10 @@
 
 #define MAX_PHONE_LINES       8
 #define MAX_REG_LINES         8
-#define MAX_CALLS            51
-#define MAX_CALLS_PER_LINE   51
+//#define MAX_CALLS            51
+//#define MAX_CALLS_PER_LINE   51
+#define MAX_CALLS            2
+#define MAX_CALLS_PER_LINE   2
 /*
  * MAX_INSTANCES (call_instances) should equal to maximum number of calls
  * allowed by the phone but MAX_CALLS is defined to be 1 more than the 

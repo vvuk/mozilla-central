@@ -133,6 +133,11 @@ namespace CSF
         virtual void removeStream(int streamId);
         virtual bool setVolume(int volume);
         virtual bool originateP2PCall (cc_sdp_direction_t video_pref, const std::string & digits, const std::string & ip);
+        virtual int createOffer(cc_sdp_direction_t video_pref, const std::string & hints);
+        virtual int createAnswer(cc_sdp_direction_t video_pref, const std::string & hints, const std::string & offersdp);
+        virtual int setLocalDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);
+        virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);		
+        virtual void addIceCandidate(const std::string& strCandidate);
 
         virtual CC_SIPCCCallMediaDataPtr getMediaData();
 
@@ -143,7 +148,7 @@ namespace CSF
         Lock m_lock;
     };
 
-};
+}
 
 
 #endif

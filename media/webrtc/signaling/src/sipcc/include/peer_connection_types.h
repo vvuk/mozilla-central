@@ -19,9 +19,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Enda Mannion <emannion@cisco.com>
- *  Suhas Nandakumar <snandaku@cisco.com>
- *  Ethan Hugg <ehugg@cisco.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,47 +34,43 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#pragma once
+#ifndef _PEER_CONNECTION_TYPES_H_
+#define _PEER_CONNECTION_TYPES_H_
 
-#include "CC_Common.h"
+#define MAX_TRACKS 8
 
-extern "C"
-{
-#include "ccapi_types.h"
-}
+enum StatusCode { 
+    PC_OK = 0, 
+    PC_INVALID_HINTS, 
+    PC_INVALID_OFFER, 
+    PC_INVALID_REMOTE_SDP, 
+    PC_INVALID_LOCAL_SDP, 
+    PC_NO_OBSERVER,
+    PC_SDPCHANGED,
+    PC_SETLOCALDESCERROR,
+    PC_SETREMOTEDESCERROR
+};
 
-namespace CSF
-{
 
-    class ECC_API CC_Device
-    {
-    protected:
-        CC_Device() {}
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
 
-    public:
-        virtual ~CC_Device() {};
+typedef struct MediaTrack {
+	unsigned short  ref_id;
+    int             video;
+} MediaTrack_t;
 
-        virtual std::string toString() = 0;
+typedef struct MediaTrackTable {
+	unsigned short    stream_id;
+    MediaTrack_t      track[MAX_TRACKS];
+} MediaTrackTable;
 
-        virtual CC_DeviceInfoPtr getDeviceInfo () = 0;
+//#ifdef __cplusplus
+//}
+//#endif
+// UPDATE: declare an instance here:
+//extern MediaTrackTable MediaTrackTable_t;
 
-        /**
-           Create a call on the device. Line selection is on the first available line.
-           Lines that have their MNC reached will be skipped. If you have a specific line
-           you want to make a call on (assuming the device has more than available) then
-           you should use CC_Line::createCall() to do that.
 
-           @return CC_CallPtr - the created call object wrapped in a smart_ptr.
-         */
-        virtual CC_CallPtr createCall() = 0;
-
-        virtual void enableVideo(bool enable) = 0;
-        virtual void enableCamera(bool enable) = 0;    
-		virtual void setDigestNamePasswd (char *name, char *pw) = 0;
-
-    private:
-		// Cannot copy - clients should be passing the pointer not the object.
-		CC_Device& operator=(const CC_Device& rhs);
-		CC_Device(const CC_Device&);
-    };
-}
+#endif /*_PEER_CONNECTION_TYPES_H_*/

@@ -134,5 +134,8 @@ extern boolean gsmsdp_handle_media_cap_change(fsmdef_dcb_t *dcb_p,
 extern boolean gsmsdp_update_local_sdp_media_capability(fsmdef_dcb_t *dcb_p,
                                               boolean refresh, boolean hold);
 boolean is_gsmsdp_media_ip_updated_to_latest( fsmdef_dcb_t * dcb );
+
+void gsmsdp_add_track(fsmdef_dcb_t * dcb, fsmdef_media_t *media);
+
 #endif
 

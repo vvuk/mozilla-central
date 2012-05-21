@@ -312,7 +312,6 @@ GSMTask (void *arg)
     if (platThreadInit("GSMTask") != 0) {
         return;
     }
-
     /*
      * Adjust relative priority of GSM thread.
      */

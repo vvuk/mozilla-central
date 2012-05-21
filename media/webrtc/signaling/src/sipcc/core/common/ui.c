@@ -1598,3 +1598,182 @@ ui_control_feature (line_t line_id, callid_t call_id,
 {
     // do nothing.
 }
+
+/**
+ *  Send data from createOffer to the UI, can send success with SDP string
+ *  or can send error
+ *
+ *  @return none
+ */
+void ui_create_offer(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, char* sdp)
+{
+    static const char fname[] = "ui_create_offer";
+    session_update_t msg;
+
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d attr=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, fname), event, call_instance_id);
+
+    if (nCallID == CC_NO_CALL_ID) {
+        /* no operation when no call ID */
+        return;
+    }
+
+    msg.sessionID = createSessionId(nLine, nCallID);
+
+    msg.eventID = CREATE_OFFER;
+    msg.update.ccSessionUpd.data.state_data.state = event;
+    msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
+    msg.update.ccSessionUpd.data.state_data.line_id = nLine;
+    msg.update.ccSessionUpd.data.state_data.sdp = sdp;
+
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);
+    }
+
+    return;
+}
+
+/**
+ *  Send data from createAnswer to the UI, can send success with SDP string
+ *  or can send error
+ *
+ *  @return none
+ */
+void ui_create_answer(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, char* sdp)
+{
+    static const char fname[] = "ui_create_answer";
+    session_update_t msg;
+
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, fname), event, call_instance_id);
+
+    if (nCallID == CC_NO_CALL_ID) {
+        /* no operation when no call ID */
+        return;
+    }
+
+    msg.sessionID = createSessionId(nLine, nCallID);
+
+    msg.eventID = CREATE_ANSWER;
+    msg.update.ccSessionUpd.data.state_data.state = event;
+    msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
+    msg.update.ccSessionUpd.data.state_data.line_id = nLine;
+    msg.update.ccSessionUpd.data.state_data.sdp = sdp;
+
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);
+    }
+
+    return;
+}
+
+/**
+ *  Send data from setLocalDescription to the UI
+ *
+ *  @return none
+ */
+
+void ui_set_local_description(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, char* sdp, cc_int32_t status)
+{
+    static const char fname[] = "ui_set_local_description";
+    session_update_t msg;
+
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, fname), event, call_instance_id);
+
+    if (nCallID == CC_NO_CALL_ID) {
+        /* no operation when no call ID */
+        return;
+    }
+
+    msg.sessionID = createSessionId(nLine, nCallID);
+
+    msg.eventID = SET_LOCAL_DESC;
+    msg.update.ccSessionUpd.data.state_data.state = event;
+    msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
+    msg.update.ccSessionUpd.data.state_data.line_id = nLine;
+    msg.update.ccSessionUpd.data.state_data.sdp = sdp;
+    msg.update.ccSessionUpd.data.state_data.cause = status;
+
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);
+    }
+
+    return;
+}
+
+/**
+ *  Send data from setRemoteDescription to the UI
+ *
+ *  @return none
+ */
+
+void ui_set_remote_description(call_events event, line_t nLine, callid_t nCallID,
+                 	 uint16_t call_instance_id, char* sdp, cc_int32_t status)
+{
+    static const char fname[] = "ui_set_remote_description";
+    session_update_t msg;
+
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, fname), event, call_instance_id);
+
+    if (nCallID == CC_NO_CALL_ID) {
+        /* no operation when no call ID */
+        return;
+    }
+
+    msg.sessionID = createSessionId(nLine, nCallID);
+
+    msg.eventID = SET_REMOTE_DESC;
+    msg.update.ccSessionUpd.data.state_data.state = event;
+    msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
+    msg.update.ccSessionUpd.data.state_data.line_id = nLine;
+    msg.update.ccSessionUpd.data.state_data.sdp = sdp;
+    msg.update.ccSessionUpd.data.state_data.cause = status;
+
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);
+    }
+
+    return;
+}
+
+
+/**
+ *  Send Remote Stream data to the UI
+ *
+ *  @return none
+ */
+
+void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID, uint16_t call_instance_id)
+{
+    static const char fname[] = "ui_on_remote_stream_added";
+    session_update_t msg;
+    fsmdef_dcb_t *dcb = fsmdef_get_dcb_by_call_id(nCallID);
+
+    if (nCallID == CC_NO_CALL_ID || dcb == NULL) {
+        /* no operation when no call ID */
+        return;
+    }
+
+    TNP_DEBUG(DEB_L_C_F_PREFIX"state=%d call_instance=%d\n",
+              DEB_L_C_F_PREFIX_ARGS(UI_API, nLine, nCallID, fname), event, call_instance_id);
+
+
+    msg.sessionID = createSessionId(nLine, nCallID);
+
+    msg.eventID = REMOTE_STREAM_ADD;
+    msg.update.ccSessionUpd.data.state_data.state = event;
+    msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
+    msg.update.ccSessionUpd.data.state_data.line_id = nLine;
+    msg.update.ccSessionUpd.data.state_data.media_track_tbl = dcb->media_track_tbl;
+
+    if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
+        CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);
+    }
+
+    return;
+}

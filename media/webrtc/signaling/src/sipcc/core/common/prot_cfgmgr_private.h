@@ -226,6 +226,7 @@ typedef struct
     char        external_number_mask[MAX_EXTERNAL_NUMBER_MASK_SIZE];
     char        media_ip_addr[MAX_IPADDR_STR_LEN];
     int         p2psip;
+    int         sdpmode;
     int			roapproxy;
     int			roapclient;
     char        version[4];
@@ -439,6 +440,7 @@ var_t prot_cfg_table[CFGID_PROTOCOL_MAX+1] = {
         {"roapproxy", CFGVAR(roapproxy),       PA_INT, PR_INT, 0},
         {"roapclient", CFGVAR(roapclient),       PA_INT, PR_INT, 0},
         {"version", CFGVAR(version),    PA_STR, PR_STR, 0},
+        {"sdpmode", CFGVAR(sdpmode),       PA_INT, PR_INT, 0},
         {0,                              0,      0,      0, 0, 0}
   };
 

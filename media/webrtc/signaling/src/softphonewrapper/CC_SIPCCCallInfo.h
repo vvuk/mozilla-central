@@ -43,6 +43,7 @@
 #include "CC_CallInfo.h"
 #include "CC_SIPCCCall.h"
 
+
 #include "common/Wrapper.h"
 
 extern "C" {
@@ -51,6 +52,7 @@ extern "C" {
 
 namespace CSF
 {
+
 	DECLARE_PTR(CC_SIPCCCallInfo);
     class CC_SIPCCCallInfo : public CC_CallInfo
     {
@@ -108,6 +110,9 @@ namespace CSF
         virtual bool isMediaStateAvailable();
         virtual bool isAudioMuted();
         virtual bool isVideoMuted();
+        virtual std::string getSDP();
+        virtual cc_int32_t getStatusCode();
+        virtual MediaTrackTable* getMediaTracks();
 
         virtual void setMediaData(CC_SIPCCCallMediaDataPtr  pMediaData);
 

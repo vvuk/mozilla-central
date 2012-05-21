@@ -650,6 +650,10 @@ sip_config_video_supported_codecs_get (rtp_ptype aSupportedCodecs[],
       aSupportedCodecs[count] = RTP_H263;
       count++;
     }
+    if ( codec_mask & VCM_CODEC_RESOURCE_VP8) {
+      aSupportedCodecs[count] = RTP_VP8;
+      count++;
+    }
 
     return count;
 }

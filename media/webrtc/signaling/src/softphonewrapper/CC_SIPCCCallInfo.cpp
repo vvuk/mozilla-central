@@ -277,6 +277,21 @@ bool CC_SIPCCCallInfo::isVideoMuted()
     return (CCAPI_CallInfo_isVideoMuted(callinfo_ref) != 0);
 }
 
+string CC_SIPCCCallInfo::getSDP()
+{
+	return CCAPI_CallInfo_getSDP(callinfo_ref);
+}
+
+cc_int32_t CC_SIPCCCallInfo::getStatusCode()
+{
+    return CCAPI_CallInfo_getStatusCode(callinfo_ref);
+}
+
+MediaTrackTable* CC_SIPCCCallInfo::getMediaTracks()
+{
+    return CCAPI_CallInfo_getMediaTrackTable(callinfo_ref);
+}
+
 bool CC_SIPCCCallInfo::isMediaStateAvailable()
 {
     // for softphone it will always be possible to query the mute state and video direction

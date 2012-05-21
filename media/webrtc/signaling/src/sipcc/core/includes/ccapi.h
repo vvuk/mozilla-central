@@ -57,6 +57,7 @@ typedef int cc_causes_t;
 #define  CC_CALL_FORWARDED  CC_CALL_TYPE_FORWARDED
 #define  CC_CALL_NONE       CC_CALL_TYPE_NONE
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
+#define  SDP_SIZE			1024   // must increase this
 
 #include "sessionConstants.h"
 
@@ -68,8 +69,9 @@ extern cc_reg_state_t ccapp_get_state();
 
 //  global sdp structure
 typedef struct cc_global_sdp_ {
-	char			offerSDP[1020];
-	char			answerSDP[1024];
+	char			offerSDP[SDP_SIZE];
+	char			answerSDP[SDP_SIZE];
+	char			remoteOfferSDP[SDP_SIZE];
 	char			offerAddress[MAX_IPADDR_STR_LEN];
 	int				audioPort;
 	int				videoPort;
@@ -128,6 +130,12 @@ typedef enum {
     CC_FEATURE_CAC_RESP_FAIL,
     CC_FEATURE_FAST_PIC_UPD,
     CC_FEATURE_UNDEFINED,
+    CC_FEATURE_CREATEOFFER,
+    CC_FEATURE_CREATEANSWER,
+    CC_FEATURE_SETLOCALDESC,
+    CC_FEATURE_SETREMOTEDESC,
+    CC_FEATURE_LOCALDESC,
+    CC_FEATURE_REMOTEDESC,        
     CC_FEATURE_MAX
 } group_cc_feature_t;
 
@@ -149,6 +157,7 @@ typedef enum {
 #define CC_CISCO_PLAR_STRING  "x-cisco-serviceuri-offhook"
 #define CISCO_BLFPICKUP_STRING  "x-cisco-serviceuri-blfpickup"
 #define JOIN_ACROSS_LINES_DISABLED 0
+#define CC_MAX_TRACKS          8   // <EM> query this figure
 
 /*
  *
@@ -182,6 +191,12 @@ typedef enum cc_msgs_t_ {
     CC_MSG_DIALSTRING,
     CC_MSG_MWI,
     CC_MSG_AUDIT,
+    CC_MSG_CREATEOFFER,  
+    CC_MSG_CREATEANSWER,
+    CC_MSG_SETLOCALDESC,
+    CC_MSG_SETREMOTEDESC,  
+    CC_MSG_REMOTEDESC,
+    CC_MSG_LOCALDESC,
     CC_MSG_AUDIT_ACK,
     CC_MSG_OPTIONS,
     CC_MSG_OPTIONS_ACK,
@@ -705,6 +720,16 @@ typedef struct cc_media_cap_table_t_ {
     cc_media_cap_t  cap[CC_MAX_MEDIA_CAP];/* capability table.             */
 } cc_media_cap_table_t;
 
+typedef struct cc_media_track_t_ {
+	unsigned short  ref_id;
+    boolean         video;
+} cc_media_track_t;
+
+typedef struct cc_media_track_table_t_ {
+    uint32_t          stream_id;
+    cc_media_track_t  track[CC_MAX_TRACKS];
+} cc_media_track_table_t;
+
 typedef struct cc_feature_data_generic_t {
     boolean subref_flag;
     uint32_t     eventid;
@@ -834,6 +859,8 @@ typedef struct cc_feature_t_ {
     cc_features_t     feature_id;
     cc_feature_data_t data;
     boolean           data_valid;
+    cc_jsep_action_t  action;
+    char              sdp[SDP_SIZE];
 } cc_feature_t;
 
 typedef struct cc_feature_ack_t_ {
@@ -1055,6 +1082,24 @@ void cc_int_feature(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                     line_t line, cc_features_t feature_id,
                     cc_feature_data_t *data);
 
+void cc_createoffer(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
+                    line_t line, cc_features_t feature_id, cc_feature_data_t *data);
+                   
+void cc_createanswer (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
+                    line_t line, cc_features_t feature_id, string_t sdp, cc_feature_data_t *data);
+
+void cc_setlocaldesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line, 
+                    cc_features_t feature_id, cc_jsep_action_t action, string_t sdp, cc_feature_data_t *data);
+
+void cc_setremotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line, 
+                    cc_features_t feature_id, cc_jsep_action_t action, string_t sdp, cc_feature_data_t *data);
+
+void cc_localdesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line, 
+                    cc_features_t feature_id, cc_feature_data_t *data);
+
+void cc_remotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line, 
+                    cc_features_t feature_id, cc_feature_data_t *data);
+                   
 void cc_int_feature_ack(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                         line_t line, cc_features_t feature_id,
                         cc_feature_data_t *data, cc_causes_t cause);

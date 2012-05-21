@@ -11,17 +11,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Cisco Systems SIP Stack.
- *
- * The Initial Developer of the Original Code is
- * Cisco Systems (CSCO).
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
  * Contributor(s):
- *  Enda Mannion <emannion@cisco.com>
- *  Suhas Nandakumar <snandaku@cisco.com>
- *  Ethan Hugg <ehugg@cisco.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,27 +27,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#pragma once
+#ifndef _CODEC_INFO_IMPL_H_
+#define _CODEC_INFO_IMPL_H_
 
-#include "CC_Common.h"
+#include <string>
+#include <map>
 
-extern "C"
+#include "prlock.h"
+#include "PeerConnection.h"
+
+namespace sipcc
 {
-#include "ccapi_types.h"
+
+class CodecListImpl
+{
+private:
+  PRLock *mLockAudioCodecs;
+  std::map<std::string, CodecInfo*> mAudioCodecs;
+  PRLock *mLockVideoCodecs;
+  std::map<std::string, CodecInfo*> mVideoCodecs;
+private:
+  void DestroyCodecList(std::map<std::string, CodecInfo*>& codecMap);
+  void AddCodec(std::map<std::string, CodecInfo*>& codecMap, CodecInfo *pCodec);
+
+public:
+  CodecListImpl();
+  ~CodecListImpl();
+  void AddAudioCodec(CodecInfo* pCodecInfo);
+  void AddVideoCodec(CodecInfo* pCodecInfo);
+  std::map<std::string, CodecInfo*>* GetAndLockAudioCodecs();
+  void UnlockAudioCodecs();
+  std::map<std::string, CodecInfo*>* GetAndLockVideoCodecs();
+  void UnlockVideoCodecs();
+};
+
 }
 
-namespace CSF
-{
-	/**
-	 * These callbacks relate to the "core" Call Control API objects CC_Device, CC_Line and CC_Call.
-	 */
-    class ECC_API CC_Observer
-    {
-    public:
-        virtual void onDeviceEvent  ( ccapi_device_event_e deviceEvent, CC_DevicePtr device, CC_DeviceInfoPtr info ) = 0;
-        virtual void onFeatureEvent ( ccapi_device_event_e deviceEvent, CC_DevicePtr device, CC_FeatureInfoPtr feature_info) = 0;
-        virtual void onLineEvent    ( ccapi_line_event_e lineEvent,     CC_LinePtr line,     CC_LineInfoPtr info ) = 0;
-        virtual void onCallEvent    ( ccapi_call_event_e callEvent,     CC_CallPtr call,     CC_CallInfoPtr infog ) = 0;
-    };
+#endif
 
-}
