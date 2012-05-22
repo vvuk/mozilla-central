@@ -60,9 +60,9 @@ LOCAL_INCLUDES += \
  $(NULL)
 
 CPP_UNIT_TESTS = \
-  sockettransportservice_unittest$(BIN_SUFFIX) \
-  transport_unittests$(BIN_SUFFIX) \
-  runnable_utils_unittest$(BIN_SUFFIX) \
+  sockettransportservice_unittest.cpp \
+  transport_unittests.cpp \
+  runnable_utils_unittest.cpp \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
