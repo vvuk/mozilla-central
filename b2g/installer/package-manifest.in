@@ -1,3 +1,7 @@
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ; Package file for the B2G build. 
 ;
 ; File format:
@@ -204,6 +208,7 @@
 @BINPATH@/components/intl.xpt
 @BINPATH@/components/jar.xpt
 @BINPATH@/components/jetpack.xpt
+@BINPATH@/components/jsdebugger.xpt
 @BINPATH@/components/jsdservice.xpt
 @BINPATH@/components/layout_base.xpt
 @BINPATH@/components/layout_forms.xpt
@@ -300,8 +305,8 @@
 ; JavaScript components
 @BINPATH@/components/ConsoleAPI.manifest
 @BINPATH@/components/ConsoleAPI.js
-@BINPATH@/components/BrowserElementAPI.manifest
-@BINPATH@/components/BrowserElementAPI.js
+@BINPATH@/components/BrowserElementParent.manifest
+@BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
 @BINPATH@/components/FeedProcessor.manifest
@@ -446,6 +451,8 @@
 @BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/Webapps.js
 @BINPATH@/components/Webapps.manifest
+@BINPATH@/components/AppsService.js
+@BINPATH@/components/AppsService.manifest
 
 ; Modules
 @BINPATH@/modules/*

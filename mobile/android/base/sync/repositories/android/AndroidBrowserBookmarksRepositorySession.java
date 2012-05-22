@@ -5,6 +5,7 @@
 package org.mozilla.gecko.sync.repositories.android;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,15 +30,20 @@ import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelega
 import org.mozilla.gecko.sync.repositories.domain.BookmarkRecord;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
+import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
+import android.net.Uri;
 
-public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepositorySession {
+public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepositorySession
+  implements BookmarksInsertionManager.BookmarkInserter {
 
   public static final int DEFAULT_DELETION_FLUSH_THRESHOLD = 50;
+  public static final int DEFAULT_INSERTION_FLUSH_THRESHOLD = 50;
+
   // TODO: synchronization for these.
-  private HashMap<String, Long> guidToID = new HashMap<String, Long>();
-  private HashMap<Long, String> idToGuid = new HashMap<Long, String>();
+  private HashMap<String, Long> parentGuidToIDMap = new HashMap<String, Long>();
+  private HashMap<Long, String> parentIDToGuidMap = new HashMap<Long, String>();
 
   /**
    * Some notes on reparenting/reordering.
@@ -101,6 +107,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   private AndroidBrowserBookmarksDataAccessor dataAccessor;
 
   protected BookmarksDeletionManager deletionManager;
+  protected BookmarksInsertionManager insertionManager;
 
   /**
    * An array of known-special GUIDs.
@@ -227,13 +234,13 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   }
 
   private String getGUIDForID(long androidID) {
-    String guid = idToGuid.get(androidID);
+    String guid = parentIDToGuidMap.get(androidID);
     trace("  " + androidID + " => " + guid);
     return guid;
   }
 
   private long getIDForGUID(String guid) {
-    Long id = guidToID.get(guid);
+    Long id = parentGuidToIDMap.get(guid);
     if (id == null) {
       Logger.warn(LOG_TAG, "Couldn't find local ID for GUID " + guid);
       return -1;
@@ -291,19 +298,20 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
    * @param persist
    *        True if generated positions should be written to the database. The modified
    *        time of the parent folder is only bumped if this is true.
+   * @param childArray
+   *        A new, empty JSONArray which will be populated with an array of GUIDs.
    * @return
-   *        An array of GUIDs.
+   *        True if the resulting array is "clean" (i.e., reflects the content of the database).
    * @throws NullCursorException
    */
   @SuppressWarnings("unchecked")
-  private JSONArray getChildrenArray(long folderID, boolean persist) throws NullCursorException {
+  private boolean getChildrenArray(long folderID, boolean persist, JSONArray childArray) throws NullCursorException {
     trace("Calling getChildren for androidID " + folderID);
-    JSONArray childArray = new JSONArray();
     Cursor children = dataAccessor.getChildren(folderID);
     try {
       if (!children.moveToFirst()) {
         trace("No children: empty cursor.");
-        return childArray;
+        return true;
       }
       final int positionIndex = children.getColumnIndex(BrowserContract.Bookmarks.POSITION);
       final int count = children.getCount();
@@ -337,6 +345,9 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
         if (atPos > 1 || pos != i) {
           changed = true;
         }
+
+        ++i;
+
         for (String guid : entry.getValue()) {
           if (!forbiddenGUID(guid)) {
             childArray.add(guid);
@@ -351,11 +362,12 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
 
       if (!changed) {
         Logger.debug(LOG_TAG, "Nothing moved! Database reflects child array.");
-        return childArray;
+        return true;
       }
 
       if (!persist) {
-        return childArray;
+        Logger.debug(LOG_TAG, "Returned array does not match database, and not persisting.");
+        return false;
       }
 
       Logger.debug(LOG_TAG, "Generating child array required moving records. Updating DB.");
@@ -364,11 +376,10 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
         Logger.debug(LOG_TAG, "Bumping parent time to " + time + ".");
         dataAccessor.bumpModified(folderID, time);
       }
+      return true;
     } finally {
       children.close();
     }
-
-    return childArray;
   }
 
   protected static boolean isDeleted(Cursor cur) {
@@ -419,7 +430,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     if (androidParentGUID == null) {
       Logger.debug(LOG_TAG, "No parent GUID for record " + recordGUID + " with parent " + androidParentID);
       // If the parent has been stored and somehow has a null GUID, throw an error.
-      if (idToGuid.containsKey(androidParentID)) {
+      if (parentIDToGuidMap.containsKey(androidParentID)) {
         Logger.error(LOG_TAG, "Have the parent android ID for the record but the parent's GUID wasn't found.");
         throw new NoGuidForIdException(null);
       }
@@ -480,18 +491,16 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       return null;
     }
 
-    long androidID = guidToID.get(recordGUID);
-    JSONArray childArray = getChildrenArray(androidID, persist);
-    if (childArray == null) {
-      return null;
-    }
+    long androidID = parentGuidToIDMap.get(recordGUID);
+    JSONArray childArray = new JSONArray();
+    getChildrenArray(androidID, persist, childArray);
 
     Logger.debug(LOG_TAG, "Fetched " + childArray.size() + " children for " + recordGUID);
     return childArray;
   }
 
   @Override
-  protected boolean shouldIgnore(Record record) {
+  public boolean shouldIgnore(Record record) {
     if (!(record instanceof BookmarkRecord)) {
       return true;
     }
@@ -512,7 +521,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     Logger.debug(LOG_TAG, "Ignoring record with guid: " + bmk.guid + " and type: " + bmk.type);
     return true;
   }
-  
+
   @Override
   public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
     // Check for the existence of special folders
@@ -534,7 +543,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       delegate.onBeginFailed(e);
       return;
     }
-    
+
     // To deal with parent mapping of bookmarks we have to do some
     // hairy stuff. Here's the setup for it.
 
@@ -542,15 +551,15 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
 
     // Fake our root.
     Logger.debug(LOG_TAG, "Tracking places root as ID 0.");
-    idToGuid.put(0L, "places");
-    guidToID.put("places", 0L);
+    parentIDToGuidMap.put(0L, "places");
+    parentGuidToIDMap.put("places", 0L);
     try {
       cur.moveToFirst();
       while (!cur.isAfterLast()) {
         String guid = getGUID(cur);
         long id = RepoUtils.getLongFromCursor(cur, BrowserContract.Bookmarks._ID);
-        guidToID.put(guid, id);
-        idToGuid.put(id, guid);
+        parentGuidToIDMap.put(guid, id);
+        parentIDToGuidMap.put(id, guid);
         Logger.debug(LOG_TAG, "GUID " + guid + " maps to " + id);
         cur.moveToNext();
       }
@@ -558,14 +567,88 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       cur.close();
     }
     deletionManager = new BookmarksDeletionManager(dataAccessor, DEFAULT_DELETION_FLUSH_THRESHOLD);
+
+    // We just crawled the database enumerating all folders; we'll start the
+    // insertion manager with exactly these folders as the known parents (the
+    // collection is copied) in the manager constructor.
+    insertionManager = new BookmarksInsertionManager(DEFAULT_INSERTION_FLUSH_THRESHOLD, parentGuidToIDMap.keySet(), this);
+
     Logger.debug(LOG_TAG, "Done with initial setup of bookmarks session.");
     super.begin(delegate);
   }
 
+  /**
+   * Implement method of BookmarksInsertionManager.BookmarkInserter.
+   */
+  @Override
+  public boolean insertFolder(BookmarkRecord record) {
+    // A folder that is *not* deleted needs its androidID updated, so that
+    // updateBookkeeping can re-parent, etc.
+    Record toStore = prepareRecord(record);
+    try {
+      Uri recordURI = dbHelper.insert(toStore);
+      if (recordURI == null) {
+        delegate.onRecordStoreFailed(new RuntimeException("Got null URI inserting folder with guid " + toStore.guid + "."));
+        return false;
+      }
+      toStore.androidID = ContentUris.parseId(recordURI);
+      Logger.debug(LOG_TAG, "Inserted folder with guid " + toStore.guid + " as androidID " + toStore.androidID);
+
+      updateBookkeeping(toStore);
+    } catch (Exception e) {
+      delegate.onRecordStoreFailed(e);
+      return false;
+    }
+    trackRecord(toStore);
+    delegate.onRecordStoreSucceeded(toStore);
+    return true;
+  }
+
+  /**
+   * Implement method of BookmarksInsertionManager.BookmarkInserter.
+   */
+  @Override
+  public void bulkInsertNonFolders(Collection<BookmarkRecord> records) {
+    // All of these records are *not* deleted and *not* folders, so we don't
+    // need to update androidID at all!
+    // TODO: persist records that fail to insert for later retry.
+    ArrayList<Record> toStores = new ArrayList<Record>(records.size());
+    for (Record record : records) {
+      toStores.add(prepareRecord(record));
+    }
+
+    try {
+      int stored = dataAccessor.bulkInsert(toStores);
+      if (stored != toStores.size()) {
+        // Something failed; most pessimistic action is to declare that all insertions failed.
+        // TODO: perform the bulkInsert in a transaction and rollback unless all insertions succeed?
+        for (Record failed : toStores) {
+          delegate.onRecordStoreFailed(new RuntimeException("Possibly failed to bulkInsert non-folder with guid " + failed.guid + "."));
+        }
+        return;
+      }
+    } catch (NullCursorException e) {
+      delegate.onRecordStoreFailed(e); // TODO: include which records failed.
+      return;
+    }
+
+    // Success For All!
+    for (Record succeeded : toStores) {
+      try {
+        updateBookkeeping(succeeded);
+      } catch (Exception e) {
+        Logger.warn(LOG_TAG, "Got exception updating bookkeeping of non-folder with guid " + succeeded.guid + ".", e);
+      }
+      trackRecord(succeeded);
+      delegate.onRecordStoreSucceeded(succeeded);
+    }
+  }
+
   @Override
   public void finish(RepositorySessionFinishDelegate delegate) throws InactiveSessionException {
-    // Allow this to be GCed.
+    // Allow these to be GCed.
     deletionManager = null;
+    insertionManager = null;
 
     // Override finish to do this check; make sure all records
     // needing re-parenting have been re-parented.
@@ -600,6 +683,12 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     // For now we *always* use the remote record's children array as a starting point.
     // We won't write it into the database yet; we'll record it and process as we go.
     reconciled.children = ((BookmarkRecord) remoteRecord).children;
+
+    // *Always* track folders, though: if we decide we need to reposition items, we'll
+    // untrack later.
+    if (reconciled.isFolder()) {
+      trackRecord(reconciled);
+    }
     return reconciled;
   }
 
@@ -671,8 +760,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
    * @param bmk
    */
   private void handleParenting(BookmarkRecord bmk) {
-    if (guidToID.containsKey(bmk.parentID)) {
-      bmk.androidParentID = guidToID.get(bmk.parentID);
+    if (parentGuidToIDMap.containsKey(bmk.parentID)) {
+      bmk.androidParentID = parentGuidToIDMap.get(bmk.parentID);
 
       // Might as well set a basic position from the downloaded children array.
       JSONArray children = parentToChildArray.get(bmk.parentID);
@@ -684,7 +773,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       }
     }
     else {
-      bmk.androidParentID = guidToID.get("unfiled");
+      bmk.androidParentID = parentGuidToIDMap.get("unfiled");
       ArrayList<String> children;
       if (missingParentToChildren.containsKey(bmk.parentID)) {
         children = missingParentToChildren.get(bmk.parentID);
@@ -719,8 +808,8 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     // Mappings between ID and GUID.
     // TODO: update our persisted children arrays!
     // TODO: if our Android ID just changed, replace parents for all of our children.
-    guidToID.put(bmk.guid,      bmk.androidID);
-    idToGuid.put(bmk.androidID, bmk.guid);
+    parentGuidToIDMap.put(bmk.guid,      bmk.androidID);
+    parentIDToGuidMap.put(bmk.androidID, bmk.guid);
 
     JSONArray childArray = bmk.children;
 
@@ -743,6 +832,15 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   }
 
   @Override
+  protected void insert(Record record) throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
+    try {
+      insertionManager.enqueueRecord((BookmarkRecord) record);
+    } catch (Exception e) {
+      throw new NullCursorException(e);
+    }
+  }
+
+  @Override
   protected void storeRecordDeletion(final Record record, final Record existingRecord) {
     if (SPECIAL_GUIDS_MAP.containsKey(record.guid)) {
       Logger.debug(LOG_TAG, "Told to delete record " + record.guid + ". Ignoring.");
@@ -755,10 +853,18 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     deletionManager.deleteRecord(bookmarkRecord.guid, isFolder, parentGUID);
   }
 
-  protected void flushDeletions() {
+  protected void flushQueues() {
+    long now = now();
+    Logger.debug(LOG_TAG, "Applying remaining insertions.");
+    try {
+      insertionManager.finishUp();
+      Logger.debug(LOG_TAG, "Done applying remaining insertions.");
+    } catch (Exception e) {
+      Logger.warn(LOG_TAG, "Unable to apply remaining insertions.", e);
+    }
+
     Logger.debug(LOG_TAG, "Applying deletions.");
     try {
-      long now = now();
       untrackGUIDs(deletionManager.flushAll(getIDForGUID("unfiled"), now));
       Logger.debug(LOG_TAG, "Done applying deletions.");
     } catch (Exception e) {
@@ -769,19 +875,21 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
   @SuppressWarnings("unchecked")
   private void finishUp() {
     try {
-      flushDeletions();
+      flushQueues();
       Logger.debug(LOG_TAG, "Have " + parentToChildArray.size() + " folders whose children might need repositioning.");
       for (Entry<String, JSONArray> entry : parentToChildArray.entrySet()) {
         String guid = entry.getKey();
         JSONArray onServer = entry.getValue();
         try {
           final long folderID = getIDForGUID(guid);
-          JSONArray inDB = getChildrenArray(folderID, false);
+          final JSONArray inDB = new JSONArray();
+          final boolean clean = getChildrenArray(folderID, false, inDB);
+          final boolean sameArrays = Utils.sameArrays(onServer, inDB);
 
           // If the local children and the remote children are already
           // the same, then we don't need to bump the modified time of the
           // parent: we wouldn't upload a different record, so avoid the cycle.
-          if (!Utils.sameArrays(onServer, inDB)) {
+          if (!sameArrays) {
             int added = 0;
             for (Object o : inDB) {
               if (!onServer.contains(o)) {
@@ -790,18 +898,16 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
               }
             }
             Logger.debug(LOG_TAG, "Added " + added + " items locally.");
+            Logger.debug(LOG_TAG, "Untracking and bumping " + guid + "(" + folderID + ")");
             dataAccessor.bumpModified(folderID, now());
-            // Wow, this is spectacularly wasteful.
-            Logger.debug(LOG_TAG, "Untracking " + guid);
-            final Record record = retrieveByGUIDDuringStore(guid);
-            if (record == null) {
-              return;
-            }
-            untrackRecord(record);
+            untrackGUID(guid);
           }
-          // Until getChildrenArray can tell us if it needed to make
-          // any changes at all, always update positions.
-          dataAccessor.updatePositions(new ArrayList<String>(onServer));
+
+          // If the arrays are different, or they're the same but not flushed to disk,
+          // write them out now.
+          if (!sameArrays || !clean) {
+            dataAccessor.updatePositions(new ArrayList<String>(onServer));
+          }
         } catch (Exception e) {
           Logger.warn(LOG_TAG, "Error repositioning children for " + guid, e);
         }
@@ -824,6 +930,7 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
       try {
         // Clear our queued deletions.
         deletionManager.clear();
+        insertionManager.clear();
         super.run();
       } catch (Exception ex) {
         delegate.onWipeFailed(ex);

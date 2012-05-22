@@ -95,7 +95,8 @@ BasicTiledLayerBuffer::PaintThebes(BasicTiledThebesLayer* aLayer,
     start = PR_IntervalNow();
 #endif
     SAMPLE_LABEL("BasicTiledLayerBuffer", "PaintThebesSingleBufferDraw");
-    mCallback(mThebesLayer, ctxt, aPaintRegion, aPaintRegion, mCallbackData);
+
+    mCallback(mThebesLayer, ctxt, aPaintRegion, nsIntRegion(), mCallbackData);
   }
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
@@ -151,13 +152,7 @@ BasicTiledLayerBuffer::ValidateTileInternal(BasicTiledLayerTile aTile,
 
   // Bug 742100, this gfxContext really should live on the stack.
   nsRefPtr<gfxContext> ctxt = new gfxContext(writableSurface);
- if (!mThebesLayer->CanUseOpaqueSurface()) {
-    ctxt->NewPath();
-    ctxt->SetOperator(gfxContext::OPERATOR_CLEAR);
-    ctxt->Rectangle(drawRect, true);
-    ctxt->Fill();
-    ctxt->SetOperator(gfxContext::OPERATOR_OVER);
-  }
+  ctxt->SetOperator(gfxContext::OPERATOR_SOURCE);
   if (mSinglePaintBuffer) {
     ctxt->NewPath();
     ctxt->SetSource(mSinglePaintBuffer.get(),
@@ -213,6 +208,7 @@ BasicTiledThebesLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 
 void
 BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
+                                   Layer* aMaskLayer,
                                    LayerManager::DrawThebesLayerCallback aCallback,
                                    void* aCallbackData,
                                    ReadbackProcessor* aReadback)
@@ -235,8 +231,18 @@ BasicTiledThebesLayer::PaintThebes(gfxContext* aContext,
   mTiledBuffer.PaintThebes(this, mVisibleRegion, regionToPaint, aCallback, aCallbackData);
   mTiledBuffer.ReadLock();
   mValidRegion = mVisibleRegion;
+  if (aMaskLayer) {
+    static_cast<BasicImplData*>(aMaskLayer->ImplData())
+      ->Paint(aContext, nsnull);
+  }
 
-  BasicManager()->PaintedTiledLayerBuffer(BasicManager()->Hold(this), &mTiledBuffer);
+  // Create a heap copy owned and released by the compositor. This is needed
+  // since we're sending this over an async message and content needs to be
+  // be able to modify the tiled buffer in the next transaction.
+  // TODO: Remove me once Bug 747811 lands.
+  BasicTiledLayerBuffer *heapCopy = new BasicTiledLayerBuffer(mTiledBuffer);
+
+  BasicManager()->PaintedTiledLayerBuffer(BasicManager()->Hold(this), heapCopy);
 }
 
 } // mozilla

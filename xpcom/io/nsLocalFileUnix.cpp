@@ -1,49 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */ 
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-1999
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Mike Shaver            <shaver@mozilla.org>
- *   Christopher Blizzard   <blizzard@mozilla.org>
- *   Jason Eager            <jce2@po.cwru.edu>
- *   Stuart Parmenter       <pavlov@netscape.com>
- *   Brendan Eich           <brendan@mozilla.org>
- *   Pete Collins           <petejc@mozdev.org>
- *   Paul Ashford           <arougthopher@lizardland.net>
- *   Fredrik Holmqvist      <thesuckiestemail@yahoo.se>
- *   Josh Aas               <josh@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * Implementation of nsIFile for "unixy" systems.
@@ -165,15 +123,7 @@ nsDirEnumeratorUnix : public nsISimpleEnumerator,
     DIR           *mDir;
     struct dirent *mEntry;
     nsCString      mParentPath;
-#ifdef ANDROID
-    off_t          mNextOffset;
-#endif
 };
-
-#ifdef ANDROID
-#define YAFFS2_MAGIC 0x5941FF53
-static uint32_t sFSMagic = 0;
-#endif
 
 nsDirEnumeratorUnix::nsDirEnumeratorUnix() :
                          mDir(nsnull), 
@@ -199,22 +149,6 @@ nsDirEnumeratorUnix::Init(nsLocalFile *parent, bool resolveSymlinks /*ignored*/)
 
     if (NS_FAILED(parent->GetNativePath(mParentPath)))
         return NS_ERROR_FAILURE;
-
-#ifdef ANDROID
-    mNextOffset = -1;
-    if (!sFSMagic) {
-        struct STATFS fs;
-        if (!STATFS("/data", &fs)) {
-            sFSMagic = fs.f_type;
-            if (sFSMagic == YAFFS2_MAGIC) {
-                printf_stderr("Using YAFFS2 workarounds");
-            }
-        } else {
-            printf_stderr("Could not determine the fs of /data");
-            sFSMagic = 0xFFFFFFFF;
-        }
-    }
-#endif
 
     mDir = opendir(dirPath.get());
     if (!mDir)
@@ -245,25 +179,6 @@ nsDirEnumeratorUnix::GetNext(nsISupports **_retval)
 NS_IMETHODIMP
 nsDirEnumeratorUnix::GetNextEntry()
 {
-#ifdef ANDROID
-    /* Workaround yaffs2 bug
-     *
-     * This is only used on Android if /data is a yaffs2 partition.
-     * However, this workaround would apply to any linux system
-     * unlucky enough to be using yaffs2.
-     *
-     * yaffs2 may reset the offset on readdir calls if we've done something
-     * to a file in the directory since the last call.
-     * This can end up in an infinite loop.
-     */
-    if (sFSMagic == YAFFS2_MAGIC && mNextOffset >= 0) {
-        // Let yaffs2 clobber the offset
-        mEntry = readdir(mDir);
-        // And then set the right offset we cached from last time
-        lseek(dirfd(mDir), mNextOffset, SEEK_SET);
-    }
-#endif
-
     do {
         errno = 0;
         mEntry = readdir(mDir);
@@ -277,14 +192,6 @@ nsDirEnumeratorUnix::GetNextEntry()
             (mEntry->d_name[1] == '\0'    ||   // .\0
             (mEntry->d_name[1] == '.'     &&
             mEntry->d_name[2] == '\0')));      // ..\0
-
-#ifdef ANDROID
-    // Save the correct offset for the next entry
-    if (sFSMagic == YAFFS2_MAGIC) {
-        mNextOffset = lseek(dirfd(mDir), 0, SEEK_CUR);
-    }
-#endif
-
     return NS_OK;
 }
 
@@ -1042,7 +949,7 @@ nsLocalFile::Remove(bool recursive)
             rv = file->Remove(recursive);
 
 #ifdef ANDROID
-            // See bug 580434 - Yaffs2 gives us just deleted files
+            // See bug 580434 - Bionic gives us just deleted files
             if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
                 continue;
 #endif

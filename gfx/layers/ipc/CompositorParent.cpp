@@ -1,46 +1,13 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 et tw=80 : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Content App.
- *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Benoit Girard <bgirard@mozilla.com>
- *   Ali Juma <ajuma@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "CompositorParent.h"
 #include "RenderTrace.h"
 #include "ShadowLayersParent.h"
+#include "BasicLayers.h"
 #include "LayerManagerOGL.h"
 #include "nsIWidget.h"
 #include "nsGkAtoms.h"
@@ -56,14 +23,21 @@ using base::Thread;
 namespace mozilla {
 namespace layers {
 
-CompositorParent::CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop, PlatformThreadId aThreadID)
+CompositorParent::CompositorParent(nsIWidget* aWidget, MessageLoop* aMsgLoop,
+                                   PlatformThreadId aThreadID, bool aRenderToEGLSurface,
+                                   int aSurfaceWidth, int aSurfaceHeight)
   : mWidget(aWidget)
   , mCurrentCompositeTask(NULL)
   , mPaused(false)
+  , mXScale(1.0)
+  , mYScale(1.0)
   , mIsFirstPaint(false)
   , mLayersUpdated(false)
   , mCompositorLoop(aMsgLoop)
   , mThreadID(aThreadID)
+  , mRenderToEGLSurface(aRenderToEGLSurface)
+  , mEGLSurfaceSize(aSurfaceWidth, aSurfaceHeight)
+  , mPauseCompositionMonitor("PauseCompositionMonitor")
 {
   MOZ_COUNT_CTOR(CompositorParent);
 }
@@ -139,6 +113,9 @@ CompositorParent::PauseComposition()
 {
   NS_ABORT_IF_FALSE(CompositorThreadID() == PlatformThread::CurrentId(),
                     "PauseComposition() can only be called on the compositor thread");
+
+  mozilla::MonitorAutoLock lock(mPauseCompositionMonitor);
+
   if (!mPaused) {
     mPaused = true;
 
@@ -146,6 +123,9 @@ CompositorParent::PauseComposition()
     static_cast<LayerManagerOGL*>(mLayerManager.get())->gl()->ReleaseSurface();
 #endif
   }
+
+  // if anyone's waiting to make sure that composition really got paused, tell them
+  lock.NotifyAll();
 }
 
 void
@@ -161,18 +141,37 @@ CompositorParent::ResumeComposition()
 }
 
 void
-CompositorParent::ResumeCompositionAndResize(int width, int height)
+CompositorParent::SetEGLSurfaceSize(int width, int height)
 {
-  static_cast<LayerManagerOGL*>(mLayerManager.get())->SetSurfaceSize(width, height);
-  ResumeComposition();
+  NS_ASSERTION(mRenderToEGLSurface, "Compositor created without RenderToEGLSurface ar provided");
+  mEGLSurfaceSize.SizeTo(width, height);
+  if (mLayerManager) {
+    static_cast<LayerManagerOGL*>(mLayerManager.get())->SetSurfaceSize(mEGLSurfaceSize.width, mEGLSurfaceSize.height);
+  }
 }
 
 void
+CompositorParent::ResumeCompositionAndResize(int width, int height)
+{
+  SetEGLSurfaceSize(width, height);
+  ResumeComposition();
+}
+
+/*
+ * This will execute a pause synchronously, waiting to make sure that the compositor
+ * really is paused.
+ */
+void
 CompositorParent::SchedulePauseOnCompositorThread()
 {
+  mozilla::MonitorAutoLock lock(mPauseCompositionMonitor);
+
   CancelableTask *pauseTask = NewRunnableMethod(this,
                                                 &CompositorParent::PauseComposition);
   CompositorLoop()->PostTask(FROM_HERE, pauseTask);
+
+  // Wait until the pause has actually been processed by the compositor thread
+  lock.Wait();
 }
 
 void
@@ -244,9 +243,7 @@ CompositorParent::Composite()
     return;
   }
 
-#ifdef MOZ_WIDGET_ANDROID
   TransformShadowTree();
-#endif
 
   Layer* aLayer = mLayerManager->GetRoot();
   mozilla::layers::RenderTraceLayers(aLayer, "0000");
@@ -261,7 +258,6 @@ CompositorParent::Composite()
 #endif
 }
 
-#ifdef MOZ_WIDGET_ANDROID
 // Do a breadth-first search to find the first layer in the tree that is
 // scrollable.
 Layer*
@@ -292,7 +288,6 @@ CompositorParent::GetPrimaryScrollableLayer()
 
   return root;
 }
-#endif
 
 // Go down shadow layer tree, setting properties to match their non-shadow
 // counterparts.
@@ -314,7 +309,6 @@ SetShadowProperties(Layer* aLayer)
 void
 CompositorParent::TransformShadowTree()
 {
-#ifdef MOZ_WIDGET_ANDROID
   Layer* layer = GetPrimaryScrollableLayer();
   ShadowLayer* shadow = layer->AsShadowLayer();
   ContainerLayer* container = layer->AsContainerLayer();
@@ -329,19 +323,19 @@ CompositorParent::TransformShadowTree()
   if (mIsFirstPaint && metrics) {
     nsIntPoint scrollOffset = metrics->mViewportScrollOffset;
     mContentSize = metrics->mContentSize;
-    mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(scrollOffset.x, scrollOffset.y,
-                                                            1/rootScaleX,
-                                                            mContentSize.width,
-                                                            mContentSize.height,
-                                                            metrics->mCSSContentSize.width,
-                                                            metrics->mCSSContentSize.height);
+    SetFirstPaintViewport(scrollOffset.x, scrollOffset.y,
+                          1/rootScaleX,
+                          mContentSize.width,
+                          mContentSize.height,
+                          metrics->mCSSContentSize.width,
+                          metrics->mCSSContentSize.height);
     mIsFirstPaint = false;
   } else if (metrics && (metrics->mContentSize != mContentSize)) {
     mContentSize = metrics->mContentSize;
-    mozilla::AndroidBridge::Bridge()->SetPageSize(1/rootScaleX, mContentSize.width,
-                                                  mContentSize.height,
-                                                  metrics->mCSSContentSize.width,
-                                                  metrics->mCSSContentSize.height);
+    SetPageSize(1/rootScaleX, mContentSize.width,
+                mContentSize.height,
+                metrics->mCSSContentSize.width,
+                metrics->mCSSContentSize.height);
   }
 
   // We synchronise the viewport information with Java after sending the above
@@ -353,8 +347,8 @@ CompositorParent::TransformShadowTree()
     displayPort.x += scrollOffset.x;
     displayPort.y += scrollOffset.y;
 
-    mozilla::AndroidBridge::Bridge()->SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
-                                                       mScrollOffset, mXScale, mYScale);
+    SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
+                     mScrollOffset, mXScale, mYScale);
     mLayersUpdated = false;
   }
 
@@ -381,6 +375,38 @@ CompositorParent::TransformShadowTree()
     ViewTransform treeTransform(nsIntPoint(0,0), mXScale, mYScale);
     shadow->SetShadowTransform(gfx3DMatrix(treeTransform) * currentTransform);
   }
+}
+
+void
+CompositorParent::SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom,
+                                        float aPageWidth, float aPageHeight,
+                                        float aCssPageWidth, float aCssPageHeight)
+{
+#ifdef MOZ_WIDGET_ANDROID
+  mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(aOffsetX, aOffsetY,
+                                                          aZoom, aPageWidth, aPageHeight,
+                                                          aCssPageWidth, aCssPageHeight);
+#endif
+}
+
+void
+CompositorParent::SetPageSize(float aZoom, float aPageWidth, float aPageHeight,
+                              float aCssPageWidth, float aCssPageHeight)
+{
+#ifdef MOZ_WIDGET_ANDROID
+  mozilla::AndroidBridge::Bridge()->SetPageSize(aZoom, aPageWidth, aPageHeight,
+                                                aCssPageWidth, aCssPageHeight);
+#endif
+}
+
+void
+CompositorParent::SyncViewportInfo(const nsIntRect& aDisplayPort,
+                                   float aDisplayResolution, bool aLayersUpdated,
+                                   nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY)
+{
+#ifdef MOZ_WIDGET_ANDROID
+  mozilla::AndroidBridge::Bridge()->SyncViewportInfo(aDisplayPort, aDisplayResolution, aLayersUpdated,
+                                                     aScrollOffset, aScaleX, aScaleY);
 #endif
 }
 
@@ -404,14 +430,9 @@ PLayersParent*
 CompositorParent::AllocPLayers(const LayersBackend &backendType)
 {
   if (backendType == LayerManager::LAYERS_OPENGL) {
-#ifdef MOZ_JAVA_COMPOSITOR
-    nsIntRect rect;
-    mWidget->GetBounds(rect);
-    nsRefPtr<LayerManagerOGL> layerManager =
-      new LayerManagerOGL(mWidget, rect.width, rect.height, true);
-#else
-    nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(mWidget);
-#endif
+    nsRefPtr<LayerManagerOGL> layerManager;
+    layerManager =
+      new LayerManagerOGL(mWidget, mEGLSurfaceSize.width, mEGLSurfaceSize.height, mRenderToEGLSurface);
     mWidget = NULL;
     mLayerManager = layerManager;
 
@@ -420,6 +441,16 @@ CompositorParent::AllocPLayers(const LayersBackend &backendType)
       return NULL;
     }
 
+    ShadowLayerManager* slm = layerManager->AsShadowManager();
+    if (!slm) {
+      return NULL;
+    }
+    return new ShadowLayersParent(slm, this);
+  } else if (backendType == LayerManager::LAYERS_BASIC) {
+    // This require Cairo to be thread-safe
+    nsRefPtr<LayerManager> layerManager = new BasicShadowLayerManager(mWidget);
+    mWidget = NULL;
+    mLayerManager = layerManager;
     ShadowLayerManager* slm = layerManager->AsShadowManager();
     if (!slm) {
       return NULL;

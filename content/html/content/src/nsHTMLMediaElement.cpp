@@ -1,40 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla code.
- *
- * The Initial Developer of the Original Code is the Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Chris Double <chris.double@double.co.nz>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -97,6 +65,9 @@
 #include "MediaStreamGraph.h"
 #include "nsDOMMediaStream.h"
 #include "nsIScriptError.h"
+
+#include "nsCSSParser.h"
+#include "nsIMediaList.h"
 
 #ifdef MOZ_OGG
 #include "nsOggDecoder.h"
@@ -479,7 +450,7 @@ nsHTMLMediaElement::GetSrc(JSContext* aCtx, jsval *aParams)
 NS_IMETHODIMP
 nsHTMLMediaElement::SetSrc(JSContext* aCtx, const jsval & aParams)
 {
-  if (JSVAL_IS_OBJECT(aParams)) {
+  if (aParams.isObject()) { // not JSVAL_IS_OBJECT() because a null object is still an object
     nsCOMPtr<nsIDOMMediaStream> stream;
     stream = do_QueryInterface(nsContentUtils::XPConnect()->
         GetNativeOfWrapper(aCtx, JSVAL_TO_OBJECT(aParams)));
@@ -850,6 +821,12 @@ void nsHTMLMediaElement::LoadFromSourceChildren()
                "Should delay load event (if in document) during load");
   NS_ASSERTION(mIsLoadingFromSourceChildren,
                "Must remember we're loading from source children");
+
+  nsIDocument* parentDoc = OwnerDoc()->GetParentDocument();
+  if (parentDoc) {
+    parentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
   while (true) {
     nsIContent* child = GetNextSource();
     if (!child) {
@@ -876,11 +853,25 @@ void nsHTMLMediaElement::LoadFromSourceChildren()
         GetCanPlay(type) == CANPLAY_NO) {
       DispatchAsyncSourceError(child);
       const PRUnichar* params[] = { type.get(), src.get() };
-      ReportLoadError("MediaLoadUnsupportedType", params, ArrayLength(params));
+      ReportLoadError("MediaLoadUnsupportedTypeAttribute", params, ArrayLength(params));
       continue;
     }
-    LOG(PR_LOG_DEBUG, ("%p Trying load from <source>=%s type=%s", this,
-      NS_ConvertUTF16toUTF8(src).get(), NS_ConvertUTF16toUTF8(type).get()));
+    nsAutoString media;
+    if (child->GetAttr(kNameSpaceID_None, nsGkAtoms::media, media) && !media.IsEmpty()) {
+      nsCSSParser cssParser;
+      nsRefPtr<nsMediaList> mediaList(new nsMediaList());
+      cssParser.ParseMediaList(media, NULL, 0, mediaList, false);
+      nsIPresShell* presShell = OwnerDoc()->GetShell();
+      if (presShell && !mediaList->Matches(presShell->GetPresContext(), NULL)) {
+        DispatchAsyncSourceError(child);
+        const PRUnichar* params[] = { media.get(), src.get() };
+        ReportLoadError("MediaLoadSourceMediaNotMatched", params, ArrayLength(params));
+        continue;
+      }
+    }
+    LOG(PR_LOG_DEBUG, ("%p Trying load from <source>=%s type=%s media=%s", this,
+      NS_ConvertUTF16toUTF8(src).get(), NS_ConvertUTF16toUTF8(type).get(),
+      NS_ConvertUTF16toUTF8(media).get()));
 
     nsCOMPtr<nsIURI> uri;
     NewURIFromString(src, getter_AddRefs(uri));
@@ -1238,6 +1229,16 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
+  if (mCurrentPlayRangeStart != -1.0) {
+    double rangeEndTime = 0;
+    GetCurrentTime(&rangeEndTime);
+    LOG(PR_LOG_DEBUG, ("%p Adding \'played\' a range : [%f, %f]", this, mCurrentPlayRangeStart, rangeEndTime));
+    // Multiple seek without playing, or seek while playing.
+    if (mCurrentPlayRangeStart != rangeEndTime) {
+      mPlayed.Add(mCurrentPlayRangeStart, rangeEndTime);
+    }
+  }
+
   if (!mDecoder) {
     LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) failed: no decoder", this, aCurrentTime));
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -1254,7 +1255,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
     return NS_ERROR_FAILURE;
   }
 
-  // Clamp the time to [0, duration] as required by the spec
+  // Clamp the time to [0, duration] as required by the spec.
   double clampedTime = NS_MAX(0.0, aCurrentTime);
   double duration = mDecoder->GetDuration();
   if (duration >= 0) {
@@ -1266,8 +1267,10 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   // event if it changes the playback position as a result of the seek.
   LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) starting seek", this, aCurrentTime));
   nsresult rv = mDecoder->Seek(clampedTime);
+  // Start a new range at position we seeked to.
+  mCurrentPlayRangeStart = clampedTime;
 
-  // We changed whether we're seeking so we need to AddRemoveSelfReference
+  // We changed whether we're seeking so we need to AddRemoveSelfReference.
   AddRemoveSelfReference();
 
   return rv;
@@ -1302,6 +1305,35 @@ NS_IMETHODIMP nsHTMLMediaElement::GetSeekable(nsIDOMTimeRanges** aSeekable)
 NS_IMETHODIMP nsHTMLMediaElement::GetPaused(bool *aPaused)
 {
   *aPaused = mPaused;
+
+  return NS_OK;
+}
+
+/* readonly attribute nsIDOMHTMLTimeRanges played; */
+NS_IMETHODIMP nsHTMLMediaElement::GetPlayed(nsIDOMTimeRanges** aPlayed)
+{
+  nsTimeRanges* ranges = new nsTimeRanges();
+  NS_ADDREF(*aPlayed = ranges);
+
+  PRUint32 timeRangeCount = 0;
+  mPlayed.GetLength(&timeRangeCount);
+  for (PRUint32 i = 0; i < timeRangeCount; i++) {
+    double begin;
+    double end;
+    mPlayed.Start(i, &begin);
+    mPlayed.End(i, &end);
+    ranges->Add(begin, end);
+  }
+
+  if (mCurrentPlayRangeStart != -1.0) {
+    double now = 0.0;
+    GetCurrentTime(&now);
+    if (mCurrentPlayRangeStart != now) {
+      ranges->Add(mCurrentPlayRangeStart, now);
+    }
+  }
+
+  ranges->Normalize();
 
   return NS_OK;
 }
@@ -1596,6 +1628,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mLastCurrentTime(0.0),
     mFragmentStart(-1.0),
     mFragmentEnd(-1.0),
+    mCurrentPlayRangeStart(-1.0),
     mAllowAudioData(false),
     mBegun(false),
     mLoadedFirstFrame(false),
@@ -1713,6 +1746,10 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
       nsresult rv = mDecoder->Play();
       NS_ENSURE_SUCCESS(rv, rv);
     }
+  }
+
+  if (mCurrentPlayRangeStart == -1.0) {
+    GetCurrentTime(&mCurrentPlayRangeStart);
   }
 
   // TODO: If the playback has ended, then the user agent must set
@@ -1917,6 +1954,23 @@ char const *const nsHTMLMediaElement::gOggCodecs[3] = {
   nsnull
 };
 
+char const *const nsHTMLMediaElement::gOggCodecsWithOpus[4] = {
+  "vorbis",
+  "opus",
+  "theora",
+  nsnull
+};
+
+bool
+nsHTMLMediaElement::IsOpusEnabled()
+{
+#ifdef MOZ_OPUS
+  return Preferences::GetBool("media.opus.enabled");
+#else
+  return false;
+#endif
+}
+
 bool
 nsHTMLMediaElement::IsOggEnabled()
 {
@@ -2067,7 +2121,7 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
 #endif
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType))) {
-    *aCodecList = gOggCodecs;
+    *aCodecList = IsOpusEnabled() ? gOggCodecsWithOpus : gOggCodecs;
     return CANPLAY_MAYBE;
   }
 #endif
@@ -2106,6 +2160,10 @@ bool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 #endif
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType)))
+    return true;
+#endif
+#ifdef MOZ_GSTREAMER
+  if (IsH264Type(nsDependentCString(aMIMEType)))
     return true;
 #endif
   // We should not return true for Wave types, since there are some
@@ -2837,6 +2895,9 @@ void nsHTMLMediaElement::NotifyAutoplayDataReady()
 
     if (mDecoder) {
       SetPlayedOrSeeked(true);
+      if (mCurrentPlayRangeStart == -1.0) {
+        GetCurrentTime(&mCurrentPlayRangeStart);
+      }
       mDecoder->Play();
     } else if (mStream) {
       SetPlayedOrSeeked(true);
@@ -3099,7 +3160,7 @@ void nsHTMLMediaElement::NotifyAddedSource()
   }
 
   // A load was paused in the resource selection algorithm, waiting for
-  // a new source child to be added, resume the resource selction algorithm.
+  // a new source child to be added, resume the resource selection algorithm.
   if (mLoadWaitStatus == WAITING_FOR_SOURCE) {
     QueueLoadFromSourceTask();
   }

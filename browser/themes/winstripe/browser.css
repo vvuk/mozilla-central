@@ -1,49 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-1999
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Joe Hewitt (hewitt@netscape.com)
- *   Jason Kersey (kerz@netscape.com)
- *   Pierre Chanial (chanial@noos.fr)
- *   Dean Tessman (dean_tessman@hotmail.com)
- *   Blake Ross (blake@cs.stanford.edu)
- *   Pamela Greene (pamg.bugs@gmail.com)
- *   Dão Gottwald (dao@mozilla.com)
- *   Jim Mathies (jmathies@mozilla.com)
- *   Drew Willcoxon (adw@mozilla.com)
- *   Paul Rouget (paul@mozilla.com)
- *   Rob Campbell (rcampbell@mozilla.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 @import url("chrome://global/skin/");
 
@@ -603,7 +560,7 @@ menuitem.bookmark-item {
   -moz-image-region: rect(16px, 32px, 32px, 16px);
 }
 
-.bookmark-item[container][livemark] { 
+.bookmark-item[container][livemark] {
   list-style-image: url("chrome://browser/skin/livemark-folder.png");
   -moz-image-region: auto;
 }
@@ -817,7 +774,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
   box-shadow: 0 1px 1px hsla(210,54%,20%,.1) inset,
               0 0 1px hsla(210,54%,20%,.2) inset,
-              /* allows winstripe-keyhole-forward-mask to be used for non-hover as well as hover: */
+              /* allows winstripe-keyhole-forward-clip-path to be used for non-hover as well as hover: */
               0 1px 0 hsla(210,54%,20%,0),
               0 0 2px hsla(210,54%,20%,0);
   text-shadow: none;
@@ -896,7 +853,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 
 @conditionalForwardWithUrlbar@ > #forward-button > .toolbarbutton-icon {
   /*mask: url(keyhole-forward-mask.svg#mask); XXX: this regresses twinopen */
-  mask: url(chrome://browser/content/browser.xul#winstripe-keyhole-forward-mask);
+  clip-path: url(chrome://browser/content/browser.xul#winstripe-keyhole-forward-clip-path);
   -moz-margin-start: -6px !important;
   border-left-style: none;
   border-radius: 0;
@@ -1258,7 +1215,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container {
-  mask: url("chrome://browser/content/browser.xul#winstripe-urlbar-back-button-mask");
+  clip-path: url("chrome://browser/content/browser.xul#winstripe-urlbar-back-button-clip-path");
 }
 
 @conditionalForwardWithUrlbar@[forwarddisabled] + #urlbar-container > #urlbar {
@@ -1299,7 +1256,7 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 .urlbar-textbox-container {
   -moz-box-align: stretch;
 }
- 
+
 .urlbar-input-box {
   -moz-margin-start: 0;
 }
@@ -1359,6 +1316,7 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 
 #identity-box {
   padding: 2px;
+  font-size: .9em;
 }
 
 #identity-box:-moz-locale-dir(ltr) {
@@ -1406,9 +1364,19 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 }
 
 #identity-box.verifiedIdentity {
-  color: hsl(92,100%,20%);
-  -moz-border-end: 1px solid hsla(92,81%,16%,.2);
+  color: hsl(92,100%,30%);
   -moz-margin-end: 4px;
+  background-image: -moz-linear-gradient(hsla(92,81%,16%,0),
+                                         hsla(92,81%,16%,.2) 25%,
+                                         hsla(92,81%,16%,.2) 75%,
+                                         hsla(92,81%,16%,0));
+  background-position: right;
+  background-size: 1px;
+  background-repeat: no-repeat;
+}
+
+#identity-box.verifiedIdentity:-moz-locale-dir(rtl) {
+  background-position: left;
 }
 
 #identity-box.verifiedIdentity:not(:-moz-lwtheme) {
@@ -1470,6 +1438,10 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
   list-style-image: url(chrome://browser/skin/identity-icons-https-ev.png);
 }
 
+.mixedContent > #identity-box-inner > #page-proxy-stack > #page-proxy-favicon {
+  list-style-image: url(chrome://browser/skin/identity-icons-https-mixed.png);
+}
+
 #identity-box:hover > #identity-box-inner > #page-proxy-stack > #page-proxy-favicon {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }
@@ -1493,7 +1465,7 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 .autocomplete-treebody::-moz-tree-image(bookmark, treecolAutoCompleteImage) {
   list-style-image: url("chrome://browser/skin/places/editBookmark.png");
   -moz-image-region: rect(0px 16px 16px 0px);
-  width: 16px; 
+  width: 16px;
   height: 16px;
 }
 
@@ -1508,7 +1480,7 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 .ac-result-type-tag,
 .autocomplete-treebody::-moz-tree-image(tag, treecolAutoCompleteImage) {
   list-style-image: url("chrome://browser/skin/places/tag.png");
-  width: 16px; 
+  width: 16px;
   height: 16px;
 }
 
@@ -1536,6 +1508,12 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
 
 richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
   list-style-image: url("chrome://browser/skin/actionicon-tab.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+  padding: 0 3px;
+}
+
+richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-box > .ac-action-icon {
+  -moz-image-region: rect(16px, 16px, 32px, 0);
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1548,8 +1526,8 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   color: inherit !important;
 }
 
-.autocomplete-treebody::-moz-tree-cell-text(suggesthint, treecolAutoCompleteComment), 
-.autocomplete-treebody::-moz-tree-cell-text(suggestfirst, treecolAutoCompleteComment) 
+.autocomplete-treebody::-moz-tree-cell-text(suggesthint, treecolAutoCompleteComment),
+.autocomplete-treebody::-moz-tree-cell-text(suggestfirst, treecolAutoCompleteComment)
 {
   color: GrayText;
   font-size: smaller;
@@ -1653,7 +1631,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 #star-button:hover {
   background-image: -moz-radial-gradient(center, circle closest-side, hsla(45,100%,73%,.3), hsla(45,100%,73%,0));
-  -moz-image-region: rect(0px 32px 16px 16px); 
+  -moz-image-region: rect(0px 32px 16px 16px);
 }
 
 #star-button:hover:active {
@@ -2321,6 +2299,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 .notification-anchor-icon {
   width: 16px;
   height: 16px;
+  margin: 0 2px;
 }
 
 .notification-anchor-icon:-moz-focusring {
@@ -2634,23 +2613,6 @@ panel[dimmed="true"] {
   background-color: rgba(25, 25, 25, 0.5);
 }
 
-#highlighter-closebutton {
-  list-style-image: url("chrome://browser/skin/devtools/toolbarbutton-close.png");
-  -moz-image-region: rect(0, 16px, 16px, 0);
-  min-width: 16px;
-  width: 16px;
-  -moz-appearance: none;
-  border-style: none;
-}
-
-#highlighter-closebutton:hover {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-#highlighter-closebutton:hover:active {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
 #highlighter-veil-transparentbox {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
   outline: 1px dashed rgba(255,255,255,0.5);
@@ -2670,6 +2632,18 @@ panel[dimmed="true"] {
 }
 
 #inspector-inspect-toolbutton[checked] {
+  -moz-image-region: rect(0px 32px 16px 16px);
+}
+
+#inspector-option-toolbarbutton {
+  -moz-appearance: none;
+  -moz-margin-end: 6px;
+  list-style-image: url("chrome://browser/skin/devtools/inspector-option-icon.png");
+  -moz-image-region: rect(0px 16px 16px 0px);
+  border: none;
+}
+
+#inspector-option-toolbarbutton[open] {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
@@ -2804,7 +2778,6 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 #full-screen-warning-message {
   background-color: hsl(0,0%,15%);
   color: white;
-  font-size: 32px;
   border-radius: 8px;
   margin-top: 30px;
   padding: 30px 50px;
@@ -2812,13 +2785,20 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 }
 
 #full-screen-warning-container[obscure-browser] {
-  background-color: rgba(0,0,0,0.75);
+  background-color: rgba(0,0,0,0.3);
 }
 
-#full-screen-warning-container[stop-obscuring-browser] {
-  -moz-transition-property: background-color;
-  -moz-transition-duration: 500ms;
-  background-color: rgba(0,0,0,0);
+.full-screen-description {
+  font-size: 150%;
+}
+
+#full-screen-domain-text {
+  font-size: 300%;
+}
+
+.full-screen-approval-button,
+#full-screen-remember-decision {
+  font-size: 120%;
 }
 
 /* Highlighter toolbar - breadcrumbs */
@@ -2838,7 +2818,7 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
   border: 1px solid hsla(210,8%,5%,.45);
   background: -moz-linear-gradient(hsla(212,7%,57%,.35), hsla(212,7%,57%,.1)) padding-box;
   box-shadow: 0 1px 0 hsla(210,16%,76%,.15) inset, 0 0 0 1px hsla(210,16%,76%,.15) inset, 0 1px 0 hsla(210,16%,76%,.15);
-  margin: 0 0 1px;
+  margin: 1px 0 1px;
 }
 
 #inspector-breadcrumbs > .scrollbutton-up {
@@ -2888,6 +2868,10 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
   min-height: 25px;
   margin: 0 -11px 0 0;
   padding: 0 9px;
+}
+
+.inspector-breadcrumbs-button:-moz-focusring > .button-box {
+  border-width: 0;
 }
 
 .inspector-breadcrumbs-button:-moz-focusring > label {
@@ -3065,16 +3049,6 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
   border-radius: 0 3px 3px 0;
 }
 
-#inspector-tree-splitter {
-  -moz-appearance: none;
-  border-top: 1px solid black;
-  border-bottom-width: 0;
-  min-height: 3px;
-  height: 3px;
-  margin-bottom: -3px;
-  position: relative;
-}
-
 .gcli-panel-inner-arrowcontent {
   padding: 0;
 }
@@ -3140,4 +3114,11 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 
 .gcli-in-closebrace {
   color: hsl(0,0%,80%);
+}
+
+/* Highlight toolbar - Option menu */
+
+#inspector-option-toolbarbutton:-moz-focusring {
+  outline: 1px dotted hsla(210,30%,85%,0.4);
+  outline-offset: -2px;
 }

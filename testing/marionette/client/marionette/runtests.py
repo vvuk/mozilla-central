@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 from datetime import datetime
 import imp
 import inspect
@@ -130,12 +134,13 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
 
 class MarionetteTestRunner(object):
 
-    def __init__(self, address=None, emulator=False, homedir=None,
+    def __init__(self, address=None, emulator=None, emulatorBinary=None, homedir=None,
                  b2gbin=None, autolog=False, revision=None, es_server=None,
                  rest_server=None, logger=None, testgroup="marionette",
-                 noWindow=False):
+                 noWindow=False, logcat_dir=None):
         self.address = address
         self.emulator = emulator
+        self.emulatorBinary = emulatorBinary
         self.homedir = homedir
         self.b2gbin = b2gbin
         self.autolog = autolog
@@ -148,6 +153,7 @@ class MarionetteTestRunner(object):
         self.httpd = None
         self.baseurl = None
         self.marionette = None
+        self.logcat_dir = logcat_dir
 
         self.reset_test_stats()
 
@@ -155,6 +161,10 @@ class MarionetteTestRunner(object):
             self.logger = logging.getLogger('Marionette')
             self.logger.setLevel(logging.INFO)
             self.logger.addHandler(logging.StreamHandler())
+
+        if self.logcat_dir:
+            if not os.access(self.logcat_dir, os.F_OK):
+                os.mkdir(self.logcat_dir)
 
     def reset_test_stats(self):
         self.passed = 0
@@ -181,18 +191,26 @@ class MarionetteTestRunner(object):
             host, port = self.address.split(':')
             if self.emulator:
                 self.marionette = Marionette(host=host, port=int(port),
-                                            connectToRunningEmulator=True,
-                                            homedir=self.homedir,
-                                            baseurl=self.baseurl)
+                                             connectToRunningEmulator=True,
+                                             homedir=self.homedir,
+                                             baseurl=self.baseurl,
+                                             logcat_dir=self.logcat_dir)
             if self.b2gbin:
-                self.marionette = Marionette(host=host, port=int(port), b2gbin=self.b2gbin, baseurl=self.baseurl)
+                self.marionette = Marionette(host=host,
+                                             port=int(port),
+                                             b2gbin=self.b2gbin,
+                                             baseurl=self.baseurl)
             else:
-                self.marionette = Marionette(host=host, port=int(port), baseurl=self.baseurl)
+                self.marionette = Marionette(host=host,
+                                             port=int(port),
+                                             baseurl=self.baseurl)
         elif self.emulator:
-            self.marionette = Marionette(emulator=True,
+            self.marionette = Marionette(emulator=self.emulator,
+                                         emulatorBinary=self.emulatorBinary,
                                          homedir=self.homedir,
                                          baseurl=self.baseurl,
-                                         noWindow=self.noWindow)
+                                         noWindow=self.noWindow,
+                                         logcat_dir=self.logcat_dir)
         else:
             raise Exception("must specify address or emulator")
 
@@ -253,10 +271,7 @@ class MarionetteTestRunner(object):
         if not self.marionette:
             self.start_marionette()
 
-        if not os.path.isabs(test):
-            filepath = os.path.join(os.path.dirname(__file__), test)
-        else:
-            filepath = test
+        filepath = os.path.abspath(test)
 
         if os.path.isdir(filepath):
             for root, dirs, files in os.walk(filepath):
@@ -345,14 +360,22 @@ if __name__ == "__main__":
                       action = "store", dest = "testgroup",
                       help = "testgroup names for autolog submissions")
     parser.add_option("--emulator",
-                      action = "store_true", dest = "emulator",
-                      default = False,
-                      help = "launch a B2G emulator on which to run tests")
+                      action = "store", dest = "emulator",
+                      default = None, choices = ["x86", "arm"],
+                      help = "Launch a B2G emulator on which to run tests. "
+                      "You need to specify which architecture to emulate.")
+    parser.add_option("--emulator-binary",
+                      action = "store", dest = "emulatorBinary",
+                      default = None,
+                      help = "Launch a specific emulator binary rather than "
+                      "launching from the B2G built emulator")
     parser.add_option("--no-window",
                       action = "store_true", dest = "noWindow",
                       default = False,
                       help = "when Marionette launches an emulator, start it "
                       "with the -no-window argument")
+    parser.add_option('--logcat-dir', dest='logcat_dir', action='store',
+                      help='directory to store logcat dump files')
     parser.add_option('--address', dest='address', action='store',
                       help='host:port of running Gecko instance to connect to')
     parser.add_option('--type', dest='type', action='store',
@@ -381,9 +404,15 @@ if __name__ == "__main__":
         print "must specify --emulator or --address"
         parser.exit()
 
+    # default to storing logcat output for emulator runs
+    if options.emulator and not options.logcat_dir:
+        options.logcat_dir = 'logcat'
+
     runner = MarionetteTestRunner(address=options.address,
                                   emulator=options.emulator,
+                                  emulatorBinary=options.emulatorBinary,
                                   homedir=options.homedir,
+                                  logcat_dir=options.logcat_dir,
                                   b2gbin=options.b2gbin,
                                   noWindow=options.noWindow,
                                   revision=options.revision,

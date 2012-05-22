@@ -1,49 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   emk <VYV03354@nifty.ne.jp>
- *   Daniel Glazman <glazman@netscape.com>
- *   L. David Baron <dbaron@dbaron.org>
- *   Boris Zbarsky <bzbarsky@mit.edu>
- *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Christian Biesinger <cbiesinger@web.de>
- *   Jeff Walden <jwalden+code@mit.edu>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
- *   Siraj Razick <siraj.razick@collabora.co.uk>, Collabora Ltd.
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* parsing of CSS stylesheets, based on a token stream from the CSS scanner */
 
@@ -174,8 +133,8 @@ using namespace mozilla;
 // This lives here because it depends on the above macros.
 const PRUint32
 nsCSSProps::kParserVariantTable[eCSSProperty_COUNT_no_shorthands] = {
-#define CSS_PROP(name_, id_, method_, flags_, parsevariant_, kwtable_,       \
-                 stylestruct_, stylestructoffset_, animtype_)                \
+#define CSS_PROP(name_, id_, method_, flags_, pref_, parsevariant_, kwtable_, \
+                 stylestruct_, stylestructoffset_, animtype_)                 \
   parsevariant_,
 #include "nsCSSPropList.h"
 #undef CSS_PROP
@@ -534,7 +493,7 @@ protected:
   bool ParseListStyle();
   bool ParseMargin();
   bool ParseMarks(nsCSSValue& aValue);
-  bool ParseMozTransform();
+  bool ParseTransform();
   bool ParseOutline();
   bool ParseOverflow();
   bool ParsePadding();
@@ -618,7 +577,7 @@ protected:
     return mParsingCompoundProperty;
   }
 
-  /* Functions for -moz-transform Parsing */
+  /* Functions for transform Parsing */
   bool ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D);
   bool ParseFunction(const nsString &aFunction, const PRInt32 aAllowedTypes[],
                        PRUint16 aMinElems, PRUint16 aMaxElems,
@@ -628,8 +587,8 @@ protected:
                                 PRUint16 aMaxElems,
                                 InfallibleTArray<nsCSSValue>& aOutput);
 
-  /* Functions for -moz-transform-origin/-moz-perspective-origin Parsing */
-  bool ParseMozTransformOrigin(bool aPerspective);
+  /* Functions for transform-origin/perspective-origin Parsing */
+  bool ParseTransformOrigin(bool aPerspective);
 
   /* Find and return the namespace ID associated with aPrefix.
      If aPrefix has not been declared in an @namespace rule, returns
@@ -5623,12 +5582,12 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseSize();
   case eCSSProperty_text_decoration:
     return ParseTextDecoration();
-  case eCSSProperty__moz_transform:
-    return ParseMozTransform();
-  case eCSSProperty__moz_transform_origin:
-    return ParseMozTransformOrigin(false);
+  case eCSSProperty_transform:
+    return ParseTransform();
+  case eCSSProperty_transform_origin:
+    return ParseTransformOrigin(false);
   case eCSSProperty_perspective_origin:
-    return ParseMozTransformOrigin(true);
+    return ParseTransformOrigin(true);
   case eCSSProperty_transition:
     return ParseTransition();
   case eCSSProperty_animation:
@@ -7721,7 +7680,7 @@ CSSParserImpl::ParseOneFamily(nsAString& aFamily)
 }
 
 ///////////////////////////////////////////////////////
-// -moz-transform Parsing Implementation
+// transform Parsing Implementation
 
 /* Reads a function list of arguments.  Do not call this function
  * directly; it's mean to be caled from ParseFunction.
@@ -8057,10 +8016,10 @@ CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue, bool& aIs3D)
   return ParseFunction(mToken.mIdent, variantMask, minElems, maxElems, aValue);
 }
 
-/* Parses a -moz-transform property list by continuously reading in properties
+/* Parses a transform property list by continuously reading in properties
  * and constructing a matrix from it.
  */
-bool CSSParserImpl::ParseMozTransform()
+bool CSSParserImpl::ParseTransform()
 {
   nsCSSValue value;
   if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nsnull)) {
@@ -8085,17 +8044,17 @@ bool CSSParserImpl::ParseMozTransform()
       cur = cur->mNext;
     }
   }
-  AppendValue(eCSSProperty__moz_transform, value);
+  AppendValue(eCSSProperty_transform, value);
   return true;
 }
 
-bool CSSParserImpl::ParseMozTransformOrigin(bool aPerspective)
+bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
 {
   nsCSSValuePair position;
   if (!ParseBoxPositionValues(position, true))
     return false;
 
-  nsCSSProperty prop = eCSSProperty__moz_transform_origin;
+  nsCSSProperty prop = eCSSProperty_transform_origin;
   if (aPerspective) {
     if (!ExpectEndProperty()) {
       return false;

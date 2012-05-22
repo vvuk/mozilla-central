@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
@@ -78,6 +46,9 @@
 #include "nsDOMFile.h"
 #include "BasicLayers.h"
 #include "nsTArrayHelpers.h"
+#include "nsIDocShell.h"
+#include "nsIContentViewer.h"
+#include "nsIMarkupDocumentViewer.h"
 
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
@@ -283,6 +254,42 @@ static void DestroyNsRect(void* aObject, nsIAtom* aPropertyName,
   delete rect;
 }
 
+static void
+MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
+{
+  if (aPresContext &&
+      nsLayoutUtils::FontSizeInflationEnabled(aPresContext) &&
+      nsLayoutUtils::FontSizeInflationMinTwips() != 0) {
+    bool changed;
+    aPresContext->ScreenWidthInchesForFontInflation(&changed);
+    if (changed) {
+      nsCOMPtr<nsISupports> container = aPresContext->GetContainer();
+      nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+      if (docShell) {
+        nsCOMPtr<nsIContentViewer> cv;
+        docShell->GetContentViewer(getter_AddRefs(cv));
+        nsCOMPtr<nsIMarkupDocumentViewer> mudv = do_QueryInterface(cv);
+        if (mudv) {
+          nsTArray<nsCOMPtr<nsIMarkupDocumentViewer> > array;
+          mudv->AppendSubtree(array);
+          for (PRUint32 i = 0, iEnd = array.Length(); i < iEnd; ++i) {
+            nsCOMPtr<nsIPresShell> shell;
+            nsCOMPtr<nsIContentViewer> cv = do_QueryInterface(array[i]);
+            cv->GetPresShell(getter_AddRefs(shell));
+            if (shell) {
+              nsIFrame *rootFrame = shell->GetRootFrame();
+              if (rootFrame) {
+                shell->FrameNeedsReflow(rootFrame, nsIPresShell::eResize,
+                                        NS_FRAME_IS_DIRTY);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 NS_IMETHODIMP
 nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
                                            float aWidthPx, float aHeightPx,
@@ -295,7 +302,7 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
   nsIPresShell* presShell = GetPresShell();
   if (!presShell) {
     return NS_ERROR_FAILURE;
-  } 
+  }
 
   nsRect displayport(nsPresContext::CSSPixelsToAppUnits(aXPx),
                      nsPresContext::CSSPixelsToAppUnits(aYPx),
@@ -332,45 +339,41 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
       // The pres shell needs a special flag set.
       presShell->SetIgnoreViewportScrolling(true);
 
-      // The root document currently has a widget, but we might end up
-      // painting content inside the displayport but outside the widget
-      // bounds. This ensures the document's view honors invalidations
-      // within the displayport.
+      // When the "font.size.inflation.minTwips" preference is set, the
+      // layout depends on the size of the screen.  Since when the size
+      // of the screen changes, the root displayport also changes, we
+      // hook in the needed updates here rather than adding a
+      // separate notification just for this change.
       nsPresContext* presContext = GetPresContext();
-      if (presContext && presContext->IsRoot()) {
-        nsIFrame* rootFrame = presShell->GetRootFrame();
-        nsIView* view = rootFrame->GetView();
-        if (view) {
-          view->SetInvalidationDimensions(&displayport);
-        }
-      }
+      MaybeReflowForInflationScreenWidthChange(presContext);
     }
   }
 
-  if (presShell) {
-    nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
-    if (rootFrame) {
-      nsIContent* rootContent =
-        rootScrollFrame ? rootScrollFrame->GetContent() : nsnull;
-      nsRect rootDisplayport;
-      bool usingDisplayport = rootContent &&
-        nsLayoutUtils::GetDisplayPort(rootContent, &rootDisplayport);
-      rootFrame->InvalidateWithFlags(
-        usingDisplayport ? rootDisplayport : rootFrame->GetVisualOverflowRect(),
-        nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
+  nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
+  if (rootFrame) {
+    nsIContent* rootContent =
+      rootScrollFrame ? rootScrollFrame->GetContent() : nsnull;
+    nsRect rootDisplayport;
+    bool usingDisplayport = rootContent &&
+      nsLayoutUtils::GetDisplayPort(rootContent, &rootDisplayport);
+    rootFrame->InvalidateWithFlags(
+      usingDisplayport ? rootDisplayport : rootFrame->GetVisualOverflowRect(),
+      nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
 
-      // Send empty paint transaction in order to release retained layers
-      if (displayport.IsEmpty()) {
-        nsCOMPtr<nsIWidget> widget = GetWidget();
-        if (widget) {
-          bool isRetainingManager;
-          LayerManager* manager = widget->GetLayerManager(&isRetainingManager);
-          if (isRetainingManager) {
-            manager->BeginTransaction();
-            nsLayoutUtils::PaintFrame(nsnull, rootFrame, nsRegion(), NS_RGB(255, 255, 255),
-                                      nsLayoutUtils::PAINT_WIDGET_LAYERS |
-                                      nsLayoutUtils::PAINT_EXISTING_TRANSACTION);
-          }
+    // If we are hiding something that is a display root then send empty paint
+    // transaction in order to release retained layers because it won't get
+    // any more paint requests when it is hidden.
+    if (displayport.IsEmpty() &&
+        rootFrame == nsLayoutUtils::GetDisplayRootFrame(rootFrame)) {
+      nsCOMPtr<nsIWidget> widget = GetWidget();
+      if (widget) {
+        bool isRetainingManager;
+        LayerManager* manager = widget->GetLayerManager(&isRetainingManager);
+        if (isRetainingManager) {
+          manager->BeginTransaction();
+          nsLayoutUtils::PaintFrame(nsnull, rootFrame, nsRegion(), NS_RGB(255, 255, 255),
+                                    nsLayoutUtils::PAINT_WIDGET_LAYERS |
+                                    nsLayoutUtils::PAINT_EXISTING_TRANSACTION);
         }
       }
     }
@@ -488,6 +491,16 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
                               aIgnoreRootScrollFrame, true);
 }
 
+static nsIntPoint
+ToWidgetPoint(float aX, float aY, const nsPoint& aOffset,
+              nsPresContext* aPresContext)
+{
+  double appPerDev = aPresContext->AppUnitsPerDevPixel();
+  nscoord appPerCSS = nsPresContext::AppUnitsPerCSSPixel();
+  return nsIntPoint(NSToIntRound((aX*appPerCSS + aOffset.x)/appPerDev),
+                    NSToIntRound((aY*appPerCSS + aOffset.y)/appPerDev));
+}
+
 NS_IMETHODIMP
 nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
                                        float aX,
@@ -541,13 +554,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
   nsEventStatus status;
@@ -608,13 +615,7 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -667,15 +668,8 @@ nsDOMWindowUtils::SendTouchEvent(const nsAString& aType,
     return NS_ERROR_FAILURE;
   }
   event.touches.SetCapacity(aCount);
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
   for (PRUint32 i = 0; i < aCount; ++i) {
-    nsIntPoint pt(0, 0);
-    pt.x =
-      NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aXs[i]) + offset.x,
-                            appPerDev);
-    pt.y =
-      NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aYs[i]) + offset.y,
-                            appPerDev);
+    nsIntPoint pt = ToWidgetPoint(aXs[i], aYs[i], offset, presContext);
     nsCOMPtr<nsIDOMTouch> t(new nsDOMTouch(aIdentifiers[i],
                                            pt,
                                            nsIntPoint(aRxs[i], aRys[i]),
@@ -695,7 +689,7 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
                                PRInt32 aKeyCode,
                                PRInt32 aCharCode,
                                PRInt32 aModifiers,
-                               bool aPreventDefault,
+                               PRUint32 aAdditionalFlags,
                                bool* aDefaultActionTaken)
 {
   if (!IsUniversalXPConnectCapable()) {
@@ -720,12 +714,78 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   nsKeyEvent event(true, msg, widget);
   event.modifiers = GetWidgetModifiers(aModifiers);
 
-  event.keyCode = aKeyCode;
-  event.charCode = aCharCode;
+  if (msg == NS_KEY_PRESS) {
+    event.keyCode = aCharCode ? 0 : aKeyCode;
+    event.charCode = aCharCode;
+  } else {
+    event.keyCode = aKeyCode;
+    event.charCode = 0;
+  }
+
+  PRUint32 locationFlag = (aAdditionalFlags &
+    (KEY_FLAG_LOCATION_STANDARD | KEY_FLAG_LOCATION_LEFT |
+     KEY_FLAG_LOCATION_RIGHT | KEY_FLAG_LOCATION_NUMPAD |
+     KEY_FLAG_LOCATION_MOBILE | KEY_FLAG_LOCATION_JOYSTICK));
+  switch (locationFlag) {
+    case KEY_FLAG_LOCATION_STANDARD:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD;
+      break;
+    case KEY_FLAG_LOCATION_LEFT:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_LEFT;
+      break;
+    case KEY_FLAG_LOCATION_RIGHT:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_RIGHT;
+      break;
+    case KEY_FLAG_LOCATION_NUMPAD:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_NUMPAD;
+      break;
+    case KEY_FLAG_LOCATION_MOBILE:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
+      break;
+    case KEY_FLAG_LOCATION_JOYSTICK:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_JOYSTICK;
+      break;
+    default:
+      if (locationFlag != 0) {
+        return NS_ERROR_INVALID_ARG;
+      }
+      // If location flag isn't set, choose the location from keycode.
+      switch (aKeyCode) {
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD0:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD1:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD2:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD3:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD4:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD5:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD6:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD7:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD8:
+        case nsIDOMKeyEvent::DOM_VK_NUMPAD9:
+        case nsIDOMKeyEvent::DOM_VK_MULTIPLY:
+        case nsIDOMKeyEvent::DOM_VK_ADD:
+        case nsIDOMKeyEvent::DOM_VK_SEPARATOR:
+        case nsIDOMKeyEvent::DOM_VK_SUBTRACT:
+        case nsIDOMKeyEvent::DOM_VK_DECIMAL:
+        case nsIDOMKeyEvent::DOM_VK_DIVIDE:
+          event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_NUMPAD;
+          break;
+        case nsIDOMKeyEvent::DOM_VK_SHIFT:
+        case nsIDOMKeyEvent::DOM_VK_CONTROL:
+        case nsIDOMKeyEvent::DOM_VK_ALT:
+        case nsIDOMKeyEvent::DOM_VK_META:
+          event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_LEFT;
+          break;
+        default:
+          event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD;
+          break;
+      }
+      break;
+  }
+
   event.refPoint.x = event.refPoint.y = 0;
   event.time = PR_IntervalNow();
 
-  if (aPreventDefault) {
+  if (aAdditionalFlags & KEY_FLAG_PREVENT_DEFAULT) {
     event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
   }
 
@@ -910,7 +970,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
+  nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS, nsGCNormal, true);
   nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
 
   return NS_OK;
@@ -979,13 +1039,7 @@ nsDOMWindowUtils::SendSimpleGestureEvent(const nsAString& aType,
   if (!presContext)
     return NS_ERROR_FAILURE;
 
-  PRInt32 appPerDev = presContext->AppUnitsPerDevPixel();
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
+  event.refPoint = ToWidgetPoint(aX, aY, offset, presContext);
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -1734,7 +1788,7 @@ nsDOMWindowUtils::GetParent(const JS::Value& aObject,
   // Outerize if necessary.
   if (parent) {
     if (JSObjectOp outerize = js::GetObjectClass(parent)->ext.outerObject) {
-      *aParent = OBJECT_TO_JSVAL(outerize(aCx, parent));
+      *aParent = OBJECT_TO_JSVAL(outerize(aCx, JS::RootedVarObject(aCx, parent)));
     }
   }
 
@@ -2366,4 +2420,32 @@ nsDOMWindowUtils::SetScrollPositionClampingScrollPortSize(float aWidth, float aH
     nsPresContext::CSSPixelsToAppUnits(aHeight));
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SetIsApp(bool aValue)
+{
+  if (!IsUniversalXPConnectCapable()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+
+  static_cast<nsGlobalWindow*>(window.get())->SetIsApp(aValue);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::SetApp(const nsAString& aManifestURL)
+{
+  if (!IsUniversalXPConnectCapable()) {
+    return NS_ERROR_DOM_SECURITY_ERR;
+  }
+
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
+  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+
+  return static_cast<nsGlobalWindow*>(window.get())->SetApp(aManifestURL);
 }

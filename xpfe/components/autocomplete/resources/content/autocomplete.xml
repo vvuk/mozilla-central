@@ -1,4 +1,8 @@
 <?xml version="1.0"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 
 <bindings id="autocompleteBindings"
           xmlns="http://www.mozilla.org/xbl"
@@ -138,6 +142,10 @@
       <property name="timeout"
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 0;"/>
+
+      <property name="searchParam"
+                onget="return this.getAttribute('autocompletesearchparam') || '';"
+                onset="this.setAttribute('autocompletesearchparam', val); return val;"/>
 
       <method name="onSearchBegin">
         <body><![CDATA[
@@ -378,7 +386,7 @@
           param: this,
           onStartLookup: function(aSearchString, aPreviousSearchResult, aListener) {
             this.session.startSearch(aSearchString,
-                         this.param.getAttribute("autocompletesearchparam") || "",
+                         this.param.searchParam,
                          aPreviousSearchResult && aPreviousSearchResult.lastResult,
                          aListener);
           },

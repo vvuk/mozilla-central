@@ -5,6 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "BluetoothAdapter.h"
+#include "BluetoothFirmware.h"
 
 #include "nsDOMClassInfo.h"
 #include "nsDOMEvent.h"
@@ -12,7 +13,6 @@
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
-#include <dlfcn.h>
 
 static void
 FireEnabled(bool aResult, nsIDOMDOMRequest* aDomRequest)
@@ -33,56 +33,6 @@ FireEnabled(bool aResult, nsIDOMDOMRequest* aDomRequest)
 }
 
 USING_BLUETOOTH_NAMESPACE
-
-static struct BluedroidFunctions {
-  bool initialized;
-  bool tried_initialization;
-
-  BluedroidFunctions() :
-    initialized(false),
-    tried_initialization(false)
-  {
-  }
-  
-  int (* bt_enable)();
-  int (* bt_disable)();
-  int (* bt_is_enabled)();
-} sBluedroidFunctions;
-
-static bool EnsureBluetoothInit() {
-  if (sBluedroidFunctions.tried_initialization)
-  {
-    return sBluedroidFunctions.initialized;
-  }
-
-  sBluedroidFunctions.initialized = false;
-  sBluedroidFunctions.tried_initialization = true;
-  
-  void* handle = dlopen("libbluedroid.so", RTLD_LAZY);
-
-  if(!handle) {
-    NS_ERROR("Failed to open libbluedroid.so, bluetooth cannot run");
-    return false;
-  }
-
-  sBluedroidFunctions.bt_enable = (int (*)())dlsym(handle, "bt_enable");
-  if(sBluedroidFunctions.bt_enable == NULL) {
-    NS_ERROR("Failed to attach bt_enable function");
-    return false;
-  }
-  sBluedroidFunctions.bt_disable = (int (*)())dlsym(handle, "bt_disable");
-  if(sBluedroidFunctions.bt_disable == NULL) {
-    NS_ERROR("Failed to attach bt_disable function");
-    return false;
-  }
-  sBluedroidFunctions.bt_is_enabled = (int (*)())dlsym(handle, "bt_is_enabled");
-  if(sBluedroidFunctions.bt_is_enabled == NULL) {
-    NS_ERROR("Failed to attach bt_is_enabled function");
-    return false;
-  }
-  sBluedroidFunctions.initialized = true;
-  return true;
-}
 
 class ToggleBtResultTask : public nsRunnable
 {
@@ -154,16 +104,16 @@ class ToggleBtTask : public nsRunnable
       }
 
       // return 1 if it's enabled, 0 if it's disabled, and -1 on error
-      int isEnabled = sBluedroidFunctions.bt_is_enabled();
+      int isEnabled = IsBluetoothEnabled();
 
       if ((isEnabled == 1 && mEnabled) || (isEnabled == 0 && !mEnabled)) {
         result = true;
       } else if (isEnabled < 0) {
         result = false;
       } else if (mEnabled) {
-        result = (sBluedroidFunctions.bt_enable() == 0) ? true : false;
+        result = (EnableBluetooth() == 0) ? true : false;
       } else {
-        result = (sBluedroidFunctions.bt_disable() == 0) ? true : false;
+        result = (DisableBluetooth() == 0) ? true : false;
       }
 #else
       result = true;

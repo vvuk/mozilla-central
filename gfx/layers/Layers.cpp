@@ -1,42 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
  */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at:
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Code.
- *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
@@ -400,6 +367,23 @@ Layer::GetEffectiveOpacity()
 }
 
 void
+Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurface)
+{
+  if (mMaskLayer) {
+    mMaskLayer->mEffectiveTransform = aTransformToSurface;
+
+#ifdef DEBUG
+    gfxMatrix maskTranslation;
+    bool maskIs2D = mMaskLayer->GetTransform().CanDraw2D(&maskTranslation);
+    NS_ASSERTION(maskIs2D, "How did we end up with a 3D transform here?!");
+    NS_ASSERTION(maskTranslation.HasOnlyIntegerTranslation(),
+                 "Mask layer has invalid transform.");
+#endif
+    mMaskLayer->mEffectiveTransform.PreMultiply(mMaskLayer->GetTransform());
+  }
+}
+
+void
 ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
   aAttrs = ContainerLayerAttributes(GetFrameMetrics());
@@ -455,31 +439,35 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), &residual);
 
   bool useIntermediateSurface;
-  float opacity = GetEffectiveOpacity();
-  if (opacity != 1.0f && HasMultipleChildren()) {
+  if (GetMaskLayer()) {
     useIntermediateSurface = true;
 #ifdef MOZ_DUMP_PAINTING
   } else if (gfxUtils::sDumpPainting) {
     useIntermediateSurface = true;
 #endif
   } else {
-    useIntermediateSurface = false;
-    gfxMatrix contTransform;
-    if (!mEffectiveTransform.Is2D(&contTransform) ||
+    float opacity = GetEffectiveOpacity();
+    if (opacity != 1.0f && HasMultipleChildren()) {
+      useIntermediateSurface = true;
+    } else {
+      useIntermediateSurface = false;
+      gfxMatrix contTransform;
+      if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
 #else
         contTransform.HasNonIntegerTranslation()) {
 #endif
-      for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-        const nsIntRect *clipRect = child->GetEffectiveClipRect();
-        /* We can't (easily) forward our transform to children with a non-empty clip
-         * rect since it would need to be adjusted for the transform. See
-         * the calculations performed by CalculateScissorRect above.
-         */
-        if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
-          useIntermediateSurface = true;
-          break;
+        for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
+          const nsIntRect *clipRect = child->GetEffectiveClipRect();
+          /* We can't (easily) forward our transform to children with a non-empty clip
+           * rect since it would need to be adjusted for the transform. See
+           * the calculations performed by CalculateScissorRect above.
+           */
+          if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
+            useIntermediateSurface = true;
+            break;
+          }
         }
       }
     }
@@ -490,6 +478,12 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
     ComputeEffectiveTransformsForChildren(gfx3DMatrix::From2D(residual));
   } else {
     ComputeEffectiveTransformsForChildren(idealTransform);
+  }
+
+  if (idealTransform.CanDraw2D()) {
+    ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
+  } else {
+    ComputeEffectiveTransformForMaskLayer(gfx3DMatrix());
   }
 }
 
@@ -602,6 +596,12 @@ Layer::Dump(FILE* aFile, const char* aPrefix)
   fprintf(aFile, ">");
   DumpSelf(aFile, aPrefix);
   fprintf(aFile, "</a>");
+
+  if (Layer* mask = GetMaskLayer()) {
+    nsCAutoString pfx(aPrefix);
+    pfx += "  Mask layer: ";
+    mask->Dump(aFile, pfx.get());
+  }
 
   if (Layer* kid = GetFirstChild()) {
     nsCAutoString pfx(aPrefix);

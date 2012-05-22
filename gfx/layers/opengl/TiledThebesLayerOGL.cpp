@@ -131,7 +131,10 @@ TiledThebesLayerOGL::~TiledThebesLayerOGL()
 void
 TiledThebesLayerOGL::PaintedTiledLayerBuffer(const BasicTiledLayerBuffer* mTiledBuffer)
 {
+  mMainMemoryTiledBuffer.ReadUnlock();
   mMainMemoryTiledBuffer = *mTiledBuffer;
+  // TODO: Remove me once Bug 747811 lands.
+  delete mTiledBuffer;
   mRegionToUpload.Or(mRegionToUpload, mMainMemoryTiledBuffer.GetLastPaintRegion());
 
 }
@@ -155,14 +158,17 @@ TiledThebesLayerOGL::ProcessUploadQueue()
       resolution.height *= metrics.mResolution.height;
     }
 
-    const FrameMetrics& metrics = GetParent()->GetFrameMetrics();
-    mReusableTileStore->HarvestTiles(&mVideoMemoryTiledBuffer,
-                                     metrics.mContentSize,
+    mReusableTileStore->HarvestTiles(this,
+                                     &mVideoMemoryTiledBuffer,
                                      mVideoMemoryTiledBuffer.GetValidRegion(),
                                      mMainMemoryTiledBuffer.GetValidRegion(),
                                      mVideoMemoryTiledBuffer.GetResolution(),
                                      resolution);
   }
+
+  // If we coalesce uploads while the layers' valid region is changing we will
+  // end up trying to upload area outside of the valid region. (bug 756555)
+  mRegionToUpload.And(mRegionToUpload, mMainMemoryTiledBuffer.GetValidRegion());
 
   mVideoMemoryTiledBuffer.Upload(&mMainMemoryTiledBuffer,
                                  mMainMemoryTiledBuffer.GetValidRegion(),
@@ -184,59 +190,69 @@ void
 TiledThebesLayerOGL::RenderTile(TiledTexture aTile,
                                 const gfx3DMatrix& aTransform,
                                 const nsIntPoint& aOffset,
-                                nsIntRect aScreenRect,
-                                nsIntRect aTextureRect,
-                                nsIntSize aTextureBounds)
+                                nsIntRegion aScreenRegion,
+                                nsIntPoint aTextureOffset,
+                                nsIntSize aTextureBounds,
+                                Layer* aMaskLayer)
 {
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, aTile.mTextureHandle);
-    ColorTextureLayerProgram *program;
+    ShaderProgramOGL *program;
     if (aTile.mFormat == LOCAL_GL_RGB) {
-      program = mOGLManager->GetRGBXLayerProgram();
+      program = mOGLManager->GetProgram(gl::RGBXLayerProgramType, aMaskLayer);
     } else {
-      program = mOGLManager->GetBGRALayerProgram();
+      program = mOGLManager->GetProgram(gl::BGRALayerProgramType, aMaskLayer);
     }
     program->Activate();
     program->SetTextureUnit(0);
     program->SetLayerOpacity(GetEffectiveOpacity());
     program->SetLayerTransform(aTransform);
     program->SetRenderOffset(aOffset);
-    program->SetLayerQuadRect(aScreenRect);
+    program->LoadMask(GetMaskLayer());
 
-    mOGLManager->BindAndDrawQuadWithTextureRect(program,
-                                                aTextureRect,
-                                                aTextureBounds);
+    nsIntRegionRectIterator it(aScreenRegion);
+    for (const nsIntRect* rect = it.Next(); rect != nsnull; rect = it.Next()) {
+      nsIntRect textureRect(rect->x - aTextureOffset.x, rect->y - aTextureOffset.y,
+                            rect->width, rect->height);
+      program->SetLayerQuadRect(*rect);
+      mOGLManager->BindAndDrawQuadWithTextureRect(program,
+                                                  textureRect,
+                                                  aTextureBounds);
+    }
 }
 
 void
 TiledThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer, const nsIntPoint& aOffset)
 {
   gl()->MakeCurrent();
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   ProcessUploadQueue();
+
+  Layer* maskLayer = GetMaskLayer();
 
   // Render old tiles to fill in gaps we haven't had the time to render yet.
   if (mReusableTileStore) {
-    const FrameMetrics& metrics = GetParent()->GetFrameMetrics();
-    mReusableTileStore->DrawTiles(this, metrics.mContentSize,
+    mReusableTileStore->DrawTiles(this,
                                   mVideoMemoryTiledBuffer.GetValidRegion(),
                                   mVideoMemoryTiledBuffer.GetResolution(),
-                                  GetEffectiveTransform(), aOffset);
+                                  GetEffectiveTransform(), aOffset, maskLayer);
   }
 
   // Render valid tiles.
   const nsIntRegion& visibleRegion = GetEffectiveVisibleRegion();
   const nsIntRect visibleRect = visibleRegion.GetBounds();
-  unsigned int rowCount = 0;
-  int tileX = 0;
-  for (size_t x = visibleRect.x; x < visibleRect.x + visibleRect.width;) {
+
+  uint32_t rowCount = 0;
+  uint32_t tileX = 0;
+  for (int32_t x = visibleRect.x; x < visibleRect.x + visibleRect.width;) {
     rowCount++;
-    uint16_t tileStartX = x % mVideoMemoryTiledBuffer.GetTileLength();
-    uint16_t w = mVideoMemoryTiledBuffer.GetTileLength() - tileStartX;
+    int32_t tileStartX = mVideoMemoryTiledBuffer.GetTileStart(x);
+    int16_t w = mVideoMemoryTiledBuffer.GetTileLength() - tileStartX;
     if (x + w > visibleRect.x + visibleRect.width)
       w = visibleRect.x + visibleRect.width - x;
     int tileY = 0;
-    for( size_t y = visibleRect.y; y < visibleRect.y + visibleRect.height;) {
-      uint16_t tileStartY = y % mVideoMemoryTiledBuffer.GetTileLength();
-      uint16_t h = mVideoMemoryTiledBuffer.GetTileLength() - tileStartY;
+    for (int32_t y = visibleRect.y; y < visibleRect.y + visibleRect.height;) {
+      int32_t tileStartY = mVideoMemoryTiledBuffer.GetTileStart(y);
+      int16_t h = mVideoMemoryTiledBuffer.GetTileLength() - tileStartY;
       if (y + h > visibleRect.y + visibleRect.height)
         h = visibleRect.y + visibleRect.height - y;
 
@@ -244,9 +260,13 @@ TiledThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer, const nsIntPoint& aOf
         GetTile(nsIntPoint(mVideoMemoryTiledBuffer.RoundDownToTileEdge(x),
                            mVideoMemoryTiledBuffer.RoundDownToTileEdge(y)));
       if (tileTexture != mVideoMemoryTiledBuffer.GetPlaceholderTile()) {
+        nsIntRegion tileDrawRegion = nsIntRegion(nsIntRect(x, y, w, h));
+        tileDrawRegion.And(tileDrawRegion, mValidRegion);
+
+        nsIntPoint tileOffset(x - tileStartX, y - tileStartY);
         uint16_t tileSize = mVideoMemoryTiledBuffer.GetTileLength();
-        RenderTile(tileTexture, GetEffectiveTransform(), aOffset, nsIntRect(x,y,w,h),
-                   nsIntRect(tileStartX, tileStartY, w, h), nsIntSize(tileSize, tileSize));
+        RenderTile(tileTexture, GetEffectiveTransform(), aOffset, tileDrawRegion,
+                   tileOffset, nsIntSize(tileSize, tileSize), maskLayer);
       }
       tileY++;
       y += h;

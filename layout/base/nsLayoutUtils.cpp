@@ -1,42 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -132,8 +98,8 @@ bool nsLayoutUtils::gPreventAssertInCompareTreePosition = false;
 typedef gfxPattern::GraphicsFilter GraphicsFilter;
 typedef FrameMetrics::ViewID ViewID;
 
-static PRUint32 sFontSizeInflationEmPerLine;
-static PRUint32 sFontSizeInflationMinTwips;
+/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationEmPerLine;
+/* static */ PRUint32 nsLayoutUtils::sFontSizeInflationMinTwips;
 /* static */ PRUint32 nsLayoutUtils::sFontSizeInflationLineThreshold;
 
 static ViewID sScrollIdCounter = FrameMetrics::START_SCROLL_ID;
@@ -143,11 +109,7 @@ static ContentMap* sContentMap = NULL;
 static ContentMap& GetContentMap() {
   if (!sContentMap) {
     sContentMap = new ContentMap();
-#ifdef DEBUG
-    nsresult rv =
-#endif
     sContentMap->Init();
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not initialize map.");
   }
   return *sContentMap;
 }
@@ -180,6 +142,20 @@ nsLayoutUtils::UseBackgroundNearestFiltering()
   }
 
   return sUseBackgroundNearestFilteringEnabled;
+}
+
+bool
+nsLayoutUtils::GPUImageScalingEnabled()
+{
+  static bool sGPUImageScalingEnabled;
+  static bool sGPUImageScalingPrefInitialised = false;
+
+  if (!sGPUImageScalingPrefInitialised) {
+    sGPUImageScalingPrefInitialised = true;
+    sGPUImageScalingEnabled = mozilla::Preferences::GetBool("layout.gpu-image-scaling.enabled", false);
+  }
+
+  return sGPUImageScalingEnabled;
 }
 
 void
@@ -4592,6 +4568,22 @@ nsLayoutUtils::DeregisterImageRequest(nsPresContext* aPresContext,
   }
 }
 
+/* static */
+void
+nsLayoutUtils::PostRestyleEvent(Element* aElement,
+                                nsRestyleHint aRestyleHint,
+                                nsChangeHint aMinChangeHint)
+{
+  nsIDocument* doc = aElement->GetCurrentDoc();
+  if (doc) {
+    nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+    if (presShell) {
+      presShell->FrameConstructor()->PostRestyleEvent(
+        aElement, aRestyleHint, aMinChangeHint);
+    }
+  }
+}
+
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                                      const nsAString& aValue)
   : mContent(aContent),
@@ -4657,7 +4649,9 @@ nsReflowFrameRunnable::Run()
 static nscoord
 MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
 {
-  if (sFontSizeInflationEmPerLine == 0 && sFontSizeInflationMinTwips == 0) {
+  PRUint32 emPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
+  PRUint32 minTwips = nsLayoutUtils::FontSizeInflationMinTwips();
+  if (emPerLine == 0 && minTwips == 0) {
     return 0;
   }
 
@@ -4666,20 +4660,17 @@ MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
   nscoord effectiveContainerWidth = NS_MIN(iFrameWidth, aContainerWidth);
 
   nscoord byLine = 0, byInch = 0;
-  if (sFontSizeInflationEmPerLine != 0) {
-    byLine = effectiveContainerWidth / sFontSizeInflationEmPerLine;
+  if (emPerLine != 0) {
+    byLine = effectiveContainerWidth / emPerLine;
   }
-  if (sFontSizeInflationMinTwips != 0) {
+  if (minTwips != 0) {
     // REVIEW: Is this giving us app units and sizes *not* counting
     // viewport scaling?
-    nsDeviceContext *dx = aPresContext->DeviceContext();
-    nsRect clientRect;
-    dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
     float deviceWidthInches =
-      float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
+      aPresContext->ScreenWidthInchesForFontInflation();
     byInch = NSToCoordRound(effectiveContainerWidth /
                             (deviceWidthInches * 1440 /
-                             sFontSizeInflationMinTwips ));
+                             minTwips ));
   }
   return NS_MAX(byLine, byInch);
 }
@@ -4711,8 +4702,7 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
     nsIContent* content = f->GetContent();
     // Also, if there is more than one frame corresponding to a single
     // content node, we want the outermost one.
-    if (!(f->GetParent() &&
-          f->GetParent()->GetContent() == content) &&
+    if (!(f->GetParent() && f->GetParent()->GetContent() == content) &&
         f->GetType() != nsGkAtoms::inlineFrame) {
       nsStyleCoord stylePosWidth = f->GetStylePosition()->mWidth;
       nsStyleCoord stylePosHeight = f->GetStylePosition()->mHeight;

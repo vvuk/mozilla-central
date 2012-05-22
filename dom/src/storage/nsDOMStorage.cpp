@@ -1,44 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Neil Deakin <enndeakin@sympatico.ca>
- *   Johnny Stenback <jst@mozilla.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Honza Bambas <honzab@firemni.cz>
- *   Josh Matthews <josh@joshmatthews.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "StorageChild.h"
 #include "StorageParent.h"
@@ -273,12 +236,7 @@ nsDOMStorageManager::Initialize()
   if (!gStorageManager)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!gStorageManager->mStorages.Init()) {
-    delete gStorageManager;
-    gStorageManager = nsnull;
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
+  gStorageManager->mStorages.Init();
   NS_ADDREF(gStorageManager);
 
   // No observers needed in non-chrome
@@ -616,22 +574,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStorage)
 NS_INTERFACE_MAP_END
 
 nsresult
-NS_NewDOMStorage(nsISupports* aOuter, REFNSIID aIID, void** aResult)
-{
-  nsDOMStorage* storage = new nsDOMStorage();
-  if (!storage)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  return storage->QueryInterface(aIID, aResult);
-}
-
-nsresult
 NS_NewDOMStorage2(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
   nsDOMStorage2* storage = new nsDOMStorage2();
-  if (!storage)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   return storage->QueryInterface(aIID, aResult);
 }
 
@@ -1193,9 +1138,6 @@ nsresult
 DOMStorageImpl::SetValue(bool aIsCallerSecure, const nsAString& aKey,
                          const nsAString& aData, nsAString& aOldValue)
 {
-  if (aKey.IsEmpty())
-    return NS_OK;
-
   nsresult rv;
   nsString oldValue;
   SetDOMStringToNull(oldValue);
@@ -1532,9 +1474,6 @@ nsDOMStorage::GetNamedItem(const nsAString& aKey, nsresult* aResult)
   }
 
   *aResult = NS_OK;
-  if (aKey.IsEmpty())
-    return nsnull;
-  
   return mStorageImpl->GetValue(IsCallerSecure(), aKey, aResult);
 }
 
@@ -1629,9 +1568,6 @@ NS_IMETHODIMP nsDOMStorage::RemoveItem(const nsAString& aKey)
 {
   if (!CacheStoragePermissions())
     return NS_ERROR_DOM_SECURITY_ERR;
-
-  if (aKey.IsEmpty())
-    return NS_OK;
 
   nsString oldValue;
   nsresult rv = mStorageImpl->RemoveValue(IsCallerSecure(), aKey, oldValue);
@@ -1821,16 +1757,8 @@ already_AddRefed<nsIDOMStorage>
 nsDOMStorage2::Fork(const nsSubstring &aDocumentURI)
 {
   nsRefPtr<nsDOMStorage2> storage = new nsDOMStorage2();
-  if (!storage)
-    return nsnull;
-
-  nsresult rv = storage->InitAsSessionStorageFork(mPrincipal, aDocumentURI, mStorage);
-  if (NS_FAILED(rv))
-    return nsnull;
-
-  nsIDOMStorage* result = static_cast<nsIDOMStorage*>(storage.get());
-  storage.forget();
-  return result;
+  storage->InitAsSessionStorageFork(mPrincipal, aDocumentURI, mStorage);
+  return storage.forget();
 }
 
 bool nsDOMStorage2::IsForkOf(nsIDOMStorage* aThat)
@@ -1842,14 +1770,12 @@ bool nsDOMStorage2::IsForkOf(nsIDOMStorage* aThat)
   return mStorage == storage->mStorage;
 }
 
-nsresult
-nsDOMStorage2::InitAsSessionStorageFork(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI, nsIDOMStorageObsolete* aStorage)
+void
+nsDOMStorage2::InitAsSessionStorageFork(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI, nsDOMStorage* aStorage)
 {
   mPrincipal = aPrincipal;
   mDocumentURI = aDocumentURI;
-  mStorage = static_cast<nsDOMStorage*>(aStorage);
-
-  return NS_OK;
+  mStorage = aStorage;
 }
 
 nsTArray<nsString> *
@@ -2192,42 +2118,4 @@ nsDOMStorageEvent::InitFromCtor(const nsAString& aType,
   NS_ENSURE_SUCCESS(rv, rv);
   return InitStorageEvent(aType, d.bubbles, d.cancelable, d.key, d.oldValue,
                           d.newValue, d.url, d.storageArea);
-}
-
-// Obsolete globalStorage event
-
-DOMCI_DATA(StorageEventObsolete, nsDOMStorageEventObsolete)
-
-// QueryInterface implementation for nsDOMStorageEventObsolete
-NS_INTERFACE_MAP_BEGIN(nsDOMStorageEventObsolete)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageEventObsolete)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageEventObsolete)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
-
-NS_IMPL_ADDREF_INHERITED(nsDOMStorageEventObsolete, nsDOMEvent)
-NS_IMPL_RELEASE_INHERITED(nsDOMStorageEventObsolete, nsDOMEvent)
-
-
-NS_IMETHODIMP
-nsDOMStorageEventObsolete::GetDomain(nsAString& aDomain)
-{
-  // mDomain will be #session for session storage for events that fire
-  // due to a change in a session storage object.
-  aDomain = mDomain;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMStorageEventObsolete::InitStorageEvent(const nsAString& aTypeArg,
-                                    bool aCanBubbleArg,
-                                    bool aCancelableArg,
-                                    const nsAString& aDomainArg)
-{
-  nsresult rv = InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mDomain = aDomainArg;
-
-  return NS_OK;
 }

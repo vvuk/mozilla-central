@@ -4,6 +4,9 @@
 
 Cu.import("resource://services-common/log4moz.js");
 
+let btoa = Cu.import("resource://services-common/log4moz.js").btoa;
+let atob = Cu.import("resource://services-common/log4moz.js").atob;
+
 function do_check_empty(obj) {
   do_check_attribute_count(obj, 0);
 }
@@ -122,6 +125,19 @@ function readBytesFromInputStream(inputStream, count) {
     count = inputStream.available();
   }
   return new BinaryInputStream(inputStream).readBytes(count);
+}
+
+/*
+ * Ensure exceptions from inside callbacks leads to test failures.
+ */
+function ensureThrows(func) {
+  return function() {
+    try {
+      func.apply(this, arguments);
+    } catch (ex) {
+      do_throw(ex);
+    }
+  };
 }
 
 /**

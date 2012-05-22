@@ -1,39 +1,7 @@
 /* -*- Mode: c++; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef AndroidJavaWrappers_h__
 #define AndroidJavaWrappers_h__
@@ -59,6 +27,7 @@
 namespace mozilla {
 
 class AndroidGeckoLayerClient;
+class AutoLocalJNIFrame;
 
 void InitAndroidJavaWrappers(JNIEnv *jEnv);
 
@@ -177,13 +146,13 @@ class AndroidLayerRendererFrame : public WrappedJavaObject {
 public:
     static void InitLayerRendererFrameClass(JNIEnv *jEnv);
 
-    void Init(jobject jobj);
-    void Dispose();
+    void Init(JNIEnv *env, jobject jobj);
+    void Dispose(JNIEnv *env);
 
-    void BeginDrawing();
-    void DrawBackground();
-    void DrawForeground();
-    void EndDrawing();
+    bool BeginDrawing(AutoLocalJNIFrame *jniFrame);
+    bool DrawBackground(AutoLocalJNIFrame *jniFrame);
+    bool DrawForeground(AutoLocalJNIFrame *jniFrame);
+    bool EndDrawing(AutoLocalJNIFrame *jniFrame);
 
 private:
     static jclass jLayerRendererFrameClass;
@@ -207,9 +176,9 @@ public:
     void SetPageSize(float aZoom, float aPageWidth, float aPageHeight, float aCssPageWidth, float aCssPageHeight);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-    void CreateFrame(AndroidLayerRendererFrame& aFrame);
-    void ActivateProgram();
-    void DeactivateProgram();
+    bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
+    bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
+    bool DeactivateProgram(AutoLocalJNIFrame *jniFrame);
 
 protected:
     static jclass jGeckoLayerClientClass;
@@ -241,17 +210,14 @@ public:
     };
 
     int BeginDrawing();
-    jobject GetSoftwareDrawBitmap();
-    jobject GetSoftwareDrawBuffer();
+    jobject GetSoftwareDrawBitmap(AutoLocalJNIFrame *jniFrame);
+    jobject GetSoftwareDrawBuffer(AutoLocalJNIFrame *jniFrame);
     void EndDrawing();
     void Draw2D(jobject bitmap, int width, int height);
     void Draw2D(jobject buffer, int stride);
 
-    jobject GetSurface();
-
-    // must have a JNI local frame when calling this,
-    // and you'd better know what you're doing
-    jobject GetSurfaceHolder();
+    jobject GetSurface(AutoLocalJNIFrame *jniFrame);
+    jobject GetSurfaceHolder(AutoLocalJNIFrame *jniFrame);
 
 protected:
     static jclass jGeckoSurfaceViewClass;

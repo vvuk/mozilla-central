@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Daniel Glazman <glazman@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef __editor_h__
 #define __editor_h__
@@ -50,6 +17,8 @@
 #include "nsIAtom.h"
 #include "nsIDOMDocument.h"
 #include "nsISelection.h"
+#include "nsRange.h"
+#include "nsTypedSelection.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIPrivateTextRange.h"
 #include "nsITransactionManager.h"
@@ -129,12 +98,34 @@ public:
     kOpDeleteNode,
     kOpSplitNode,
     kOpJoinNode,
-    kOpDeleteSelection,
+    kOpDeleteText = 1003,
+
     // text commands
-    kOpInsertBreak    = 1000,
-    kOpInsertText     = 1001,
-    kOpInsertIMEText  = 1002,
-    kOpDeleteText     = 1003
+    kOpInsertText         = 2000,
+    kOpInsertIMEText      = 2001,
+    kOpDeleteSelection    = 2002,
+    kOpSetTextProperty    = 2003,
+    kOpRemoveTextProperty = 2004,
+    kOpOutputText         = 2005,
+
+    // html only action
+    kOpInsertBreak         = 3000,
+    kOpMakeList            = 3001,
+    kOpIndent              = 3002,
+    kOpOutdent             = 3003,
+    kOpAlign               = 3004,
+    kOpMakeBasicBlock      = 3005,
+    kOpRemoveList          = 3006,
+    kOpMakeDefListItem     = 3007,
+    kOpInsertElement       = 3008,
+    kOpInsertQuotation     = 3009,
+    kOpHTMLPaste           = 3012,
+    kOpLoadHTML            = 3013,
+    kOpResetTextProperties = 3014,
+    kOpSetAbsolutePosition = 3015,
+    kOpRemoveAbsolutePosition = 3016,
+    kOpDecreaseZIndex      = 3017,
+    kOpIncreaseZIndex      = 3018
   };
 
   /** The default constructor. This should suffice. the setting of the interfaces is done
@@ -181,7 +172,8 @@ public:
                                       nsIDOMCharacterData *aTextNode, 
                                       PRInt32 aOffset,
                                       bool aSuppressIME = false);
-  NS_IMETHOD DeleteSelectionImpl(EDirection aAction);
+  NS_IMETHOD DeleteSelectionImpl(EDirection aAction,
+                                 EStripWrappers aStripWrappers);
   NS_IMETHOD DeleteSelectionAndCreateNode(const nsAString& aTag,
                                            nsIDOMNode ** aNewNode);
 
@@ -351,8 +343,7 @@ protected:
   // helper for GetPriorNode and GetNextNode
   nsIContent* FindNextLeafNode(nsINode  *aCurrentNode,
                                bool      aGoForward,
-                               bool      bNoBlockCrossing,
-                               nsIContent *aActiveEditorRoot);
+                               bool      bNoBlockCrossing);
 
   // Get nsIWidget interface
   nsresult GetWidget(nsIWidget **aWidget);
@@ -384,7 +375,8 @@ public:
 
   /** All editor operations which alter the doc should be prefaced
    *  with a call to StartOperation, naming the action and direction */
-  NS_IMETHOD StartOperation(PRInt32 opID, nsIEditor::EDirection aDirection);
+  NS_IMETHOD StartOperation(OperationID opID,
+                            nsIEditor::EDirection aDirection);
 
   /** All editor operations which alter the doc should be followed
    *  with a call to EndOperation */
@@ -454,22 +446,26 @@ public:
     *                       skipping non-editable nodes if aEditableNode is true.
     *                       If there is no prior node, aResultNode will be nsnull.
     * @param bNoBlockCrossing If true, don't move across "block" nodes, whatever that means.
-    * @param aActiveEditorRoot If non-null, only return descendants of aActiveEditorRoot.
     */
   nsresult GetPriorNode(nsIDOMNode  *aCurrentNode, 
                         bool         aEditableNode,
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false,
-                        nsIContent  *aActiveEditorRoot = nsnull);
+                        bool         bNoBlockCrossing = false);
+  nsIContent* GetPriorNode(nsINode* aCurrentNode, bool aEditableNode,
+                           bool aNoBlockCrossing = false);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetPriorNode(nsIDOMNode  *aParentNode, 
                         PRInt32      aOffset, 
                         bool         aEditableNode, 
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false,
-                        nsIContent  *aActiveEditorRoot = nsnull);
-                       
+                        bool         bNoBlockCrossing = false);
+  nsIContent* GetPriorNode(nsINode* aParentNode,
+                           PRInt32 aOffset,
+                           bool aEditableNode,
+                           bool aNoBlockCrossing = false);
+
+
   /** get the node immediately after to aCurrentNode
     * @param aCurrentNode   the node from which we start the search
     * @param aEditableNode  if true, only return an editable node
@@ -480,27 +476,27 @@ public:
   nsresult GetNextNode(nsIDOMNode  *aCurrentNode, 
                        bool         aEditableNode,
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false,
-                       nsIContent  *aActiveEditorRoot = nsnull);
+                       bool         bNoBlockCrossing = false);
   nsIContent* GetNextNode(nsINode* aCurrentNode,
                           bool aEditableNode,
-                          bool bNoBlockCrossing = false,
-                          nsIContent* aActiveEditorRoot = nsnull);
+                          bool bNoBlockCrossing = false);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetNextNode(nsIDOMNode  *aParentNode, 
                        PRInt32      aOffset, 
                        bool         aEditableNode, 
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false,
-                       nsIContent  *aActiveEditorRoot = nsnull);
+                       bool         bNoBlockCrossing = false);
+  nsIContent* GetNextNode(nsINode* aParentNode,
+                          PRInt32 aOffset,
+                          bool aEditableNode,
+                          bool aNoBlockCrossing = false);
 
   // Helper for GetNextNode and GetPriorNode
   nsIContent* FindNode(nsINode *aCurrentNode,
                        bool     aGoForward,
                        bool     aEditableNode,
-                       bool     bNoBlockCrossing,
-                       nsIContent *aActiveEditorRoot);
+                       bool     bNoBlockCrossing);
   /**
    * Get the rightmost child of aCurrentNode;
    * return nsnull if aCurrentNode has no children.
@@ -534,25 +530,32 @@ public:
 
 
   /** returns true if aParent can contain a child of type aTag */
-  bool CanContainTag(nsIDOMNode* aParent, const nsAString &aTag);
-  bool TagCanContain(const nsAString &aParentTag, nsIDOMNode* aChild);
-  virtual bool TagCanContainTag(const nsAString &aParentTag, const nsAString &aChildTag);
+  bool CanContain(nsIDOMNode* aParent, nsIDOMNode* aChild);
+  bool CanContainTag(nsIDOMNode* aParent, nsIAtom* aTag);
+  bool TagCanContain(nsIAtom* aParentTag, nsIDOMNode* aChild);
+  virtual bool TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag);
 
   /** returns true if aNode is our root node */
-  bool IsRootNode(nsIDOMNode *inNode);
-  bool IsRootNode(nsINode *inNode);
+  bool IsRoot(nsIDOMNode* inNode);
+  bool IsRoot(nsINode* inNode);
+  bool IsEditorRoot(nsINode* aNode);
 
   /** returns true if aNode is a descendant of our root node */
-  bool IsDescendantOfBody(nsIDOMNode *inNode);
-  bool IsDescendantOfBody(nsINode *inNode);
+  bool IsDescendantOfRoot(nsIDOMNode* inNode);
+  bool IsDescendantOfRoot(nsINode* inNode);
+  bool IsDescendantOfEditorRoot(nsIDOMNode* aNode);
+  bool IsDescendantOfEditorRoot(nsINode* aNode);
 
   /** returns true if aNode is a container */
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** returns true if aNode is an editable node */
   bool IsEditable(nsIDOMNode *aNode);
-  bool IsEditable(nsIContent *aNode);
+  virtual bool IsEditable(nsIContent *aNode);
 
+  /**
+   * aNode must be a non-null text node.
+   */
   virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
 
   /** returns true if aNode is a MozEditorBogus node */
@@ -571,12 +574,14 @@ public:
   /** from html rules code - migration in progress */
   static nsresult GetTagString(nsIDOMNode *aNode, nsAString& outString);
   static nsIAtom *GetTag(nsIDOMNode *aNode);
-  virtual bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
+
+  bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
+  virtual bool AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2);
+
   static bool IsTextOrElementNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsINode *aNode);
   
-  static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
   static nsCOMPtr<nsIDOMNode> GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, PRInt32 aOffset);
 
@@ -585,6 +590,7 @@ public:
 #if DEBUG_JOE
   static void DumpNode(nsIDOMNode *aNode, PRInt32 indent=0);
 #endif
+  nsTypedSelection* GetTypedSelection();
 
   // Helpers to add a node to the selection. 
   // Used by table cell selection methods
@@ -617,7 +623,7 @@ public:
 
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
 
-  nsresult HandleInlineSpellCheck(PRInt32 action,
+  nsresult HandleInlineSpellCheck(OperationID action,
                                     nsISelection *aSelection,
                                     nsIDOMNode *previousSelectedNode,
                                     PRInt32 previousSelectedOffset,
@@ -630,6 +636,10 @@ public:
 
   // Fast non-refcounting editor root element accessor
   mozilla::dom::Element *GetRoot();
+
+  // Likewise, but gets the editor's root instead, which is different for HTML
+  // editors
+  virtual mozilla::dom::Element* GetEditorRoot();
 
   // Accessor methods to flags
   bool IsPlaintextEditor() const
@@ -828,7 +838,7 @@ protected:
   PRInt32           mUpdateCount;
 
   PRInt32           mPlaceHolderBatch;   // nesting count for batching
-  PRInt32           mAction;             // the current editor action
+  OperationID       mAction;             // the current editor action
   PRUint32          mHandlingActionCount;
 
   PRUint32          mIMETextOffset;    // offset in text node where IME comp string begins

@@ -1,42 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef jsapi_h___
 #define jsapi_h___
@@ -1070,7 +1037,7 @@ class AutoArrayRooter : private AutoGCRooter {
   public:
     AutoArrayRooter(JSContext *cx, size_t len, Value *vec
                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, len), array(vec)
+      : AutoGCRooter(cx, len), array(vec), skip(cx, array, len)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_ASSERT(tag >= 0);
@@ -1092,6 +1059,8 @@ class AutoArrayRooter : private AutoGCRooter {
 
   private:
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+
+    SkipRoot skip;
 };
 
 /* The auto-root for enumeration object and its state. */
@@ -1302,6 +1271,29 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
 
 /************************************************************************/
 
+#ifdef __cplusplus
+
+typedef JS::Handle<JSObject*> JSHandleObject;
+typedef JS::Handle<jsid> JSHandleId;
+
+#else
+
+/*
+ * Handle support for C API users. Handles must be destroyed in the reverse
+ * order that they were created (as in a stack).
+ */
+
+typedef struct { JSObject **_; } JSHandleObject;
+typedef struct { jsid *_; } JSHandleId;
+
+JSBool JS_CreateHandleObject(JSContext *cx, JSObject *obj, JSHandleObject *phandle);
+void JS_DestroyHandleObject(JSContext *cx, JSHandleObject handle);
+
+JSBool JS_CreateHandleId(JSContext *cx, jsid id, JSHandleId *phandle);
+void JS_DestroyHandleId(JSContext *cx, JSHandleId handle);
+
+#endif
+
 /* JSClass operation signatures. */
 
 /*
@@ -1312,7 +1304,7 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
  * obj[id] can't be deleted (because it's permanent).
  */
 typedef JSBool
-(* JSPropertyOp)(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+(* JSPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp);
 
 /*
  * Set a property named by id in obj, treating the assignment as strict
@@ -1322,7 +1314,7 @@ typedef JSBool
  * set.
  */
 typedef JSBool
-(* JSStrictPropertyOp)(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+(* JSStrictPropertyOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, jsval *vp);
 
 /*
  * This function type is used for callbacks that enumerate the properties of
@@ -1357,7 +1349,7 @@ typedef JSBool
  * indicating failure.
  */
 typedef JSBool
-(* JSNewEnumerateOp)(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
+(* JSNewEnumerateOp)(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
                      jsval *statep, jsid *idp);
 
 /*
@@ -1365,7 +1357,7 @@ typedef JSBool
  * yet reflected in obj.
  */
 typedef JSBool
-(* JSEnumerateOp)(JSContext *cx, JSObject *obj);
+(* JSEnumerateOp)(JSContext *cx, JSHandleObject obj);
 
 /*
  * Resolve a lazy property named by id in obj by defining it directly in obj.
@@ -1380,7 +1372,7 @@ typedef JSBool
  * NB: JSNewResolveOp provides a cheaper way to resolve lazy properties.
  */
 typedef JSBool
-(* JSResolveOp)(JSContext *cx, JSObject *obj, jsid id);
+(* JSResolveOp)(JSContext *cx, JSHandleObject obj, JSHandleId id);
 
 /*
  * Like JSResolveOp, but flags provide contextual information as follows:
@@ -1412,7 +1404,7 @@ typedef JSBool
  * *objp without a new JSClass flag.
  */
 typedef JSBool
-(* JSNewResolveOp)(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+(* JSNewResolveOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
                    JSObject **objp);
 
 /*
@@ -1420,7 +1412,7 @@ typedef JSBool
  * *vp on success, and returning false on error or exception.
  */
 typedef JSBool
-(* JSConvertOp)(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
+(* JSConvertOp)(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
 
 /*
  * Delegate typeof to an object so it can cloak a primitive or another object.
@@ -1472,7 +1464,7 @@ struct JSStringFinalizer {
  * is either a string or an int jsval.
  */
 typedef JSBool
-(* JSCheckAccessOp)(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
+(* JSCheckAccessOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSAccessMode mode,
                     jsval *vp);
 
 /*
@@ -1481,7 +1473,7 @@ typedef JSBool
  * *bp otherwise.
  */
 typedef JSBool
-(* JSHasInstanceOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+(* JSHasInstanceOp)(JSContext *cx, JSHandleObject obj, const jsval *v, JSBool *bp);
 
 /*
  * Function type for trace operation of the class called to enumerate all
@@ -1511,7 +1503,7 @@ typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
 
 typedef JSBool
-(* JSEqualityOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
+(* JSEqualityOp)(JSContext *cx, JSHandleObject obj, const jsval *v, JSBool *bp);
 
 /*
  * Typedef for native functions called by the JS VM.
@@ -1690,6 +1682,19 @@ typedef JSObject *
  */
 typedef JSObject *
 (* JSPreWrapCallback)(JSContext *cx, JSObject *scope, JSObject *obj, unsigned flags);
+
+/*
+ * Callback used when wrapping determines that the underlying object is already
+ * in the compartment for which it is being wrapped. This allows consumers to
+ * maintain same-compartment wrapping invariants.
+ *
+ * |obj| is guaranteed to be same-compartment as |cx|, but it may (or may not)
+ * be a security or cross-compartment wrapper. This is an unfortunate contract,
+ * but is important for to avoid unnecessarily recomputing every cross-
+ * compartment wrapper that gets passed to wrap.
+ */
+typedef JSObject *
+(* JSSameCompartmentWrapObjectCallback)(JSContext *cx, JSObject *obj);
 
 typedef void
 (* JSDestroyCompartmentCallback)(JSFreeOp *fop, JSCompartment *compartment);
@@ -1980,20 +1985,8 @@ JS_StringHasBeenInterned(JSContext *cx, JSString *str);
  * N.B. if a jsid is backed by a string which has not been interned, that
  * string must be appropriately rooted to avoid being collected by the GC.
  */
-static JS_ALWAYS_INLINE jsid
-INTERNED_STRING_TO_JSID(JSContext *cx, JSString *str)
-{
-    jsid id;
-    JS_ASSERT(str);
-    JS_ASSERT(((size_t)str & JSID_TYPE_MASK) == 0);
-#ifdef DEBUG
-    JS_ASSERT(JS_StringHasBeenInterned(cx, str));
-#else
-    (void)cx;
-#endif
-    JSID_BITS(id) = (size_t)str;
-    return id;
-}
+JS_PUBLIC_API(jsid)
+INTERNED_STRING_TO_JSID(JSContext *cx, JSString *str);
 
 static JS_ALWAYS_INLINE JSBool
 JSID_IS_INT(jsid id)
@@ -2005,21 +1998,16 @@ static JS_ALWAYS_INLINE int32_t
 JSID_TO_INT(jsid id)
 {
     JS_ASSERT(JSID_IS_INT(id));
-    return ((int32_t)JSID_BITS(id)) >> 1;
+    return ((uint32_t)JSID_BITS(id)) >> 1;
 }
 
-/*
- * Note: when changing these values, verify that their use in
- * js_CheckForStringIndex is still valid.
- */
-#define JSID_INT_MIN  (-(1 << 30))
-#define JSID_INT_MAX  ((1 << 30) - 1)
+#define JSID_INT_MIN  0
+#define JSID_INT_MAX  INT32_MAX
 
 static JS_ALWAYS_INLINE JSBool
 INT_FITS_IN_JSID(int32_t i)
 {
-    return ((uint32_t)(i) - (uint32_t)JSID_INT_MIN <=
-            (uint32_t)(JSID_INT_MAX - JSID_INT_MIN));
+    return i >= 0;
 }
 
 static JS_ALWAYS_INLINE jsid
@@ -2381,8 +2369,10 @@ JS_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, const Value &v, double *out)
 {
     AssertArgumentsAreSane(cx, v);
+
     if (v.isNumber()) {
         *out = v.toNumber();
+        MaybeCheckStackRoots(cx);
         return true;
     }
     return js::ToNumberSlow(cx, v, out);
@@ -2764,11 +2754,15 @@ JS_StringToVersion(const char *string);
 #define JSOPTION_PCCOUNT        JS_BIT(17)      /* Collect per-op execution counts */
 
 #define JSOPTION_TYPE_INFERENCE JS_BIT(18)      /* Perform type inference. */
+#define JSOPTION_STRICT_MODE    JS_BIT(19)      /* Provides a way to force
+                                                   strict mode for all code
+                                                   without requiring
+                                                   "use strict" annotations. */
 
 /* Options which reflect compile-time properties of scripts. */
 #define JSCOMPILEOPTION_MASK    (JSOPTION_XML)
 
-#define JSRUNOPTION_MASK        (JS_BITMASK(19) & ~JSCOMPILEOPTION_MASK)
+#define JSRUNOPTION_MASK        (JS_BITMASK(20) & ~JSCOMPILEOPTION_MASK)
 #define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
 
 extern JS_PUBLIC_API(uint32_t)
@@ -2792,6 +2786,7 @@ JS_SetDestroyCompartmentCallback(JSRuntime *rt, JSDestroyCompartmentCallback cal
 extern JS_PUBLIC_API(JSWrapObjectCallback)
 JS_SetWrapObjectCallbacks(JSRuntime *rt,
                           JSWrapObjectCallback callback,
+                          JSSameCompartmentWrapObjectCallback sccallback,
                           JSPreWrapCallback precallback);
 
 extern JS_PUBLIC_API(JSCrossCompartmentCall *)
@@ -2822,12 +2817,8 @@ js_TransplantObjectWithWrapper(JSContext *cx,
                                JSObject *targetobj,
                                JSObject *targetwrapper);
 
-extern JS_FRIEND_API(JSObject *)
-js_TransplantObjectWithWrapper(JSContext *cx,
-                               JSObject *origobj,
-                               JSObject *origwrapper,
-                               JSObject *targetobj,
-                               JSObject *targetwrapper);
+extern JS_PUBLIC_API(JSBool)
+JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
 
 #ifdef __cplusplus
 JS_END_EXTERN_C
@@ -3107,7 +3098,7 @@ extern JS_PUBLIC_API(void)
 JS_freeop(JSFreeOp *fop, void *p);
 
 extern JS_PUBLIC_API(JSFreeOp *)
-JS_GetDefaultFreeOp(JSRuntime *rt);    
+JS_GetDefaultFreeOp(JSRuntime *rt);
 
 extern JS_PUBLIC_API(void)
 JS_updateMallocCounter(JSContext *cx, size_t nbytes);
@@ -3384,18 +3375,12 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind);
  * The storage for name or callback's arguments needs to live only until
  * the following call to JS_CallTracer returns.
  */
-#ifdef DEBUG
 # define JS_SET_TRACING_DETAILS(trc, printer, arg, index)                     \
     JS_BEGIN_MACRO                                                            \
         (trc)->debugPrinter = (printer);                                      \
         (trc)->debugPrintArg = (arg);                                         \
         (trc)->debugPrintIndex = (index);                                     \
     JS_END_MACRO
-#else
-# define JS_SET_TRACING_DETAILS(trc, printer, arg, index)                     \
-    JS_BEGIN_MACRO                                                            \
-    JS_END_MACRO
-#endif
 
 /*
  * Sets the real location for a marked reference, when passing the address
@@ -3509,9 +3494,6 @@ JS_DumpHeap(JSRuntime *rt, FILE *fp, void* startThing, JSGCTraceKind kind,
  */
 extern JS_PUBLIC_API(void)
 JS_GC(JSRuntime *rt);
-
-extern JS_PUBLIC_API(void)
-JS_CompartmentGC(JSRuntime *rt, JSCompartment *comp);
 
 extern JS_PUBLIC_API(void)
 JS_MaybeGC(JSContext *cx);
@@ -3639,8 +3621,8 @@ struct JSClass {
     /* Optionally non-null members start here. */
     JSCheckAccessOp     checkAccess;
     JSNative            call;
-    JSNative            construct;
     JSHasInstanceOp     hasInstance;
+    JSNative            construct;
     JSTraceOp           trace;
 
     void                *reserved[40];
@@ -3729,7 +3711,7 @@ struct JSClass {
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 10)
 #define JSCLASS_CACHED_PROTO_WIDTH      6
 #define JSCLASS_CACHED_PROTO_MASK       JS_BITMASK(JSCLASS_CACHED_PROTO_WIDTH)
-#define JSCLASS_HAS_CACHED_PROTO(key)   ((key) << JSCLASS_CACHED_PROTO_SHIFT)
+#define JSCLASS_HAS_CACHED_PROTO(key)   (uint32_t(key) << JSCLASS_CACHED_PROTO_SHIFT)
 #define JSCLASS_CACHED_PROTO_KEY(clasp) ((JSProtoKey)                         \
                                          (((clasp)->flags                     \
                                            >> JSCLASS_CACHED_PROTO_SHIFT)     \
@@ -3826,19 +3808,19 @@ extern JS_PUBLIC_API(JSBool)
 JS_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_PropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+JS_PropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_StrictPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
+JS_StrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_EnumerateStub(JSContext *cx, JSObject *obj);
+JS_EnumerateStub(JSContext *cx, JSHandleObject obj);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ResolveStub(JSContext *cx, JSObject *obj, jsid id);
+JS_ResolveStub(JSContext *cx, JSHandleObject obj, JSHandleId id);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ConvertStub(JSContext *cx, JSObject *obj, JSType type, jsval *vp);
+JS_ConvertStub(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
 
 struct JSConstDoubleSpec {
     double          dval;
@@ -4308,7 +4290,7 @@ JS_NewElementIterator(JSContext *cx, JSObject *obj);
  * .ext.iteratorObject hook to this function.
  */
 extern JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSObject *obj, JSBool keysonly);
+JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly);
 
 extern JS_PUBLIC_API(JSBool)
 JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,

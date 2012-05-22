@@ -1,39 +1,7 @@
 # -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# The Initial Developer of the Original Code is 
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or 
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // XXX Toolkit-specific preferences should be moved into toolkit.js
 
@@ -631,6 +599,9 @@ pref("browser.preferences.animateFadeIn", true);
 pref("browser.preferences.animateFadeIn", false);
 #endif
 
+// Toggles between the two Preferences implementations, pop-up window and in-content
+pref("browser.preferences.inContent", false);
+
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
 
@@ -873,12 +844,6 @@ pref("places.frecency.unvisitedTypedBonus", 200);
 // 2 - pre-populate site URL and pre-fetch certificate
 pref("browser.ssl_override_behavior", 2);
 
-// Controls the display of domain in the identity box for SSL connections.
-// 0 - do not show domain
-// 1 - show effectiveTLD + 1 (e.g. mozilla.org)
-// 2 - show full domain (e.g. bugzilla.mozilla.org)
-pref("browser.identity.ssl_domain_display", 0);
-
 // True if the user should be prompted when a web application supports
 // offline apps.
 pref("browser.offline-apps.notify", true);
@@ -1054,6 +1019,8 @@ pref("devtools.inspector.htmlHeight", 112);
 pref("devtools.inspector.htmlPanelOpen", false);
 pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
+pref("devtools.inspector.highlighterShowVeil", true);
+pref("devtools.inspector.highlighterShowInfobar", true);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", false);
@@ -1064,6 +1031,9 @@ pref("devtools.debugger.enabled", false);
 pref("devtools.debugger.remote-enabled", false);
 pref("devtools.debugger.remote-host", "localhost");
 pref("devtools.debugger.remote-port", 6000);
+pref("devtools.debugger.remote-autoconnect", false);
+pref("devtools.debugger.remote-connection-retries", 3);
+pref("devtools.debugger.remote-timeout", 3000);
 
 // The default Debugger UI height
 pref("devtools.debugger.ui.height", 250);
@@ -1159,8 +1129,13 @@ pref("browser.newtab.url", "about:newtab");
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
 
-// Enable the DOM full-screen API.
+// Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
+
+// True if the fullscreen API requires approval upon a domain entering fullscreen.
+// Domains that have already had fullscreen permission granted won't re-request
+// approval.
+pref("full-screen-api.approval-required", true);
 
 // Startup Crash Tracking
 // number of startup crashes that can occur before starting into safe mode automatically

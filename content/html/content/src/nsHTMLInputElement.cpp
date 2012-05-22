@@ -1,41 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Geoff Lankow <geoff@darktrojan.net>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -860,11 +826,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       UpdateTypeMismatchValidityState();
     }
 
-    UpdateEditableState(aNotify);
-    nsTextEditorState *state = GetEditorState();
-    if (state) {
-      state->UpdateEditableState(aNotify);
-    }
     UpdateState(aNotify);
   }
 
@@ -1021,6 +982,9 @@ nsHTMLInputElement::SetValue(const nsAString& aValue)
   }
   else {
     SetValueInternal(aValue, false, true);
+    if (IsSingleLineTextControl(false)) {
+      GetValueInternal(mFocusedValue);
+    }
   }
 
   return NS_OK;
@@ -1241,15 +1205,6 @@ nsHTMLInputElement::GetPlaceholderNode()
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLInputElement::UpdatePlaceholderText(bool aNotify)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->UpdatePlaceholderText(aNotify);
-  }
-}
-
-NS_IMETHODIMP_(void)
 nsHTMLInputElement::SetPlaceholderClass(bool aVisible, bool aNotify)
 {
   nsTextEditorState *state = GetEditorState();
@@ -1328,6 +1283,24 @@ nsHTMLInputElement::AfterSetFiles(bool aSetValueChanged)
   }
 
   UpdateAllValidityStates(true);
+}
+
+void
+nsHTMLInputElement::FireChangeEventIfNeeded()
+{
+  nsString value;
+  GetValueInternal(value);
+
+  if (!IsSingleLineTextControl(false) || mFocusedValue.Equals(value)) {
+    return;
+  }
+
+  // Dispatch the change event.
+  mFocusedValue = value;
+  nsContentUtils::DispatchTrustedEvent(OwnerDoc(),
+                                       static_cast<nsIContent*>(this), 
+                                       NS_LITERAL_STRING("change"), true,
+                                       false);
 }
 
 const nsCOMArray<nsIDOMFile>&
@@ -1808,7 +1781,7 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   //FIXME Allow submission etc. also when there is no prescontext, Bug 329509.
   if (!aVisitor.mPresContext) {
     return nsGenericHTMLElement::PreHandleEvent(aVisitor);
-  }
+  } 
   //
   // Web pages expect the value of a radio button or checkbox to be set
   // *before* onclick and DOMActivate fire, and they expect that if they set
@@ -1908,13 +1881,7 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Fire onchange (if necessary), before we do the blur, bug 357684.
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    nsIFrame* primaryFrame = GetPrimaryFrame();
-    if (primaryFrame) {
-      nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
-      if (textFrame) {
-        textFrame->CheckFireOnChange();
-      }
-    }
+    FireChangeEventIfNeeded();
   }
 
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
@@ -1947,6 +1914,10 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 
   if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
       aVisitor.mEvent->message == NS_BLUR_CONTENT) {
+    if (aVisitor.mEvent->message == NS_FOCUS_CONTENT && 
+        IsSingleLineTextControl(false)) {
+      GetValueInternal(mFocusedValue);
+    }
 
     UpdateValidityUIBits(aVisitor.mEvent->message == NS_FOCUS_CONTENT);
 
@@ -2195,16 +2166,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               (keyEvent->keyCode == NS_VK_RETURN ||
                keyEvent->keyCode == NS_VK_ENTER) &&
                IsSingleLineTextControl(false, mType)) {
-            nsIFrame* primaryFrame = GetPrimaryFrame();
-            if (primaryFrame) {
-              nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
-
-              // Fire onChange (if necessary)
-              if (textFrame) {
-                textFrame->CheckFireOnChange();
-              }
-            }
-
+            FireChangeEventIfNeeded();   
             rv = MaybeSubmitForm(aVisitor.mPresContext);
             NS_ENSURE_SUCCESS(rv, rv);
           }
@@ -2441,6 +2403,14 @@ nsHTMLInputElement::HandleTypeChange(PRUint8 aNewType)
         // There is no value sanitizing algorithm for elements in this mode.
         break;
     }
+    
+    //Updating mFocusedValue in consequence.
+    if (isNewTypeSingleLine && !isCurrentTypeSingleLine) {
+      GetValueInternal(mFocusedValue);
+    }
+    else if (!isNewTypeSingleLine && isCurrentTypeSingleLine) {
+      mFocusedValue.Truncate();
+    } 
   }
 
   // Do not notify, it will be done after if needed.
@@ -3306,16 +3276,14 @@ nsHTMLInputElement::AllowDrop()
 void
 nsHTMLInputElement::AddedToRadioGroup()
 {
-  // Make sure not to notify if we're still being created by the parser
-  bool notify = !mParserCreating;
-
-  //
-  //  If the input element is not in a form and
-  //  not in a document, we just need to return.
-  //
-  if (!mForm && !(IsInDoc() && GetParent())) {
+  // If the element is neither in a form nor a document, there is no group so we
+  // should just stop here.
+  if (!mForm && !IsInDoc()) {
     return;
   }
+
+  // Make sure not to notify if we're still being created by the parser
+  bool notify = !mParserCreating;
 
   //
   // If the input element is checked, and we add it to the group, it will
@@ -3630,28 +3598,31 @@ nsHTMLInputElement::IsTooLong()
 bool
 nsHTMLInputElement::IsValueMissing() const
 {
+  // Should use UpdateValueMissingValidityStateForRadio() for type radio.
+  MOZ_ASSERT(mType != NS_FORM_INPUT_RADIO);
+
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::required) ||
       !DoesRequiredApply()) {
     return false;
   }
 
-  if (GetValueMode() == VALUE_MODE_VALUE) {
-    if (!IsMutable()) {
-      return false;
-    }
-
-    return IsValueEmpty();
+  if (!IsMutable()) {
+    return false;
   }
 
-  switch (mType)
-  {
-    case NS_FORM_INPUT_CHECKBOX:
+  switch (GetValueMode()) {
+    case VALUE_MODE_VALUE:
+      return IsValueEmpty();
+    case VALUE_MODE_FILENAME:
+    {
+      const nsCOMArray<nsIDOMFile>& files = GetFiles();
+      return !files.Count();
+    }
+    case VALUE_MODE_DEFAULT_ON:
+      // This should not be used for type radio.
+      // See the MOZ_ASSERT at the beginning of the method.
       return !mChecked;
-    case NS_FORM_INPUT_FILE:
-      {
-        const nsCOMArray<nsIDOMFile>& files = GetFiles();
-        return !files.Count();
-      }
+    case VALUE_MODE_DEFAULT:
     default:
       return false;
   }
@@ -3741,7 +3712,8 @@ nsHTMLInputElement::UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf)
   nsCOMPtr<nsIRadioGroupContainer> container = GetRadioGroupContainer();
 
   if (!container) {
-    SetValidityState(VALIDITY_STATE_VALUE_MISSING, required && !selected);
+    SetValidityState(VALIDITY_STATE_VALUE_MISSING,
+                     IsMutable() && required && !selected);
     return;
   }
 
@@ -3756,7 +3728,7 @@ nsHTMLInputElement::UpdateValueMissingValidityStateForRadio(bool aIgnoreSelf)
                  : container->GetRequiredRadioCount(name);
   }
 
-  valueMissing = required && !selected;
+  valueMissing = IsMutable() && required && !selected;
 
   if (container->GetValueMissingState(name) != valueMissing) {
     container->SetValueMissingState(name, valueMissing);
@@ -4083,16 +4055,6 @@ nsHTMLInputElement::GetTextEditorValue(nsAString& aValue,
   nsTextEditorState *state = GetEditorState();
   if (state) {
     state->GetValue(aValue, aIgnoreWrap);
-  }
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLInputElement::SetTextEditorValue(const nsAString& aValue,
-                                       bool aUserInput)
-{
-  nsTextEditorState *state = GetEditorState();
-  if (state) {
-    state->SetValue(aValue, aUserInput);
   }
 }
 

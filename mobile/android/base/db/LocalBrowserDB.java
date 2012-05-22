@@ -1,45 +1,12 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Lucas Rocha <lucasr@mozilla.com>
- *   Richard Newman <rnewman@mozilla.com>
- *   Margaret Leibovic <margaret.leibovic@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.db;
 
 import java.io.ByteArrayOutputStream;
+import java.util.HashMap;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.History;
@@ -74,7 +41,9 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     private final String mProfile;
-    private long mMobileFolderId;
+
+    // Map of folder GUIDs to IDs. Used for caching.
+    private HashMap<String, Long> mFolderIdMap;
 
     // Use wrapped Boolean so that we can have a null state
     private Boolean mDesktopBookmarksExist;
@@ -99,7 +68,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     public LocalBrowserDB(String profile) {
         mProfile = profile;
-        mMobileFolderId = -1;
+        mFolderIdMap = new HashMap<String, Long>();
         mDesktopBookmarksExist = null;
 
         mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
@@ -167,8 +136,10 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // approximation using the Cauchy distribution: multiplier = 15^2 / (age^2 + 15^2).
         // Using 15 as our scale parameter, we get a constant 15^2 = 225. Following this math,
         // frecencyScore = numVisits * max(1, 100 * 225 / (age*age + 225)). (See bug 704977)
+        // We also give bookmarks an extra bonus boost by adding 100 points to their frecency score.
         final String age = "(" + Combined.DATE_LAST_VISITED + " - " + System.currentTimeMillis() + ") / 86400000";
-        final String sortOrder = Combined.VISITS + " * MAX(1, 100 * 225 / (" + age + "*" + age + " + 225)) DESC";
+        final String sortOrder = "(CASE WHEN " + Combined.BOOKMARK_ID + " > -1 THEN 100 ELSE 0 END) + " +
+                                 Combined.VISITS + " * MAX(1, 100 * 225 / (" + age + "*" + age + " + 225)) DESC";
 
         Cursor c = cr.query(combinedUriWithLimit(limit),
                             projection,
@@ -185,7 +156,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                                              Combined.URL,
                                              Combined.TITLE,
                                              Combined.FAVICON,
-                                             Combined.BOOKMARK_ID },
+                                             Combined.BOOKMARK_ID,
+                                             Combined.HISTORY_ID },
                               constraint,
                               limit,
                               null);
@@ -273,6 +245,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor c = cr.query(combinedUriWithLimit(limit),
                             new String[] { Combined._ID,
                                            Combined.BOOKMARK_ID,
+                                           Combined.HISTORY_ID,
                                            Combined.URL,
                                            Combined.TITLE,
                                            Combined.FAVICON,
@@ -285,6 +258,12 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return new LocalDBCursor(c);
     }
 
+    public void removeHistoryEntry(ContentResolver cr, int id) {
+        cr.delete(mHistoryUriWithProfile,
+                  History._ID + " = ?",
+                  new String[] { String.valueOf(id) });
+    }
+
     public void clearHistory(ContentResolver cr) {
         cr.delete(mHistoryUriWithProfile, null, null);
     }
@@ -295,7 +274,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         // We always want to show mobile bookmarks in the root view.
         if (folderId == Bookmarks.FIXED_ROOT_ID) {
-            folderId = getMobileBookmarksFolderId(cr);
+            folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
 
             // We'll add a fake "Desktop Bookmarks" folder to the root view if desktop 
             // bookmarks exist, so that the user can still access non-mobile bookmarks.
@@ -344,12 +323,16 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor c = null;
         int count = 0;
         try {
+            // Check to see if there are any bookmarks in one of our three
+            // fixed "Desktop Boomarks" folders.
             c = cr.query(bookmarksUriWithLimit(1),
                          new String[] { Bookmarks._ID },
-                         Bookmarks.PARENT + " != ? AND " +
-                         Bookmarks.PARENT + " != ?",
-                         new String[] { String.valueOf(getMobileBookmarksFolderId(cr)),
-                                        String.valueOf(Bookmarks.FIXED_ROOT_ID) },
+                         Bookmarks.PARENT + " = ? OR " +
+                         Bookmarks.PARENT + " = ? OR " +
+                         Bookmarks.PARENT + " = ?",
+                         new String[] { String.valueOf(getFolderIdFromGuid(cr, Bookmarks.TOOLBAR_FOLDER_GUID)),
+                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.MENU_FOLDER_GUID)),
+                                        String.valueOf(getFolderIdFromGuid(cr, Bookmarks.UNFILED_FOLDER_GUID)) },
                          null);
             count = c.getCount();
         } finally {
@@ -392,15 +375,10 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         return url;
     }
 
-    private long getMobileBookmarksFolderId(ContentResolver cr) {
-        if (mMobileFolderId >= 0)
-            return mMobileFolderId;
+    private synchronized long getFolderIdFromGuid(ContentResolver cr, String guid) {
+        if (mFolderIdMap.containsKey(guid))
+          return mFolderIdMap.get(guid);
 
-        mMobileFolderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
-        return mMobileFolderId;
-    }
-
-    private long getFolderIdFromGuid(ContentResolver cr, String guid) {
         long folderId = -1;
         Cursor c = null;
 
@@ -418,6 +396,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                 c.close();
         }
 
+        mFolderIdMap.put(guid, folderId);
         return folderId;
     }
 
@@ -436,7 +415,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void addBookmark(ContentResolver cr, String title, String uri) {
-        long folderId = getMobileBookmarksFolderId(cr);
+        long folderId = getFolderIdFromGuid(cr, Bookmarks.MOBILE_FOLDER_GUID);
         if (folderId < 0)
             return;
 
@@ -495,11 +474,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {
-        Uri uri = mBookmarksUriWithProfile;
-        cr.registerContentObserver(uri, false, observer);
+        cr.registerContentObserver(mBookmarksUriWithProfile, false, observer);
     }
 
-    public void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword) {
+    public void registerHistoryObserver(ContentResolver cr, ContentObserver observer) {
+        cr.registerContentObserver(mHistoryUriWithProfile, false, observer);
+    }
+
+    public void updateBookmark(ContentResolver cr, int id, String uri, String title, String keyword) {
         ContentValues values = new ContentValues();
         values.put(Browser.BookmarkColumns.TITLE, title);
         values.put(Bookmarks.URL, uri);
@@ -507,8 +489,8 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         cr.update(mBookmarksUriWithProfile,
                   values,
-                  Bookmarks.URL + " = ?",
-                  new String[] { oldUri });
+                  Bookmarks._ID + " = ?",
+                  new String[] { String.valueOf(id) });
     }
 
     public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {

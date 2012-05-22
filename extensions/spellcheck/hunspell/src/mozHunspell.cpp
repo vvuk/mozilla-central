@@ -123,9 +123,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Hunspell,
 nsresult
 mozHunspell::Init()
 {
-  if (!mDictionaries.Init())
-    return NS_ERROR_OUT_OF_MEMORY;
-
+  mDictionaries.Init();
   LoadDictionaryList();
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -557,7 +555,7 @@ NS_IMETHODIMP mozHunspell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggest
       PRUint32 index = 0;
       for (index = 0; index < *aSuggestionCount && NS_SUCCEEDED(rv); ++index) {
         // Convert the suggestion to utf16
-        PRInt32 inLength = nsCRT::strlen(wlst[index]);
+        PRInt32 inLength = strlen(wlst[index]);
         PRInt32 outLength;
         rv = mDecoder->GetMaxLength(wlst[index], inLength, &outLength);
         if (NS_SUCCEEDED(rv))

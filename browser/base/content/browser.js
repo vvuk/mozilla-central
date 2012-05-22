@@ -1,76 +1,7 @@
 # -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Blake Ross <blake@cs.stanford.edu>
-#   David Hyatt <hyatt@mozilla.org>
-#   Peter Annema <disttsc@bart.nl>
-#   Dean Tessman <dean_tessman@hotmail.com>
-#   Kevin Puetz <puetzk@iastate.edu>
-#   Ben Goodger <ben@netscape.com>
-#   Pierre Chanial <chanial@noos.fr>
-#   Jason Eager <jce2@po.cwru.edu>
-#   Joe Hewitt <hewitt@netscape.com>
-#   Alec Flett <alecf@netscape.com>
-#   Asaf Romano <mozilla.mano@sent.com>
-#   Jason Barnabe <jason_barnabe@fastmail.fm>
-#   Peter Parente <parente@cs.unc.edu>
-#   Giorgio Maone <g.maone@informaction.com>
-#   Tom Germeau <tom.germeau@epigoon.com>
-#   Jesse Ruderman <jruderman@gmail.com>
-#   Joe Hughes <joe@retrovirus.com>
-#   Pamela Greene <pamg.bugs@gmail.com>
-#   Michael Ventnor <m.ventnor@gmail.com>
-#   Simon Bünzli <zeniko@gmail.com>
-#   Johnathan Nightingale <johnath@mozilla.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Dão Gottwald <dao@mozilla.com>
-#   Thomas K. Dyas <tdyas@zecador.org>
-#   Edward Lee <edward.lee@engineering.uiuc.edu>
-#   Paul O’Shannessy <paul@oshannessy.com>
-#   Nils Maier <maierman@web.de>
-#   Rob Arnold <robarnold@cmu.edu>
-#   Dietrich Ayala <dietrich@mozilla.com>
-#   Gavin Sharp <gavin@gavinsharp.com>
-#   Justin Dolske <dolske@mozilla.com>
-#   Rob Campbell <rcampbell@mozilla.com>
-#   David Dahl <ddahl@mozilla.com>
-#   Patrick Walton <pcwalton@mozilla.com>
-#   Mihai Sucan <mihai.sucan@gmail.com>
-#   Victor Porof <vporof@mozilla.com>
-#   Frank Yan <fyan@mozilla.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 let Ci = Components.interfaces;
 let Cu = Components.utils;
@@ -440,7 +371,7 @@ function findChildShell(aDocument, aDocShell, aSoughtURI) {
 
 var gPopupBlockerObserver = {
   _reportButton: null,
-  
+
   onReportButtonClick: function (aEvent)
   {
     if (aEvent.button != 0 || aEvent.target != this._reportButton)
@@ -570,7 +501,7 @@ var gPopupBlockerObserver = {
     if (pageReport) {
       for (var i = 0; i < pageReport.length; ++i) {
         // popupWindowURI will be null if the file picker popup is blocked.
-        // xxxdz this should make the option say "Show file picker" and do it (Bug 590306) 
+        // xxxdz this should make the option say "Show file picker" and do it (Bug 590306)
         if (!pageReport[i].popupWindowURI)
           continue;
         var popupURIspec = pageReport[i].popupWindowURI.spec;
@@ -1031,27 +962,31 @@ let gGestureSupport = {
     switch (aEvent.type) {
       case "MozSwipeGesture":
         aEvent.preventDefault();
-        return this.onSwipe(aEvent);
+        this.onSwipe(aEvent);
+        break;
       case "MozMagnifyGestureStart":
         aEvent.preventDefault();
 #ifdef XP_WIN
-        return this._setupGesture(aEvent, "pinch", def(25, 0), "out", "in");
+        this._setupGesture(aEvent, "pinch", def(25, 0), "out", "in");
 #else
-        return this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
+        this._setupGesture(aEvent, "pinch", def(150, 1), "out", "in");
 #endif
+        break;
       case "MozRotateGestureStart":
         aEvent.preventDefault();
-        return this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
+        this._setupGesture(aEvent, "twist", def(25, 0), "right", "left");
+        break;
       case "MozMagnifyGestureUpdate":
       case "MozRotateGestureUpdate":
         aEvent.preventDefault();
-        return this._doUpdate(aEvent);
+        this._doUpdate(aEvent);
+        break;
       case "MozTapGesture":
         aEvent.preventDefault();
-        return this._doAction(aEvent, ["tap"]);
-      case "MozPressTapGesture":
-      // Fall through to default behavior
-      return;
+        this._doAction(aEvent, ["tap"]);
+        break;
+      /* case "MozPressTapGesture":
+        break; */
     }
   },
 
@@ -1136,8 +1071,6 @@ let gGestureSupport = {
    *        The original gesture event to convert into a fake click event
    * @param aGesture
    *        Array of gesture name parts (to be joined by periods)
-   * @return Name of the command found for the event's keys and gesture. If no
-   *         command is found, no value is returned (undefined).
    */
   _doAction: function GS__doAction(aEvent, aGesture) {
     // Create an array of pressed keys in a fixed order so that a command for
@@ -1175,9 +1108,8 @@ let gGestureSupport = {
         goDoCommand(command);
       }
 
-      return command;
+      break;
     }
-    return null;
   },
 
   /**
@@ -1198,10 +1130,12 @@ let gGestureSupport = {
    */
   onSwipe: function GS_onSwipe(aEvent) {
     // Figure out which one (and only one) direction was triggered
-    ["UP", "RIGHT", "DOWN", "LEFT"].forEach(function (dir) {
-      if (aEvent.direction == aEvent["DIRECTION_" + dir])
-        return this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
-    }, this);
+    for (let dir of ["UP", "RIGHT", "DOWN", "LEFT"]) {
+      if (aEvent.direction == aEvent["DIRECTION_" + dir]) {
+        this._doAction(aEvent, ["swipe", dir.toLowerCase()]);
+        break;
+      }
+    }
   },
 
   /**
@@ -1677,16 +1611,12 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   // Called when we enter DOM full-screen mode. Note we can already be in browser
   // full-screen mode when we enter DOM full-screen mode.
-  window.addEventListener("mozfullscreenchange", onMozFullScreenChange, true);
-
-  // When a restricted key is pressed in DOM full-screen mode, we should display
-  // the "Press ESC to exit" warning message.
-  window.addEventListener("MozShowFullScreenWarning", onShowFullScreenWarning, true);
+  window.addEventListener("MozEnteredDomFullscreen", onMozEnteredDomFullscreen, true);
 
   if (window.fullScreen)
     onFullScreen();
   if (document.mozFullScreen)
-    onMozFullScreenChange();
+    onMozEnteredDomFullscreen();
 
 #ifdef MOZ_SERVICES_SYNC
   // initialize the sync UI
@@ -1741,6 +1671,16 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("Tools:RemoteDebugger").removeAttribute("disabled");
 #ifdef MENUBAR_CAN_AUTOHIDE
     document.getElementById("appmenu_remoteDebugger").hidden = false;
+#endif
+  }
+
+  // Enable Chrome Debugger?
+  let enabled = gPrefService.getBoolPref("devtools.chrome.enabled");
+  if (enabled) {
+    document.getElementById("menu_chromeDebugger").hidden = false;
+    document.getElementById("Tools:ChromeDebugger").removeAttribute("disabled");
+#ifdef MENUBAR_CAN_AUTOHIDE
+    document.getElementById("appmenu_chromeDebugger").hidden = false;
 #endif
   }
 
@@ -2934,12 +2874,8 @@ function onFullScreen(event) {
   FullScreen.toggle(event);
 }
 
-function onMozFullScreenChange(event) {
-  FullScreen.enterDomFullScreen(event);
-}
-
-function onShowFullScreenWarning(event) {
-  FullScreen.showWarning(false);
+function onMozEnteredDomFullscreen(event) {
+  FullScreen.enterDomFullscreen(event);
 }
 
 function getWebNavigation()
@@ -3153,7 +3089,7 @@ function FillInHTMLTooltip(tipElement)
 
   [titleText, XLinkTitleText, SVGTitleText].forEach(function (t) {
     if (t && /\S/.test(t)) {
-      // Make CRLF and CR render one line break each.  
+      // Make CRLF and CR render one line break each.
       t = t.replace(/\r\n?/g, '\n');
 
       tipNode.setAttribute("label", t);
@@ -3488,7 +3424,7 @@ const BrowserSearch = {
         }
         win = window.openDialog(getBrowserURL(), "_blank",
                                 "chrome,all,dialog=no", "about:blank");
-        Services.obs.addObserver(observer, "browser-delayed-startup-finished", false); 
+        Services.obs.addObserver(observer, "browser-delayed-startup-finished", false);
       }
       return;
     }
@@ -3953,6 +3889,12 @@ var FullScreen = {
     // fullscreen menuitem, menubars, and the appmenu.
     document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
 
+#ifdef XP_MACOSX
+    // Make sure the menu items are adjusted.
+    document.getElementById("enterFullScreenItem").hidden = enterFS;
+    document.getElementById("exitFullScreenItem").hidden = !enterFS;
+#endif
+
     // On OS X Lion we don't want to hide toolbars when entering fullscreen, unless
     // we're entering DOM fullscreen, in which case we should hide the toolbars.
     // If we're leaving fullscreen, then we'll go through the exit code below to
@@ -4024,33 +3966,29 @@ var FullScreen = {
         // middle of window lowering. See bug 729872.
         setTimeout(this.exitDomFullScreen.bind(this), 0);
         break;
+      case "transitionend":
+        if (event.propertyName == "opacity")
+          this.cancelWarning();
+        break;
     }
   },
 
-  enterDomFullScreen : function(event) {
-    if (!document.mozFullScreen) {
+  enterDomFullscreen : function(event) {
+    if (!document.mozFullScreen)
+      return;
+
+    // However, if we receive a "MozEnteredDomFullScreen" event for a document
+    // which is not a subdocument of the currently selected tab, we know that
+    // we've switched tabs since the request to enter full-screen was made,
+    // so we should exit full-screen since the "full-screen document" isn't
+    // acutally visible.
+    if (event.target.defaultView.top != gBrowser.contentWindow) {
+      document.mozCancelFullScreen();
       return;
     }
 
-    // We receive "mozfullscreenchange" events for each subdocument which
-    // is an ancestor of the document containing the element which requested
-    // full-screen. Only add listeners and show warning etc when the event we
-    // receive is targeted at the chrome document, i.e. only once every time
-    // we enter DOM full-screen mode.
-    if (event.target != document) {
-      // However, if we receive a "mozfullscreenchange" event for a document
-      // which is not a subdocument of the currently selected tab, we know that
-      // we've switched tabs since the request to enter full-screen was made,
-      // so we should exit full-screen since the "full-screen document" isn't
-      // acutally visible.
-      if (event.target.defaultView.top != gBrowser.contentWindow) {
-        document.mozCancelFullScreen();
-      }
-      return;
-    }
-
-    let focusManger = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-    if (focusManger.activeWindow != window) {
+    let focusManager = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+    if (focusManager.activeWindow != window) {
       // The top-level window has lost focus since the request to enter
       // full-screen was made. Cancel full-screen.
       document.mozCancelFullScreen();
@@ -4064,7 +4002,7 @@ var FullScreen = {
     if (gFindBarInitialized)
       gFindBar.close();
 
-    this.showWarning(true);
+    this.showWarning(event.target);
 
     // Exit DOM full-screen mode upon open, close, or change tab.
     gBrowser.tabContainer.addEventListener("TabOpen", this.exitDomFullScreen);
@@ -4109,9 +4047,8 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      if (!this.useLionFullScreen) {
+      if (!this.useLionFullScreen)
         window.removeEventListener("deactivate", this);
-      }
     }
   },
 
@@ -4245,81 +4182,116 @@ var FullScreen = {
   },
 
   cancelWarning: function(event) {
-    if (!this.warningBox) {
+    if (!this.warningBox)
       return;
-    }
-    if (this.onWarningHidden) {
-      this.warningBox.removeEventListener("transitionend", this.onWarningHidden, false);
-      this.onWarningHidden = null;
-    }
+    this.fullscreenDocUri = null;
+    this.warningBox.removeEventListener("transitionend", this);
     if (this.warningFadeOutTimeout) {
       clearTimeout(this.warningFadeOutTimeout);
       this.warningFadeOutTimeout = null;
     }
-    if (this.revealBrowserTimeout) {
-      clearTimeout(this.revealBrowserTimeout);
-      this.revealBrowserTimeout = null;
-    }
-    this.warningBox.removeAttribute("fade-warning-out");
-    this.warningBox.removeAttribute("stop-obscuring-browser");
-    this.warningBox.removeAttribute("obscure-browser");
+
+    // Ensure focus switches away from the (now hidden) warning box. If the user
+    // clicked buttons in the fullscreen key authorization UI, it would have been
+    // focused, and any key events would be directed at the (now hidden) chrome
+    // document instead of the target document.
+    gBrowser.selectedBrowser.focus();
+
     this.warningBox.setAttribute("hidden", true);
+    this.warningBox.removeAttribute("fade-warning-out");
+    this.warningBox.removeAttribute("obscure-browser");
     this.warningBox = null;
+  },
+
+  setFullscreenAllowed: function(isApproved) {
+    let remember = document.getElementById("full-screen-remember-decision").checked;
+    if (remember)
+      Services.perms.add(this.fullscreenDocUri,
+                         "fullscreen",
+                         isApproved ? Services.perms.ALLOW_ACTION : Services.perms.DENY_ACTION,
+                         Services.perms.EXPIRE_NEVER);
+    else if (isApproved) {
+      // The user has only temporarily approved fullscren for this domain.
+      // Add the permission (so Gecko knows fullscreen is approved) but add a
+      // listener to remove the permission when the chrome document exits fullscreen.
+      Services.perms.add(this.fullscreenDocUri,
+                         "fullscreen",
+                         Services.perms.ALLOW_ACTION,
+                         Services.perms.EXPIRE_SESSION);
+      let host = this.fullscreenDocUri.host;
+      function onFullscreenchange(event) {
+        if (event.target == document && document.mozFullScreenElement == null) {
+          // The chrome document has left fullscreen. Remove the temporary permission grant.
+          Services.perms.remove(host, "fullscreen");
+          document.removeEventListener("mozfullscreenchange", onFullscreenchange);
+        }
+      }
+      document.addEventListener("mozfullscreenchange", onFullscreenchange);
+    }
+    if (this.warningBox)
+      this.warningBox.setAttribute("fade-warning-out", "true");
+    if (!isApproved)
+      document.mozCancelFullScreen();
   },
 
   warningBox: null,
   warningFadeOutTimeout: null,
-  revealBrowserTimeout: null,  
-  onWarningHidden: null,
+  fullscreenDocUri: null,
 
-  // Fade in a warning that document has entered full-screen, and then fade it
-  // out after a few seconds.
-  showWarning: function(obscureBackground) {
-    if (!document.mozFullScreen || !gPrefService.getBoolPref("full-screen-api.warning.enabled")) {
+  // Shows the fullscreen approval UI, or if the domain has already been approved
+  // for fullscreen, shows a warning that the site has entered fullscreen for a short
+  // duration.
+  showWarning: function(targetDoc) {
+    if (!document.mozFullScreen ||
+        !gPrefService.getBoolPref("full-screen-api.approval-required"))
       return;
-    }
-    if (this.warningBox) {
-      // Warning is already showing. Reset the timer which fades out the warning message,
-      // and we'll restart the timer down below.
-      if (this.warningFadeOutTimeout) {
-        clearTimeout(this.warningFadeOutTimeout);
-        this.warningFadeOutTimeout = null;
-      }
-    } else {
+
+    // Set the strings on the fullscreen approval UI.
+    this.fullscreenDocUri = targetDoc.nodePrincipal.URI;
+    let utils = {};
+    Cu.import("resource://gre/modules/DownloadUtils.jsm", utils);
+    let [displayHost, fullHost] = utils.DownloadUtils.getURIHost(this.fullscreenDocUri.spec);
+    let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+    let domainText = bundle.formatStringFromName("fullscreen.entered", [displayHost], 1);
+    document.getElementById("full-screen-domain-text").textContent = domainText;
+    let rememberText = bundle.formatStringFromName("fullscreen.rememberDecision", [displayHost], 1);
+    document.getElementById("full-screen-remember-decision").label = rememberText;
+
+    // Note: the warning box can be non-null if the warning box from the previous request
+    // wasn't hidden before another request was made.
+    if (!this.warningBox) {
       this.warningBox = document.getElementById("full-screen-warning-container");
       // Add a listener to clean up state after the warning is hidden.
-      this.onWarningHidden =
-        function(event) {
-          if (event.propertyName != "opacity")
-            return;
-          this.cancelWarning();
-        }.bind(this);
-      this.warningBox.addEventListener("transitionend", this.onWarningHidden, false);
+      this.warningBox.addEventListener("transitionend", this);
       this.warningBox.removeAttribute("hidden");
     }
 
-    if (obscureBackground) {
-      // Partially obscure the <browser> element underneath the warning panel...
+    // If fullscreen mode has not yet been approved for the fullscreen
+    // document's domain, show the approval UI and don't auto fade out the
+    // fullscreen warning box. Otherwise, we're just notifying of entry into
+    // fullscreen mode.
+    let isApproved =
+      Services.perms.testPermission(this.fullscreenDocUri, "fullscreen") == Services.perms.ALLOW_ACTION;
+    let authUI = document.getElementById("full-screen-approval-pane");
+    document.getElementById("full-screen-remember-decision").checked = false;
+    if (isApproved)
+      authUI.setAttribute("hidden", "true");
+    else {
+      // Partially obscure the <browser> element underneath the approval UI.
       this.warningBox.setAttribute("obscure-browser", "true");
-      // ...But set a timeout to stop obscuring the browser after a few moments.
-      this.warningBox.removeAttribute("stop-obscuring-browser");
-      this.revealBrowserTimeout =
+      authUI.removeAttribute("hidden");
+    }
+
+    // If we're not showing the fullscreen approval UI, we're just notifying the user
+    // of the transition, so set a timeout to fade the warning out after a few moments.
+    if (isApproved)
+      this.warningFadeOutTimeout =
         setTimeout(
           function() {
             if (this.warningBox)
-              this.warningBox.setAttribute("stop-obscuring-browser", "true");
+              this.warningBox.setAttribute("fade-warning-out", "true");
           }.bind(this),
-          1250);
-    }
-
-    // Set a timeout to fade the warning out after a few moments.
-    this.warningFadeOutTimeout =
-      setTimeout(
-        function() {
-          if (this.warningBox)
-            this.warningBox.setAttribute("fade-warning-out", "true");
-        }.bind(this),
-        3000);
+          3000);
   },
 
   mouseoverToggle: function(aShow, forceHide)
@@ -4461,10 +4433,10 @@ var FullScreen = {
 XPCOMUtils.defineLazyGetter(FullScreen, "useLionFullScreen", function() {
   // We'll only use OS X Lion full screen if we're
   // * on OS X
-  // * on Lion (Darwin 11.x) -- this will need to be updated for OS X 10.8
+  // * on Lion or higher (Darwin 11+)
   // * have fullscreenbutton="true"
 #ifdef XP_MACOSX
-  return /^11\./.test(Services.sysinfo.getProperty("version")) &&
+  return parseFloat(Services.sysinfo.getProperty("version")) >= 11 &&
          document.documentElement.getAttribute("fullscreenbutton") == "true";
 #else
   return false;
@@ -4499,7 +4471,8 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons", "about:permissions", "about:sync-progress"],
+  inContentWhitelist: ["about:addons", "about:permissions", 
+                       "about:sync-progress", "about:preferences"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
@@ -5209,10 +5182,13 @@ var TabsProgressListener = {
                               aFlags) {
     // Filter out any sub-frame loads
     if (aBrowser.contentWindow == aWebProgress.DOMWindow) {
-      // initialize the click-to-play state
-      aBrowser._clickToPlayDoorhangerShown = false;
-      aBrowser._clickToPlayPluginsActivated = false;
-
+      // Filter out any onLocationChanges triggered by anchor navigation
+      // or history.push/pop/replaceState.
+      if (aRequest) {
+        // Initialize the click-to-play state.
+        aBrowser._clickToPlayDoorhangerShown = false;
+        aBrowser._clickToPlayPluginsActivated = false;
+      }
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }
   },
@@ -6148,7 +6124,7 @@ function UpdateCharsetDetector(target) {
     prefvalue = gPrefService.getComplexValue("intl.charset.detector", Ci.nsIPrefLocalizedString).data;
   }
   catch (ex) {}
-  
+
   if (!prefvalue)
     prefvalue = "off";
 
@@ -7202,6 +7178,25 @@ var gPluginHandler = {
       notification.remove();
   },
 
+  activateSinglePlugin: function PH_activateSinglePlugin(aContentWindow, aPlugin) {
+    let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
+    if (!objLoadingContent.activated)
+      objLoadingContent.playPlugin();
+
+    let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                            .getInterface(Ci.nsIDOMWindowUtils);
+    let haveUnplayedPlugins = cwu.plugins.some(function(plugin) {
+      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
+      return (plugin != aPlugin && !objLoadingContent.activated);
+    });
+    let browser = gBrowser.getBrowserForDocument(aContentWindow.document);
+    let notification = PopupNotifications.getNotification("click-to-play-plugins", browser);
+    if (notification && !haveUnplayedPlugins) {
+      browser._clickToPlayDoorhangerShown = false;
+      notification.remove();
+    }
+  },
+
   newPluginInstalled : function(event) {
     // browser elements are anonymous so we can't just use target.
     var browser = event.originalTarget;
@@ -7272,10 +7267,13 @@ var gPluginHandler = {
     }
 
     let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
-    overlay.addEventListener("click", function(aEvent) {
-      if (aEvent.button == 0 && aEvent.isTrusted)
-        gPluginHandler.activatePlugins(aEvent.target.ownerDocument.defaultView.top);
-    }, true);
+    // The overlay is null if the XBL binding is not attached (element is display:none).
+    if (overlay) {
+      overlay.addEventListener("click", function(aEvent) {
+        if (aEvent.button == 0 && aEvent.isTrusted)
+          gPluginHandler.activateSinglePlugin(aEvent.target.ownerDocument.defaultView.top, aPlugin);
+      }, true);
+    }
 
     if (!browser._clickToPlayDoorhangerShown)
       gPluginHandler._showClickToPlayNotification(browser);
@@ -7327,12 +7325,23 @@ var gPluginHandler = {
         let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
         if (notification)
           notification.remove();
+        gPluginHandler._removeClickToPlayOverlays(contentWindow);
       }
     }];
     let options = { dismissed: true };
     PopupNotifications.show(aBrowser, "click-to-play-plugins",
                             messageString, "plugins-notification-icon",
                             mainAction, secondaryActions, options);
+  },
+
+  _removeClickToPlayOverlays: function PH_removeClickToPlayOverlays(aContentWindow) {
+    let doc = aContentWindow.document;
+    let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                            .getInterface(Ci.nsIDOMWindowUtils);
+    for (let plugin of cwu.plugins) {
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      overlay.style.visibility = "hidden";
+    }
   },
 
   // event listener for missing/blocklisted/outdated/carbonFailure plugins.
@@ -7823,7 +7832,7 @@ var FeedHandler = {
   loadFeed: function(href, event) {
     var feeds = gBrowser.selectedBrowser.feeds;
     try {
-      openUILink(href, event, false, true, false, null);
+      openUILink(href, event, { ignoreAlt: true });
     }
     finally {
       // We might default to a livebookmarks modal dialog,
@@ -8207,30 +8216,19 @@ var gIdentityHandler = {
    * @param newMode The newly set identity mode.  Should be one of the IDENTITY_MODE_* constants.
    */
   setIdentityMessages : function(newMode) {
-    if (newMode == this.IDENTITY_MODE_DOMAIN_VERIFIED) {
-      var iData = this.getIdentityData();
+    let icon_label = "";
+    let tooltip = "";
+    let icon_country_label = "";
+    let icon_labels_dir = "ltr";
 
-      // It would be sort of nice to use the CN= field in the cert, since that's
-      // typically what we want here, but thanks to x509 certs being extensible,
-      // it's not the only place you have to check, there can be more than one domain,
-      // et cetera, ad nauseum.  We know the cert is valid for location.host, so
-      // let's just use that. Check the pref to determine how much of the verified
-      // hostname to show
-      var icon_label = "";
-      var icon_country_label = "";
-      var icon_labels_dir = "ltr";
-      switch (gPrefService.getIntPref("browser.identity.ssl_domain_display")) {
-        case 2 : // Show full domain
-          icon_label = this._lastLocation.hostname;
-          break;
-        case 1 : // Show eTLD.
-          icon_label = this.getEffectiveHost();
-      }
+    switch (newMode) {
+    case this.IDENTITY_MODE_DOMAIN_VERIFIED: {
+      let iData = this.getIdentityData();
 
       // Verifier is either the CA Org, for a normal cert, or a special string
       // for certs that are trusted because of a security exception.
-      var tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
-                                                        [iData.caOrg]);
+      tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
+                                                    [iData.caOrg]);
 
       // Check whether this site is a security exception. XPConnect does the right
       // thing here in terms of converting _lastLocation.port from string to int, but
@@ -8245,15 +8243,16 @@ var gIdentityHandler = {
                                                     (this._lastLocation.port || 443),
                                                     iData.cert, {}, {}))
         tooltip = gNavigatorBundle.getString("identity.identified.verified_by_you");
-    }
-    else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
+      break; }
+    case this.IDENTITY_MODE_IDENTIFIED: {
       // If it's identified, then we can populate the dialog with credentials
-      iData = this.getIdentityData();
+      let iData = this.getIdentityData();
       tooltip = gNavigatorBundle.getFormattedString("identity.identified.verifier",
                                                     [iData.caOrg]);
       icon_label = iData.subjectOrg;
       if (iData.country)
         icon_country_label = "(" + iData.country + ")";
+
       // If the organization name starts with an RTL character, then
       // swap the positions of the organization and country code labels.
       // The Unicode ranges reflect the definition of the UCS2_CHAR_IS_BIDI
@@ -8262,18 +8261,11 @@ var gIdentityHandler = {
       // Unicode Bidirectional Algorithm proper (at the paragraph level).
       icon_labels_dir = /^[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/.test(icon_label) ?
                         "rtl" : "ltr";
-    }
-    else if (newMode == this.IDENTITY_MODE_CHROMEUI) {
-      icon_label = "";
-      tooltip = "";
-      icon_country_label = "";
-      icon_labels_dir = "ltr";
-    }
-    else {
+      break; }
+    case this.IDENTITY_MODE_CHROMEUI:
+      break;
+    default:
       tooltip = gNavigatorBundle.getString("identity.unknown.tooltip");
-      icon_label = "";
-      icon_country_label = "";
-      icon_labels_dir = "ltr";
     }
 
     // Push the appropriate strings out to the UI
@@ -8303,19 +8295,20 @@ var gIdentityHandler = {
     this._identityPopupEncLabel.textContent = this._encryptionLabel[newMode];
 
     // Initialize the optional strings to empty values
-    var supplemental = "";
-    var verifier = "";
+    let supplemental = "";
+    let verifier = "";
+    let host = "";
+    let owner = "";
 
-    if (newMode == this.IDENTITY_MODE_DOMAIN_VERIFIED) {
-      var iData = this.getIdentityData();
-      var host = this.getEffectiveHost();
-      var owner = gNavigatorBundle.getString("identity.ownerUnknown2");
+    switch (newMode) {
+    case this.IDENTITY_MODE_DOMAIN_VERIFIED:
+      host = this.getEffectiveHost();
+      owner = gNavigatorBundle.getString("identity.ownerUnknown2");
       verifier = this._identityBox.tooltipText;
-      supplemental = "";
-    }
-    else if (newMode == this.IDENTITY_MODE_IDENTIFIED) {
+      break;
+    case this.IDENTITY_MODE_IDENTIFIED: {
       // If it's identified, then we can populate the dialog with credentials
-      iData = this.getIdentityData();
+      let iData = this.getIdentityData();
       host = this.getEffectiveHost();
       owner = iData.subjectOrg;
       verifier = this._identityBox.tooltipText;
@@ -8330,11 +8323,7 @@ var gIdentityHandler = {
         supplemental += iData.state;
       else if (iData.country) // Country only
         supplemental += iData.country;
-    }
-    else {
-      // These strings will be hidden in CSS anyhow
-      host = "";
-      owner = "";
+      break; }
     }
 
     // Push the appropriate strings out to the UI
@@ -8810,7 +8799,8 @@ let gPrivateBrowsingUI = {
    * and the setter should only be used in tests.
    */
   get privateWindow() {
-    return window.getInterface(Ci.nsIWebNavigation)
+    return window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIWebNavigation)
                  .QueryInterface(Ci.nsIDocShellTreeItem)
                  .treeOwner
                  .QueryInterface(Ci.nsIInterfaceRequestor)
@@ -8820,7 +8810,8 @@ let gPrivateBrowsingUI = {
   },
 
   set privateWindow(val) {
-    return window.getInterface(Ci.nsIWebNavigation)
+    return window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIWebNavigation)
                  .QueryInterface(Ci.nsIDocShellTreeItem)
                  .treeOwner
                  .QueryInterface(Ci.nsIInterfaceRequestor)
@@ -9149,12 +9140,12 @@ XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
   }
 });
 
-// Prompt user to restart the browser in safe mode 
+// Prompt user to restart the browser in safe mode
 function safeModeRestart()
 {
-  // prompt the user to confirm 
+  // prompt the user to confirm
   let promptTitle = gNavigatorBundle.getString("safeModeRestartPromptTitle");
-  let promptMessage = 
+  let promptMessage =
     gNavigatorBundle.getString("safeModeRestartPromptMessage");
   let restartText = gNavigatorBundle.getString("safeModeRestartButton");
   let buttonFlags = (Services.prompt.BUTTON_POS_0 *

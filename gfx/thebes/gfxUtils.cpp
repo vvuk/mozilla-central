@@ -1,39 +1,7 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Corporation code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gfxUtils.h"
 #include "gfxContext.h"
@@ -414,6 +382,73 @@ DeviceToImageTransform(gfxContext* aContext,
     return gfxMatrix(deviceToUser).Multiply(aUserSpaceToImageSpace);
 }
 
+/* These heuristics are based on Source/WebCore/platform/graphics/skia/ImageSkia.cpp:computeResamplingMode() */
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+static gfxPattern::GraphicsFilter ReduceResamplingFilter(gfxPattern::GraphicsFilter aFilter,
+                                                         int aImgWidth, int aImgHeight,
+                                                         float aSourceWidth, float aSourceHeight)
+{
+    // Images smaller than this in either direction are considered "small" and
+    // are not resampled ever (see below).
+    const int kSmallImageSizeThreshold = 8;
+
+    // The amount an image can be stretched in a single direction before we
+    // say that it is being stretched so much that it must be a line or
+    // background that doesn't need resampling.
+    const float kLargeStretch = 3.0f;
+
+    if (aImgWidth <= kSmallImageSizeThreshold
+        || aImgHeight <= kSmallImageSizeThreshold) {
+        // Never resample small images. These are often used for borders and
+        // rules (think 1x1 images used to make lines).
+        return gfxPattern::FILTER_NEAREST;
+    }
+
+    if (aImgHeight * kLargeStretch <= aSourceHeight || aImgWidth * kLargeStretch <= aSourceWidth) {
+        // Large image tiling detected.
+
+        // Don't resample if it is being tiled a lot in only one direction.
+        // This is trying to catch cases where somebody has created a border
+        // (which might be large) and then is stretching it to fill some part
+        // of the page.
+        if (fabs(aSourceWidth - aImgWidth)/aImgWidth < 0.5 || fabs(aSourceHeight - aImgHeight)/aImgHeight < 0.5)
+            return gfxPattern::FILTER_NEAREST;
+
+        // The image is growing a lot and in more than one direction. Resampling
+        // is slow and doesn't give us very much when growing a lot.
+        return aFilter;
+    }
+
+    /* Some notes on other heuristics:
+       The Skia backend also uses nearest for backgrounds that are stretched by
+       a large amount. I'm not sure this is common enough for us to worry about
+       now. It also uses nearest for backgrounds/avoids high quality for images
+       that are very slightly scaled.  I'm also not sure that very slightly
+       scaled backgrounds are common enough us to worry about.
+
+       We don't currently have much support for doing high quality interpolation.
+       The only place this currently happens is on Quartz and we don't have as
+       much control over it as would be needed. Webkit avoids using high quality
+       resampling during load. It also avoids high quality if the transformation
+       is not just a scale and translation
+
+       WebKit bug #40045 added code to avoid resampling different parts
+       of an image with different methods by using a resampling hint size.
+       It currently looks unused in WebKit but it's something to watch out for.
+    */
+
+    return aFilter;
+}
+#else
+static gfxPattern::GraphicsFilter ReduceResamplingFilter(gfxPattern::GraphicsFilter aFilter,
+                                                          int aImgWidth, int aImgHeight,
+                                                          int aSourceWidth, int aSourceHeight)
+{
+    // Just pass the filter through unchanged
+    return aFilter;
+}
+#endif
+
 /* static */ void
 gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
                            gfxDrawable*     aDrawable,
@@ -423,7 +458,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
                            const gfxRect&   aImageRect,
                            const gfxRect&   aFill,
                            const gfxImageSurface::gfxImageFormat aFormat,
-                           const gfxPattern::GraphicsFilter& aFilter,
+                           gfxPattern::GraphicsFilter aFilter,
                            PRUint32         aImageFlags)
 {
     SAMPLE_LABEL("gfxUtils", "DrawPixelSnapped");
@@ -441,6 +476,12 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
 
     nsRefPtr<gfxDrawable> drawable = aDrawable;
 
+    aFilter = ReduceResamplingFilter(aFilter, aImageRect.Width(), aImageRect.Height(), aSourceRect.Width(), aSourceRect.Height());
+
+    // On Mobile, we don't ever want to do this; it has the potential for
+    // allocating very large temporary surfaces, especially since we'll
+    // do full-page snapshots often (see bug 749426).
+#ifndef MOZ_GFX_OPTIMIZE_MOBILE
     // OK now, the hard part left is to account for the subimage sampling
     // restriction. If all the transforms involved are just integer
     // translations, then we assume no resampling will occur so there's
@@ -462,6 +503,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
         // drawn without tiling.
         doTile = false;
     }
+#endif
 
     gfxContext::GraphicsOperator op = aContext->CurrentOperator();
     if ((op == gfxContext::OPERATOR_OVER || workaround.PushedGroup()) &&

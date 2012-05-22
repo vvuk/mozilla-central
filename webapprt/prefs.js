@@ -3,4 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 pref("browser.chromeURL", "chrome://webapprt/content/webapp.xul");
-pref("general.useragent.compatMode.firefox", true);
+pref("browser.download.folderList", 1);
+
+// Disable all add-on locations other than the profile
+pref("extensions.enabledScopes", 1);

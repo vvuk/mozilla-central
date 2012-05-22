@@ -1,41 +1,9 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla SpiderMonkey JavaScript 1.9 code, released
- * June 12, 2009.
- *
- * The Initial Developer of the Original Code is
- *   the Mozilla Corporation.
- *
- * Contributor(s):
- *   Dave Herman <dherman@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * JS reflection package.
@@ -57,9 +25,9 @@
 #include "jsarray.h"
 #include "jsnum.h"
 
-#include "frontend/BytecodeEmitter.h"
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
+#include "frontend/TreeContext.h"
 #include "vm/RegExpObject.h"
 
 #include "jsscriptinlines.h"
@@ -206,8 +174,8 @@ class NodeBuilder
             JSAtom *atom = js_Atomize(cx, name, strlen(name));
             if (!atom)
                 return false;
-            RootedVarId id(cx, ATOM_TO_JSID(atom));
-            if (!GetPropertyDefault(cx, userobj, id, NullValue(), &funv))
+            RootedVarId id(cx, AtomToId(atom));
+            if (!baseops::GetPropertyDefault(cx, userobj, id, NullValue(), &funv))
                 return false;
 
             if (funv.isNullOrUndefined()) {
@@ -677,7 +645,7 @@ NodeBuilder::newNodeLoc(TokenPos *pos, Value *dst)
         dst->setNull();
         return true;
     }
- 
+
     JSObject *loc, *to;
     Value tv;
 
@@ -2496,7 +2464,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
       case PNK_NEW:
       case PNK_LP:
       {
-#ifdef JS_HAS_GENERATOR_EXPRS
+#if JS_HAS_GENERATOR_EXPRS
         if (pn->isGeneratorExpr())
             return generatorExpression(pn->generatorExpr(), dst);
 #endif
@@ -2611,7 +2579,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
       case PNK_LET:
         return let(pn, true, dst);
 
-#ifdef JS_HAS_XML_SUPPORT
+#if JS_HAS_XML_SUPPORT
       case PNK_XMLUNARY:
         JS_ASSERT(pn->isOp(JSOP_XMLNAME) ||
                   pn->isOp(JSOP_SETXMLNAME) ||
@@ -2685,7 +2653,7 @@ ASTSerializer::xml(ParseNode *pn, Value *dst)
 {
     JS_CHECK_RECURSION(cx, return false);
     switch (pn->getKind()) {
-#ifdef JS_HAS_XML_SUPPORT
+#if JS_HAS_XML_SUPPORT
       case PNK_XMLCURLYEXPR:
       {
         Value expr;
@@ -2949,14 +2917,14 @@ ASTSerializer::function(ParseNode *pn, ASTType type, Value *dst)
     JSFunction *func = (JSFunction *)pn->pn_funbox->object;
 
     bool isGenerator =
-#ifdef JS_HAS_GENERATORS
-        pn->pn_funbox->tcflags & TCF_FUN_IS_GENERATOR;
+#if JS_HAS_GENERATORS
+        pn->pn_funbox->funIsGenerator();
 #else
         false;
 #endif
 
     bool isExpression =
-#ifdef JS_HAS_EXPR_CLOSURES
+#if JS_HAS_EXPR_CLOSURES
         func->flags & JSFUN_EXPR_CLOSURE;
 #else
         false;
@@ -3102,6 +3070,8 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, Value *dst)
 static JSBool
 reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 {
+    cx->runtime->gcExactScanningEnabled = false;
+
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "Reflect.parse", "0", "s");
@@ -3133,16 +3103,16 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
         Value prop;
 
         /* config.loc */
-        RootedVarId locId(cx, ATOM_TO_JSID(cx->runtime->atomState.locAtom));
-        if (!GetPropertyDefault(cx, config, locId, BooleanValue(true), &prop))
+        RootedVarId locId(cx, NameToId(cx->runtime->atomState.locAtom));
+        if (!baseops::GetPropertyDefault(cx, config, locId, BooleanValue(true), &prop))
             return JS_FALSE;
 
         loc = js_ValueToBoolean(prop);
 
         if (loc) {
             /* config.source */
-            RootedVarId sourceId(cx, ATOM_TO_JSID(cx->runtime->atomState.sourceAtom));
-            if (!GetPropertyDefault(cx, config, sourceId, NullValue(), &prop))
+            RootedVarId sourceId(cx, NameToId(cx->runtime->atomState.sourceAtom));
+            if (!baseops::GetPropertyDefault(cx, config, sourceId, NullValue(), &prop))
                 return JS_FALSE;
 
             if (!prop.isNullOrUndefined()) {
@@ -3162,16 +3132,16 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             }
 
             /* config.line */
-            RootedVarId lineId(cx, ATOM_TO_JSID(cx->runtime->atomState.lineAtom));
-            if (!GetPropertyDefault(cx, config, lineId, Int32Value(1), &prop) ||
+            RootedVarId lineId(cx, NameToId(cx->runtime->atomState.lineAtom));
+            if (!baseops::GetPropertyDefault(cx, config, lineId, Int32Value(1), &prop) ||
                 !ToUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
         }
 
         /* config.builder */
-        RootedVarId builderId(cx, ATOM_TO_JSID(cx->runtime->atomState.builderAtom));
-        if (!GetPropertyDefault(cx, config, builderId, NullValue(), &prop))
+        RootedVarId builderId(cx, NameToId(cx->runtime->atomState.builderAtom));
+        if (!baseops::GetPropertyDefault(cx, config, builderId, NullValue(), &prop))
             return JS_FALSE;
 
         if (!prop.isNullOrUndefined()) {
