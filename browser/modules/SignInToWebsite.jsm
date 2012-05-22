@@ -17,10 +17,12 @@ let SignInToWebsiteUX = {
 
   init: function SignInToWebsiteUX_init() {
     Services.obs.addObserver(this, "identity-request", false); // TODO
+    Services.obs.addObserver(this, "identity-login", false); // TODO
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
     Services.obs.removeObserver(this, "identity-request");
+    Services.obs.removeObserver(this, "identity-login");
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
@@ -30,6 +32,9 @@ let SignInToWebsiteUX = {
         let win = Services.wm.getMostRecentWindow('navigator:browser');
         this.requestLogin(win);
         break;
+      case "identity-login":
+        dump("Received identity-login: "+aData+"\n");
+        break;
     }
   },
 
@@ -37,7 +42,7 @@ let SignInToWebsiteUX = {
     let browser = aWin.gBrowser;
     let message = "Login below:";
     let mainAction = {
-      label: "replace this button",
+      label: "Next",
       accessKey: "i", // TODO
       callback: function(notification) {
         // TODO

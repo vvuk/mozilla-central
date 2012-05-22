@@ -49,6 +49,7 @@ function supString(aString)
 function IDService()
 {
   Services.obs.addObserver(this, "quit-application-granted", false);
+  Services.obs.addObserver(this, "identity-login", false);
 }
 IDService.prototype = {
   // DOM Methods.
@@ -68,7 +69,8 @@ IDService.prototype = {
    */
   watch: function watch(aOptions, aWindowID)
   {
-
+    // TODO: do type checking on aOptions properties.
+    // TODO: only persist a whitelist of properties
   },
 
   /**
@@ -419,9 +421,17 @@ IDService.prototype = {
 
   observe: function observe(aSubject, aTopic, aData)
   {
-    if (aTopic == "quit-application-granted") {
-      Services.obs.removeObserver(this, "quit-application-granted", false);
-      this.shutdown();
+    switch (aTopic) {
+      case "quit-application-granted":
+        Services.obs.removeObserver(this, "quit-application-granted", false);
+        Services.obs.removeObserver(this, "identity-login", false);
+        this.shutdown();
+        break;
+      case "identity-login": // User chose a new or exiting identity after a request() call
+        let identity = aData; // String
+        // aData is the email address chosen (TODO: or null if cancelled?)
+        // TODO: either do the authentication or provisioning flow depending on the email
+        break;
     }
   },
 };
