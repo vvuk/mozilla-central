@@ -1,40 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   John Gaunt (jgaunt@netscape.com)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsAccessibilityService.h"
 
@@ -46,6 +13,7 @@
 #include "AtkSocketAccessible.h"
 #endif
 #include "FocusManager.h"
+#include "HTMLListAccessible.h"
 #include "nsAccessiblePivot.h"
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
@@ -57,11 +25,11 @@
 #include "nsHTMLTableAccessibleWrap.h"
 #include "nsHTMLTextAccessible.h"
 #include "nsHyperTextAccessibleWrap.h"
-#include "nsRootAccessibleWrap.h"
 #include "nsXFormsFormControlsAccessible.h"
 #include "nsXFormsWidgetsAccessible.h"
 #include "OuterDocAccessible.h"
 #include "Role.h"
+#include "RootAccessibleWrap.h"
 #include "States.h"
 #include "Statistics.h"
 #ifdef XP_WIN
@@ -222,7 +190,7 @@ nsAccessibilityService::CreateHTMLLIAccessible(nsIContent* aContent,
                                                nsIPresShell* aPresShell)
 {
   nsAccessible* accessible = 
-    new nsHTMLLIAccessible(aContent, GetDocAccessible(aPresShell));
+    new HTMLLIAccessible(aContent, GetDocAccessible(aPresShell));
   NS_ADDREF(accessible);
   return accessible;
 }
@@ -599,7 +567,7 @@ nsAccessibilityService::UpdateListBullet(nsIPresShell* aPresShell,
   if (document) {
     nsAccessible* accessible = document->GetAccessible(aHTMLListItemContent);
     if (accessible) {
-      nsHTMLLIAccessible* listItem = accessible->AsHTMLListItem();
+      HTMLLIAccessible* listItem = accessible->AsHTMLListItem();
       if (listItem)
         listItem->UpdateBullet(aHasBullet);
     }
@@ -657,7 +625,7 @@ nsAccessibilityService::PresShellActivated(nsIPresShell* aPresShell)
   if (DOMDoc) {
     nsDocAccessible* document = GetDocAccessibleFromCache(DOMDoc);
     if (document) {
-      nsRootAccessible* rootDocument = document->RootAccessible();
+      RootAccessible* rootDocument = document->RootAccessible();
       NS_ASSERTION(rootDocument, "Entirely broken tree: no root document!");
       if (rootDocument)
         rootDocument->DocumentActivated(document);
@@ -1271,6 +1239,9 @@ nsAccessibilityService::Init()
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
 
+  static const PRUnichar kInitIndicator[] = { '1', 0 };
+  observerService->NotifyObservers(nsnull, "a11y-init-or-shutdown", kInitIndicator);
+
   // Initialize accessibility.
   nsAccessNodeWrap::InitAccessibility();
 
@@ -1284,8 +1255,12 @@ nsAccessibilityService::Shutdown()
   // Remove observers.
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
-  if (observerService)
+  if (observerService) {
     observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+
+    static const PRUnichar kShutdownIndicator[] = { '0', 0 };
+    observerService->NotifyObservers(nsnull, "a11y-init-or-shutdown", kShutdownIndicator);
+  }
 
   // Stop accessible document loader.
   nsAccDocManager::Shutdown();
@@ -1651,7 +1626,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
 
   if (tag == nsGkAtoms::ul || tag == nsGkAtoms::ol ||
       tag == nsGkAtoms::dl) {
-    nsAccessible* accessible = new nsHTMLListAccessible(aContent, aDoc);
+    nsAccessible* accessible = new HTMLListAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }
@@ -1678,7 +1653,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     // Normally for li, it is created by the list item frame (in nsBlockFrame)
     // which knows about the bullet frame; however, in this case the list item
     // must have been styled using display: foo
-    nsAccessible* accessible = new nsHTMLLIAccessible(aContent, aDoc);
+    nsAccessible* accessible = new HTMLLIAccessible(aContent, aDoc);
     NS_IF_ADDREF(accessible);
     return accessible;
   }
@@ -1728,15 +1703,15 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
 
 nsAccessible*
 nsAccessibilityService::AddNativeRootAccessible(void* aAtkAccessible)
- {
+{
 #ifdef MOZ_ACCESSIBILITY_ATK
   ApplicationAccessible* applicationAcc =
     nsAccessNode::GetApplicationAccessible();
   if (!applicationAcc)
     return nsnull;
 
-  nsRefPtr<nsNativeRootAccessibleWrap> nativeRootAcc =
-     new nsNativeRootAccessibleWrap((AtkObject*)aAtkAccessible);
+  nsRefPtr<NativeRootAccessibleWrap> nativeRootAcc =
+    new NativeRootAccessibleWrap(static_cast<AtkObject*>(aAtkAccessible));
   if (!nativeRootAcc)
     return nsnull;
 
@@ -1745,7 +1720,7 @@ nsAccessibilityService::AddNativeRootAccessible(void* aAtkAccessible)
 #endif
 
   return nsnull;
- }
+}
 
 void
 nsAccessibilityService::RemoveNativeRootAccessible(nsAccessible* aAccessible)

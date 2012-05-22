@@ -1,41 +1,7 @@
 /* vim:set ts=2 sw=2 sts=2 et cin: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.
- *
- * The Initial Developer of the Original Code is IBM Corporation.
- * Portions created by IBM Corporation are Copyright (C) 2004
- * IBM Corporation. All Rights Reserved.
- *
- * Contributor(s):
- *   Darin Fisher <darin@meer.net>
- *   Dave Camp <dcamp@mozilla.com>
- *   Honza Bambas <honzab@firemni.cz>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -73,7 +39,6 @@
 using namespace mozilla;
 
 static const char OFFLINE_CACHE_DEVICE_ID[] = { "offline" };
-static NS_DEFINE_CID(kCacheServiceCID, NS_CACHESERVICE_CID);
 
 #define LOG(args) CACHE_LOG_DEBUG(args)
 
@@ -821,7 +786,7 @@ private:
  * nsOfflineCacheDevice
  */
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsOfflineCacheDevice, nsIApplicationCacheService)
+NS_IMPL_THREADSAFE_ISUPPORTS0(nsOfflineCacheDevice)
 
 nsOfflineCacheDevice::nsOfflineCacheDevice()
   : mDB(nsnull)
@@ -984,23 +949,6 @@ nsOfflineCacheDevice::DeleteData(nsCacheEntry *entry)
 /**
  * nsCacheDevice implementation
  */
-
-/* static */
-nsOfflineCacheDevice *
-nsOfflineCacheDevice::GetInstance()
-{
-  nsresult rv;
-  nsCOMPtr<nsICacheService> serv = do_GetService(kCacheServiceCID, &rv);
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  nsICacheService *iservice = static_cast<nsICacheService*>(serv.get());
-  nsCacheService *cacheService = static_cast<nsCacheService*>(iservice);
-  rv = cacheService->CreateOfflineDevice();
-  NS_ENSURE_SUCCESS(rv, nsnull);
-
-  NS_IF_ADDREF(cacheService->mOfflineDevice);
-  return cacheService->mOfflineDevice;
-}
 
 // This struct is local to nsOfflineCacheDevice::Init, but ISO C++98 doesn't
 // allow a template (mozilla::ArrayLength) to be instantiated based on a local
@@ -1200,16 +1148,15 @@ nsOfflineCacheDevice::Init()
 nsresult
 nsOfflineCacheDevice::InitActiveCaches()
 {
-  NS_ENSURE_TRUE(mCaches.Init(), NS_ERROR_OUT_OF_MEMORY);
-  NS_ENSURE_TRUE(mActiveCachesByGroup.Init(), NS_ERROR_OUT_OF_MEMORY);
+  mCaches.Init();
+  mActiveCachesByGroup.Init();
 
-  nsresult rv = mActiveCaches.Init(5);
-  NS_ENSURE_SUCCESS(rv, rv);
+  mActiveCaches.Init(5);
 
   AutoResetStatement statement(mStatement_EnumerateGroups);
 
   bool hasRows;
-  rv = statement->ExecuteStep(&hasRows);
+  nsresult rv = statement->ExecuteStep(&hasRows);
   NS_ENSURE_SUCCESS(rv, rv);
 
   while (hasRows)
@@ -2055,7 +2002,7 @@ nsOfflineCacheDevice::GetUsage(const nsACString &clientID,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::GetGroups(PRUint32 *count,
                                  char ***keys)
 {
@@ -2065,7 +2012,7 @@ nsOfflineCacheDevice::GetGroups(PRUint32 *count,
   return RunSimpleQuery(mStatement_EnumerateGroups, 0, count, keys);
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::GetGroupsTimeOrdered(PRUint32 *count,
 					   char ***keys)
 {
@@ -2113,7 +2060,7 @@ nsOfflineCacheDevice::RunSimpleQuery(mozIStorageStatement * statement,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::CreateApplicationCache(const nsACString &group,
                                              nsIApplicationCache **out)
 {
@@ -2151,7 +2098,7 @@ nsOfflineCacheDevice::CreateApplicationCache(const nsACString &group,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::GetApplicationCache(const nsACString &clientID,
                                           nsIApplicationCache **out)
 {
@@ -2186,7 +2133,7 @@ nsOfflineCacheDevice::GetApplicationCache(const nsACString &clientID,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::GetActiveCache(const nsACString &group,
                                      nsIApplicationCache **out)
 {
@@ -2199,7 +2146,7 @@ nsOfflineCacheDevice::GetActiveCache(const nsACString &group,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::DeactivateGroup(const nsACString &group)
 {
   nsCString *active = nsnull;
@@ -2248,7 +2195,7 @@ nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI, const nsCString &clientID)
 }
 
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
                                              nsIApplicationCache **out)
 {
@@ -2321,7 +2268,7 @@ nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsOfflineCacheDevice::CacheOpportunistically(nsIApplicationCache* cache,
                                              const nsACString &key)
 {

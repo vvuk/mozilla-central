@@ -1,39 +1,7 @@
 /* -*- indent-tabs-mode: nil -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Taras Glek <tglek@mozilla.com>
- *   Vladan Djeric <vdjeric@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -54,9 +22,21 @@ const PREF_ENABLED = "toolkit.telemetry.enabled";
 const TELEMETRY_INTERVAL = 60000;
 // Delay before intializing telemetry (ms)
 const TELEMETRY_DELAY = 60000;
-// about:memory values to turn into histograms
+
+// MEM_HISTOGRAMS lists the memory reporters we turn into histograms.
+//
+// Note that we currently handle only vanilla memory reporters, not memory
+// multi-reporters.
+//
+// test_TelemetryPing.js relies on some of these memory reporters
+// being here.  If you remove any of the following histograms from
+// MEM_HISTOGRAMS, you'll have to modify test_TelemetryPing.js:
+//
+//   * MEMORY_JS_GC_HEAP, and
+//   * MEMORY_JS_COMPARTMENTS_SYSTEM.
+//
 const MEM_HISTOGRAMS = {
-  "js-main-runtime-gc-heap-committed": "MEMORY_JS_GC_HEAP_COMMITTED",
+  "js-gc-heap": "MEMORY_JS_GC_HEAP",
   "js-compartments-system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
   "js-compartments-user": "MEMORY_JS_COMPARTMENTS_USER",
   "explicit": "MEMORY_EXPLICIT",
@@ -65,12 +45,15 @@ const MEM_HISTOGRAMS = {
   "images-content-used-uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
   "heap-allocated": "MEMORY_HEAP_ALLOCATED",
+  "heap-committed-unused": "MEMORY_HEAP_COMMITTED_UNUSED",
+  "heap-committed-unused-ratio": "MEMORY_HEAP_COMMITTED_UNUSED_RATIO",
   "page-faults-hard": "PAGE_FAULTS_HARD",
   "low-memory-events-virtual": "LOW_MEMORY_EVENTS_VIRTUAL",
   "low-memory-events-commit-space": "LOW_MEMORY_EVENTS_COMMIT_SPACE",
   "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL",
   "ghost-windows": "GHOST_WINDOWS"
 };
+
 // Seconds of idle time before pinging.
 // On idle-daily a gather-telemetry notification is fired, during it probes can
 // start asynchronous tasks to gather data.  On the next idle the data is sent.
@@ -261,8 +244,14 @@ TelemetryPing.prototype = {
     let ahs = Telemetry.addonHistogramSnapshots;
     let ret = {};
 
-    for (let name in ahs) {
-      ret[name] = this.convertHistogram(ahs[name]);
+    for (let addonName in ahs) {
+      addonHistograms = ahs[addonName];
+      packedHistograms = {};
+      for (let name in addonHistograms) {
+        packedHistograms[name] = this.packHistogram(addonHistograms[name]);
+      }
+      if (Object.keys(packedHistograms).length != 0)
+        ret[addonName] = packedHistograms;
     }
 
     return ret;
@@ -370,47 +359,58 @@ TelemetryPing.prototype = {
     let e = mgr.enumerateReporters();
     while (e.hasMoreElements()) {
       let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-      let id, mrPath, mrAmount, mrUnits;
+      let id = MEM_HISTOGRAMS[mr.path];
+      if (!id) {
+        continue;
+      }
+
+      // Reading mr.amount might throw an exception.  If so, just ignore that
+      // memory reporter; we're not getting useful data out of it.
       try {
-        mrPath = mr.path;
-        id = MEM_HISTOGRAMS[mrPath];
-        if (!id) {
-          continue;
-        }
-        mrAmount = mr.amount;
-        mrUnits = mr.units;
-      } catch (ex) {
-        continue;
+        this.handleMemoryReport(id, mr.path, mr.units, mr.amount);
       }
-
-      let val;
-      if (mrUnits == Ci.nsIMemoryReporter.UNITS_BYTES) {
-        val = Math.floor(mrAmount / 1024);
+      catch (e) {
       }
-      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT) {
-        val = mrAmount;
-      }
-      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
-        // If the reporter gives us a cumulative count, we'll report the
-        // difference in its value between now and our previous ping.
-
-        if (!(mrPath in this._prevValues)) {
-          // If this is the first time we're reading this reporter, store its
-          // current value but don't report it in the telemetry ping, so we
-          // ignore the effect startup had on the reporter.
-          this._prevValues[mrPath] = mrAmount;
-          continue;
-        }
-
-        val = mrAmount - this._prevValues[mrPath];
-        this._prevValues[mrPath] = mrAmount;
-      }
-      else {
-        NS_ASSERT(false, "Can't handle memory reporter with units " + mrUnits);
-        continue;
-      }
-      this.addValue(mrPath, id, val);
     }
+  },
+
+  handleMemoryReport: function handleMemoryReport(id, path, units, amount) {
+    if (amount == -1) {
+      return;
+    }
+
+    let val;
+    if (units == Ci.nsIMemoryReporter.UNITS_BYTES) {
+      val = Math.floor(amount / 1024);
+    }
+    else if (units == Ci.nsIMemoryReporter.UNITS_PERCENTAGE) {
+      // UNITS_PERCENTAGE amounts are 100x greater than their raw value.
+      val = Math.floor(amount / 100);
+    }
+    else if (units == Ci.nsIMemoryReporter.UNITS_COUNT) {
+      val = amount;
+    }
+    else if (units == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
+      // If the reporter gives us a cumulative count, we'll report the
+      // difference in its value between now and our previous ping.
+
+      if (!(path in this._prevValues)) {
+        // If this is the first time we're reading this reporter, store its
+        // current value but don't report it in the telemetry ping, so we
+        // ignore the effect startup had on the reporter.
+        this._prevValues[path] = amount;
+        return;
+      }
+
+      val = amount - this._prevValues[path];
+      this._prevValues[path] = amount;
+    }
+    else {
+      NS_ASSERT(false, "Can't handle memory reporter with units " + units);
+      return;
+    }
+
+    this.addValue(path, id, val);
   },
 
   /**

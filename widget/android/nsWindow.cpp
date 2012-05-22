@@ -1,41 +1,7 @@
 /* -*- Mode: c++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Matt Brubeck <mbrubeck@mozilla.com>
- *   Vivien Nicolas <vnicolas@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <android/log.h>
 #include <math.h>
@@ -914,11 +880,15 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 
             if (AndroidBridge::Bridge()->HasNativeWindowAccess()) {
                 AndroidGeckoSurfaceView& sview(AndroidBridge::Bridge()->SurfaceView());
-                jobject surface = sview.GetSurface();
-                if (surface) {
-                    sNativeWindow = AndroidBridge::Bridge()->AcquireNativeWindow(AndroidBridge::GetJNIEnv(), surface);
-                    if (sNativeWindow) {
-                        AndroidBridge::Bridge()->SetNativeWindowFormat(sNativeWindow, 0, 0, AndroidBridge::WINDOW_FORMAT_RGB_565);
+                JNIEnv *env = AndroidBridge::GetJNIEnv();
+                if (env) {
+                    AutoLocalJNIFrame jniFrame(env);
+                    jobject surface = sview.GetSurface(&jniFrame);
+                    if (surface) {
+                        sNativeWindow = AndroidBridge::Bridge()->AcquireNativeWindow(env, surface);
+                        if (sNativeWindow) {
+                            AndroidBridge::Bridge()->SetNativeWindowFormat(sNativeWindow, 0, 0, AndroidBridge::WINDOW_FORMAT_RGB_565);
+                        }
                     }
                 }
             }
@@ -1019,9 +989,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
         nsPaintEvent event(true, NS_PAINT, this);
-
-        nsIntRect tileRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
-        event.region = boundsRect.Intersect(invalidRect).Intersect(tileRect);
+        event.region = invalidRect;
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
@@ -1111,7 +1079,11 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
-    AndroidBridge::AutoLocalJNIFrame jniFrame;
+    JNIEnv *env = AndroidBridge::GetJNIEnv();
+    if (!env)
+        return;
+    AutoLocalJNIFrame jniFrame;
+
 #ifdef MOZ_JAVA_COMPOSITOR
     // We're paused, or we haven't been given a window-size yet, so do nothing
     if (sCompositorPaused || gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0) {
@@ -1126,11 +1098,10 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     layers::renderTraceEventEnd("Get surface", "424545");
 
     layers::renderTraceEventStart("Widget draw to", "434646");
-    nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
     if (targetSurface->CairoStatus()) {
         ALOG("### Failed to create a valid surface from the bitmap");
     } else {
-        DrawTo(targetSurface, dirtyRect);
+        DrawTo(targetSurface, ae->Rect());
     }
     layers::renderTraceEventEnd("Widget draw to", "434646");
     return;
@@ -1176,7 +1147,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
             AndroidBridge::Bridge()->UnlockWindow(sNativeWindow);
         } else if (AndroidBridge::Bridge()->HasNativeBitmapAccess()) {
-            jobject bitmap = sview.GetSoftwareDrawBitmap();
+            jobject bitmap = sview.GetSoftwareDrawBitmap(&jniFrame);
             if (!bitmap) {
                 ALOG("no bitmap to draw into - skipping draw");
                 return;
@@ -1205,15 +1176,11 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
             AndroidBridge::Bridge()->UnlockBitmap(bitmap);
             sview.Draw2D(bitmap, mBounds.width, mBounds.height);
         } else {
-            jobject bytebuf = sview.GetSoftwareDrawBuffer();
+            jobject bytebuf = sview.GetSoftwareDrawBuffer(&jniFrame);
             if (!bytebuf) {
                 ALOG("no buffer to draw into - skipping draw");
                 return;
             }
-
-            JNIEnv *env = AndroidBridge::GetJNIEnv();
-            if (!env)
-                return;
 
             void *buf = env->GetDirectBufferAddress(bytebuf);
             int cap = env->GetDirectBufferCapacity(bytebuf);
@@ -1604,7 +1571,7 @@ static unsigned int ConvertAndroidKeyCodeToDOMKeyCode(int androidKeyCode)
         case AndroidKeyEvent::KEYCODE_DPAD_DOWN:          return NS_VK_DOWN;
         case AndroidKeyEvent::KEYCODE_DPAD_LEFT:          return NS_VK_LEFT;
         case AndroidKeyEvent::KEYCODE_DPAD_RIGHT:         return NS_VK_RIGHT;
-        case AndroidKeyEvent::KEYCODE_DPAD_CENTER:        return NS_VK_ENTER;
+        case AndroidKeyEvent::KEYCODE_DPAD_CENTER:        return NS_VK_RETURN;
         // KEYCODE_VOLUME_UP (24) ... KEYCODE_Z (54)
         case AndroidKeyEvent::KEYCODE_COMMA:              return NS_VK_COMMA;
         case AndroidKeyEvent::KEYCODE_PERIOD:             return NS_VK_PERIOD;
@@ -1741,6 +1708,7 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
                              key.IsAltPressed(),
                              key.IsShiftPressed(),
                              false);
+    event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = key.Time();
 
     if (gMenu)
@@ -2221,32 +2189,43 @@ nsWindow::GetIMEUpdatePreference()
 
 #ifdef MOZ_JAVA_COMPOSITOR
 void
-nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {
-    AndroidBridge::AutoLocalJNIFrame jniFrame(GetJNIForThread());
+nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
+{
+    JNIEnv *env = GetJNIForThread();
+    NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowUnderlay()!");
+    if (!env)
+        return;
+
+    AutoLocalJNIFrame jniFrame(env);
 
     AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
-    client.CreateFrame(mLayerRendererFrame);
-
-    client.ActivateProgram();
-    mLayerRendererFrame.BeginDrawing();
-    mLayerRendererFrame.DrawBackground();
-    client.DeactivateProgram();
+    if (!client.CreateFrame(&jniFrame, mLayerRendererFrame)) return;
+    if (!client.ActivateProgram(&jniFrame)) return;
+    if (!mLayerRendererFrame.BeginDrawing(&jniFrame)) return;
+    if (!mLayerRendererFrame.DrawBackground(&jniFrame)) return;
+    if (!client.DeactivateProgram(&jniFrame)) return; // redundant, but in case somebody adds code after this...
 }
 
 void
-nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {
-    AndroidBridge::AutoLocalJNIFrame jniFrame(GetJNIForThread());
+nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
+{
+    JNIEnv *env = GetJNIForThread();
+    NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowOverlay()!");
+    if (!env)
+        return;
+
+    AutoLocalJNIFrame jniFrame(env);
+
     NS_ABORT_IF_FALSE(!mLayerRendererFrame.isNull(),
                       "Frame should have been created in DrawWindowUnderlay()!");
 
     AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
 
-    client.ActivateProgram();
-    mLayerRendererFrame.DrawForeground();
-    mLayerRendererFrame.EndDrawing();
-    client.DeactivateProgram();
-
-    mLayerRendererFrame.Dispose();
+    if (!client.ActivateProgram(&jniFrame)) return;
+    if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;
+    if (!mLayerRendererFrame.EndDrawing(&jniFrame)) return;
+    if (!client.DeactivateProgram(&jniFrame)) return;
+    mLayerRendererFrame.Dispose(env);
 }
 
 // off-main-thread compositor fields and functions

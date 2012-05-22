@@ -1,43 +1,7 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Mark Steele <mwsteele@gmail.com>
- *   Bas Schouten <bschouten@mozilla.com>
- *   Jeff Gilbert <jgilbert@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
 #include <string.h>
@@ -101,6 +65,7 @@ static const char *sExtensionNames[] = {
     "GL_EXT_unpack_subimage",
     "GL_OES_standard_derivatives",
     "GL_EXT_texture_filter_anisotropic",
+    "GL_EXT_texture_compression_s3tc",
     "GL_EXT_framebuffer_blit",
     "GL_ANGLE_framebuffer_blit",
     "GL_EXT_framebuffer_multisample",
@@ -146,6 +111,8 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         { (PRFuncPtr*) &mSymbols.fClearColor, { "ClearColor", NULL } },
         { (PRFuncPtr*) &mSymbols.fClearStencil, { "ClearStencil", NULL } },
         { (PRFuncPtr*) &mSymbols.fColorMask, { "ColorMask", NULL } },
+        { (PRFuncPtr*) &mSymbols.fCompressedTexImage2D, {"CompressedTexImage2D", NULL} },
+        { (PRFuncPtr*) &mSymbols.fCompressedTexSubImage2D, {"CompressedTexSubImage2D", NULL} },
         { (PRFuncPtr*) &mSymbols.fCullFace, { "CullFace", NULL } },
         { (PRFuncPtr*) &mSymbols.fDetachShader, { "DetachShader", "DetachShaderARB", NULL } },
         { (PRFuncPtr*) &mSymbols.fDepthFunc, { "DepthFunc", NULL } },
@@ -739,8 +706,9 @@ already_AddRefed<TextureImage>
 GLContext::CreateTextureImage(const nsIntSize& aSize,
                               TextureImage::ContentType aContentType,
                               GLenum aWrapMode,
-                              bool aUseNearestFilter)
+                              TextureImage::Flags aFlags)
 {
+    bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
     MakeCurrent();
 
     GLuint texture;
@@ -749,13 +717,13 @@ GLContext::CreateTextureImage(const nsIntSize& aSize,
     fActiveTexture(LOCAL_GL_TEXTURE0);
     fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
 
-    GLint texfilter = aUseNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
+    GLint texfilter = useNearestFilter ? LOCAL_GL_NEAREST : LOCAL_GL_LINEAR;
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, texfilter);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, texfilter);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, aWrapMode);
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
 
-    return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this);
+    return CreateBasicTextureImage(texture, aSize, aWrapMode, aContentType, this, aFlags);
 }
 
 void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
@@ -938,14 +906,13 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
 TiledTextureImage::TiledTextureImage(GLContext* aGL,
                                      nsIntSize aSize,
                                      TextureImage::ContentType aContentType,
-                                     bool aUseNearestFilter)
-    : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aUseNearestFilter)
+                                     TextureImage::Flags aFlags)
+    : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aFlags)
     , mCurrentImage(0)
     , mInUpdate(false)
     , mRows(0)
     , mColumns(0)
     , mGL(aGL)
-    , mUseNearestFilter(aUseNearestFilter)
     , mTextureState(Created)
     , mIterationCallback(nsnull)
 {
@@ -975,7 +942,7 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
     int oldCurrentImage = mCurrentImage;
     BeginTileIteration();
     do {
-        nsIntRect tileRect = GetTileRect();
+        nsIntRect tileRect = GetSrcTileRect();
         int xPos = tileRect.x;
         int yPos = tileRect.y;
 
@@ -1187,6 +1154,15 @@ nsIntRect TiledTextureImage::GetTileRect()
     return rect;
 }
 
+nsIntRect TiledTextureImage::GetSrcTileRect()
+{
+    nsIntRect rect = GetTileRect();
+    unsigned int srcY = mFlags & NeedsYFlip
+                        ? mSize.height - rect.height - rect.y
+                        : rect.y;
+    return nsIntRect(rect.x, srcY, rect.width, rect.height);
+}
+
 void
 TiledTextureImage::BindTexture(GLenum aTextureUnit)
 {
@@ -1267,7 +1243,7 @@ void TiledTextureImage::Resize(const nsIntSize& aSize)
 
             // Create a new tile.
             nsRefPtr<TextureImage> teximg =
-                    mGL->TileGenFunc(size, mContentType, mUseNearestFilter);
+                    mGL->TileGenFunc(size, mContentType, mFlags);
             if (replace)
                 mImages.ReplaceElementAt(i, teximg.forget());
             else
@@ -1748,13 +1724,16 @@ GLContext::MarkDestroyed()
     if (IsDestroyed())
         return;
 
-    MakeCurrent();
-    DeleteOffscreenFBOs();
+    if (MakeCurrent()) {
+        DeleteOffscreenFBOs();
 
-    fDeleteProgram(mBlitProgram);
-    mBlitProgram = 0;
-    fDeleteFramebuffers(1, &mBlitFramebuffer);
-    mBlitFramebuffer = 0;
+        fDeleteProgram(mBlitProgram);
+        mBlitProgram = 0;
+        fDeleteFramebuffers(1, &mBlitFramebuffer);
+        mBlitFramebuffer = 0;
+    } else {
+        NS_WARNING("MakeCurrent() failed during MarkDestroyed! Skipping GL object teardown.");
+    }
 
     mSymbols.Zero();
 }
@@ -2214,11 +2193,12 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
                                   GLuint& aTexture,
                                   bool aOverwrite,
                                   const nsIntPoint& aSrcPoint,
-                                  bool aPixelBuffer)
+                                  bool aPixelBuffer,
+                                  GLenum aTextureUnit)
 {
     bool textureInited = aOverwrite ? false : true;
     MakeCurrent();
-    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fActiveTexture(aTextureUnit);
   
     if (!aTexture) {
         fGenTextures(1, &aTexture);

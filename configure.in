@@ -1,63 +1,8 @@
 dnl -*- Mode: Autoconf; tab-width: 4; indent-tabs-mode: nil; -*-
 dnl vi: set tabstop=4 shiftwidth=4 expandtab syntax=m4:
-dnl ***** BEGIN LICENSE BLOCK *****
-dnl Version: MPL 1.1/GPL 2.0/LGPL 2.1
-dnl
-dnl The contents of this file are subject to the Mozilla Public License Version
-dnl 1.1 (the "License"); you may not use this file except in compliance with
-dnl the License. You may obtain a copy of the License at
-dnl http://www.mozilla.org/MPL/
-dnl
-dnl Software distributed under the License is distributed on an "AS IS" basis,
-dnl WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-dnl for the specific language governing rights and limitations under the
-dnl License.
-dnl
-dnl The Original Code is this file as it was released upon August 6, 1998.
-dnl
-dnl The Initial Developer of the Original Code is
-dnl Christopher Seawood.
-dnl Portions created by the Initial Developer are Copyright (C) 1998-2001
-dnl the Initial Developer. All Rights Reserved.
-dnl
-dnl Contributor(s):
-dnl   Jamie Zawinski <jwz@jwz.org>
-dnl   gettimeofday args check
-dnl   Christopher Blizzard <blizzard@appliedtheory.com>
-dnl   gnomefe update & enable-pthreads
-dnl   Ramiro Estrugo <ramiro@netscape.com>
-dnl   X11 makedepend support
-dnl   Insure support.
-dnl   Henry Sobotka <sobotka@axess.com>
-dnl   OS/2 support
-dnl   Dan Mosedale <dmose@mozilla.org>
-dnl   LDAP support
-dnl   Seth Spitzer <sspitzer@netscape.com>
-dnl   xpctools support
-dnl   Benjamin Smedberg <benjamin@smedbergs.us>
-dnl   Howard Chu <hyc@symas.com>
-dnl   MSYS support
-dnl   Mark Mentovai <mark@moxienet.com>:
-dnl   Mac OS X 10.4 support
-dnl   Giorgio Maone <g.maone@informaction.com>
-dnl   MSVC l10n compatible version check
-dnl   Ben Turner <mozilla@songbirdnest.com>
-dnl   Windows x64 support
-dnl   Makoto Kato <m_kato@ga2.so-net.ne.jp>
-dnl
-dnl Alternatively, the contents of this file may be used under the terms of
-dnl either the GNU General Public License Version 2 or later (the "GPL"), or
-dnl the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-dnl in which case the provisions of the GPL or the LGPL are applicable instead
-dnl of those above. If you wish to allow use of your version of this file only
-dnl under the terms of either the GPL or the LGPL, and not to allow others to
-dnl use your version of this file under the terms of the MPL, indicate your
-dnl decision by deleting the provisions above and replace them with the notice
-dnl and other provisions required by the GPL or the LGPL. If you do not delete
-dnl the provisions above, a recipient may use your version of this file under
-dnl the terms of any one of the MPL, the GPL or the LGPL.
-dnl
-dnl ***** END LICENSE BLOCK *****
+dnl This Source Code Form is subject to the terms of the Mozilla Public
+dnl License, v. 2.0. If a copy of the MPL was not distributed with this
+dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 dnl Process this file with autoconf to produce a configure script.
 dnl ========================================================
@@ -180,41 +125,7 @@ then
 fi
 MOZ_BUILD_ROOT=`pwd`
 
-dnl Default to MSVC for win32 and gcc for darwin
-dnl ==============================================================
-if test -z "$CROSS_COMPILE"; then
-case "$target" in
-*-mingw*)
-    if test -z "$CC"; then CC=cl; fi
-    if test -z "$CXX"; then CXX=cl; fi
-    if test -z "$CPP"; then CPP="cl -E -nologo"; fi
-    if test -z "$CXXCPP"; then CXXCPP="cl -TP -E -nologo"; ac_cv_prog_CXXCPP="$CXXCPP"; fi
-    if test -z "$LD"; then LD=link; fi
-    if test -z "$AS"; then
-        case "${target_cpu}" in
-        i*86)
-            AS=ml;
-            ;;
-        x86_64)
-            AS=ml64;
-            ;;
-        esac
-    fi
-    if test -z "$MIDL"; then MIDL=midl; fi
-
-    # need override this flag since we don't use $(LDFLAGS) for this.
-    if test -z "$HOST_LDFLAGS" ; then
-        HOST_LDFLAGS=" "
-    fi
-    ;;
-*-darwin*)
-    # we prefer gcc-4.2 over gcc on older darwin, so
-    # use that specific version if it's available.
-    MOZ_PATH_PROGS(CC, $CC gcc-4.2 gcc)
-    MOZ_PATH_PROGS(CXX, $CXX g++-4.2 g++)
-    ;;
-esac
-fi
+MOZ_DEFAULT_COMPILER
 
 COMPILE_ENVIRONMENT=1
 MOZ_ARG_DISABLE_BOOL(compile-environment,
@@ -325,7 +236,16 @@ if test -n "$gonkdir" ; then
     STLPORT_CPPFLAGS="-I$gonkdir/ndk/sources/cxx-stl/stlport/stlport/"
     STLPORT_LIBS="-lstlport"
 
-    CPPFLAGS="-DANDROID -isystem $gonkdir/bionic/libc/include/ -isystem $gonkdir/bionic/libc/kernel/common -isystem $gonkdir/bionic/libc/arch-arm/include -isystem $gonkdir/bionic/libc/kernel/arch-arm -isystem $gonkdir/bionic/libm/include -I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/hardware/libhardware/include -I$gonkdir/hardware/libhardware_legacy/include -I$gonkdir/system/core/include -isystem $gonkdir/bionic -I$gonkdir/frameworks/base/include $CPPFLAGS -I$gonkdir/frameworks/base/services/sensorservice"
+    case "$target_cpu" in
+    arm)
+        ARCH_DIR=arch-arm
+        ;;
+    i?86)
+        ARCH_DIR=arch-x86
+        ;;
+    esac
+
+    CPPFLAGS="-DANDROID -isystem $gonkdir/bionic/libc/$ARCH_DIR/include -isystem $gonkdir/bionic/libc/include/ -isystem $gonkdir/bionic/libc/kernel/common -isystem $gonkdir/bionic/libc/kernel/$ARCH_DIR -isystem $gonkdir/bionic/libm/include -I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/hardware/libhardware/include -I$gonkdir/hardware/libhardware_legacy/include -I$gonkdir/system/core/include -isystem $gonkdir/bionic -I$gonkdir/frameworks/base/include -I$gonkdir/external/dbus $CPPFLAGS -I$gonkdir/frameworks/base/services/sensorservice"
     CFLAGS="-mandroid -fno-short-enums -fno-exceptions $CFLAGS"
     CXXFLAGS="-mandroid -fno-short-enums -fno-exceptions $CXXFLAGS $STLPORT_CPPFLAGS"
     LIBS="$LIBS $STLPORT_LIBS"
@@ -1762,6 +1682,19 @@ if test "$GNU_CC"; then
     DSO_CFLAGS=''
     DSO_PIC_CFLAGS='-fPIC'
     ASFLAGS="$ASFLAGS -fPIC"
+    AC_MSG_CHECKING([for --noexecstack option to as])
+    _SAVE_CFLAGS=$CFLAGS
+    CFLAGS="$CFLAGS -Wa,--noexecstack"
+    AC_TRY_COMPILE(,,AC_MSG_RESULT([yes])
+                     [ASFLAGS="$ASFLAGS -Wa,--noexecstack"],
+                     AC_MSG_RESULT([no]))
+    CFLAGS=$_SAVE_CFLAGS
+    AC_MSG_CHECKING([for -z noexecstack option to ld])
+    _SAVE_LDFLAGS=$LDFLAGS
+    LDFLAGS="$LDFLAGS -Wl,-z,noexecstack"
+    AC_TRY_LINK(,,AC_MSG_RESULT([yes]),
+                  AC_MSG_RESULT([no])
+                  LDFLAGS=$_SAVE_LDFLAGS)
     _MOZ_RTTI_FLAGS_ON=-frtti
     _MOZ_RTTI_FLAGS_OFF=-fno-rtti
 
@@ -1963,6 +1896,11 @@ MOZ_ARG_ENABLE_BOOL(profiling,
 [  --enable-profiling      Set compile flags necessary for using sampling profilers (e.g. shark, perf)],
     MOZ_PROFILING=1,
     MOZ_PROFILING= )
+
+# For profiling builds keep the symbol information
+if test "$MOZ_PROFILING" -a -z "$STRIP_FLAGS"; then
+    STRIP_FLAGS="--strip-debug"
+fi
 
 dnl ========================================================
 dnl = Use Valgrind
@@ -2270,8 +2208,6 @@ case "$target" in
     if test "$HAVE_64BIT_OS"; then
         MOZ_MEMORY=1
     fi
-    CFLAGS="$CFLAGS -fno-common"
-    CXXFLAGS="$CXXFLAGS -fno-common"
     DLL_SUFFIX=".dylib"
     DSO_LDOPTS=''
     STRIP="$STRIP -x -S"
@@ -3621,15 +3557,15 @@ dnl check for clock_gettime(), the CLOCK_MONOTONIC clock
 AC_CACHE_CHECK(for clock_gettime(CLOCK_MONOTONIC),
                ac_cv_clock_monotonic,
                [for libs in "" -lrt; do
-                    _SAVE_LDFLAGS="$LDFLAGS"
-                    LDFLAGS="$LDFLAGS $libs"
+                    _SAVE_LIBS="$LIBS"
+                    LIBS="$LIBS $libs"
                     AC_TRY_LINK([#include <time.h>],
                                  [ struct timespec ts;
                                    clock_gettime(CLOCK_MONOTONIC, &ts); ],
                                  ac_cv_clock_monotonic=$libs
                                  break,
                                  ac_cv_clock_monotonic=no)
-                    LDFLAGS="$_SAVE_LDFLAGS"
+                    LIBS="$_SAVE_LIBS"
                 done])
 if test "$ac_cv_clock_monotonic" != "no"; then
     HAVE_CLOCK_MONOTONIC=1
@@ -4561,11 +4497,13 @@ MOZ_AUTH_EXTENSION=1
 MOZ_OGG=1
 MOZ_RAW=
 MOZ_SYDNEYAUDIO=
+MOZ_SPEEX_RESAMPLER=1
 MOZ_CUBEB=
 MOZ_VORBIS=
 MOZ_TREMOR=
 MOZ_WAVE=1
 MOZ_MEDIA=
+MOZ_OPUS=1
 MOZ_WEBM=1
 MOZ_WEBRTC=1
 MOZ_VP8_ERROR_CONCEALMENT=
@@ -5649,6 +5587,14 @@ if test -n "$MOZ_OGG"; then
 fi
 
 dnl ========================================================
+dnl = Disable Opus audio codec support
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(opus,
+[  --disable-opus          Disable support for Opus audio],
+    MOZ_OPUS=,
+    MOZ_OPUS=1)
+
+dnl ========================================================
 dnl = Disable VP8 decoder support
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(webm,
@@ -5741,23 +5687,19 @@ if test -n "$MOZ_WEBM" -a -z "$MOZ_NATIVE_LIBVPX"; then
       VPX_X86_ASM=1
     ;;
     WINNT:x86_64)
-      if test -z "$GNU_CC"; then
-        VPX_ASFLAGS="-f x64 -rnasm -pnasm"
-        VPX_X86_ASM=1
-      fi
+      VPX_ASFLAGS="-f x64 -rnasm -pnasm"
+      VPX_X86_ASM=1
     ;;
     WINNT:x86)
-      if test -z "$GNU_CC"; then
-        dnl Check for yasm 1.1 or greater.
-        if test -n "$COMPILE_ENVIRONMENT" -a -z "$YASM"; then
-          AC_MSG_ERROR([yasm 1.1 or greater is required to build libvpx on Win32, but it appears not to be installed.  Install it (included in MozillaBuild 1.5.1 and newer) or configure with --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
-        elif test -n "$COMPILE_ENVIRONMENT" -a "$_YASM_MAJOR_VERSION" -lt "1" -o \( "$_YASM_MAJOR_VERSION" -eq "1" -a "$_YASM_MINOR_VERSION" -lt "1" \) ; then
-          AC_MSG_ERROR([yasm 1.1 or greater is required to build libvpx on Win32, but you appear to have version $_YASM_MAJOR_VERSION.$_YASM_MINOR_VERSION.  Upgrade to the newest version (included in MozillaBuild 1.5.1 and newer) or configure with --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
-        else
-          VPX_ASFLAGS="-f win32 -rnasm -pnasm -DPIC"
-          VPX_X86_ASM=1
-          dnl The encoder needs obj_int_extract to get asm offsets.
-        fi
+      dnl Check for yasm 1.1 or greater.
+      if test -n "$COMPILE_ENVIRONMENT" -a -z "$YASM"; then
+        AC_MSG_ERROR([yasm 1.1 or greater is required to build libvpx on Win32, but it appears not to be installed.  Install it (included in MozillaBuild 1.5.1 and newer) or configure with --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
+      elif test -n "$COMPILE_ENVIRONMENT" -a "$_YASM_MAJOR_VERSION" -lt "1" -o \( "$_YASM_MAJOR_VERSION" -eq "1" -a "$_YASM_MINOR_VERSION" -lt "1" \) ; then
+        AC_MSG_ERROR([yasm 1.1 or greater is required to build libvpx on Win32, but you appear to have version $_YASM_MAJOR_VERSION.$_YASM_MINOR_VERSION.  Upgrade to the newest version (included in MozillaBuild 1.5.1 and newer) or configure with --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
+      else
+        VPX_ASFLAGS="-f win32 -rnasm -pnasm -DPIC"
+        VPX_X86_ASM=1
+        dnl The encoder needs obj_int_extract to get asm offsets.
       fi
     ;;
     *:arm*)
@@ -5819,6 +5761,10 @@ if test -n "$MOZ_SYDNEYAUDIO"; then
     AC_DEFINE(MOZ_SYDNEYAUDIO)
 fi
 
+if test -n "$MOZ_SPEEX_RESAMPLER"; then
+    AC_DEFINE(MOZ_SPEEX_RESAMPLER)
+fi
+
 if test -n "$MOZ_CUBEB"; then
     case "$target" in
     *-mingw*)
@@ -5844,6 +5790,10 @@ fi
 
 if test -n "$MOZ_TREMOR"; then
     AC_DEFINE(MOZ_TREMOR)
+fi
+
+if test -n "$MOZ_OPUS"; then
+    AC_DEFINE(MOZ_OPUS)
 fi
 
 dnl ========================================================
@@ -6018,10 +5968,6 @@ MOZ_ARG_DISABLE_BOOL(angle,
     MOZ_ANGLE=1)
 
 if test -n "$MOZ_ANGLE"; then
-  if test -z "$_WIN32_MSVC"; then
-    AC_MSG_ERROR([Building ANGLE requires MSVC.  To build without ANGLE, reconfigure with --disable-angle.])
-  fi
-
   # Get the SDK path from the registry.
   # First try to get the June 2010 SDK
   MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK (June 2010)' | head -n 1`
@@ -6338,6 +6284,7 @@ if test -n "$MOZ_TREE_FREETYPE"; then
    FT2_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    CAIRO_FT_CFLAGS='-I$(topsrcdir)/modules/freetype2/include'
    FT2_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
+   CAIRO_FT_OSLIBS=''
    CAIRO_FT_LIBS='$(call EXPAND_LIBNAME_PATH,freetype,$(DEPTH)/modules/freetype2/.libs)'
    AC_DEFINE(HAVE_FT_BITMAP_SIZE_Y_PPEM)
    AC_DEFINE(HAVE_FT_GLYPHSLOT_EMBOLDEN)
@@ -6494,15 +6441,6 @@ MOZ_ARG_ENABLE_BOOL(update-packaging,
     MOZ_UPDATE_PACKAGING=1,
     MOZ_UPDATE_PACKAGING= )
 AC_SUBST(MOZ_UPDATE_PACKAGING)
-
-dnl ========================================================
-dnl leaky
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(leaky,
-[  --enable-leaky          Build leaky memory tool],
-    MOZ_LEAKY=1,
-    MOZ_LEAKY=)
-
 
 dnl ========================================================
 dnl build the tests by default
@@ -7206,7 +7144,13 @@ elif test "${OS_TARGET}" = "WINNT" -o "${OS_TARGET}" = "Darwin" -o "${OS_TARGET}
   fi
 else
   dnl On other Unix systems, we only want to link executables against mozglue
-  MOZ_GLUE_PROGRAM_LDFLAGS='$(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,mozglue,$(LIBXUL_DIST)/lib) $(MKSHLIB_UNFORCE_ALL)'
+  MOZ_GLUE_PROGRAM_LDFLAGS='$(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,mozglue,$(LIBXUL_DIST)/lib)'
+  dnl On other Unix systems, where mozglue is a static library, jemalloc is
+  dnl separated for the SDK, so we need to add it here.
+  if test "$MOZ_MEMORY" = 1; then
+    MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS "'$(call EXPAND_LIBNAME_PATH,memory,$(LIBXUL_DIST)/lib)'
+  fi
+  MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS "'$(MKSHLIB_UNFORCE_ALL)'
   if test -n "$GNU_CC"; then
     dnl And we need mozglue symbols to be exported.
     MOZ_GLUE_PROGRAM_LDFLAGS="$MOZ_GLUE_PROGRAM_LDFLAGS -rdynamic"
@@ -7487,6 +7431,13 @@ MOZ_ARG_DISABLE_BOOL(elf-hack,
     USE_ELF_HACK=,
     USE_ELF_HACK=1)
 
+# Disable elf hack for profiling because the built in profiler
+# doesn't read the segments properly with elf hack. This is
+# temporary and should be fixed soon in the profiler.
+if test "$MOZ_PROFILING" = 1; then
+  USE_ELF_HACK=
+fi
+
 # Only enable elfhack where supported
 if test "$USE_ELF_HACK" = 1; then
     case "${HOST_OS_ARCH},${OS_ARCH}" in
@@ -7598,14 +7549,6 @@ if test -n "$_ENABLE_CODESIGHS"; then
         AC_MSG_ERROR([Codesighs directory $srcdir/tools/codesighs required.])
     fi
 fi
-
-dnl ========================================================
-dnl = Support for Quantify (Windows)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(quantify,
-[  --enable-quantify       Enable Quantify support (Windows only) ],
-    MOZ_QUANTIFY=1,
-    MOZ_QUANTIFY= )
 
 dnl ========================================================
 dnl = Enable Radio Interface for B2G (Gonk usually)
@@ -8040,7 +7983,7 @@ dnl ========================================================
 
 if test -z "$SKIP_PATH_CHECKS"; then
 if test -z "${GLIB_CFLAGS}" -o -z "${GLIB_LIBS}" ; then
-    if test "$MOZ_ENABLE_GTK2" -o "$MOZ_ENABLE_QT" -o "$USE_ELF_DYNSTR_GC" ; then
+    if test "$MOZ_ENABLE_GTK2" -o "$USE_ELF_DYNSTR_GC" ; then
         PKG_CHECK_MODULES(GLIB, glib-2.0 >= 1.3.7 gobject-2.0)
     fi
 fi
@@ -8143,7 +8086,8 @@ if test "$MOZ_TREE_CAIRO"; then
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="-I${MZFTCFGFT2}/include"
-        CAIRO_FT_LIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
+        CAIRO_FT_OSLIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
+        CAIRO_FT_LIBS=""
         ;;
     esac
     if test "$USE_FC_FREETYPE"; then
@@ -8177,6 +8121,7 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(TEE_SURFACE_FEATURE)
 
     MOZ_CAIRO_LIBS='$(call EXPAND_LIBNAME_PATH,mozcairo,$(DEPTH)/gfx/cairo/cairo/src)'" $CAIRO_FT_LIBS"
+    MOZ_CAIRO_OSLIBS='${CAIRO_FT_OSLIBS}'
 
     if test "$MOZ_TREE_PIXMAN"; then
         AC_DEFINE(MOZ_TREE_PIXMAN)
@@ -8188,7 +8133,7 @@ if test "$MOZ_TREE_CAIRO"; then
     fi
 
     if test "$MOZ_X11"; then
-        MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $XLDFLAGS -lXrender -lfreetype -lfontconfig"
+        MOZ_CAIRO_OSLIBS="$MOZ_CAIRO_OSLIBS $XLDFLAGS -lXrender -lfreetype -lfontconfig"
     fi
 
     CAIRO_FEATURES_H=gfx/cairo/cairo/src/cairo-features.h
@@ -8209,6 +8154,7 @@ fi
 AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST(MOZ_CAIRO_CFLAGS)
 AC_SUBST(MOZ_CAIRO_LIBS)
+AC_SUBST(MOZ_CAIRO_OSLIBS)
 AC_SUBST(MOZ_TREE_PIXMAN)
 
 dnl ========================================================
@@ -8440,7 +8386,6 @@ AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(MOZ_EXTENSIONS)
 AC_SUBST(MOZ_JSDEBUGGER)
 AC_SUBST(MOZ_LOG_REFCNT)
-AC_SUBST(MOZ_LEAKY)
 AC_SUBST(MOZ_ENABLE_PROFILER_SPS)
 AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_SHARK)
@@ -8511,6 +8456,7 @@ AC_SUBST(MOZ_OS2_TOOLS)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+AC_SUBST(MOZ_LINKER_EXTRACT)
 
 dnl ========================================================
 dnl = Mac bundle name prefix
@@ -8531,6 +8477,16 @@ else
   MOZ_MACBUNDLE_NAME=${MOZ_MACBUNDLE_NAME}.app
 fi
 AC_SUBST(MOZ_MACBUNDLE_NAME)
+
+dnl Mac bundle identifier (based on MOZ_APP_DISPLAYNAME)
+MOZ_MACBUNDLE_ID=`echo $MOZ_APP_DISPLAYNAME | tr '[A-Z]' '[a-z]'`
+MOZ_MACBUNDLE_ID=${MOZ_DISTRIBUTION_ID}.${MOZ_MACBUNDLE_ID}
+if test "$MOZ_DEBUG"; then
+  MOZ_MACBUNDLE_ID=${MOZ_MACBUNDLE_ID}debug
+fi
+
+AC_DEFINE_UNQUOTED(MOZ_MACBUNDLE_ID,$MOZ_MACBUNDLE_ID)
+AC_SUBST(MOZ_MACBUNDLE_ID)
 
 # The following variables are available to branding and application
 # configuration ($BRANDING/configure.sh and $APPLICATION/confvars.sh):
@@ -8739,10 +8695,12 @@ AC_SUBST(MOZ_APP_EXTRA_LIBS)
 
 AC_SUBST(MOZ_MEDIA)
 AC_SUBST(MOZ_SYDNEYAUDIO)
+AC_SUBST(MOZ_SPEEX_RESAMPLER)
 AC_SUBST(MOZ_CUBEB)
 AC_SUBST(MOZ_WAVE)
 AC_SUBST(MOZ_VORBIS)
 AC_SUBST(MOZ_TREMOR)
+AC_SUBST(MOZ_OPUS)
 AC_SUBST(MOZ_WEBM)
 AC_SUBST(MOZ_VP8_ERROR_CONCEALMENT)
 AC_SUBST(MOZ_VP8_ENCODER)

@@ -1,40 +1,7 @@
 /* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * The Mozilla Foundation <http://www.mozilla.org/>.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Taras Glek <tglek@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
  * This file lists Telemetry histograms collected by Mozilla. The format is
@@ -96,11 +63,13 @@ HISTOGRAM(TELEMETRY_PING, 1, 3000, 10, EXPONENTIAL, "Time taken to submit teleme
 HISTOGRAM_BOOLEAN(TELEMETRY_SUCCESS,  "Successful telemetry submission")
 HISTOGRAM(MEMORY_JS_COMPARTMENTS_SYSTEM, 1, 1000, 50, EXPONENTIAL, "Total JavaScript compartments used for add-ons and internals.")
 HISTOGRAM(MEMORY_JS_COMPARTMENTS_USER, 1, 1000, 50, EXPONENTIAL, "Total JavaScript compartments used for web pages")
-HISTOGRAM(MEMORY_JS_GC_HEAP_COMMITTED, 1024, 512 * 1024, 50, EXPONENTIAL, "Committed memory used by the garbage-collected JavaScript heap (KB)")
+HISTOGRAM(MEMORY_JS_GC_HEAP, 1024, 512 * 1024, 50, EXPONENTIAL, "Memory used by the garbage-collected JavaScript heap (KB)")
 HISTOGRAM(MEMORY_RESIDENT, 32 * 1024, 1024 * 1024, 50, EXPONENTIAL, "Resident memory size (KB)")
 HISTOGRAM(MEMORY_STORAGE_SQLITE, 1024, 512 * 1024, 50, EXPONENTIAL, "Memory used by SQLite (KB)")
 HISTOGRAM(MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED, 1024, 1024 * 1024, 50, EXPONENTIAL, "Memory used for uncompressed, in-use content images (KB)")
 HISTOGRAM(MEMORY_HEAP_ALLOCATED, 1024, 1024 * 1024, 50, EXPONENTIAL, "Heap memory allocated (KB)")
+HISTOGRAM(MEMORY_HEAP_COMMITTED_UNUSED, 1024, 512 * 1024, 50, EXPONENTIAL, "Committed, unused heap memory (KB)")
+HISTOGRAM(MEMORY_HEAP_COMMITTED_UNUSED_RATIO, 1, 100, 25, LINEAR, "Ratio of committed, unused memory to allocated memory in the heap (percentage).")
 HISTOGRAM(MEMORY_EXPLICIT, 1024, 1024 * 1024, 50, EXPONENTIAL, "Explicit memory allocations (KB)")
 HISTOGRAM(GHOST_WINDOWS, 1, 128, 8, EXPONENTIAL, "Number of ghost windows")
 #if defined(XP_MACOSX)
@@ -448,6 +417,14 @@ HISTOGRAM_ENUMERATED_VALUES(SAFE_MODE_USAGE, 3, "Whether the user is in safe mod
 HISTOGRAM(NEWTAB_PAGE_ENABLED, 0, 1, 2, BOOLEAN, "New tab page is enabled.")
 HISTOGRAM(NEWTAB_PAGE_PINNED_SITES_COUNT, 1, 9, 10, EXPONENTIAL, "Number of pinned sites on the new tab page.")
 HISTOGRAM(NEWTAB_PAGE_BLOCKED_SITES_COUNT, 1, 100, 10, EXPONENTIAL, "Number of sites blocked from the new tab page.")
+
+/**
+ * Panorama telemetry.
+ */
+HISTOGRAM(PANORAMA_INITIALIZATION_TIME_MS, 1, 10000, 15, EXPONENTIAL, "Time it takes to initialize Panorama (ms)")
+HISTOGRAM(PANORAMA_GROUPS_COUNT, 1, 25, 15, EXPONENTIAL, "Number of groups in Panorama")
+HISTOGRAM(PANORAMA_STACKED_GROUPS_COUNT, 1, 25, 15, EXPONENTIAL, "Number of stacked groups in Panorama")
+HISTOGRAM(PANORAMA_MEDIAN_TABS_IN_GROUPS_COUNT, 1, 100, 15, EXPONENTIAL, "Median of tabs in groups in Panorama")
 
 /**
  * Native Fennec Telemetry

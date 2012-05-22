@@ -1,43 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Johnny Stenback <jst@netscape.com>
- *   Christopher A. Aillon <christopher@aillon.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* A namespace class for static layout utilities. */
 
@@ -288,7 +253,6 @@ nsString* nsContentUtils::sModifierSeparator = nsnull;
 bool nsContentUtils::sInitialized = false;
 bool nsContentUtils::sIsFullScreenApiEnabled = false;
 bool nsContentUtils::sTrustedFullScreenOnly = true;
-bool nsContentUtils::sFullScreenKeyInputRestricted = true;
 
 PRUint32 nsContentUtils::sHandlingInputTimeout = 1000;
 
@@ -425,9 +389,6 @@ nsContentUtils::Init()
   Preferences::AddBoolVarCache(&sTrustedFullScreenOnly,
                                "full-screen-api.allow-trusted-requests-only");
 
-  Preferences::AddBoolVarCache(&sFullScreenKeyInputRestricted,
-                               "full-screen-api.key-input-restricted");
-
   Preferences::AddUintVarCache(&sHandlingInputTimeout,
                                "dom.event.handling-user-input-time-limit",
                                1000);
@@ -552,30 +513,14 @@ nsContentUtils::InitializeEventTable() {
   sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
   sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>;
   sUserDefinedEvents = new nsCOMArray<nsIAtom>(64);
-
-  if (!sAtomEventTable || !sStringEventTable || !sUserDefinedEvents ||
-      !sAtomEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1) ||
-      !sStringEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1)) {
-    delete sAtomEventTable;
-    sAtomEventTable = nsnull;
-    delete sStringEventTable;
-    sStringEventTable = nsnull;
-    delete sUserDefinedEvents;
-    sUserDefinedEvents = nsnull;
-    return false;
-  }
+  sAtomEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
+  sStringEventTable->Init(int(ArrayLength(eventArray) / 0.75) + 1);
 
   // Subtract one from the length because of the trailing null
   for (PRUint32 i = 0; i < ArrayLength(eventArray) - 1; ++i) {
-    if (!sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]) ||
-        !sStringEventTable->Put(Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
-                                eventArray[i])) {
-      delete sAtomEventTable;
-      sAtomEventTable = nsnull;
-      delete sStringEventTable;
-      sStringEventTable = nsnull;
-      return false;
-    }
+    sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]);
+    sStringEventTable->Put(Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
+                           eventArray[i]);
   }
 
   return true;
@@ -598,15 +543,9 @@ nsContentUtils::InitializeTouchEventTable()
     };
     // Subtract one from the length because of the trailing null
     for (PRUint32 i = 0; i < ArrayLength(touchEventArray) - 1; ++i) {
-      if (!sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]) ||
-          !sStringEventTable->Put(Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
-                                  touchEventArray[i])) {
-        delete sAtomEventTable;
-        sAtomEventTable = nsnull;
-        delete sStringEventTable;
-        sStringEventTable = nsnull;
-        return;
-      }
+      sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]);
+      sStringEventTable->Put(Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
+                             touchEventArray[i]);
     }
   }
 }
@@ -1675,8 +1614,7 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
   if (!sThreadJSContextStack) {
     return;
   }
-  JSContext* cx = nsnull;
-  sThreadJSContextStack->GetSafeJSContext(&cx);
+  JSContext* cx = sThreadJSContextStack->GetSafeJSContext();
   if (!cx) {
     return;
   }
@@ -2806,18 +2744,44 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
   return aContent->IsLink(getter_AddRefs(absURI));
 }
 
-bool
-nsContentUtils::IsSitePermAllow(nsIURI* aURI, const char* aType)
+static bool
+TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, PRUint32 aPerm)
 {
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    // System principal is always allowed and never denied permission.
+    return aPerm == nsIPermissionManager::ALLOW_ACTION;
+  }
+
+  nsCOMPtr<nsIURI> uri;
+  if (NS_FAILED(!aPrincipal ||
+      aPrincipal->GetURI(getter_AddRefs(uri))) ||
+      !uri) {
+    // We always deny (i.e. don't allow) the permission if we don't
+    // have a principal or we don't know the URI.
+    return aPerm != nsIPermissionManager::ALLOW_ACTION;
+  }
+
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService("@mozilla.org/permissionmanager;1");
   NS_ENSURE_TRUE(permMgr, false);
 
   PRUint32 perm;
-  nsresult rv = permMgr->TestPermission(aURI, aType, &perm);
+  nsresult rv = permMgr->TestPermission(uri, aType, &perm);
   NS_ENSURE_SUCCESS(rv, false);
   
-  return perm == nsIPermissionManager::ALLOW_ACTION;
+  return perm == aPerm;
+}
+
+bool
+nsContentUtils::IsSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
+{
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION);
+}
+
+bool
+nsContentUtils::IsSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
+{
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION);
 }
 
 static const char *gEventNames[] = {"event"};
@@ -3452,18 +3416,9 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   if (!aDoc->GetWindow())
     return NS_ERROR_INVALID_ARG;
 
-  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetChromeEventHandler();
+  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetParentTarget();
   if (!piTarget)
     return NS_ERROR_INVALID_ARG;
-
-  nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(piTarget);
-  if (flo) {
-    nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
-    if (fl) {
-      nsIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
-      piTarget = t ? t : piTarget;
-    }
-  }
 
   nsEventStatus status = nsEventStatus_eIgnore;
   rv = piTarget->DispatchDOMEvent(nsnull, event, nsnull, &status);
@@ -6079,17 +6034,21 @@ public:
                                      const char *objName)
   {
   }
+
   NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root)
   {
   }
-  NS_IMETHOD_(void) NoteRoot(PRUint32 langID, void* root,
-                             nsCycleCollectionParticipant* helper)
+  NS_IMETHOD_(void) NoteJSRoot(void* root)
   {
   }
-  NS_IMETHOD_(void) NoteScriptChild(PRUint32 langID, void* child)
+  NS_IMETHOD_(void) NoteNativeRoot(void* root,
+                                   nsCycleCollectionParticipant* helper)
   {
-    if (langID == nsIProgrammingLanguage::JAVASCRIPT &&
-        child == mWrapper) {
+  }
+
+  NS_IMETHOD_(void) NoteJSChild(void* child)
+  {
+    if (child == mWrapper) {
       mFound = true;
     }
   }
@@ -6116,12 +6075,11 @@ private:
 };
 
 static void
-DebugWrapperTraceCallback(PRUint32 langID, void *p, const char *name,
-                          void *closure)
+DebugWrapperTraceCallback(void *p, const char *name, void *closure)
 {
   DebugWrapperTraversalCallback* callback =
     static_cast<DebugWrapperTraversalCallback*>(closure);
-  callback->NoteScriptChild(langID, p);
+  callback->NoteJSChild(p);
 }
 
 // static
@@ -6337,7 +6295,7 @@ nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
   
   return princURI &&
          ((sAllowXULXBL_for_file && SchemeIs(princURI, "file")) ||
-          IsSitePermAllow(princURI, "allowXULXBL"));
+          IsSitePermAllow(aPrincipal, "allowXULXBL"));
 }
 
 already_AddRefed<nsIDocumentLoaderFactory>
@@ -6390,6 +6348,21 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   if (nsHTMLMediaElement::IsWebMEnabled()) {
     for (unsigned int i = 0; i < ArrayLength(nsHTMLMediaElement::gWebMTypes); ++i) {
       const char* type = nsHTMLMediaElement::gWebMTypes[i];
+      if (!strcmp(aType, type)) {
+        docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
+        if (docFactory && aLoaderType) {
+          *aLoaderType = TYPE_CONTENT;
+        }
+        return docFactory.forget();
+      }
+    }
+  }
+#endif
+
+#ifdef MOZ_GSTREAMER
+  if (nsHTMLMediaElement::IsH264Enabled()) {
+    for (unsigned int i = 0; i < ArrayLength(nsHTMLMediaElement::gH264Types); ++i) {
+      const char* type = nsHTMLMediaElement::gH264Types[i];
       if (!strcmp(aType, type)) {
         docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
         if (docFactory && aLoaderType) {
@@ -6510,17 +6483,12 @@ nsContentUtils::IsFullScreenApiEnabled()
   return sIsFullScreenApiEnabled;
 }
 
-bool nsContentUtils::IsRequestFullScreenAllowed()
+bool
+nsContentUtils::IsRequestFullScreenAllowed()
 {
   return !sTrustedFullScreenOnly ||
          nsEventStateManager::IsHandlingUserInput() ||
          IsCallerChrome();
-}
-
-bool
-nsContentUtils::IsFullScreenKeyInputRestricted()
-{
-  return sFullScreenKeyInputRestricted;
 }
 
 static void
@@ -6639,8 +6607,7 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
   if (aCache->PreservingWrapper()) {
     JSObject *wrapper = aCache->GetWrapperPreserveColor();
     if (wrapper) {
-      aCallback(nsIProgrammingLanguage::JAVASCRIPT, wrapper,
-                "Preserved wrapper", aClosure);
+      aCallback(wrapper, "Preserved wrapper", aClosure);
     }
   }
 }

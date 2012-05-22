@@ -1,42 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=99:
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is SpiderMonkey global object code.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Jeff Walden <jwalden+code@mit.edu> (original author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GlobalObject.h"
 
@@ -145,7 +112,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         functionProto->flags |= JSFUN_PROTOTYPE;
 
         JSScript *script =
-            JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, JSVERSION_DEFAULT);
+            JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, JSVERSION_DEFAULT);
         if (!script)
             return NULL;
         script->noScriptRval = true;
@@ -174,7 +141,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         if (!ctor)
             return NULL;
         objectCtor = js_NewFunction(cx, ctor, js_Object, 1, JSFUN_CONSTRUCTOR, self,
-                                    CLASS_ATOM(cx, Object));
+                                    CLASS_NAME(cx, Object));
         if (!objectCtor)
             return NULL;
     }
@@ -193,7 +160,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         if (!ctor)
             return NULL;
         functionCtor = js_NewFunction(cx, ctor, Function, 1, JSFUN_CONSTRUCTOR, self,
-                                      CLASS_ATOM(cx, Function));
+                                      CLASS_NAME(cx, Function));
         if (!functionCtor)
             return NULL;
         JS_ASSERT(ctor == functionCtor);
@@ -220,17 +187,17 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     }
 
     /* Add the global Function and Object properties now. */
-    jsid objectId = ATOM_TO_JSID(CLASS_ATOM(cx, Object));
+    jsid objectId = NameToId(CLASS_NAME(cx, Object));
     if (!self->addDataProperty(cx, objectId, JSProto_Object + JSProto_LIMIT * 2, 0))
         return NULL;
-    jsid functionId = ATOM_TO_JSID(CLASS_ATOM(cx, Function));
+    jsid functionId = NameToId(CLASS_NAME(cx, Function));
     if (!self->addDataProperty(cx, functionId, JSProto_Function + JSProto_LIMIT * 2, 0))
         return NULL;
 
     /* Heavy lifting done, but lingering tasks remain. */
 
     /* ES5 15.1.2.1. */
-    jsid id = ATOM_TO_JSID(cx->runtime->atomState.evalAtom);
+    RootedVarId id(cx, NameToId(cx->runtime->atomState.evalAtom));
     JSObject *evalobj = js_DefineFunction(cx, self, id, eval, 1, JSFUN_STUB_GSOPS);
     if (!evalobj)
         return NULL;
@@ -289,42 +256,42 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     return obj;
 }
 
-bool
-GlobalObject::initStandardClasses(JSContext *cx)
+/* static */ bool
+GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
 {
     JSAtomState &state = cx->runtime->atomState;
 
     /* Define a top-level property 'undefined' with the undefined value. */
-    if (!defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
-                        JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
+    if (!global->defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
+                                JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
     }
 
-    if (!initFunctionAndObjectClasses(cx))
+    if (!global->initFunctionAndObjectClasses(cx))
         return false;
 
     /* Initialize the rest of the standard objects and functions. */
-    return js_InitArrayClass(cx, this) &&
-           js_InitBooleanClass(cx, this) &&
-           js_InitExceptionClasses(cx, this) &&
-           js_InitMathClass(cx, this) &&
-           js_InitNumberClass(cx, this) &&
-           js_InitJSONClass(cx, this) &&
-           js_InitRegExpClass(cx, this) &&
-           js_InitStringClass(cx, this) &&
-           js_InitTypedArrayClasses(cx, this) &&
+    return js_InitArrayClass(cx, global) &&
+           js_InitBooleanClass(cx, global) &&
+           js_InitExceptionClasses(cx, global) &&
+           js_InitMathClass(cx, global) &&
+           js_InitNumberClass(cx, global) &&
+           js_InitJSONClass(cx, global) &&
+           js_InitRegExpClass(cx, global) &&
+           js_InitStringClass(cx, global) &&
+           js_InitTypedArrayClasses(cx, global) &&
 #if JS_HAS_XML_SUPPORT
-           js_InitXMLClasses(cx, this) &&
+           js_InitXMLClasses(cx, global) &&
 #endif
 #if JS_HAS_GENERATORS
-           js_InitIteratorClasses(cx, this) &&
+           js_InitIteratorClasses(cx, global) &&
 #endif
-           js_InitDateClass(cx, this) &&
-           js_InitWeakMapClass(cx, this) &&
-           js_InitProxyClass(cx, this) &&
-           js_InitMapClass(cx, this) &&
-           js_InitSetClass(cx, this);
+           js_InitDateClass(cx, global) &&
+           js_InitWeakMapClass(cx, global) &&
+           js_InitProxyClass(cx, global) &&
+           js_InitMapClass(cx, global) &&
+           js_InitSetClass(cx, global);
 }
 
 void
@@ -359,7 +326,7 @@ GlobalObject::clear(JSContext *cx)
      * Reset the new object cache in the compartment, which assumes that
      * prototypes cached on the global object are immutable.
      */
-    cx->compartment->newObjectCache.reset();
+    cx->runtime->newObjectCache.purge();
 
 #ifdef JS_METHODJIT
     /*
@@ -475,39 +442,39 @@ GlobalObject::getDebuggers()
     return (DebuggerVector *) debuggers.toObject().getPrivate();
 }
 
-GlobalObject::DebuggerVector *
-GlobalObject::getOrCreateDebuggers(JSContext *cx)
+/* static */ GlobalObject::DebuggerVector *
+GlobalObject::getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global)
 {
-    assertSameCompartment(cx, this);
-    DebuggerVector *debuggers = getDebuggers();
+    assertSameCompartment(cx, global);
+    DebuggerVector *debuggers = global->getDebuggers();
     if (debuggers)
         return debuggers;
 
-    JSObject *obj = NewObjectWithGivenProto(cx, &GlobalDebuggees_class, NULL, this);
+    JSObject *obj = NewObjectWithGivenProto(cx, &GlobalDebuggees_class, NULL, global);
     if (!obj)
         return NULL;
     debuggers = cx->new_<DebuggerVector>();
     if (!debuggers)
         return NULL;
     obj->setPrivate(debuggers);
-    setReservedSlot(DEBUGGERS, ObjectValue(*obj));
+    global->setReservedSlot(DEBUGGERS, ObjectValue(*obj));
     return debuggers;
 }
 
-bool
-GlobalObject::addDebugger(JSContext *cx, Debugger *dbg)
+/* static */ bool
+GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg)
 {
-    DebuggerVector *debuggers = getOrCreateDebuggers(cx);
+    DebuggerVector *debuggers = getOrCreateDebuggers(cx, global);
     if (!debuggers)
         return false;
 #ifdef DEBUG
     for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++)
         JS_ASSERT(*p != dbg);
 #endif
-    if (debuggers->empty() && !compartment()->addDebuggee(cx, this))
+    if (debuggers->empty() && !global->compartment()->addDebuggee(cx, global))
         return false;
     if (!debuggers->append(dbg)) {
-        compartment()->removeDebuggee(cx->runtime->defaultFreeOp(), this);
+        global->compartment()->removeDebuggee(cx->runtime->defaultFreeOp(), global);
         return false;
     }
     return true;

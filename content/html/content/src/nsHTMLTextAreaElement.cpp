@@ -1,41 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 et tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -163,7 +130,6 @@ public:
   NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
   NS_IMETHOD_(bool) ValueChanged() const;
   NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
-  NS_IMETHOD_(void) SetTextEditorValue(const nsAString& aValue, bool aUserInput);
   NS_IMETHOD_(nsIEditor*) GetTextEditor();
   NS_IMETHOD_(nsISelectionController*) GetSelectionController();
   NS_IMETHOD_(nsFrameSelection*) GetConstFrameSelection();
@@ -173,7 +139,6 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
   NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
-  NS_IMETHOD_(void) UpdatePlaceholderText(bool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(bool aVisible, bool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(bool aNotify);
@@ -219,11 +184,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual void UpdateEditableState(bool aNotify)
-  {
-    return UpdateEditableFormControlState(aNotify);
-  }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLTextAreaElement,
                                            nsGenericHTMLFormElement)
 
@@ -259,6 +219,10 @@ protected:
   bool                     mCanShowInvalidUI;
   /** Whether we should make :-moz-ui-valid apply on the element. **/
   bool                     mCanShowValidUI;
+  
+  void FireChangeEventIfNeeded();
+  
+  nsString mFocusedValue;
 
   /** The state of the text editor (selection controller and the editor) **/
   nsTextEditorState mState;
@@ -562,12 +526,6 @@ nsHTMLTextAreaElement::GetPlaceholderNode()
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::UpdatePlaceholderText(bool aNotify)
-{
-  mState.UpdatePlaceholderText(aNotify);
-}
-
-NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::SetPlaceholderClass(bool aVisible, bool aNotify)
 {
   mState.SetPlaceholderClass(aVisible, aNotify);
@@ -589,7 +547,9 @@ nsHTMLTextAreaElement::SetValueInternal(const nsAString& aValue,
 NS_IMETHODIMP 
 nsHTMLTextAreaElement::SetValue(const nsAString& aValue)
 {
-  return SetValueInternal(aValue, false);
+  SetValueInternal(aValue, false);
+  GetValueInternal(mFocusedValue, true);
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
@@ -733,16 +693,28 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Fire onchange (if necessary), before we do the blur, bug 370521.
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    nsIFrame* primaryFrame = GetPrimaryFrame();
-    if (primaryFrame) {
-      nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
-      if (textFrame) {
-        textFrame->CheckFireOnChange();
-      }
-    }
+    FireChangeEventIfNeeded();
   }
 
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
+}
+
+void
+nsHTMLTextAreaElement::FireChangeEventIfNeeded()
+{
+  nsString value;
+  GetValueInternal(value, true);
+
+  if (mFocusedValue.Equals(value)) {
+    return;
+  }
+
+  // Dispatch the change event.
+  mFocusedValue = value;
+  nsContentUtils::DispatchTrustedEvent(OwnerDoc(),
+                                       static_cast<nsIContent*>(this),
+                                       NS_LITERAL_STRING("change"), true, 
+                                       false);
 }
 
 nsresult
@@ -757,6 +729,7 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     if (aVisitor.mEvent->message == NS_FOCUS_CONTENT) {
       // If the invalid UI is shown, we should show it while focusing (and
       // update). Otherwise, we should not.
+      GetValueInternal(mFocusedValue, true);
       mCanShowInvalidUI = !IsValid() && ShouldShowValidityUI();
 
       // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
@@ -1294,10 +1267,6 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       UpdateTooLongValidityState();
     }
 
-    if (aName == nsGkAtoms::readonly) {
-      UpdateEditableState(aNotify);
-      mState.UpdateEditableState(aNotify);
-    }
     UpdateState(aNotify);
   }
 
@@ -1529,13 +1498,6 @@ nsHTMLTextAreaElement::GetTextEditorValue(nsAString& aValue,
                                           bool aIgnoreWrap) const
 {
   mState.GetValue(aValue, aIgnoreWrap);
-}
-
-NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::SetTextEditorValue(const nsAString& aValue,
-                                          bool aUserInput)
-{
-  mState.SetValue(aValue, aUserInput);
 }
 
 NS_IMETHODIMP_(void)

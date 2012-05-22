@@ -1,39 +1,7 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef npapi_h_
 #define npapi_h_
@@ -238,7 +206,7 @@ typedef enum {
   /* 32-bit per pixel 8-bit per channel - 1 unused channel */
   NPImageFormatBGRX32     = 0x2 
 } NPImageFormat;
- 
+
 typedef struct _NPAsyncSurface
 {
   uint32_t version;
@@ -301,24 +269,28 @@ typedef struct
 #endif /* XP_UNIX */
 
 typedef enum {
+#if defined(XP_MACOSX)
 #ifndef NP_NO_QUICKDRAW
   NPDrawingModelQuickDraw = 0,
 #endif
-#if defined(XP_MACOSX)
   NPDrawingModelCoreGraphics = 1,
   NPDrawingModelOpenGL = 2,
   NPDrawingModelCoreAnimation = 3,
   NPDrawingModelInvalidatingCoreAnimation = 4,
 #endif
+#if defined(XP_WIN)
   NPDrawingModelSyncWin = 5,
+#endif
+#if defined(MOZ_X11)
   NPDrawingModelSyncX = 6,
+#endif
   NPDrawingModelAsyncBitmapSurface = 7
 #if defined(XP_WIN)
   , NPDrawingModelAsyncWindowsDXGISurface = 8
 #endif
 } NPDrawingModel;
 
-#if defined(XP_MACOSX)
+#ifdef XP_MACOSX
 typedef enum {
 #ifndef NP_NO_CARBON
   NPEventModelCarbon = 0,
@@ -403,10 +375,10 @@ typedef enum {
 
   NPPVsupportsAdvancedKeyHandling = 21,
 
-  NPPVpluginUsesDOMForCursorBool = 22
+  NPPVpluginUsesDOMForCursorBool = 22,
 
   /* Used for negotiating drawing models */
-  , NPPVpluginDrawingModel = 1000
+  NPPVpluginDrawingModel = 1000
 #if defined(XP_MACOSX)
   /* Used for negotiating event models */
   , NPPVpluginEventModel = 1001
@@ -448,11 +420,11 @@ typedef enum {
 
   NPNVsupportsAdvancedKeyHandling = 21,
 
-  NPNVdocumentOrigin = 22
+  NPNVdocumentOrigin = 22,
 
-  /* Used for negotiating drawing models */
-  , NPNVpluginDrawingModel = 1000
+  NPNVpluginDrawingModel = 1000 /* Get the current drawing model (NPDrawingModel) */
 #if defined(XP_MACOSX)
+  , NPNVcontentsScaleFactor = 1001
 #ifndef NP_NO_QUICKDRAW
   , NPNVsupportsQuickDrawBool = 2000
 #endif
@@ -461,11 +433,10 @@ typedef enum {
   , NPNVsupportsCoreAnimationBool = 2003
   , NPNVsupportsInvalidatingCoreAnimationBool = 2004
 #endif
-  , NPNVsupportsAsyncBitmapSurfaceBool = 2005
+  , NPNVsupportsAsyncBitmapSurfaceBool = 2007
 #if defined(XP_WIN)
-  , NPNVsupportsAsyncWindowsDXGISurfaceBool = 2006
+  , NPNVsupportsAsyncWindowsDXGISurfaceBool = 2008
 #endif
-
 #if defined(XP_MACOSX)
 #ifndef NP_NO_CARBON
   , NPNVsupportsCarbonBool = 3000 /* TRUE if the browser supports the Carbon event model */

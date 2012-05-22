@@ -1,41 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is SpiderMonkey global object code.
- *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2012
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef jsgc_root_h__
 #define jsgc_root_h__
@@ -136,16 +104,16 @@ class Handle
     template <typename S> inline Handle(const Root<S> &root);
     template <typename S> inline Handle(const RootedVar<S> &root);
 
-    const T *address() { return ptr; }
+    const T *address() const { return ptr; }
+    T value() const { return *ptr; }
 
-    operator T () { return value(); }
-    T operator ->() { return value(); }
+    operator T () const { return value(); }
+    T operator ->() const { return value(); }
 
   private:
     Handle() {}
 
     const T *ptr;
-    T value() { return *ptr; }
 
     template <typename S>
     void testAssign() {
@@ -196,9 +164,9 @@ class Root
         this->stack = reinterpret_cast<Root<T>**>(&cx->thingGCRooters[kind]);
         this->prev = *stack;
         *stack = this;
-#endif
 
         JS_ASSERT(!RootMethods<T>::poisoned(*ptr));
+#endif
 
         this->ptr = ptr;
 
@@ -257,18 +225,30 @@ class SkipRoot
     const uint8_t *start;
     const uint8_t *end;
 
-  public:
     template <typename T>
-    SkipRoot(JSContext *cx_, const T *ptr
-              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    void init(ContextFriendFields *cx, const T *ptr, size_t count)
     {
-        ContextFriendFields *cx = ContextFriendFields::get(cx_);
-
         this->stack = &cx->skipGCRooters;
         this->prev = *stack;
         *stack = this;
         this->start = (const uint8_t *) ptr;
-        this->end = this->start + sizeof(T);
+        this->end = this->start + (sizeof(T) * count);
+    }
+
+  public:
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr
+              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        init(ContextFriendFields::get(cx), ptr, 1);
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
+              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        init(ContextFriendFields::get(cx), ptr, count);
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
@@ -289,6 +269,13 @@ class SkipRoot
   public:
     template <typename T>
     SkipRoot(JSContext *cx, const T *ptr
+              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
               JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
@@ -362,6 +349,17 @@ typedef RootedVar<JSFunction*>  RootedVarFunction;
 typedef RootedVar<JSString*>    RootedVarString;
 typedef RootedVar<jsid>         RootedVarId;
 typedef RootedVar<Value>        RootedVarValue;
+
+/*
+ * Hook for dynamic root analysis. Checks the native stack and poisons
+ * references to GC things which have not been rooted.
+ */
+#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG) && !defined(JS_THREADSAFE)
+void CheckStackRoots(JSContext *cx);
+inline void MaybeCheckStackRoots(JSContext *cx) { CheckStackRoots(cx); }
+#else
+inline void MaybeCheckStackRoots(JSContext *cx) {}
+#endif
 
 }  /* namespace JS */
 

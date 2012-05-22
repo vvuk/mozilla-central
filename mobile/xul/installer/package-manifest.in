@@ -1,3 +1,7 @@
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ; Package file for the Fennec build. 
 ;
 ; File format:
@@ -296,8 +300,8 @@
 ; JavaScript components
 @BINPATH@/components/ConsoleAPI.manifest
 @BINPATH@/components/ConsoleAPI.js
-@BINPATH@/components/BrowserElementAPI.manifest
-@BINPATH@/components/BrowserElementAPI.js
+@BINPATH@/components/BrowserElementParent.manifest
+@BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/FeedProcessor.manifest
 @BINPATH@/components/FeedProcessor.js
 @BINPATH@/components/BrowserFeeds.manifest

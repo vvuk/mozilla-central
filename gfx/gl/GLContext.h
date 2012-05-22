@@ -1,43 +1,7 @@
 /* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40; -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- *   Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Mark Steele <mwsteele@gmail.com>
- *   Bas Schouten <bschouten@mozilla.com>
- *   Jeff Gilbert <jgilbert@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef GLCONTEXT_H_
 #define GLCONTEXT_H_
@@ -125,6 +89,12 @@ public:
       Created, // Texture created, but has not had glTexImage called to initialize it.
       Allocated,  // Texture memory exists, but contents are invalid.
       Valid  // Texture fully ready to use.
+    };
+
+    enum Flags {
+        NoFlags          = 0x0,
+        UseNearestFilter = 0x1,
+        NeedsYFlip       = 0x2
     };
 
     typedef gfxASurface::gfxContentType ContentType;
@@ -318,18 +288,24 @@ protected:
      */
     TextureImage(const nsIntSize& aSize,
                  GLenum aWrapMode, ContentType aContentType,
-                 bool aIsRGB = false)
+                 Flags aFlags = NoFlags)
         : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
         , mFilter(gfxPattern::FILTER_GOOD)
+        , mFlags(aFlags)
     {}
+
+    virtual nsIntRect GetSrcTileRect() {
+        return nsIntRect(nsIntPoint(0,0), mSize);
+    };
 
     nsIntSize mSize;
     GLenum mWrapMode;
     ContentType mContentType;
     ShaderProgramType mShaderType;
     gfxPattern::GraphicsFilter mFilter;
+    Flags mFlags;
 };
 
 /**
@@ -352,8 +328,9 @@ public:
                       const nsIntSize& aSize,
                       GLenum aWrapMode,
                       ContentType aContentType,
-                      GLContext* aContext)
-        : TextureImage(aSize, aWrapMode, aContentType)
+                      GLContext* aContext,
+                      TextureImage::Flags aFlags = TextureImage::NoFlags)
+        : TextureImage(aSize, aWrapMode, aContentType, aFlags)
         , mTexture(aTexture)
         , mTextureState(Created)
         , mGLContext(aContext)
@@ -408,7 +385,7 @@ class TiledTextureImage
 {
 public:
     TiledTextureImage(GLContext* aGL, nsIntSize aSize,
-        TextureImage::ContentType, bool aUseNearestFilter = false);
+        TextureImage::ContentType, TextureImage::Flags aFlags = TextureImage::NoFlags);
     ~TiledTextureImage();
     void DumpDiv();
     virtual gfxASurface* BeginUpdate(nsIntRegion& aRegion);
@@ -428,7 +405,10 @@ public:
     virtual bool InUpdate() const { return mInUpdate; };
     virtual void BindTexture(GLenum);
     virtual void ApplyFilter();
+
 protected:
+    virtual nsIntRect GetSrcTileRect();
+
     unsigned int mCurrentImage;
     TileIterationCallback mIterationCallback;
     void* mIterationCallbackData;
@@ -438,7 +418,6 @@ protected:
     unsigned int mTileSize;
     unsigned int mRows, mColumns;
     GLContext* mGL;
-    bool mUseNearestFilter;
     // A temporary surface to faciliate cross-tile updates.
     nsRefPtr<gfxASurface> mUpdateSurface;
     // The region of update requested
@@ -1274,7 +1253,8 @@ public:
      * |aContentType|.  The TextureImage's texture is configured to
      * use |aWrapMode| (usually GL_CLAMP_TO_EDGE or GL_REPEAT) and by
      * default, GL_LINEAR filtering.  Specify
-     * |aUseNearestFilter=true| for GL_NEAREST filtering.  Return
+     * |aFlags=UseNearestFilter| for GL_NEAREST filtering. Specify
+     * |aFlags=NeedsYFlip| if the image is flipped. Return
      * NULL if creating the TextureImage fails.
      *
      * The returned TextureImage may only be used with this GLContext.
@@ -1286,7 +1266,7 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       bool aUseNearestFilter=false);
+                       TextureImage::Flags aFlags = TextureImage::NoFlags);
 
     /**
      * In EGL we want to use Tiled Texture Images, which we return
@@ -1298,7 +1278,7 @@ public:
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                bool aUseNearestFilter = false)
+                TextureImage::Flags aFlags = TextureImage::NoFlags)
     {
         return nsnull;
     };
@@ -1382,6 +1362,10 @@ public:
      * \param aPixelBuffer Pass true to upload texture data with an
      *  offset from the base data (generally for pixel buffer objects), 
      *  otherwise textures are upload with an absolute pointer to the data.
+     * \param aTextureUnit, the texture unit used temporarily to upload the
+     *  surface. This testure may be overridden, clients should not rely on
+     *  the contents of this texture after this call or even on this
+     *  texture unit being active.
      * \return Shader program needed to render this texture.
      */
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
@@ -1389,7 +1373,8 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false);
+                                             bool aPixelBuffer = false,
+                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 
@@ -1507,6 +1492,7 @@ public:
         EXT_unpack_subimage,
         OES_standard_derivatives,
         EXT_texture_filter_anisotropic,
+        EXT_texture_compression_s3tc,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,
@@ -1723,10 +1709,11 @@ protected:
                             const nsIntSize& aSize,
                             GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
-                            GLContext* aContext)
+                            GLContext* aContext,
+                            TextureImage::Flags aFlags = TextureImage::NoFlags)
     {
         nsRefPtr<BasicTextureImage> teximage(
-            new BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext));
+            new BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags));
         return teximage.forget();
     }
 
@@ -2103,6 +2090,18 @@ public:
     void fColorMask(realGLboolean red, realGLboolean green, realGLboolean blue, realGLboolean alpha) {
         BEFORE_GL_CALL;
         mSymbols.fColorMask(red, green, blue, alpha);
+        AFTER_GL_CALL;
+    }
+
+    void fCompressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid *pixels) {
+        BEFORE_GL_CALL;
+        mSymbols.fCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, pixels);
+        AFTER_GL_CALL;
+    }
+
+    void fCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const GLvoid *pixels) {
+        BEFORE_GL_CALL;
+        mSymbols.fCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, pixels);
         AFTER_GL_CALL;
     }
 

@@ -31,10 +31,8 @@
 
 USING_WORKERS_NAMESPACE
 
-namespace XMLHttpRequestResponseTypeValues = 
-  mozilla::dom::bindings::prototypes::XMLHttpRequestResponseType;
-
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
+using mozilla::ErrorResult;
 
 // XXX Need to figure this out...
 #define UNCATCHABLE_EXCEPTION NS_ERROR_OUT_OF_MEMORY
@@ -215,10 +213,11 @@ END_WORKERS_NAMESPACE
 namespace {
 
 inline void
-ConvertResponseTypeToString(XMLHttpRequestResponseType aType, nsString& aString)
+ConvertResponseTypeToString(XMLHttpRequestResponseType aType,
+                            nsString& aString)
 {
   using namespace
-    mozilla::dom::bindings::prototypes::XMLHttpRequestResponseType;
+    mozilla::dom::XMLHttpRequestResponseTypeValues;
 
   size_t index = static_cast<size_t>(aType);
   MOZ_ASSERT(index < ArrayLength(strings), "Codegen gave us a bad value!");
@@ -230,7 +229,7 @@ inline XMLHttpRequestResponseType
 ConvertStringToResponseType(const nsAString& aString)
 {
   using namespace
-    mozilla::dom::bindings::prototypes::XMLHttpRequestResponseType;
+    mozilla::dom::XMLHttpRequestResponseTypeValues;
 
   for (size_t index = 0; index < ArrayLength(strings) - 1; index++) {
     if (aString.EqualsASCII(strings[index].value, strings[index].length)) {
@@ -239,7 +238,7 @@ ConvertStringToResponseType(const nsAString& aString)
   }
 
   MOZ_NOT_REACHED("Don't know anything about this response type!");
-  return XMLHttpRequestResponseTypeValues::_empty;
+  return _empty;
 }
 
 enum
@@ -1449,7 +1448,7 @@ XMLHttpRequest::_Finalize(JSFreeOp* aFop)
 
 // static
 XMLHttpRequest*
-XMLHttpRequest::_Constructor(JSContext* aCx, JSObject* aGlobal, nsresult& aRv)
+XMLHttpRequest::_Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv)
 {
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(aCx);
   MOZ_ASSERT(workerPrivate);
@@ -1457,7 +1456,7 @@ XMLHttpRequest::_Constructor(JSContext* aCx, JSObject* aGlobal, nsresult& aRv)
   nsRefPtr<XMLHttpRequest> xhr = new XMLHttpRequest(aCx, workerPrivate);
 
   if (!Wrap(aCx, aGlobal, xhr)) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return NULL;
   }
 
@@ -1503,7 +1502,7 @@ XMLHttpRequest::ReleaseProxy(ReleaseType aType)
 }
 
 void
-XMLHttpRequest::MaybePin(nsresult& aRv)
+XMLHttpRequest::MaybePin(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
@@ -1514,13 +1513,13 @@ XMLHttpRequest::MaybePin(nsresult& aRv)
   JSContext* cx = GetJSContext();
 
   if (!JS_AddNamedObjectRoot(cx, &mJSObject, "XMLHttpRequest mJSObject")) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
   if (!mWorkerPrivate->AddFeature(cx, this)) {
     JS_RemoveObjectRoot(cx, &mJSObject);
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -1528,7 +1527,7 @@ XMLHttpRequest::MaybePin(nsresult& aRv)
 }
 
 void
-XMLHttpRequest::MaybeDispatchPrematureAbortEvents(nsresult& aRv)
+XMLHttpRequest::MaybeDispatchPrematureAbortEvents(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(mProxy);
@@ -1542,12 +1541,12 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(nsresult& aRv)
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_abort, true, aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
 
     DispatchPrematureAbortEvent(target, STRING_loadend, true, aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
 
@@ -1559,17 +1558,17 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(nsresult& aRv)
     MOZ_ASSERT(target);
 
     DispatchPrematureAbortEvent(target, STRING_readystatechange, false, aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
 
     DispatchPrematureAbortEvent(target, STRING_abort, false, aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
 
     DispatchPrematureAbortEvent(target, STRING_loadend, false, aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
 
@@ -1580,7 +1579,8 @@ XMLHttpRequest::MaybeDispatchPrematureAbortEvents(nsresult& aRv)
 void
 XMLHttpRequest::DispatchPrematureAbortEvent(JSObject* aTarget,
                                             uint8_t aEventType,
-                                            bool aUploadTarget, nsresult& aRv)
+                                            bool aUploadTarget,
+                                            ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(mProxy);
@@ -1591,7 +1591,7 @@ XMLHttpRequest::DispatchPrematureAbortEvent(JSObject* aTarget,
 
   JSString* type = JS_NewStringCopyZ(cx, sEventStrings[aEventType]);
   if (!type) {
-    aRv = NS_ERROR_OUT_OF_MEMORY;
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
@@ -1613,13 +1613,13 @@ XMLHttpRequest::DispatchPrematureAbortEvent(JSObject* aTarget,
   }
 
   if (!event) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
   bool dummy;
   if (!events::DispatchEventToTarget(cx, aTarget, event, &dummy)) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
@@ -1644,14 +1644,14 @@ void
 XMLHttpRequest::SendInternal(const nsAString& aStringBody,
                              JSAutoStructuredCloneBuffer& aBody,
                              nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
-                             nsresult& aRv)
+                             ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   bool hasUploadListeners = mUpload ? mUpload->HasListeners() : false;
 
   MaybePin(aRv);
-  if (NS_FAILED(aRv)) {
+  if (aRv.Failed()) {
     return;
   }
 
@@ -1681,7 +1681,7 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
   }
 
   if (mProxy->mIsSyncXHR && !mWorkerPrivate->RunSyncLoop(cx, syncQueueKey)) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
@@ -1703,18 +1703,18 @@ XMLHttpRequest::Notify(JSContext* aCx, Status aStatus)
 void
 XMLHttpRequest::Open(const nsAString& aMethod, const nsAString& aUrl,
                      bool aAsync, const nsAString& aUser,
-                     const nsAString& aPassword, nsresult& aRv)
+                     const nsAString& aPassword, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (mProxy) {
     MaybeDispatchPrematureAbortEvents(aRv);
-    if (NS_FAILED(aRv)) {
+    if (aRv.Failed()) {
       return;
     }
   }
@@ -1731,7 +1731,7 @@ XMLHttpRequest::Open(const nsAString& aMethod, const nsAString& aUrl,
 
   if (!runnable->Dispatch(GetJSContext())) {
     ReleaseProxy();
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -1740,17 +1740,17 @@ XMLHttpRequest::Open(const nsAString& aMethod, const nsAString& aUrl,
 
 void
 XMLHttpRequest::SetRequestHeader(const nsAString& aHeader,
-                                 const nsAString& aValue, nsresult& aRv)
+                                 const nsAString& aValue, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -1759,18 +1759,18 @@ XMLHttpRequest::SetRequestHeader(const nsAString& aHeader,
                                  NS_ConvertUTF16toUTF8(aHeader),
                                  NS_ConvertUTF16toUTF8(aValue));
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
-XMLHttpRequest::SetTimeout(uint32_t aTimeout, nsresult& aRv)
+XMLHttpRequest::SetTimeout(uint32_t aTimeout, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1785,18 +1785,18 @@ XMLHttpRequest::SetTimeout(uint32_t aTimeout, nsresult& aRv)
   nsRefPtr<SetTimeoutRunnable> runnable =
     new SetTimeoutRunnable(mWorkerPrivate, mProxy, aTimeout);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
-XMLHttpRequest::SetWithCredentials(bool aWithCredentials, nsresult& aRv)
+XMLHttpRequest::SetWithCredentials(bool aWithCredentials, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1811,18 +1811,18 @@ XMLHttpRequest::SetWithCredentials(bool aWithCredentials, nsresult& aRv)
   nsRefPtr<SetWithCredentialsRunnable> runnable =
     new SetWithCredentialsRunnable(mWorkerPrivate, mProxy, aWithCredentials);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
-XMLHttpRequest::SetMultipart(bool aMultipart, nsresult& aRv)
+XMLHttpRequest::SetMultipart(bool aMultipart, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1837,19 +1837,19 @@ XMLHttpRequest::SetMultipart(bool aMultipart, nsresult& aRv)
   nsRefPtr<SetMultipartRunnable> runnable =
     new SetMultipartRunnable(mWorkerPrivate, mProxy, aMultipart);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
 XMLHttpRequest::SetMozBackgroundRequest(bool aBackgroundRequest,
-                                        nsresult& aRv)
+                                        ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -1865,18 +1865,18 @@ XMLHttpRequest::SetMozBackgroundRequest(bool aBackgroundRequest,
     new SetBackgroundRequestRunnable(mWorkerPrivate, mProxy,
                                      aBackgroundRequest);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 XMLHttpRequestUpload*
-XMLHttpRequest::GetUpload(nsresult& aRv)
+XMLHttpRequest::GetUpload(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return NULL;
   }
 
@@ -1885,7 +1885,7 @@ XMLHttpRequest::GetUpload(nsresult& aRv)
       XMLHttpRequestUpload::Create(GetJSContext(), this);
 
     if (!upload) {
-      aRv = NS_ERROR_FAILURE;
+      aRv.Throw(NS_ERROR_FAILURE);
       return NULL;
     }
 
@@ -1896,17 +1896,17 @@ XMLHttpRequest::GetUpload(nsresult& aRv)
 }
 
 void
-XMLHttpRequest::Send(nsresult& aRv)
+XMLHttpRequest::Send(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -1918,17 +1918,17 @@ XMLHttpRequest::Send(nsresult& aRv)
 }
 
 void
-XMLHttpRequest::Send(const nsAString& aBody, nsresult& aRv)
+XMLHttpRequest::Send(const nsAString& aBody, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -1940,18 +1940,18 @@ XMLHttpRequest::Send(const nsAString& aBody, nsresult& aRv)
 }
 
 void
-XMLHttpRequest::Send(JSObject* aBody, nsresult& aRv)
+XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
   MOZ_ASSERT(aBody);
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -1964,7 +1964,7 @@ XMLHttpRequest::Send(JSObject* aBody, nsresult& aRv)
   else {
     JSString* bodyStr = JS_ValueToString(cx, OBJECT_TO_JSVAL(aBody));
     if (!bodyStr) {
-      aRv = NS_ERROR_OUT_OF_MEMORY;
+      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
     }
     valToClone = STRING_TO_JSVAL(bodyStr);
@@ -1979,7 +1979,7 @@ XMLHttpRequest::Send(JSObject* aBody, nsresult& aRv)
 
   JSAutoStructuredCloneBuffer buffer;
   if (!buffer.write(cx, valToClone, callbacks, &clonedObjects)) {
-    aRv = NS_ERROR_DOM_DATA_CLONE_ERR;
+    aRv.Throw(NS_ERROR_DOM_DATA_CLONE_ERR);
     return;
   }
 
@@ -1987,20 +1987,20 @@ XMLHttpRequest::Send(JSObject* aBody, nsresult& aRv)
 }
 
 void
-XMLHttpRequest::SendAsBinary(const nsAString& aBody, nsresult& aRv)
+XMLHttpRequest::SendAsBinary(const nsAString& aBody, ErrorResult& aRv)
 {
   NS_NOTYETIMPLEMENTED("Implement me!");
-  aRv = NS_ERROR_NOT_IMPLEMENTED;
+  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return;
 }
 
 void
-XMLHttpRequest::Abort(nsresult& aRv)
+XMLHttpRequest::Abort(ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
-    return;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
   }
 
   if (!mProxy) {
@@ -2008,7 +2008,7 @@ XMLHttpRequest::Abort(nsresult& aRv)
   }
 
   MaybeDispatchPrematureAbortEvents(aRv);
-  if (NS_FAILED(aRv)) {
+  if (aRv.Failed()) {
     return;
   }
 
@@ -2016,24 +2016,24 @@ XMLHttpRequest::Abort(nsresult& aRv)
 
   nsRefPtr<AbortRunnable> runnable = new AbortRunnable(mWorkerPrivate, mProxy);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
 XMLHttpRequest::GetResponseHeader(const nsAString& aHeader,
-                                  nsAString& aResponseHeader, nsresult& aRv)
+                                  nsAString& aResponseHeader, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -2042,7 +2042,7 @@ XMLHttpRequest::GetResponseHeader(const nsAString& aHeader,
     new GetResponseHeaderRunnable(mWorkerPrivate, mProxy,
                                   NS_ConvertUTF16toUTF8(aHeader), value);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -2051,17 +2051,17 @@ XMLHttpRequest::GetResponseHeader(const nsAString& aHeader,
 
 void
 XMLHttpRequest::GetAllResponseHeaders(nsAString& aResponseHeaders,
-                                      nsresult& aRv)
+                                      ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -2069,7 +2069,7 @@ XMLHttpRequest::GetAllResponseHeaders(nsAString& aResponseHeaders,
   nsRefPtr<GetAllResponseHeadersRunnable> runnable =
     new GetAllResponseHeadersRunnable(mWorkerPrivate, mProxy, responseHeaders);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -2077,12 +2077,12 @@ XMLHttpRequest::GetAllResponseHeaders(nsAString& aResponseHeaders,
 }
 
 void
-XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, nsresult& aRv)
+XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
@@ -2092,31 +2092,31 @@ XMLHttpRequest::OverrideMimeType(const nsAString& aMimeType, nsresult& aRv)
   // (bug 671047). For now we're going to let this work only if the Send()
   // method has not been called.
   if (!mProxy || SendInProgress()) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
   nsRefPtr<OverrideMimeTypeRunnable> runnable =
     new OverrideMimeTypeRunnable(mWorkerPrivate, mProxy, aMimeType);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 }
 
 void
 XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
-                                nsresult& aRv)
+                                ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (mCanceled) {
-    aRv = UNCATCHABLE_EXCEPTION;
+    aRv.Throw(UNCATCHABLE_EXCEPTION);
     return;
   }
 
   if (!mProxy || SendInProgress()) {
-    aRv = NS_ERROR_DOM_INVALID_STATE_ERR;
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
@@ -2132,7 +2132,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
   nsRefPtr<SetResponseTypeRunnable> runnable =
     new SetResponseTypeRunnable(mWorkerPrivate, mProxy, responseType);
   if (!runnable->Dispatch(GetJSContext())) {
-    aRv = NS_ERROR_FAILURE;
+    aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
 
@@ -2143,7 +2143,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
 }
 
 jsval
-XMLHttpRequest::GetResponse(nsresult& aRv)
+XMLHttpRequest::GetResponse(ErrorResult& aRv)
 {
   if (NS_SUCCEEDED(mStateData.mResponseTextResult) &&
       JSVAL_IS_VOID(mStateData.mResponse)) {
@@ -2154,7 +2154,7 @@ XMLHttpRequest::GetResponse(nsresult& aRv)
       JS_NewUCStringCopyN(GetJSContext(), mStateData.mResponseText.get(),
                           mStateData.mResponseText.Length());
     if (!str) {
-      aRv = NS_ERROR_OUT_OF_MEMORY;
+      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return JSVAL_VOID;
     }
 
@@ -2166,7 +2166,7 @@ XMLHttpRequest::GetResponse(nsresult& aRv)
 }
 
 void
-XMLHttpRequest::GetResponseText(nsAString& aResponseText, nsresult& aRv)
+XMLHttpRequest::GetResponseText(nsAString& aResponseText, ErrorResult& aRv)
 {
   aRv = mStateData.mResponseTextResult;
   aResponseText = mStateData.mResponseText;

@@ -4,36 +4,40 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/message_loop.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <math.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <time.h>
+
+#include "android/log.h"
+#include "cutils/properties.h"
+#include "hardware/hardware.h"
+#include "hardware/lights.h"
 #include "hardware_legacy/uevent.h"
+#include "hardware_legacy/vibrator.h"
+#include "hardware_legacy/power.h"
+
+#include "base/message_loop.h"
+
 #include "Hal.h"
 #include "HalImpl.h"
 #include "mozilla/dom/battery/Constants.h"
 #include "mozilla/FileUtils.h"
-#include "nsAlgorithm.h"
-#include "nsThreadUtils.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Services.h"
-#include "mozilla/FileUtils.h"
-#include "nsThreadUtils.h"
-#include "nsIRunnable.h"
-#include "nsIThread.h"
+#include "nsAlgorithm.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIRunnable.h"
+#include "nsScreenManagerGonk.h"
+#include "nsThreadUtils.h"
+#include "nsThreadUtils.h"
+#include "nsIThread.h"
 #include "nsXULAppAPI.h"
-#include "hardware/lights.h"
-#include "hardware/hardware.h"
-#include "hardware_legacy/vibrator.h"
+#include "OrientationObserver.h"
 #include "UeventPoller.h"
-#include <stdio.h>
-#include <math.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <time.h>
-#include <sys/syscall.h>
-#include <cutils/properties.h>
-#include "mozilla/dom/network/Constants.h"
-#include <android/log.h>
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
 #define NsecPerMsec  1000000
@@ -328,7 +332,6 @@ namespace {
 /**
  * RAII class to help us remember to close file descriptors.
  */
-const char *screenEnabledFilename = "/sys/power/state";
 const char *wakeLockFilename = "/sys/power/wake_lock";
 const char *wakeUnlockFilename = "/sys/power/wake_unlock";
 
@@ -389,7 +392,7 @@ GetScreenEnabled()
 void
 SetScreenEnabled(bool enabled)
 {
-  WriteToFile(screenEnabledFilename, enabled ? "on" : "mem");
+  set_screen_state(enabled);
   sScreenEnabled = enabled;
 }
 
@@ -593,20 +596,34 @@ SetTimezone(const nsCString& aTimezoneSpec)
   tzset();
 }
 
-
+// Nothing to do here.  Gonk widgetry always listens for screen
+// orientation changes.
 void
-EnableNetworkNotifications()
-{}
-
-void
-DisableNetworkNotifications()
-{}
-
-void
-GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo)
+EnableScreenConfigurationNotifications()
 {
-  aNetworkInfo->bandwidth() = dom::network::kDefaultBandwidth;
-  aNetworkInfo->canBeMetered() = dom::network::kDefaultCanBeMetered;
+}
+
+void
+DisableScreenConfigurationNotifications()
+{
+}
+
+void
+GetCurrentScreenConfiguration(hal::ScreenConfiguration* aScreenConfiguration)
+{
+  *aScreenConfiguration = nsScreenGonk::GetConfiguration();
+}
+
+bool
+LockScreenOrientation(const dom::ScreenOrientation& aOrientation)
+{
+  return OrientationObserver::GetInstance()->LockScreenOrientation(aOrientation);
+}
+
+void
+UnlockScreenOrientation()
+{
+  OrientationObserver::GetInstance()->UnlockScreenOrientation();
 }
 
 } // hal_impl

@@ -18,6 +18,7 @@ import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.SyncConfigurationException;
 import org.mozilla.gecko.sync.SyncException;
+import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
@@ -176,6 +177,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   private SyncResult syncResult;
 
   public Account localAccount;
+  protected boolean thisSyncIsForced = false;
 
   /**
    * Return the number of milliseconds until we're allowed to sync again,
@@ -192,6 +194,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
   @Override
   public boolean shouldBackOff() {
+    if (thisSyncIsForced) {
+      /*
+       * If the user asks us to sync, we should sync regardless. This path is
+       * hit if the user force syncs and we restart a session after a
+       * freshStart.
+       */
+      return false;
+    }
+
     if (wantNodeAssignment()) {
       /*
        * We recently had a 401 and we aborted the last sync. We should kick off
@@ -219,10 +230,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     this.syncResult   = syncResult;
     this.localAccount = account;
 
-    boolean force = (extras != null) && (extras.getBoolean("force", false));
+    thisSyncIsForced = (extras != null) && (extras.getBoolean("force", false));
     long delay = delayMilliseconds();
     if (delay > 0) {
-      if (force) {
+      if (thisSyncIsForced) {
         Log.i(LOG_TAG, "Forced sync: overruling remaining backoff of " + delay + "ms.");
       } else {
         Log.i(LOG_TAG, "Not syncing: must wait another " + delay + "ms.");
@@ -531,5 +542,23 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   @Override
   public void informUnauthorizedResponse(GlobalSession session, URI oldClusterURL) {
     setClusterURLIsStale(true);
+  }
+
+  @Override
+  public void informUpgradeRequiredResponse(final GlobalSession session) {
+    final AccountManager manager = mAccountManager;
+    final Account toDisable      = localAccount;
+    if (toDisable == null || manager == null) {
+      Logger.warn(LOG_TAG, "Attempting to disable account, but null found.");
+      return;
+    }
+    // Sync needs to be upgraded. Don't automatically sync anymore.
+    ThreadPool.run(new Runnable() {
+      @Override
+      public void run() {
+        manager.setUserData(toDisable, Constants.DATA_ENABLE_ON_UPGRADE, "1");
+        SyncAccounts.setSyncAutomatically(toDisable, false);
+      }
+    });
   }
 }

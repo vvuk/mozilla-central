@@ -1,41 +1,7 @@
 /* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * mozilla.org
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com> (original author)
- *   Nicholas Nethercote <nnethercote@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsAtomTable.h"
 #include "nsAutoPtr.h"
@@ -366,7 +332,7 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(PageFaultsHard,
 
 #define HAVE_HEAP_ALLOCATED_REPORTERS 1
 
-static PRInt64 GetHeapUnallocated()
+static PRInt64 GetHeapUnused()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
@@ -387,11 +353,19 @@ static PRInt64 GetHeapCommitted()
     return (PRInt64) stats.committed;
 }
 
-static PRInt64 GetHeapCommittedFragmentation()
+static PRInt64 GetHeapCommittedUnused()
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
-    return (PRInt64) (10000 * (1 - stats.allocated / (double)stats.committed));
+    return stats.committed - stats.allocated;
+}
+
+static PRInt64 GetHeapCommittedUnusedRatio()
+{
+    jemalloc_stats_t stats;
+    jemalloc_stats(&stats);
+    return (PRInt64) 10000 * (stats.committed - stats.allocated) /
+                              ((double)stats.allocated);
 }
 
 static PRInt64 GetHeapDirty()
@@ -413,15 +387,24 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapCommitted,
     "memory and is unable to decommit it because a small part of that block is "
     "currently in use.")
 
-NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedFragmentation,
-    "heap-committed-fragmentation",
+NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedUnused,
+    "heap-committed-unused",
+    KIND_OTHER,
+    UNITS_BYTES,
+    GetHeapCommittedUnused,
+    "Committed bytes which do not correspond to an active allocation; i.e., "
+    "'heap-committed' - 'heap-allocated'.  Although the allocator will waste some "
+    "space under any circumstances, a large value here may indicate that the "
+    "heap is highly fragmented.")
+
+NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedUnusedRatio,
+    "heap-committed-unused-ratio",
     KIND_OTHER,
     UNITS_PERCENTAGE,
-    GetHeapCommittedFragmentation,
-    "Fraction of committed bytes which do not correspond to an active "
-    "allocation; i.e., 1 - (heap-allocated / heap-committed).  Although the "
-    "allocator will waste some space under any circumstances, a large value here "
-    "may indicate that the heap is highly fragmented.")
+    GetHeapCommittedUnusedRatio,
+    "Ratio of committed, unused bytes to allocated bytes; i.e., "
+    "'heap-committed-unused' / 'heap-allocated'.  This measures the overhead "
+    "of the heap allocator relative to amount of memory allocated.")
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
     "heap-dirty",
@@ -438,7 +421,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
 
 #define HAVE_HEAP_ALLOCATED_REPORTERS 1
 
-static PRInt64 GetHeapUnallocated()
+static PRInt64 GetHeapUnused()
 {
     struct mstats stats = mstats();
     return stats.bytes_total - stats.bytes_used;
@@ -489,14 +472,14 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapZone0Used,
 #endif
 
 #ifdef HAVE_HEAP_ALLOCATED_REPORTERS
-NS_MEMORY_REPORTER_IMPLEMENT(HeapUnallocated,
-    "heap-unallocated",
+NS_MEMORY_REPORTER_IMPLEMENT(HeapUnused,
+    "heap-unused",
     KIND_OTHER,
     UNITS_BYTES,
-    GetHeapUnallocated,
+    GetHeapUnused,
     "Memory mapped by the heap allocator that is not part of an active "
-    "allocation. Much of this memory may be uncommitted -- that is, it does "
-    "not take up space in physical memory or in the swap file.")
+    "allocation. Much of this memory may be uncommitted -- that is, it does not "
+    "take up space in physical memory or in the swap file.")
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapAllocated,
     "heap-allocated",
@@ -566,7 +549,7 @@ nsMemoryReporterManager::Init()
 
 #ifdef HAVE_HEAP_ALLOCATED_REPORTERS
     REGISTER(HeapAllocated);
-    REGISTER(HeapUnallocated);
+    REGISTER(HeapUnused);
 #endif
 
 #ifdef HAVE_EXPLICIT_REPORTER
@@ -589,7 +572,7 @@ nsMemoryReporterManager::Init()
 
 #if defined(HAVE_JEMALLOC_STATS)
     REGISTER(HeapCommitted);
-    REGISTER(HeapCommittedFragmentation);
+    REGISTER(HeapCommittedUnusedRatio);
     REGISTER(HeapDirty);
 #elif defined(HAVE_HEAP_ZONE0_REPORTERS)
     REGISTER(HeapZone0Committed);

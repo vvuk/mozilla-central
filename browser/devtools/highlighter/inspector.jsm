@@ -1,49 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla Inspector Module.
- *
- * The Initial Developer of the Original Code is
- * The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Rob Campbell <rcampbell@mozilla.com> (original author)
- *   Mihai Șucan <mihai.sucan@gmail.com>
- *   Julian Viereck <jviereck@mozilla.com>
- *   Paul Rouget <paul@mozilla.com>
- *   Kyle Simpson <ksimpson@mozilla.com>
- *   Johan Charlez <johan.charlez@gmail.com>
- *   Mike Ratcliffe <mratcliffe@mozilla.com>
- *   Murali S R <murali.sr92@yahoo.com>
- *   Dave Camp <dcamp@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 const Cc = Components.classes;
 const Cu = Components.utils;
@@ -293,37 +252,43 @@ InspectorUI.prototype = {
   buildButtonsTooltip: function IUI_buildButtonsTooltip()
   {
     let keysbundle = Services.strings.createBundle("chrome://global-platform/locale/platformKeys.properties");
+    let separator = keysbundle.GetStringFromName("MODIFIER_SEPARATOR");
+
+    let button, tooltip;
 
     // Inspect Button - the shortcut string is built from the <key> element
 
     let key = this.chromeDoc.getElementById("key_inspect");
 
-    let modifiersAttr = key.getAttribute("modifiers");
+    if (key) {
+      let modifiersAttr = key.getAttribute("modifiers");
 
-    let combo = [];
+      let combo = [];
 
-    if (modifiersAttr.match("accel"))
+      if (modifiersAttr.match("accel"))
 #ifdef XP_MACOSX
-      combo.push(keysbundle.GetStringFromName("VK_META"));
+        combo.push(keysbundle.GetStringFromName("VK_META"));
 #else
-      combo.push(keysbundle.GetStringFromName("VK_CONTROL"));
+        combo.push(keysbundle.GetStringFromName("VK_CONTROL"));
 #endif
-    if (modifiersAttr.match("shift"))
-      combo.push(keysbundle.GetStringFromName("VK_SHIFT"));
-    if (modifiersAttr.match("alt"))
-      combo.push(keysbundle.GetStringFromName("VK_ALT"));
-    if (modifiersAttr.match("ctrl"))
-      combo.push(keysbundle.GetStringFromName("VK_CONTROL"));
-    if (modifiersAttr.match("meta"))
-      combo.push(keysbundle.GetStringFromName("VK_META"));
+      if (modifiersAttr.match("shift"))
+        combo.push(keysbundle.GetStringFromName("VK_SHIFT"));
+      if (modifiersAttr.match("alt"))
+        combo.push(keysbundle.GetStringFromName("VK_ALT"));
+      if (modifiersAttr.match("ctrl"))
+        combo.push(keysbundle.GetStringFromName("VK_CONTROL"));
+      if (modifiersAttr.match("meta"))
+        combo.push(keysbundle.GetStringFromName("VK_META"));
 
-    combo.push(key.getAttribute("key"));
+      combo.push(key.getAttribute("key"));
 
-    let separator = keysbundle.GetStringFromName("MODIFIER_SEPARATOR");
+      tooltip = this.strings.formatStringFromName("inspectButtonWithShortcutKey.tooltip",
+        [combo.join(separator)], 1);
+    } else {
+      tooltip = this.strings.GetStringFromName("inspectButton.tooltip");
+    }
 
-    let tooltip = this.strings.formatStringFromName("inspectButton.tooltiptext",
-      [combo.join(separator)], 1);
-    let button = this.chromeDoc.getElementById("inspector-inspect-toolbutton");
+    button = this.chromeDoc.getElementById("inspector-inspect-toolbutton");
     button.setAttribute("tooltiptext", tooltip);
 
     // Markup Button - the shortcut string is built from the accesskey attribute
@@ -335,7 +300,6 @@ InspectorUI.prototype = {
 #else
     let altString = keysbundle.GetStringFromName("VK_ALT");
     let accesskey = button.getAttribute("accesskey");
-    let separator = keysbundle.GetStringFromName("MODIFIER_SEPARATOR");
     let shortcut = altString + separator + accesskey;
     tooltip = this.strings.formatStringFromName("markupButton.tooltipWithAccesskey",
       [shortcut], 1);
@@ -378,7 +342,7 @@ InspectorUI.prototype = {
   /**
    * Toggle the TreePanel.
    */
-  toggleHTMLPanel: function TP_toggle()
+  toggleHTMLPanel: function TP_toggleHTMLPanel()
   {
     if (this.treePanel.isOpen()) {
       this.treePanel.close();
@@ -399,6 +363,38 @@ InspectorUI.prototype = {
   get isInspectorOpen()
   {
     return !!(this.toolbar && !this.toolbar.hidden && this.highlighter);
+  },
+
+  /**
+   * Toggle highlighter veil.
+   */
+  toggleVeil: function IUI_toggleVeil()
+  {
+    if (this.currentInspector._highlighterShowVeil) {
+      this.highlighter.hideVeil();
+      this.currentInspector._highlighterShowVeil = false;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowVeil", false);
+    } else {
+      this.highlighter.showVeil();
+      this.currentInspector._highlighterShowVeil = true;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowVeil", true);
+    }
+  },
+
+  /**
+   * Toggle highlighter infobar.
+   */
+  toggleInfobar: function IUI_toggleInfobar()
+  {
+    if (this.currentInspector._highlighterShowInfobar) {
+      this.highlighter.hideInfobar();
+      this.currentInspector._highlighterShowInfobar = false;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowInfobar", false);
+    } else {
+      this.highlighter.showInfobar();
+      this.currentInspector._highlighterShowInfobar = true;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowInfobar", true);
+    }
   },
 
   /**
@@ -497,7 +493,7 @@ InspectorUI.prototype = {
     // is limited to some specific elements and has moved the focus somewhere else.
     // So in this case, we want to focus the content window.
     // See: https://developer.mozilla.org/en/XUL_Tutorial/Focus_and_Selection#Platform_Specific_Behaviors
-    if (!this.toolbar.querySelector("-moz-focusring")) {
+    if (!this.toolbar.querySelector(":-moz-focusring")) {
       this.win.focus();
     }
 
@@ -537,6 +533,12 @@ InspectorUI.prototype = {
 
       inspector._activeSidebar =
         Services.prefs.getCharPref("devtools.inspector.activeSidebar");
+
+      inspector._highlighterShowVeil =
+        Services.prefs.getBoolPref("devtools.inspector.highlighterShowVeil");
+
+      inspector._highlighterShowInfobar =
+        Services.prefs.getBoolPref("devtools.inspector.highlighterShowInfobar");
 
       this.win.addEventListener("pagehide", this, true);
 
@@ -842,6 +844,23 @@ InspectorUI.prototype = {
 
     if (this.currentInspector._sidebarOpen) {
       this._sidebar.show();
+    }
+
+    let menu = this.chromeDoc.getElementById("inspectorToggleVeil");
+    if (this.currentInspector._highlighterShowVeil) {
+      menu.setAttribute("checked", "true");
+    } else {
+      menu.removeAttribute("checked");
+      this.highlighter.hideVeil();
+    }
+
+    menu = this.chromeDoc.getElementById("inspectorToggleInfobar");
+    if (this.currentInspector._highlighterShowInfobar) {
+      menu.setAttribute("checked", "true");
+      this.highlighter.showInfobar();
+    } else {
+      menu.removeAttribute("checked");
+      this.highlighter.hideInfobar();
     }
 
     Services.obs.notifyObservers({wrappedJSObject: this},
@@ -1445,6 +1464,10 @@ InspectorStyleSidebar.prototype = {
     let frame = this._chromeDoc.createElement("iframe");
     frame.setAttribute("flex", "1");
     frame._toolID = aRegObj.id;
+
+    // This is needed to enable tooltips inside the iframe document.
+    frame.setAttribute("tooltip", "aHTMLTooltip");
+
     this._deck.appendChild(frame);
 
     // wire up button to show the iframe

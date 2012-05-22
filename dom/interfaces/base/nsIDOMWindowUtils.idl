@@ -1,39 +1,7 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Mozilla.org
- * Portions created by the Initial Developer are Copyright (C) 2004
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
 
@@ -70,7 +38,7 @@ interface nsIDOMFile;
 interface nsIFile;
 interface nsIDOMTouch;
 
-[scriptable, uuid(66a68858-df38-40e1-a792-fda04ebcc084)]
+[scriptable, uuid(2e5a1f37-786b-4a52-b0e3-f711ee2268a8)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -347,17 +315,30 @@ interface nsIDOMWindowUtils : nsISupports {
    * @param aKeyCode key code
    * @param aCharCode character code
    * @param aModifiers modifiers pressed, using constants defined as MODIFIER_*
-   * @param aPreventDefault if true, preventDefault() the event before dispatch
+   * @param aAdditionalFlags special flags for the key event, see KEY_FLAG_*.
    *
    * @return false if the event had preventDefault() called on it,
    *               true otherwise.  In other words, true if and only if the
    *               default action was taken.
    */
+
+  // If this is set, preventDefault() the event before dispatch.
+  const unsigned long KEY_FLAG_PREVENT_DEFAULT   = 0x0001;
+
+  // if one of these flags is set, the KeyboardEvent.location will be the value.
+  // Otherwise, it will be computed from aKeyCode.
+  const unsigned long KEY_FLAG_LOCATION_STANDARD = 0x0010;
+  const unsigned long KEY_FLAG_LOCATION_LEFT     = 0x0020;
+  const unsigned long KEY_FLAG_LOCATION_RIGHT    = 0x0040;
+  const unsigned long KEY_FLAG_LOCATION_NUMPAD   = 0x0080;
+  const unsigned long KEY_FLAG_LOCATION_MOBILE   = 0x0100;
+  const unsigned long KEY_FLAG_LOCATION_JOYSTICK = 0x0200;
+
   boolean sendKeyEvent(in AString aType,
                        in long aKeyCode,
                        in long aCharCode,
                        in long aModifiers,
-                       [optional] in boolean aPreventDefault);
+                       [optional] in unsigned long aAdditionalFlags);
 
   /**
    * See nsIWidget::SynthesizeNativeKeyEvent
@@ -1136,4 +1117,22 @@ interface nsIDOMWindowUtils : nsISupports {
    * The caller of this method must have UniversalXPConnect privileges.
    */
   void setScrollPositionClampingScrollPortSize(in float aWidth, in float aHeight);
+
+  /**
+   * Mark if the window is an application window or not.
+   * This should only be set for top-level mozApp or mozBrowser frames.
+   * It should not be set for other frames unless you want a frame (and its
+   * children) to have a different value for IsPartOfApp than the frame's
+   * parent.
+   */
+  void setIsApp(in boolean value);
+
+  /**
+   * Associate the window with an application by passing the URL of the
+   * application's manifest.
+   *
+   * This method will throw an exception if the manifest URL isn't a valid URL
+   * or isn't the manifest URL of an installed application.
+   */
+  void setApp(in DOMString manifestURL);
 };

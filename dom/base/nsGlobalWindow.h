@@ -1,44 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Travis Bogard <travis@netscape.com>
- *   Dan Rosen <dr@netscape.com>
- *   Vidur Apparao <vidur@netscape.com>
- *   Johnny Stenback <jst@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsGlobalWindow_h___
 #define nsGlobalWindow_h___
@@ -99,6 +63,7 @@
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsIDOMApplicationRegistry.h"
 
 // JS includes
 #include "jsapi.h"
@@ -130,7 +95,6 @@ class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
 class nsGlobalWindow;
-class nsDummyJavaPluginOwner;
 class PostMessageEvent;
 class nsRunnable;
 class nsDOMEventTargetHelper;
@@ -301,10 +265,6 @@ public:
 
   virtual nsIScriptContext *GetScriptContext();
 
-  // Set a new script language context for this global.  The native global
-  // for the context is created by the context's GetNativeGlobal() method.
-  virtual nsresult SetScriptContext(nsIScriptContext *aContext);
-  
   virtual void OnFinalize(JSObject* aObject);
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
@@ -493,8 +453,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsGlobalWindow,
                                                                    nsIScriptGlobalObject)
 
-  void InitJavaProperties();
-
   virtual NS_HIDDEN_(JSObject*)
     GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
 
@@ -565,15 +523,35 @@ public:
   void AddEventTargetObject(nsDOMEventTargetHelper* aObject);
   void RemoveEventTargetObject(nsDOMEventTargetHelper* aObject);
 
+  /**
+   * Returns if the window is part of an application.
+   * It will check for the window app state and its parents until a window has
+   * an app state different from |TriState_Unknown|.
+   */
+  bool IsPartOfApp();
+
 protected:
   friend class HashchangeCallback;
   friend class nsBarProp;
+
+  enum TriState {
+    TriState_Unknown = -1,
+    TriState_False,
+    TriState_True
+  };
 
   // Object Management
   virtual ~nsGlobalWindow();
   void CleanUp(bool aIgnoreModalDialog);
   void ClearControllers();
   nsresult FinalClose();
+
+  inline void MaybeClearInnerWindow(nsGlobalWindow* aExpectedInner)
+  {
+    if(mInnerWindow == aExpectedInner) {
+      mInnerWindow = nsnull;
+    }
+  }
 
   void FreeInnerObjects();
   JSObject *CallerGlobal();
@@ -811,6 +789,9 @@ protected:
   nsresult CloneStorageEvent(const nsAString& aType,
                              nsCOMPtr<nsIDOMStorageEvent>& aEvent);
 
+  void SetIsApp(bool aValue);
+  nsresult SetApp(const nsAString& aManifestURL);
+
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
   // could own objects that are implemented in JavaScript, then those
@@ -825,10 +806,6 @@ protected:
   // where we don't want to force creation of a new inner window since
   // we're in the middle of doing just that.
   bool                          mIsFrozen : 1;
-
-  // True if the Java properties have been initialized on this
-  // window. Only used on inner windows.
-  bool                          mDidInitJavaProperties : 1;
   
   // These members are only used on outer window objects. Make sure
   // you never set any of these on an inner object!
@@ -882,6 +859,11 @@ protected:
   // whether we've sent the destroy notification for our window id
   bool                   mNotifiedIDDestroyed : 1;
 
+  // Whether the window is the window of an application frame.
+  // This is TriState_Unknown if the object is the content window of an
+  // iframe which is neither mozBrowser nor mozApp.
+  TriState               mIsApp : 2;
+
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
@@ -928,10 +910,6 @@ protected:
   PRUint32                      mTimeoutFiringDepth;
   nsRefPtr<nsLocation>          mLocation;
   nsRefPtr<nsHistory>           mHistory;
-
-  // Holder of the dummy java plugin, used to expose window.java and
-  // window.packages.
-  nsRefPtr<nsDummyJavaPluginOwner> mDummyJavaPluginOwner;
 
   // These member variables are used on both inner and the outer windows.
   nsCOMPtr<nsIPrincipal> mDocumentPrincipal;
@@ -980,6 +958,10 @@ protected:
   nsTHashtable<nsPtrHashKey<nsDOMEventTargetHelper> > mEventTargetObjects;
 
   nsTArray<PRUint32> mEnabledSensors;
+
+  // The application associated with this window.
+  // This should only be non-null if mIsApp's value is TriState_True.
+  nsCOMPtr<mozIDOMApplication> mApp;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;

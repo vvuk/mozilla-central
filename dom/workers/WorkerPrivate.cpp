@@ -1,41 +1,8 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Web Workers.
- *
- * The Initial Developer of the Original Code is
- *   The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WorkerPrivate.h"
 
@@ -55,6 +22,7 @@
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
+#include "nsIXPCScriptNotify.h"
 
 #include "jsfriendapi.h"
 #include "jsdbgapi.h"
@@ -966,6 +934,13 @@ public:
     bool dummy;
     return DispatchEventToTarget(aCx, target, event, &dummy);
   }
+
+  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
+  {
+    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
+    NotifyScriptExecutedIfNeeded();
+    WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
+  }
 };
 
 class NotifyRunnable : public WorkerControlRunnable
@@ -1109,6 +1084,13 @@ public:
                                             mFilename, mLine, mLineNumber,
                                             mColumnNumber, mFlags,
                                             mErrorNumber, innerWindowId);
+  }
+
+  void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
+  {
+    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
+    NotifyScriptExecutedIfNeeded();
+    WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
   }
 
   static bool
@@ -1744,11 +1726,14 @@ WorkerRunnable::Run()
   JSObject* targetCompartmentObject;
   nsIThreadJSContextStack* contextStack = nsnull;
 
+  nsRefPtr<WorkerPrivate> kungFuDeathGrip;
+
   if (mTarget == WorkerThread) {
     mWorkerPrivate->AssertIsOnWorkerThread();
     cx = mWorkerPrivate->GetJSContext();
     targetCompartmentObject = JS_GetGlobalObject(cx);
   } else {
+    kungFuDeathGrip = mWorkerPrivate;
     mWorkerPrivate->AssertIsOnParentThread();
     cx = mWorkerPrivate->ParentJSContext();
     targetCompartmentObject = mWorkerPrivate->GetJSObject();
@@ -1816,10 +1801,22 @@ WorkerRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   }
 }
 
+void
+WorkerRunnable::NotifyScriptExecutedIfNeeded() const
+{
+  // if we're on the main thread notify about the end of our script execution.
+  if (mTarget == ParentThread && !mWorkerPrivate->GetParent()) {
+    AssertIsOnMainThread();
+    if (mWorkerPrivate->GetScriptNotify()) {
+      mWorkerPrivate->GetScriptNotify()->ScriptExecuted();
+    }
+  }
+}
+
 struct WorkerPrivate::TimeoutInfo
 {
   TimeoutInfo()
-  : mTimeoutVal(JSVAL_VOID), mLineNumber(0), mId(0), mIsInterval(false),
+  : mTimeoutVal(JS::UndefinedValue()), mLineNumber(0), mId(0), mIsInterval(false),
     mCanceled(false)
   {
     MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerPrivate::TimeoutInfo);
@@ -1840,7 +1837,7 @@ struct WorkerPrivate::TimeoutInfo
     return mTargetTime < aOther.mTargetTime;
   }
 
-  jsval mTimeoutVal;
+  JS::Value mTimeoutVal;
   nsTArray<jsval> mExtraArgVals;
   mozilla::TimeStamp mTargetTime;
   mozilla::TimeDuration mInterval;
@@ -1881,6 +1878,7 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
 
   mWindow.swap(aWindow);
   mScriptContext.swap(aScriptContext);
+  mScriptNotify = do_QueryInterface(mScriptContext);
   mBaseURI.swap(aBaseURI);
   mPrincipal.swap(aPrincipal);
   mDocument.swap(aDocument);
@@ -2181,10 +2179,11 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
   AssertIsOnParentThread();
   MOZ_ASSERT(!mMainThreadObjectsForgotten);
 
-  aDoomed.SetCapacity(6);
+  aDoomed.SetCapacity(7);
 
   SwapToISupportsArray(mWindow, aDoomed);
   SwapToISupportsArray(mScriptContext, aDoomed);
+  SwapToISupportsArray(mScriptNotify, aDoomed);
   SwapToISupportsArray(mBaseURI, aDoomed);
   SwapToISupportsArray(mScriptURI, aDoomed);
   SwapToISupportsArray(mPrincipal, aDoomed);
@@ -3590,11 +3589,11 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
     mNextTimeoutId = 1;
   }
 
-  jsval* argv = JS_ARGV(aCx, aVp);
+  JS::Value* argv = JS_ARGV(aCx, aVp);
 
   // Take care of the main argument.
-  if (JSVAL_IS_OBJECT(argv[0])) {
-    if (JS_ObjectIsCallable(aCx, JSVAL_TO_OBJECT(argv[0]))) {
+  if (argv[0].isObject()) {
+    if (JS_ObjectIsCallable(aCx, &argv[0].toObject())) {
       newInfo->mTimeoutVal = argv[0];
     }
     else {
@@ -3602,10 +3601,10 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
       if (!timeoutStr) {
         return false;
       }
-      newInfo->mTimeoutVal = STRING_TO_JSVAL(timeoutStr);
+      newInfo->mTimeoutVal.setString(timeoutStr);
     }
   }
-  else if (JSVAL_IS_STRING(argv[0])) {
+  else if (argv[0].isString()) {
     newInfo->mTimeoutVal = argv[0];
   }
   else {
@@ -3622,7 +3621,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
     }
     newInfo->mInterval = TimeDuration::FromMilliseconds(intervalMS);
 
-    if (aArgc > 2 && JSVAL_IS_OBJECT(newInfo->mTimeoutVal)) {
+    if (aArgc > 2 && newInfo->mTimeoutVal.isObject()) {
       nsTArray<jsval> extraArgVals(aArgc - 2);
       for (unsigned index = 2; index < aArgc; index++) {
         extraArgVals.AppendElement(argv[index]);
@@ -3633,7 +3632,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
 
   newInfo->mTargetTime = TimeStamp::Now() + newInfo->mInterval;
 
-  if (JSVAL_IS_STRING(newInfo->mTimeoutVal)) {
+  if (newInfo->mTimeoutVal.isString()) {
     const char* filenameChars;
     PRUint32 lineNumber;
     if (nsJSUtils::GetCallingLocation(aCx, &filenameChars, &lineNumber)) {
@@ -3757,8 +3756,8 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
     // JS_ReportPendingException returns false (i.e. uncatchable exception) then
     // break out of the loop.
 
-    if (JSVAL_IS_STRING(info->mTimeoutVal)) {
-      JSString* expression = JSVAL_TO_STRING(info->mTimeoutVal);
+    if (info->mTimeoutVal.isString()) {
+      JSString* expression = info->mTimeoutVal.toString();
 
       size_t stringLength;
       const jschar* string = JS_GetStringCharsAndLength(aCx, expression,

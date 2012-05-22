@@ -7,7 +7,9 @@ package org.mozilla.gecko.sync;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.json.simple.JSONArray;
 import org.json.simple.parser.ParseException;
@@ -16,20 +18,8 @@ import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 
 public class CollectionKeys {
-  private static final String LOG_TAG = "CollectionKeys";
   private KeyBundle                  defaultKeyBundle     = null;
-  private HashMap<String, KeyBundle> collectionKeyBundles = new HashMap<String, KeyBundle>();
-
-  public static CryptoRecord generateCollectionKeysRecord() throws CryptoException {
-    CollectionKeys ck = generateCollectionKeys();
-    try {
-      return ck.asCryptoRecord();
-    } catch (NoCollectionKeysSetException e) {
-      // Cannot occur.
-      Logger.error(LOG_TAG, "generateCollectionKeys returned a value with no default key.", e);
-      throw new IllegalStateException("CollectionKeys should not have null default key.");
-    }
-  }
+  private final HashMap<String, KeyBundle> collectionKeyBundles = new HashMap<String, KeyBundle>();
 
   /**
    * Randomly generate a basic CollectionKeys object.
@@ -51,12 +41,16 @@ public class CollectionKeys {
     return this.defaultKeyBundle;
   }
 
+  public boolean keyBundleForCollectionIsNotDefault(String collection) {
+    return collectionKeyBundles.containsKey(collection);
+  }
+
   public KeyBundle keyBundleForCollection(String collection)
-                                                      throws NoCollectionKeysSetException {
+      throws NoCollectionKeysSetException {
     if (this.defaultKeyBundle == null) {
       throw new NoCollectionKeysSetException();
     }
-    if (collectionKeyBundles.containsKey(collection)) {
+    if (keyBundleForCollectionIsNotDefault(collection)) {
       return collectionKeyBundles.get(collection);
     }
     return this.defaultKeyBundle;
@@ -129,7 +123,8 @@ public class CollectionKeys {
       collectionKeys.put(pair.getKey(), bundle);
     }
 
-    this.collectionKeyBundles = collectionKeys;
+    this.collectionKeyBundles.clear();
+    this.collectionKeyBundles.putAll(collectionKeys);
     this.defaultKeyBundle     = defaultKey;
   }
 
@@ -143,6 +138,55 @@ public class CollectionKeys {
 
   public void clear() {
     this.defaultKeyBundle = null;
-    this.collectionKeyBundles = new HashMap<String, KeyBundle>();
+    this.collectionKeyBundles.clear();
+  }
+
+  /**
+   * Return set of collections where key is either missing from one collection
+   * or not the same in both collections.
+   * <p>
+   * Does not check for different default keys.
+   */
+  public static Set<String> differences(CollectionKeys a, CollectionKeys b) {
+    Set<String> differences = new HashSet<String>();
+    Set<String> collections = new HashSet<String>(a.collectionKeyBundles.keySet());
+    collections.addAll(b.collectionKeyBundles.keySet());
+
+    // Iterate through one collection, collecting missing and differences.
+    for (String collection : collections) {
+      KeyBundle keyA;
+      KeyBundle keyB;
+      try {
+        keyA = a.keyBundleForCollection(collection); // Will return default key as appropriate.
+        keyB = b.keyBundleForCollection(collection); // Will return default key as appropriate.
+      } catch (NoCollectionKeysSetException e) {
+        differences.add(collection);
+        continue;
+      }
+      // keyA and keyB are not null at this point.
+      if (!keyA.equals(keyB)) {
+        differences.add(collection);
+      }
+    }
+
+    return differences;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof CollectionKeys)) {
+      return false;
+    }
+    CollectionKeys other = (CollectionKeys) o;
+    try {
+      // It would be nice to use map equality here, but there can be map entries
+      // where the key is the default key that should compare equal to a missing
+      // map entry. Therefore, we always compute the set of differences.
+      return defaultKeyBundle().equals(other.defaultKeyBundle()) &&
+             CollectionKeys.differences(this, other).isEmpty();
+    } catch (NoCollectionKeysSetException e) {
+      // If either default key bundle is not set, we'll say the bundles are not equal.
+      return false;
+    }
   }
 }

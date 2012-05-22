@@ -1,47 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Johnny Stenback <jst@netscape.com>
- *   L. David Baron  <dbaron@dbaron.org>
- *   Pierre Phaneuf  <pp@ludusdesign.com>
- *   Pete Collins    <petejc@collab.net>
- *   James Ross      <silver@warwickcompsoc.co.uk>
- *   Ryan Jones      <sciguyryan@gmail.com>
- *   Ms2ger <ms2ger@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
  * Base class for all our document implementations.
@@ -726,9 +687,7 @@ nsExternalResourceMap::RequestResource(nsIURI* aURI,
 
   load = new PendingLoad(aDisplayDocument);
 
-  if (!mPendingLoads.Put(clone, load)) {
-    return nsnull;
-  }
+  mPendingLoads.Put(clone, load);
 
   if (NS_FAILED(load->StartLoad(clone, aRequestingNode))) {
     // Make sure we don't thrash things by trying this load again, since
@@ -920,22 +879,14 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
   }
 
   ExternalResource* newResource = new ExternalResource();
-  if (newResource && !mMap.Put(aURI, newResource)) {
-    delete newResource;
-    newResource = nsnull;
-    if (NS_SUCCEEDED(rv)) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
+  mMap.Put(aURI, newResource);
 
-  if (newResource) {
-    newResource->mDocument = doc;
-    newResource->mViewer = aViewer;
-    newResource->mLoadGroup = aLoadGroup;
-    if (doc) {
-      TransferZoomLevels(aDisplayDocument, doc);
-      TransferShowingState(aDisplayDocument, doc);
-    }
+  newResource->mDocument = doc;
+  newResource->mViewer = aViewer;
+  newResource->mLoadGroup = aLoadGroup;
+  if (doc) {
+    TransferZoomLevels(aDisplayDocument, doc);
+    TransferShowingState(aDisplayDocument, doc);
   }
 
   const nsTArray< nsCOMPtr<nsIObserver> > & obs = load->Observers();
@@ -1702,6 +1653,7 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMDocumentTouch)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsITouchEventReceiver)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIInlineEventHandlers)
+    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIObserver)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocument)
@@ -1999,7 +1951,7 @@ nsDocument::Init()
   }
 
   mIdentifierMap.Init();
-  (void)mStyledLinks.Init();
+  mStyledLinks.Init();
   mRadioGroups.Init();
 
   // Force initialization.
@@ -2040,10 +1992,8 @@ nsDocument::Init()
   mScriptLoader = new nsScriptLoader(this);
   NS_ENSURE_TRUE(mScriptLoader, NS_ERROR_OUT_OF_MEMORY);
 
-  if (!mImageTracker.Init() ||
-      !mPlugins.Init()) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  mImageTracker.Init();
+  mPlugins.Init();
 
   return NS_OK;
 }
@@ -2783,8 +2733,13 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
                                            getter_AddRefs(focusedWindow));
     // be safe and make sure the element is from this document
     if (focusedContent && focusedContent->OwnerDoc() == this) {
-      CallQueryInterface(focusedContent, aElement);
-      return NS_OK;
+      if (focusedContent->IsInNativeAnonymousSubtree()) {
+        focusedContent = focusedContent->FindFirstNonNativeAnonymous();
+      }
+      if (focusedContent) {
+        CallQueryInterface(focusedContent, aElement);
+        return NS_OK;
+      }
     }
   }
 
@@ -3858,7 +3813,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
         if (!cx) {
           nsContentUtils::ThreadJSContextStack()->Peek(&cx);
           if (!cx) {
-            nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+            cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
             NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
           }
         }
@@ -5349,9 +5304,7 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
 
   if (!mBoxObjectTable) {
     mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
-    if (mBoxObjectTable && !mBoxObjectTable->Init(12)) {
-      mBoxObjectTable = nsnull;
-    }
+    mBoxObjectTable->Init(12);
   } else {
     // Want to use Get(content, aResult); but it's the wrong type
     *aResult = mBoxObjectTable->GetWeak(content);
@@ -6067,7 +6020,7 @@ GetContextAndScope(nsIDocument* aOldDocument, nsIDocument* aNewDocument,
       stack->Peek(&cx);
 
       if (!cx) {
-        stack->GetSafeJSContext(&cx);
+        cx = stack->GetSafeJSContext();
 
         if (!cx) {
           // No safe context reachable, bail.
@@ -6496,7 +6449,7 @@ nsDocument::GetRadioGroup(const nsAString& aName)
   }
 
   nsAutoPtr<nsRadioGroupStruct> newRadioGroup(new nsRadioGroupStruct());
-  NS_ENSURE_TRUE(mRadioGroups.Put(tmKey, newRadioGroup), nsnull);
+  mRadioGroups.Put(tmKey, newRadioGroup);
 
   return newRadioGroup.forget();
 }
@@ -6521,31 +6474,6 @@ nsDocument::GetCurrentRadioButton(const nsAString& aName,
 
   *aRadio = radioGroup->mSelectedRadioButton;
   NS_IF_ADDREF(*aRadio);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocument::GetPositionInGroup(nsIDOMHTMLInputElement *aRadio,
-                               PRInt32 *aPositionIndex,
-                               PRInt32 *aItemsInGroup)
-{
-  *aPositionIndex = 0;
-  *aItemsInGroup = 1;
-  nsAutoString name;
-  aRadio->GetName(name);
-  if (name.IsEmpty()) {
-    return NS_OK;
-  }
-
-  nsRadioGroupStruct* radioGroup = GetRadioGroup(name);
-  NS_ENSURE_TRUE(radioGroup, NS_ERROR_OUT_OF_MEMORY);
-
-  nsCOMPtr<nsIFormControl> radioControl(do_QueryInterface(aRadio));
-  NS_ASSERTION(radioControl, "Radio button should implement nsIFormControl");
-  *aPositionIndex = radioGroup->mRadioButtons.IndexOf(radioControl);
-  NS_ASSERTION(*aPositionIndex >= 0, "Radio button not found in its own group");
-  *aItemsInGroup = radioGroup->mRadioButtons.Count();
-
   return NS_OK;
 }
 
@@ -6632,9 +6560,9 @@ nsDocument::RemoveFromRadioGroup(const nsAString& aName,
   nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
   NS_ASSERTION(element, "radio controls have to be content elements");
   if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
+    NS_ASSERTION(radioGroup->mRequiredRadioCount != 0,
+                 "mRequiredRadioCount about to wrap below 0!");
     radioGroup->mRequiredRadioCount--;
-    NS_ASSERTION(radioGroup->mRequiredRadioCount >= 0,
-                 "mRequiredRadioCount shouldn't be negative!");
   }
   return NS_OK;
 }
@@ -6685,9 +6613,9 @@ nsDocument::RadioRequiredChanged(const nsAString& aName, nsIFormControl* aRadio)
   if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
     radioGroup->mRequiredRadioCount++;
   } else {
+    NS_ASSERTION(radioGroup->mRequiredRadioCount != 0,
+                 "mRequiredRadioCount about to wrap below 0!");
     radioGroup->mRequiredRadioCount--;
-    NS_ASSERTION(radioGroup->mRequiredRadioCount >= 0,
-                 "mRequiredRadioCount shouldn't be negative!");
   }
 }
 
@@ -8304,9 +8232,7 @@ nsDocument::AddImage(imgIRequest* aImage)
   mImageTracker.Get(aImage, &oldCount);
 
   // Put the image in the hashtable, with the proper count.
-  bool success = mImageTracker.Put(aImage, oldCount + 1);
-  if (!success)
-    return NS_ERROR_OUT_OF_MEMORY;
+  mImageTracker.Put(aImage, oldCount + 1);
 
   nsresult rv = NS_OK;
 
@@ -8753,6 +8679,20 @@ nsDocument::RestorePreviousFullScreenState()
     } else {
       // Else we popped the top of the stack, and there's still another
       // element in there, so that will become the full-screen element.
+      if (fullScreenDoc != doc) {
+        // We've popped so enough off the stack that we've rolled back to
+        // a fullscreen element in a parent document. If this document isn't
+        // authorized for fullscreen, dispatch an event to chrome so it
+        // knows to show the authorization UI.
+        if (!nsContentUtils::IsSitePermAllow(doc->NodePrincipal(), "fullscreen")) {
+          nsRefPtr<nsAsyncDOMEvent> e =
+            new nsAsyncDOMEvent(doc,
+                                NS_LITERAL_STRING("MozEnteredDomFullscreen"),
+                                true,
+                                true);
+          e->PostDOMEvent();
+        }
+      }
       sFullScreenDoc = do_GetWeakReference(doc);
       break;
     }
@@ -9071,6 +9011,13 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
     DispatchFullScreenChange(changed[changed.Length() - i - 1]);
   }
 
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(this,
+                        NS_LITERAL_STRING("MozEnteredDomFullscreen"),
+                        true,
+                        true);
+  e->PostDOMEvent();
+
   // Remember this is the requesting full-screen document.
   sFullScreenDoc = do_GetWeakReference(static_cast<nsIDocument*>(this));
 
@@ -9220,6 +9167,159 @@ DispatchPointerLockError(nsIDocument* aTarget)
   e->PostDOMEvent();
 }
 
+// Manages asynchronously requesting pointer lock. Used to dispatch an
+// event to request pointer lock once fullscreen has been approved.
+class nsAsyncPointerLockRequest : public nsRunnable
+{
+public:
+  NS_IMETHOD Run()
+  {
+    sInstance = nsnull;
+    if (mDocument && mElement) {
+      mDocument->RequestPointerLock(mElement);
+    }
+    return NS_OK;
+  }
+
+  static void Request(Element* aElement, nsIDocument* aDocument)
+  {
+    if (sInstance) {
+      // We already have an event instance pending. Change the requestee
+      // to the new pointer lock requestee.
+      sInstance->mElement = aElement;
+      sInstance->mDocument = aDocument;
+    } else {
+      // Create a new event instance. Owning ref is held by the nsIEventTarget
+      // to which this is dispatched.
+      sInstance = new nsAsyncPointerLockRequest(aElement, aDocument);
+      NS_DispatchToCurrentThread(sInstance);
+    }
+  }
+
+  static void Cancel()
+  {
+    if (sInstance) {
+      // Revoke references to requesting element/document, when the
+      // dispatched event runs. The event will do nothing, and then be
+      // destroyed.
+      sInstance->mElement = nsnull;
+      sInstance->mDocument = nsnull;
+    }
+  }
+
+private:
+  nsAsyncPointerLockRequest(Element* aElement, nsIDocument* aDocument)
+    : mElement(aElement),
+      mDocument(aDocument)
+  {
+    MOZ_COUNT_CTOR(nsAsyncPointerLockRequest);
+  }
+
+  ~nsAsyncPointerLockRequest()
+  {
+    MOZ_COUNT_DTOR(nsAsyncPointerLockRequest);
+  }
+
+  // Reference to the instance of any pending event. This is not an owning
+  // reference; the nsIEventTarget to which this is dispatched holds the only
+  // owning reference to this instance. This reference is valid between
+  // an instance being created, and its Run() method being called.
+  static nsAsyncPointerLockRequest* sInstance;
+
+  // Element and document which reqested pointer lock.
+  nsCOMPtr<Element> mElement;
+  nsCOMPtr<nsIDocument> mDocument;
+};
+
+nsAsyncPointerLockRequest* nsAsyncPointerLockRequest::sInstance = nsnull;
+nsWeakPtr nsDocument::sPendingPointerLockDoc;
+nsWeakPtr nsDocument::sPendingPointerLockElement;
+
+/* static */
+void
+nsDocument::ClearPendingPointerLockRequest(bool aDispatchErrorEvents)
+{
+  nsAsyncPointerLockRequest::Cancel();
+
+  if (!sPendingPointerLockDoc) {
+    // No pending request.
+    return;
+  }
+  nsCOMPtr<nsIDocument> doc(do_QueryReferent(sPendingPointerLockDoc));
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (!os) {
+    NS_WARNING("Lost observer service in ClearPendingPointerLockRequest()!");
+    return;
+  }
+
+  nsCOMPtr<nsIObserver> obs(do_QueryInterface(doc));
+  if (!os) {
+    NS_WARNING("Document must implement nsIObserver");
+    return;
+  }
+  os->RemoveObserver(obs, "perm-changed");
+
+  if (aDispatchErrorEvents) {
+    DispatchPointerLockError(doc);
+  }
+  nsCOMPtr<Element> element(do_QueryReferent(sPendingPointerLockElement));
+#ifdef DEBUG
+  nsCOMPtr<Element> pointerLockedElement =
+    do_QueryReferent(nsEventStateManager::sPointerLockedElement);
+  NS_ASSERTION(pointerLockedElement != element,
+    "We shouldn't be clearing pointer locked flag on pointer locked element!");
+#endif
+  if (element) {
+    element->ClearPointerLock();
+  }
+  sPendingPointerLockDoc = nsnull;
+  sPendingPointerLockElement = nsnull;
+}
+
+/* static */
+nsresult
+nsDocument::SetPendingPointerLockRequest(Element* aElement)
+{
+  // If there's an existing pending pointer lock request, deny it.
+  ClearPendingPointerLockRequest(true);
+
+  NS_ENSURE_TRUE(aElement != nsnull, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  NS_ENSURE_TRUE(os != nsnull, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIObserver> obs(do_QueryInterface(aElement->OwnerDoc()));
+  NS_ENSURE_TRUE(obs != nsnull, NS_ERROR_FAILURE);
+
+  nsresult res = os->AddObserver(obs, "perm-changed", true);
+  NS_ENSURE_SUCCESS(res, res);
+
+  sPendingPointerLockDoc = do_GetWeakReference(aElement->OwnerDoc());
+  sPendingPointerLockElement = do_GetWeakReference(aElement);
+
+  // Set the pointer lock flag, so that if the element is removed from
+  // its document we know to cancel the pending request.
+  aElement->SetPointerLock();
+
+  return NS_OK;
+}
+
+nsresult
+nsDocument::Observe(nsISupports *aSubject,
+                    const char *aTopic,
+                    const PRUnichar *aData)
+{
+  if (strcmp("perm-changed", aTopic) == 0) {
+    nsCOMPtr<nsIDocument> doc(do_QueryReferent(sPendingPointerLockDoc));
+    if (nsContentUtils::IsSitePermAllow(doc->NodePrincipal(), "fullscreen")) {
+      nsCOMPtr<Element> element(do_QueryReferent(sPendingPointerLockElement));
+      nsDocument::ClearPendingPointerLockRequest(false);
+      nsAsyncPointerLockRequest::Request(element, doc);
+    }
+  }
+  return NS_OK;
+}
+
 void
 nsDocument::RequestPointerLock(Element* aElement)
 {
@@ -9233,8 +9333,25 @@ nsDocument::RequestPointerLock(Element* aElement)
     return;
   }
 
-  if (!ShouldLockPointer(aElement) ||
-      !SetPointerLock(aElement, NS_STYLE_CURSOR_NONE)) {
+  if (!ShouldLockPointer(aElement)) {
+    DispatchPointerLockError(this);
+    return;
+  }
+    
+  if (!nsContentUtils::IsSitePermAllow(NodePrincipal(), "fullscreen")) {
+    // Domain isn't yet approved for fullscreen, so we must wait until
+    // it's been approved.
+    if (NS_FAILED(SetPendingPointerLockRequest(aElement))) {
+      NS_WARNING("Failed to make pointer lock request pending!");
+      DispatchPointerLockError(this);
+    }
+    return;
+  }
+
+  // If there's an existing pending pointer lock request, deny it.
+  nsDocument::ClearPendingPointerLockRequest(true);
+
+  if (!SetPointerLock(aElement, NS_STYLE_CURSOR_NONE)) {
     DispatchPointerLockError(this);
     return;
   }
@@ -9348,6 +9465,10 @@ nsDocument::SetPointerLock(Element* aElement, int aCursorStyle)
 void
 nsDocument::UnlockPointer()
 {
+  // If our pointer lock request is pending awaiting authorization, deny the
+  // request.
+  ClearPendingPointerLockRequest(true);
+
   if (!nsEventStateManager::sIsPointerLocked) {
     return;
   }
@@ -9497,7 +9618,8 @@ nsIDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
     mPresShell->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf,
                                     &aWindowSizes->mLayoutArenas,
                                     &aWindowSizes->mLayoutStyleSets,
-                                    &aWindowSizes->mLayoutTextRuns);
+                                    &aWindowSizes->mLayoutTextRuns,
+                                    &aWindowSizes->mLayoutPresContext);
   }
 
   // Measurement of the following members may be added later if DMD finds it

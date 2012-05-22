@@ -1,40 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Sriram Ramasubramanian <sriram@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
@@ -73,7 +40,6 @@ import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
-import android.view.accessibility.AccessibilityManager;
 import android.opengl.GLES20;
 
 import android.util.*;
@@ -120,6 +86,10 @@ public class GeckoAppShell
     static public final int SCREENSHOT_WHOLE_PAGE = 1;
     static public final int SCREENSHOT_UPDATE = 2;
 
+    static public final int RESTORE_NONE = 0;
+    static public final int RESTORE_OOM = 1;
+    static public final int RESTORE_CRASH = 2;
+
     static private File sCacheFile = null;
     static private int sFreeSpace = -1;
     static File sHomeDir = null;
@@ -152,8 +122,13 @@ public class GeckoAppShell
     private static Sensor gGyroscopeSensor = null;
     private static Sensor gOrientationSensor = null;
     private static Sensor gProximitySensor = null;
+    private static Sensor gLightSensor = null;
 
     private static boolean mLocationHighAccuracy = false;
+
+    private static Handler sGeckoHandler;
+
+    private static boolean sDisableScreenshot = false;
 
     /* The Android-side API: API methods that Android calls */
 
@@ -230,8 +205,6 @@ public class GeckoAppShell
     public static native void schedulePauseComposition();
     public static native void scheduleResumeComposition(int width, int height);
 
-    public static native void unlockDatabaseFile(String databasePath);
-
     public static native SurfaceBits getSurfaceBits(Surface surface);
 
     private static class GeckoMediaScannerClient implements MediaScannerConnectionClient {
@@ -262,6 +235,10 @@ public class GeckoAppShell
     // Get a Handler for the main java thread
     public static Handler getMainHandler() {
         return GeckoApp.mAppContext.mMainHandler;
+    }
+
+    public static Handler getGeckoHandler() {
+        return sGeckoHandler;
     }
 
     public static Handler getHandler() {
@@ -310,21 +287,26 @@ public class GeckoAppShell
 
         File cacheFile = getCacheDir(context);
         putenv("GRE_HOME=" + getGREDir(context).getPath());
-        File[] files = cacheFile.listFiles();
-        if (files != null) {
-            Iterator<File> cacheFiles = Arrays.asList(files).iterator();
-            while (cacheFiles.hasNext()) {
-                File libFile = cacheFiles.next();
-                if (libFile.getName().endsWith(".so"))
-                    libFile.delete();
-            }
-        }
 
         // setup the libs cache
         String linkerCache = System.getenv("MOZ_LINKER_CACHE");
-        if (System.getenv("MOZ_LINKER_CACHE") == null) {
-            GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + cacheFile.getPath());
+        if (linkerCache == null) {
+            linkerCache = cacheFile.getPath();
+            GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + linkerCache);
         }
+
+        if (GeckoApp.mAppContext != null &&
+            GeckoApp.mAppContext.linkerExtract()) {
+            GeckoAppShell.putenv("MOZ_LINKER_EXTRACT=1");
+            // Ensure that the cache dir is world-writable
+            File cacheDir = new File(linkerCache);
+            if (cacheDir.isDirectory()) {
+                cacheDir.setWritable(true, false);
+                cacheDir.setExecutable(true, false);
+                cacheDir.setReadable(true, false);
+            }
+        }
+
         sLibsSetup = true;
     }
 
@@ -368,7 +350,6 @@ public class GeckoAppShell
 
     public static void setupGeckoEnvironment(Context context) {
         GeckoProfile profile = GeckoProfile.get(context);
-        profile.moveProfilesToAppInstallLocation();
 
         setupPluginEnvironment((GeckoApp) context);
         setupDownloadEnvironment((GeckoApp) context);
@@ -452,7 +433,10 @@ public class GeckoAppShell
         }
     }
 
-    public static void runGecko(String apkPath, String args, String url, String type, boolean restoreSession) {
+    public static void runGecko(String apkPath, String args, String url, String type, int restoreMode) {
+        Looper.prepare();
+        sGeckoHandler = new Handler();
+        
         // run gecko -- it will spawn its own thread
         GeckoAppShell.nativeInit();
 
@@ -471,8 +455,8 @@ public class GeckoAppShell
             combinedArgs += " -url " + url;
         if (type != null)
             combinedArgs += " " + type;
-        if (restoreSession)
-            combinedArgs += " -restoresession";
+        if (restoreMode != RESTORE_NONE)
+            combinedArgs += " -restoremode " + restoreMode;
 
         DisplayMetrics metrics = new DisplayMetrics();
         GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
@@ -676,7 +660,15 @@ public class GeckoAppShell
             if(gProximitySensor == null)
                 gProximitySensor = sm.getDefaultSensor(Sensor.TYPE_PROXIMITY);
             if (gProximitySensor != null)
-                sm.registerListener(GeckoApp.mAppContext, gProximitySensor, sDefaultSensorHint);
+                sm.registerListener(GeckoApp.mAppContext, gProximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+            break;
+
+        case GeckoHalDefines.SENSOR_LIGHT:
+            Log.i(LOGTAG, "Enabling SENSOR_LIGHT");
+            if(gLightSensor == null)
+                gLightSensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT);
+            if (gLightSensor != null)
+                sm.registerListener(GeckoApp.mAppContext, gLightSensor, SensorManager.SENSOR_DELAY_NORMAL);
             break;
 
         case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
@@ -720,6 +712,12 @@ public class GeckoAppShell
             Log.i(LOGTAG, "Disabling SENSOR_PROXIMITY");
             if (gProximitySensor != null)
                 sm.unregisterListener(GeckoApp.mAppContext, gProximitySensor);
+            break;
+
+        case GeckoHalDefines.SENSOR_LIGHT:
+            Log.i(LOGTAG, "Disabling SENSOR_LIGHT");
+            if (gLightSensor != null)
+                sm.unregisterListener(GeckoApp.mAppContext, gLightSensor);
             break;
 
         case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
@@ -1816,16 +1814,6 @@ public class GeckoAppShell
                 return promptServiceResult;
             }
 
-            if (type.equals("Accessibility:IsEnabled")) {
-                JSONObject ret = new JSONObject();
-                AccessibilityManager accessibilityManager =
-                    (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-                try {
-                    ret.put("enabled", accessibilityManager.isEnabled());
-                } catch (Exception ex) { }
-                return ret.toString();
-            }
-
             CopyOnWriteArrayList<GeckoEventListener> listeners;
             synchronized (mEventListeners) {
                 listeners = mEventListeners.get(type);
@@ -2115,6 +2103,28 @@ public class GeckoAppShell
         GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
     }
 
+    public static void pumpMessageLoop() {
+        // We're going to run the Looper below, but we need a way to break out, so
+        // we post this Runnable that throws an AssertionError. This causes the loop
+        // to exit without marking the Looper as dead. The Runnable is added to the
+        // end of the queue, so it will be executed after anything
+        // else that has been added prior.
+        //
+        // A more civilized method would obviously be preferred. Looper.quit(),
+        // however, marks the Looper as dead and it cannot be prepared or run
+        // again. And since you can only have a single Looper per thread,
+        // here we are.
+        sGeckoHandler.post(new Runnable() {
+            public void run() {
+                throw new AssertionError();
+            }
+        });
+        
+        try {
+            Looper.loop();
+        } catch(Throwable ex) {}
+    }
+
     static class AsyncResultHandler extends GeckoApp.FilePickerResultHandler {
         private long mId;
         AsyncResultHandler(long id) {
@@ -2193,7 +2203,18 @@ public class GeckoAppShell
         return Math.max(Math.min(max, val), min);
     }
 
+    // Invoked via reflection from robocop test
+    public static void disableScreenshot() {
+        sDisableScreenshot = true;
+    }
+
     public static void screenshotWholePage(Tab tab) {
+        if (sDisableScreenshot) {
+            return;
+        }
+        if (GeckoApp.mAppContext.isApplicationInBackground())
+            return;
+
         if (sMaxTextureSize == 0) {
             int[] maxTextureSize = new int[1];
             GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE, maxTextureSize, 0);

@@ -1,4 +1,4 @@
-/*-*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-*/
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -766,55 +766,38 @@ MediaStreamGraphImpl::GetAudioPosition(MediaStream* aStream)
   if (!aStream->mAudioOutput) {
     return mCurrentTime;
   }
+  PRInt64 positionInFrames = aStream->mAudioOutput->GetPositionInFrames();
+  if (positionInFrames < 0) {
+    return mCurrentTime;
+  }
   return aStream->mAudioPlaybackStartTime +
       TicksToTimeRoundDown(aStream->mAudioOutput->GetRate(),
-                           aStream->mAudioOutput->GetPositionInFrames());
+                           positionInFrames);
 }
 
 void
 MediaStreamGraphImpl::UpdateCurrentTime()
 {
   GraphTime prevCurrentTime = mCurrentTime;
-
   TimeStamp now = TimeStamp::Now();
-  // The earliest buffer end time for streams that haven't finished. We can't
-  // advance the current time past this point.
-  GraphTime minBufferEndTime = GRAPH_TIME_MAX;
-  for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
-    MediaStream* stream = mStreams[i];
-    GraphTime blockedBufferEndTime =
-      StreamTimeToGraphTime(stream, stream->GetBufferEnd(), INCLUDE_TRAILING_BLOCKED_INTERVAL);
-    if (stream->mAudioOutput &&
-        (!stream->mFinished || mBlockingDecisionsMadeUntilTime <= blockedBufferEndTime)) {
-      // XXX We should take audio positions into account when determining how
-      // far to advance the current time. Basically the current time should
-      // track the average or minimum of the audio positions. We don't do this
-      // currently since the audio positions aren't accurate enough. This
-      // logging code is helpful to track the accuracy of audio positions.
-      GraphTime audioPosition = GetAudioPosition(stream);
-      LOG(PR_LOG_DEBUG, ("Audio position for stream %p is %f", stream,
-                         MediaTimeToSeconds(audioPosition)));
-    }
-    if (!stream->mFinished) {
-      minBufferEndTime = NS_MIN(minBufferEndTime, blockedBufferEndTime);
-    }
-  }
-
-  NS_ASSERTION(mCurrentTime <= minBufferEndTime,
-               "We shouldn't have already advanced beyond buffer end!");
   GraphTime nextCurrentTime =
     SecondsToMediaTime((now - mCurrentTimeStamp).ToSeconds()) + mCurrentTime;
-  if (minBufferEndTime < nextCurrentTime) {
-    LOG(PR_LOG_WARNING, ("Reducing current time to minimum buffer end"));
-    nextCurrentTime = minBufferEndTime;
+  if (mBlockingDecisionsMadeUntilTime < nextCurrentTime) {
+    LOG(PR_LOG_WARNING, ("Media graph global underrun detected"));
+    LOG(PR_LOG_DEBUG, ("Advancing mBlockingDecisionsMadeUntilTime from %f to %f",
+                       MediaTimeToSeconds(mBlockingDecisionsMadeUntilTime),
+                       MediaTimeToSeconds(nextCurrentTime)));
+    // Advance mBlockingDecisionsMadeUntilTime to nextCurrentTime by
+    // adding blocked time to all streams starting at mBlockingDecisionsMadeUntilTime
+    for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
+      mStreams[i]->mBlocked.SetAtAndAfter(mBlockingDecisionsMadeUntilTime, true);
+    }
+    mBlockingDecisionsMadeUntilTime = nextCurrentTime;
   }
   mCurrentTimeStamp = now;
 
-  mBlockingDecisionsMadeUntilTime =
-    NS_MAX(nextCurrentTime, mBlockingDecisionsMadeUntilTime);
-  LOG(PR_LOG_DEBUG, ("Updating current time to %f (minBufferEndTime %f, real %f, mBlockingDecisionsMadeUntilTime %f)",
+  LOG(PR_LOG_DEBUG, ("Updating current time to %f (real %f, mBlockingDecisionsMadeUntilTime %f)",
                      MediaTimeToSeconds(nextCurrentTime),
-                     MediaTimeToSeconds(minBufferEndTime),
                      (now - mInitialTimeStamp).ToSeconds(),
                      MediaTimeToSeconds(mBlockingDecisionsMadeUntilTime)));
 
@@ -1832,7 +1815,12 @@ SourceMediaStream::AppendToTrack(TrackID aID, MediaSegment* aSegment)
 {
   {
     MutexAutoLock lock(mMutex);
-    FindDataForTrack(aID)->mData->AppendFrom(aSegment);
+    TrackData *track = FindDataForTrack(aID);
+    if (track) {
+      track->mData->AppendFrom(aSegment);
+    } else {
+      NS_ERROR("Append to non-existant track!");
+    }
   }
   GraphImpl()->EnsureNextIteration();
 }
@@ -1841,7 +1829,12 @@ bool
 SourceMediaStream::HaveEnoughBuffered(TrackID aID)
 {
   MutexAutoLock lock(mMutex);
-  return FindDataForTrack(aID)->mHaveEnough;
+  TrackData *track = FindDataForTrack(aID);
+  if (track) {
+    return track->mHaveEnough;
+  }
+  NS_ERROR("No track in HaveEnoughBuffered!");
+  return true;
 }
 
 void
@@ -1850,6 +1843,11 @@ SourceMediaStream::DispatchWhenNotEnoughBuffered(TrackID aID,
 {
   MutexAutoLock lock(mMutex);
   TrackData* data = FindDataForTrack(aID);
+  if (!data) {
+    NS_ERROR("No track in DispatchWhenNotEnoughBuffered");
+    return;
+  }
+
   if (data->mHaveEnough) {
     data->mDispatchWhenNotEnough.AppendElement()->Init(aSignalThread, aSignalRunnable);
   } else {
@@ -1862,7 +1860,12 @@ SourceMediaStream::EndTrack(TrackID aID)
 {
   {
     MutexAutoLock lock(mMutex);
-    FindDataForTrack(aID)->mCommands |= TRACK_END;
+    TrackData *track = FindDataForTrack(aID);
+    if (track) {
+      track->mCommands |= TRACK_END;
+    } else {
+      NS_ERROR("End of non-existant track");
+    }
   }
   GraphImpl()->EnsureNextIteration();
 }
@@ -1891,9 +1894,15 @@ static const PRUint32 kThreadLimit = 4;
 static const PRUint32 kIdleThreadLimit = 4;
 static const PRUint32 kIdleThreadTimeoutMs = 2000;
 
+/**
+ * We make the initial mCurrentTime nonzero so that zero times can have
+ * special meaning if necessary.
+ */
+static const PRInt32 INITIAL_CURRENT_TIME = 1;
+
 MediaStreamGraphImpl::MediaStreamGraphImpl()
-  : mLastActionTime(1)
-  , mCurrentTime(1)
+  : mLastActionTime(INITIAL_CURRENT_TIME)
+  , mCurrentTime(INITIAL_CURRENT_TIME)
   , mBlockingDecisionsMadeUntilTime(1)
   , mProcessingGraphUpdateIndex(0)
   , mMonitor("MediaStreamGraphImpl")
