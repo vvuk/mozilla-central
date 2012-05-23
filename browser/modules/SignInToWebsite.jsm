@@ -40,12 +40,14 @@ let SignInToWebsiteUX = {
 
   requestLogin: function(aWin) {
     let browser = aWin.gBrowser;
-    let message = "Login below:";
+    let selectedBrowser = browser.selectedBrowser;
+    // Message is only used to pass the origin
+    let message = selectedBrowser.currentURI.prePath;
     let mainAction = {
       label: "Next",
       accessKey: "i", // TODO
       callback: function(notification) {
-        // TODO
+        // TODO: mostly handled in the binding already
         dump("requestLogin callback fired\n");
       },
     };
@@ -55,7 +57,7 @@ let SignInToWebsiteUX = {
       },
     };
     let secondaryActions = [];
-    aWin.PopupNotifications.show(browser.selectedBrowser, "identity-request", message, "identity-notification-icon", mainAction,
+    aWin.PopupNotifications.show(selectedBrowser, "identity-request", message, "identity-notification-icon", mainAction,
                                 secondaryActions, options);
   },
 

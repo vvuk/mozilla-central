@@ -1190,10 +1190,10 @@
         <xul:deck anonid="identity-deck">
           <xul:vbox flex="1"> <!-- 1: add an email -->
             <xul:textbox anonid="email" placeholder="Email"/>
-            <xul:description>Enter your email address to sign in to example.com</xul:description>
+            <xul:description>Enter your email address to sign in to <xul:label class="small-margin header" xbl:inherits="xbl:text=label"/></xul:description>
           </xul:vbox>
           <xul:vbox flex="1"> <!-- 2: choose an email -->
-            <xul:description>Sign in to example.com</xul:description>
+            <xul:description>Sign in to <xul:label class="small-margin header" xbl:inherits="xbl:text=label"/></xul:description>
             <xul:radiogroup anonid="identities">
             </xul:radiogroup>
             <xul:label anonid="newemail" value="Use a different email"/>
@@ -1203,23 +1203,25 @@
             <xul:label class="header" value="user@email.com"/>
             <xul:hbox>
               <xul:label anonid="anotheremail" value="Add another email"/>
-              <xul:label value="This is not me"/>
+              <xul:label value="Sign Out"/>
             </xul:hbox>
           </xul:vbox>
         </xul:deck>
-        <xul:button anonid="button"
-                    type="menu-button"
-                    class="popup-notification-menubutton"
-
-                    xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
-          <xul:menupopup anonid="menupopup"
-                         xbl:inherits="oncommand=menucommand">
-            <children/>
-            <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
-                          label="&closeNotificationItem.label;"
-                          xbl:inherits="oncommand=closeitemcommand"/>
-          </xul:menupopup>
-        </xul:button>
+        <xul:hbox class="popup-notification-button-container"
+                  pack="end" align="center">
+          <xul:button anonid="button"
+                      type="menu-button"
+                      class="popup-notification-menubutton"
+                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
+            <xul:menupopup anonid="menupopup"
+                           xbl:inherits="oncommand=menucommand">
+              <children/>
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+                            label="&closeNotificationItem.label;"
+                            xbl:inherits="oncommand=closeitemcommand"/>
+            </xul:menupopup>
+          </xul:button>
+        </xul:hbox>
       </xul:vbox>
       <xul:vbox pack="start">
         <xul:toolbarbutton anonid="closebutton"
@@ -1230,6 +1232,8 @@
     </content>
     <implementation>
       <constructor><![CDATA[
+        // TODO: this.notification should be a reference to the notification object
+
         // Populate the list of identities to choose from
         let identities = this.SignInToWebsiteUX.getIdentitiesForSite(/* TODO: aOrigin */);
         dump(identities + "\n");
@@ -1250,6 +1254,8 @@
         // Fire notification with the chosen identity when main button is clicked
         let button = document.getAnonymousElementByAttribute(this, "anonid", "button")
         button.addEventListener("command", function(evt) {
+          if (evt.target != evt.currentTarget)
+            return;
           switch(this.step) {
             case "0":
               let email = document.getAnonymousElementByAttribute(this, "anonid", "email")
