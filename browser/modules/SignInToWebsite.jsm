@@ -68,6 +68,7 @@ let SignInToWebsiteUX = {
   signOut: function signOut(aNotification) {
     // TODO: handle signing out of other tabs for the same domain or let ID service notify those tabs.
     let origin = aNotification.message; // XXX: hack
+    dump("signOut for: " + origin + "\n");
     IdentityService.logout(origin);
   },
 };
