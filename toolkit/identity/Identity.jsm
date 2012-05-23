@@ -38,11 +38,68 @@ function log(aMsg)
   dump("IDService: " + aMsg + "\n");
 }
 
+// the data store for IDService
+// written as a separate thing so it can easily be mocked
+function IDServiceStore()
+{
+  this.reset();
+}
+
+IDServiceStore.prototype = {
+  addIdentity: function addIdentity(aEmail, aPrivateKey, aCert) {
+    this._identities[aEmail] = {privKey: aPrivateKey, cert: aCert};
+  },
+  removeIdentity: function removeIdentity(aEmail) {
+    // XXX - should remove key from store?
+    delete this._identities[aEmail];
+  },
+  getIdentities: function getIdentities() {
+    // XXX - should clone?
+    return this._identities;
+  },
+  clearCert: function clearCert(aEmail) {
+    // XXX - should remove key from store?
+    this._identities[aEmail].cert = null;
+    this._identities[aEmail].privKey = null;
+  },
+
+  /**
+   * set the login state for a given origin
+   *
+   * @param aOrigin
+   *        (string) a web origin
+   *
+   * @param aState
+   *        (boolean) whether or not the user is logged in
+   *
+   * @param aEmail
+   *        (email) the email address the user is logged in with,
+   *                or, if not logged in, the default email for that origin.
+   */
+  setLoginState: function setLoginState(aOrigin, aState, aEmail) {
+    this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
+  },
+  getLoginState: function getLoginState(aOrigin) {
+    return this._loginStates[aOrigin];
+  },
+  clearLoginState: function clearLoginState(aOrigin) {
+    delete this._loginStates[aOrigin];
+  },
+
+  reset: function reset() {
+    this._identities = {};
+    this._loginStates = {};
+  }
+};
+
+
 function IDService()
 {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
+  this._store = new IDServiceStore();
 }
+
 IDService.prototype = {
   // DOM Methods.
 
