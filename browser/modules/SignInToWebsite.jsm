@@ -11,7 +11,7 @@ const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/ProfileIdentityUtils.jsm");
-
+Cu.import("resource://gre/modules/identity/Identity.jsm");
 
 let SignInToWebsiteUX = {
 
@@ -59,5 +59,8 @@ let SignInToWebsiteUX = {
                                 secondaryActions, options);
   },
 
+  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
+    return IdentityService.getIdentitiesForSite(aOrigin);
+  },
 };
 

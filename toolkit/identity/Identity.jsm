@@ -344,6 +344,19 @@ IDService.prototype = {
     return keyObj;
   },
 
+  /**
+   * Return the list of identities a user may want to use to login to aOrigin.
+   */
+  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
+    return {
+      "result": [
+        "foo@bar.com",
+        "joe@bob.com"
+      ],
+      lastUsed: "joe@bob.com", // or null if a new origin
+    };
+  },
+
   // Private.
   _registry: { },
   _endpoints: { },
