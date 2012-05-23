@@ -490,6 +490,9 @@ struct JSRuntime : js::RuntimeFriendFields
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
 
+    /* During shutdown, the GC needs to clean up every possible object. */
+    bool                gcShouldCleanUpEverything;
+
     /*
      * These flags must be kept separate so that a thread requesting a
      * compartment GC doesn't cancel another thread's concurrent request for a
@@ -615,6 +618,13 @@ struct JSRuntime : js::RuntimeFriendFields
     JSGCCallback        gcCallback;
     js::GCSliceCallback gcSliceCallback;
     JSFinalizeCallback  gcFinalizeCallback;
+
+  private:
+    /*
+     * Malloc counter to measure memory pressure for GC scheduling. It runs
+     * from gcMaxMallocBytes down to zero.
+     */
+    volatile ptrdiff_t  gcMallocBytes;
 
   public:
     /*
@@ -829,6 +839,8 @@ struct JSRuntime : js::RuntimeFriendFields
 
     void setGCMaxMallocBytes(size_t value);
 
+    void resetGCMallocBytes() { gcMallocBytes = ptrdiff_t(gcMaxMallocBytes); }
+
     /*
      * Call this after allocating memory held by GC things, to update memory
      * pressure counters or report the OOM error if necessary. If oomError and
@@ -838,6 +850,16 @@ struct JSRuntime : js::RuntimeFriendFields
      * the caller must ensure that no deadlock possible during OOM reporting.
      */
     void updateMallocCounter(JSContext *cx, size_t nbytes);
+
+    bool isTooMuchMalloc() const {
+        return gcMallocBytes <= 0;
+    }
+
+    /*
+     * The function must be called outside the GC lock.
+     */
+    JS_FRIEND_API(void) onTooMuchMalloc();
+
     /*
      * This should be called after system malloc/realloc returns NULL to try
      * to recove some memory or to report an error. Failures in malloc and
