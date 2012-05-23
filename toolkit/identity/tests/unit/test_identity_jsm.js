@@ -28,7 +28,7 @@ let idObserver = {
     if (aTopic == "id-service-key-gen-finished") {
       // now we can pluck the keyPair from the store
       let key = JSON.parse(aData);
-      kpo = IDService.getIdentityServiceKeyPair(key.userID, key.url);
+      kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
       do_check_true(kpo != undefined);
 
       if (kpo.algorithm == ALGORITHMS.RS256) {
@@ -61,7 +61,8 @@ function checkRsa(kpo)
 
   do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
 
-  IDService.generateKeyPair("DS160", TEST_URL2, TEST_USER);
+  do_test_finished();
+  run_next_test();
 }
 
 function checkDsa(kpo)
@@ -80,25 +81,32 @@ function checkDsa(kpo)
 
   do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
 
-  Services.obs.removeObserver(idObserver, "id-service-key-gen-finished");
+  // Services.obs.removeObserver(idObserver, "id-service-key-gen-finished");
 
-  // pre-emptively shut down to clear resources
-  IDService.shutdown();
-  
   do_test_finished();
   run_next_test();
 }
 
-function test_keypairs()
+function test_rsa()
 {
-  do_check_true(IDService != null);
-
-  IDService.generateKeyPair("RS256", TEST_URL, TEST_USER);
+  do_test_pending();
+  IDService._generateKeyPair("RS256", TEST_URL, TEST_USER);
 }
 
-[test_keypairs].forEach(add_test);
+function test_dsa()
+{
+  do_test_pending();
+  IDService._generateKeyPair("DS160", TEST_URL2, TEST_USER);
+}
 
-do_test_pending();
+function test_overall()
+{
+  do_check_true(IDService != null);
+  run_next_test();
+}
+
+const TESTS = [test_overall, test_rsa, test_dsa];
+TESTS.forEach(add_test);
 
 function run_test()
 {

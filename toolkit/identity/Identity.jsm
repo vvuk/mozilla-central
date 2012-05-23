@@ -143,8 +143,12 @@ IDService.prototype = {
    * @param aCert
    *        (String)  A JWT representing the signed certificate for the user
    *                  being provisioned, provided by the IdP.
+   *
+   * @param aWindowID
+   *        int         A unique number representing the window in which this
+   *                    call was made.
    */
-  registerCertificate: function registerCertificate(aCert)
+  registerCertificate: function registerCertificate(aCert, aWindowID)
   {
 
   },
@@ -213,8 +217,33 @@ IDService.prototype = {
   getAssertionWithLogin: function getAssertionWithLogin(
     aCallback, aOptions, aFrame)
   {
-
+    // XXX - do we need this call?
   },
+
+  shutdown: function shutdown()
+  {
+    this._registry = null;
+    this._endpoints = null;
+  },
+
+  /**
+   * Return the list of identities a user may want to use to login to aOrigin.
+   */
+  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
+    return {
+      "result": [
+        "foo@bar.com",
+        "joe@bob.com"
+      ],
+      lastUsed: "joe@bob.com", // or null if a new origin
+    };
+  },
+
+  // TODO: need helper to logout of all sites for SITB?
+
+  // Private.
+  _registry: { },
+  _endpoints: { },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -231,7 +260,7 @@ IDService.prototype = {
    *          "id-service-key-gen-finished" when the keypair is ready.
    *          Access to the keypair is via the getIdentityServiceKeyPair() method
    **/
-  generateKeyPair: function generateKeyPair(aAlgorithm, aOrigin, aUserID)
+  _generateKeyPair: function _generateKeyPair(aAlgorithm, aOrigin, aUserID)
   {
     if (!ALGORITHMS[aAlgorithm]) {
       throw new Error("IdentityService: Unsupported algorithm");
@@ -301,12 +330,6 @@ IDService.prototype = {
     IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithm], new keyGenCallback());
   },
 
-  shutdown: function shutdown()
-  {
-    this._registry = null;
-    this._endpoints = null;
-  },
-
   /**
    * Returns a keypair object from the Identity in-memory storage
    *
@@ -339,7 +362,7 @@ IDService.prototype = {
    *   prime
    *   subPrime
    **/
-  getIdentityServiceKeyPair: function getIdentityServiceKeypair(aUserID, aUrl)
+  _getIdentityServiceKeyPair: function _getIdentityServiceKeypair(aUserID, aUrl)
   {
     let uri = Services.io.newURI(aUrl, null, null);
     let key = aUserID + "__" + uri.prePath;
@@ -350,25 +373,6 @@ IDService.prototype = {
     }
     return keyObj;
   },
-
-  /**
-   * Return the list of identities a user may want to use to login to aOrigin.
-   */
-  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
-    return {
-      "result": [
-        "foo@bar.com",
-        "joe@bob.com"
-      ],
-      lastUsed: "joe@bob.com", // or null if a new origin
-    };
-  },
-
-  // TODO: need helper to logout of all sites for SITB?
-
-  // Private.
-  _registry: { },
-  _endpoints: { },
 
   /**
    * Determine the IdP endpoints for provisioning an authorization for a
