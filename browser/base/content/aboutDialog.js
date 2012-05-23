@@ -1,41 +1,6 @@
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is Mozilla Firebird about dialog.
-#
-# The Initial Developer of the Original Code is
-# Blake Ross (blaker@netscape.com).
-# Portions created by the Initial Developer are Copyright (C) 2002
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Margaret Leibovic <margaret.leibovic@gmail.com>
-#   Robert Strong <robert.bugzilla@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the LGPL or the GPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK ***** -->
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -153,7 +118,13 @@ function appUpdater()
 
   if (this.isPending) {
     this.setupUpdateButton("update.restart." +
-                           (this.isMajor ? "upgradeButton" : "applyButton"));
+                           (this.isMajor ? "upgradeButton" : "updateButton"));
+    return;
+  }
+
+  if (this.isApplied) {
+    this.setupUpdateButton("update.restart." +
+                           (this.isMajor ? "upgradeButton" : "restartButton"));
     return;
   }
 
@@ -186,6 +157,16 @@ appUpdater.prototype =
             this.um.activeUpdate.state == "pending-service");
   },
 
+  // true when there is an update already installed in the background.
+  get isApplied() {
+    if (this.update)
+      return this.update.state == "applied" ||
+             this.update.state == "applied-service";
+    return this.um.activeUpdate &&
+           (this.um.activeUpdate.state == "applied" ||
+            this.um.activeUpdate.state == "applied-service");
+  },
+
   // true when there is an update download in progress.
   get isDownloading() {
     if (this.update)
@@ -214,6 +195,12 @@ appUpdater.prototype =
     }
     catch (e) { }
     return true; // Firefox default is true
+  },
+
+  // true when updating in background is enabled.
+  get backgroundUpdateEnabled() {
+    return this.updateEnabled &&
+           Services.prefs.getBoolPref("app.update.stage.enabled");
   },
 
   // true when updating is automatic.
@@ -255,7 +242,7 @@ appUpdater.prototype =
    * Handles oncommand for the update button.
    */
   buttonOnCommand: function() {
-    if (this.isPending) {
+    if (this.isPending || this.isApplied) {
       // Notify all windows that an application quit has been requested.
       let cancelQuit = Components.classes["@mozilla.org/supports-PRBool;1"].
                        createInstance(Components.interfaces.nsISupportsPRBool);
@@ -540,9 +527,34 @@ appUpdater.prototype =
       break;
     case Components.results.NS_OK:
       this.removeDownloadListener();
-      this.selectPanel("updateButtonBox");
-      this.setupUpdateButton("update.restart." +
-                             (this.isMajor ? "upgradeButton" : "applyButton"));
+      if (this.backgroundUpdateEnabled) {
+        this.selectPanel("applying");
+        let update = this.um.activeUpdate;
+        let self = this;
+        let timer = Components.classes["@mozilla.org/timer;1"]
+                              .createInstance(Components.interfaces.nsITimer);
+        timer.initWithCallback(function () {
+          // Update the UI when the background updater is finished
+          let status = update.state;
+          if (status == "applied" || status == "applied-service") {
+            self.selectPanel("updateButtonBox");
+            self.setupUpdateButton("update.restart." +
+                                   (self.isMajor ? "upgradeButton" : "restartButton"));
+            timer.cancel();
+            timer = null;
+          } else if (status == "failed") {
+            // Background update has failed, let's show the UI responsible for
+            // prompting the user to update manually.
+            self.selectPanel("downloadFailed");
+            timer.cancel();
+            timer = null;
+          }
+        }, 500, timer.TYPE_REPEATING_SLACK);
+      } else {
+        this.selectPanel("updateButtonBox");
+        this.setupUpdateButton("update.restart." +
+                               (this.isMajor ? "upgradeButton" : "updateButton"));
+      }
       break;
     default:
       this.removeDownloadListener();

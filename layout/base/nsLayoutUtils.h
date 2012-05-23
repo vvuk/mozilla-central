@@ -1,42 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Boris Zbarsky <bzbarsky@mit.edu>.
- * Portions created by the Initial Developer are Copyright (C) 2002
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Boris Zbarsky <bzbarsky@mit.edu> (original author)
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsLayoutUtils_h__
 #define nsLayoutUtils_h__
@@ -55,6 +20,7 @@ class nsClientRectList;
 class nsFontFaceList;
 
 #include "prtypes.h"
+#include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
@@ -1528,15 +1494,8 @@ public:
    * Return the font size inflation *ratio* for a given frame.  This is
    * the factor by which font sizes should be inflated; it is never
    * smaller than 1.
-   *
-   * The WidthDetermination parameter says how we determine the width of
-   * the nearest inflation container:  when not in reflow we look at the
-   * frame tree; when in reflow we look at state stored on the pres
-   * context.
    */
-  enum WidthDetermination { eNotInReflow, eInReflow };
-  static float FontSizeInflationFor(const nsIFrame *aFrame,
-                                    WidthDetermination aWidthDetermination);
+  static float FontSizeInflationFor(const nsIFrame *aFrame);
 
   /**
    * Perform the first half of the computation of FontSizeInflationFor
@@ -1551,9 +1510,7 @@ public:
    * above the minimum should always be adjusted as done by
    * FontSizeInflationInner.
    */
-  static nscoord InflationMinFontSizeFor(const nsIFrame *aFrame,
-                                         WidthDetermination
-                                           aWidthDetermination);
+  static nscoord InflationMinFontSizeFor(const nsIFrame *aFrame);
 
   /**
    * Perform the second half of the computation done by
@@ -1652,6 +1609,15 @@ public:
                                      imgIRequest* aRequest,
                                      bool* aRequestRegistered);
 
+  /**
+   * Shim to nsCSSFrameConstructor::PostRestyleEvent. Exists so that we
+   * can avoid including nsCSSFrameConstructor.h and all its dependencies
+   * in content files.
+   */
+  static void PostRestyleEvent(mozilla::dom::Element* aElement,
+                               nsRestyleHint aRestyleHint,
+                               nsChangeHint aMinChangeHint);
+
 #ifdef DEBUG
   /**
    * Assert that there are no duplicate continuations of the same frame
@@ -1685,29 +1651,33 @@ namespace mozilla {
      * set the current inflation container on the pres context to null
      * (and then, in its destructor, restore the old value).
      */
-    class AutoMaybeNullInflationContainer {
+    class AutoMaybeDisableFontInflation {
     public:
-      AutoMaybeNullInflationContainer(nsIFrame *aFrame)
+      AutoMaybeDisableFontInflation(nsIFrame *aFrame)
       {
+        // FIXME: Now that inflation calculations are based on the flow
+        // root's NCA's (nearest common ancestor of its inflatable
+        // descendants) width, we could probably disable inflation in
+        // fewer cases than we currently do.
         if (nsLayoutUtils::IsContainerForFontSizeInflation(aFrame)) {
           mPresContext = aFrame->PresContext();
-          mOldValue = mPresContext->mCurrentInflationContainer;
-          mPresContext->mCurrentInflationContainer = nsnull;
+          mOldValue = mPresContext->mInflationDisabledForShrinkWrap;
+          mPresContext->mInflationDisabledForShrinkWrap = true;
         } else {
           // indicate we have nothing to restore
           mPresContext = nsnull;
         }
       }
 
-      ~AutoMaybeNullInflationContainer()
+      ~AutoMaybeDisableFontInflation()
       {
         if (mPresContext) {
-          mPresContext->mCurrentInflationContainer = mOldValue;
+          mPresContext->mInflationDisabledForShrinkWrap = mOldValue;
         }
       }
     private:
       nsPresContext *mPresContext;
-      nsIFrame *mOldValue;
+      bool mOldValue;
     };
 
   }

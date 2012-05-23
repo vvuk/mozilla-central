@@ -21,8 +21,6 @@ all.h
 alloca.h
 alloc.h
 alsa/asoundlib.h
-alsa/pcm.h
-alsa/mixer.h
 android/log.h
 ansi_parms.h
 a.out.h
@@ -1047,6 +1045,7 @@ vpx/vpx_codec.h
 vpx/vpx_decoder.h
 vpx/vp8dx.h
 sydneyaudio/sydney_audio.h
+speex/speex_resampler.h
 vorbis/codec.h
 theora/theoradec.h
 tremor/ivorbiscodec.h

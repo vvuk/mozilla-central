@@ -1,44 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=4 ts=8 et tw=80 : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   rhp@netscape.com
- *   Jungshik Shin <jshin@mailaps.org>
- *   John G Myers   <jgmyers@netscape.com>
- *   Takayuki Tei   <taka@netscape.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <string.h>
 #include "prtypes.h"
@@ -57,6 +21,7 @@
 #include "nsReadableUtils.h"
 #include "nsNativeCharsetUtils.h"
 #include "nsNetError.h"
+#include "nsIUnicodeDecoder.h"
 
 // static functions declared below are moved from mailnews/mime/src/comi18n.cpp
   
@@ -132,7 +97,8 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
           cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
         if (cvtUTF8 &&
             NS_SUCCEEDED(cvtUTF8->ConvertStringToUTF8(str1, 
-                PromiseFlatCString(aFallbackCharset).get(), false, str2))) {
+                PromiseFlatCString(aFallbackCharset).get(), false, true,
+                                   str2))) {
           CopyUTF8toUTF16(str2, aResult);
           return NS_OK;
         }
@@ -315,7 +281,7 @@ bool IsValidOctetSequenceForCharset(nsACString& aCharset, const char *aOctets)
 
   nsresult rv = cvtUTF8->ConvertStringToUTF8(tmpRaw,
                                              PromiseFlatCString(aCharset).get(),
-                                             true, tmpDecoded);
+                                             false, false, tmpDecoded);
 
   if (rv != NS_OK) {
     // we can't decode; charset may be unsupported, or the octet sequence
@@ -745,6 +711,135 @@ nsMIMEHeaderParamImpl::DecodeRFC2047Header(const char* aHeaderVal,
   return NS_OK;
 }
 
+// true if the character is allowed in a RFC 5987 value
+// see RFC 5987, Section 3.2.1, "attr-char"
+bool IsRFC5987AttrChar(char aChar)
+{
+  char c = aChar;
+
+  return (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') ||
+         (c == '!' || c == '#' || c == '$' || c == '&' ||
+          c == '+' || c == '-' || c == '.' || c == '^' ||
+          c == '_' || c == '`' || c == '|' || c == '~');
+}
+
+// true is character is a hex digit
+bool IsHexDigit(char aChar)
+{
+  char c = aChar;
+
+  return (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F') ||
+         (c >= '0' && c <= '9');
+}
+
+// percent-decode a value
+// returns false on failure
+bool PercentDecode(nsACString& aValue)
+{
+  char *c = (char *) nsMemory::Alloc(aValue.Length() + 1);
+  if (!c) {
+    return false;
+  }
+
+  strcpy(c, PromiseFlatCString(aValue).get());
+  nsUnescape(c);
+  aValue.Assign(c);
+  nsMemory::Free(c);
+
+  return true;
+}
+
+// Decode a parameter value using the encoding defined in RFC 5987
+// 
+// charset  "'" [ language ] "'" value-chars
+NS_IMETHODIMP 
+nsMIMEHeaderParamImpl::DecodeRFC5987Param(const nsACString& aParamVal,
+                                          nsACString& aLang,
+                                          nsAString& aResult)
+{
+  nsCAutoString charset;
+  nsCAutoString language;
+  nsCAutoString value;
+
+  PRUint32 delimiters = 0;
+  const char *encoded = PromiseFlatCString(aParamVal).get();
+  const char *c = encoded;
+
+  while (*c) {
+    char tc = *c++;
+
+    if (tc == '\'') {
+      // single quote
+      delimiters++;
+    } else if (tc >= 128) {
+      // fail early, not ASCII
+      NS_WARNING("non-US-ASCII character in RFC5987-encoded param");
+      return NS_ERROR_INVALID_ARG;
+    } else {
+      if (delimiters == 0) {
+        // valid characters are checked later implicitly
+        charset.Append(tc);
+      } else if (delimiters == 1) {
+        // no value checking for now
+        language.Append(tc);
+      } else if (delimiters == 2) {
+        if (IsRFC5987AttrChar(tc)) {
+          value.Append(tc);
+        } else if (tc == '%') {
+          if (!IsHexDigit(c[0]) || !IsHexDigit(c[1])) {
+            // we expect two more characters
+            NS_WARNING("broken %-escape in RFC5987-encoded param");
+            return NS_ERROR_INVALID_ARG;
+          }
+          value.Append(tc);
+          // we consume two more
+          value.Append(*c++);
+          value.Append(*c++);
+        } else {
+          // character not allowed here
+          NS_WARNING("invalid character in RFC5987-encoded param");
+          return NS_ERROR_INVALID_ARG;
+        }      
+      }
+    }
+  }
+
+  if (delimiters != 2) {
+    NS_WARNING("missing delimiters in RFC5987-encoded param");
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // abort early for unsupported encodings
+  if (!charset.LowerCaseEqualsLiteral("utf-8")) {
+    NS_WARNING("unsupported charset in RFC5987-encoded param");
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  // percent-decode
+  if (!PercentDecode(value)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  // return the encoding
+  aLang.Assign(language);
+
+  // finally convert octet sequence to UTF-8 and be done
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIUTF8ConverterService> cvtUTF8 =
+    do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString utf8;
+  rv = cvtUTF8->ConvertStringToUTF8(value, charset.get(), true, false, utf8);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  CopyUTF8toUTF16(utf8, aResult);
+  return NS_OK;
+}
+
 NS_IMETHODIMP 
 nsMIMEHeaderParamImpl::DecodeParameter(const nsACString& aParamValue,
                                        const char* aCharset,
@@ -760,7 +855,7 @@ nsMIMEHeaderParamImpl::DecodeParameter(const nsACString& aParamValue,
     nsCOMPtr<nsIUTF8ConverterService> cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
     if (cvtUTF8)
       return cvtUTF8->ConvertStringToUTF8(aParamValue, aCharset,
-          true, aResult);
+          true, true, aResult);
   }
 
   const nsAFlatCString& param = PromiseFlatCString(aParamValue);
@@ -940,7 +1035,7 @@ void CopyRawHeader(const char *aInput, PRUint32 aLen,
   if (cvtUTF8 &&
       NS_SUCCEEDED(
       cvtUTF8->ConvertStringToUTF8(Substring(aInput, aInput + aLen), 
-      aDefaultCharset, skipCheck, utf8Text))) {
+      aDefaultCharset, skipCheck, true, utf8Text))) {
     aOutput.Append(utf8Text);
   } else { // replace each octet with Unicode replacement char in UTF-8.
     for (PRUint32 i = 0; i < aLen; i++) {
@@ -1073,7 +1168,7 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
       if (cvtUTF8 &&
           NS_SUCCEEDED(
             cvtUTF8->ConvertStringToUTF8(nsDependentCString(decodedText),
-            charset, IS_7BIT_NON_ASCII_CHARSET(charset), utf8Text))) {
+            charset, IS_7BIT_NON_ASCII_CHARSET(charset), true, utf8Text))) {
         aResult.Append(utf8Text);
       } else {
         aResult.Append(REPLACEMENT_CHAR);

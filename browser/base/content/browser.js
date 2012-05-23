@@ -1,76 +1,7 @@
 # -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# The Initial Developer of the Original Code is
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Blake Ross <blake@cs.stanford.edu>
-#   David Hyatt <hyatt@mozilla.org>
-#   Peter Annema <disttsc@bart.nl>
-#   Dean Tessman <dean_tessman@hotmail.com>
-#   Kevin Puetz <puetzk@iastate.edu>
-#   Ben Goodger <ben@netscape.com>
-#   Pierre Chanial <chanial@noos.fr>
-#   Jason Eager <jce2@po.cwru.edu>
-#   Joe Hewitt <hewitt@netscape.com>
-#   Alec Flett <alecf@netscape.com>
-#   Asaf Romano <mozilla.mano@sent.com>
-#   Jason Barnabe <jason_barnabe@fastmail.fm>
-#   Peter Parente <parente@cs.unc.edu>
-#   Giorgio Maone <g.maone@informaction.com>
-#   Tom Germeau <tom.germeau@epigoon.com>
-#   Jesse Ruderman <jruderman@gmail.com>
-#   Joe Hughes <joe@retrovirus.com>
-#   Pamela Greene <pamg.bugs@gmail.com>
-#   Michael Ventnor <m.ventnor@gmail.com>
-#   Simon Bünzli <zeniko@gmail.com>
-#   Johnathan Nightingale <johnath@mozilla.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Dão Gottwald <dao@mozilla.com>
-#   Thomas K. Dyas <tdyas@zecador.org>
-#   Edward Lee <edward.lee@engineering.uiuc.edu>
-#   Paul O’Shannessy <paul@oshannessy.com>
-#   Nils Maier <maierman@web.de>
-#   Rob Arnold <robarnold@cmu.edu>
-#   Dietrich Ayala <dietrich@mozilla.com>
-#   Gavin Sharp <gavin@gavinsharp.com>
-#   Justin Dolske <dolske@mozilla.com>
-#   Rob Campbell <rcampbell@mozilla.com>
-#   David Dahl <ddahl@mozilla.com>
-#   Patrick Walton <pcwalton@mozilla.com>
-#   Mihai Sucan <mihai.sucan@gmail.com>
-#   Victor Porof <vporof@mozilla.com>
-#   Frank Yan <fyan@mozilla.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 let Ci = Components.interfaces;
 let Cu = Components.utils;
@@ -179,6 +110,12 @@ XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   } catch (ex) {
     Cu.reportError(ex);
   }
+});
+
+XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
+  let tmp = {};
+  Cu.import("resource:///modules/devtools/DeveloperToolbar.jsm", tmp);
+  return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
 });
 
 XPCOMUtils.defineLazyGetter(this, "InspectorUI", function() {
@@ -1697,6 +1634,16 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
       setUrlAndSearchBarWidthForConditionalForwardButton();
   });
 
+  // Enable developer toolbar?
+  let devToolbarEnabled = gPrefService.getBoolPref("devtools.toolbar.enabled");
+  if (devToolbarEnabled) {
+    document.getElementById("menu_devToolbar").hidden = false;
+    document.getElementById("Tools:DevToolbar").removeAttribute("disabled");
+#ifdef MENUBAR_CAN_AUTOHIDE
+    document.getElementById("appmenu_devToolbar").hidden = false;
+#endif
+  }
+
   // Enable Inspector?
   let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
   if (enabled) {
@@ -1705,6 +1652,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 #ifdef MENUBAR_CAN_AUTOHIDE
     document.getElementById("appmenu_pageInspect").hidden = false;
 #endif
+    document.getElementById("developer-toolbar-inspector").hidden = false;
   }
 
   // Enable Debugger?
@@ -1715,6 +1663,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 #ifdef MENUBAR_CAN_AUTOHIDE
     document.getElementById("appmenu_debugger").hidden = false;
 #endif
+    document.getElementById("developer-toolbar-debugger").hidden = false;
   }
 
   // Enable Remote Debugger?
@@ -3960,6 +3909,12 @@ var FullScreen = {
     // fullscreen menuitem, menubars, and the appmenu.
     document.getElementById("View:FullScreen").setAttribute("checked", enterFS);
 
+#ifdef XP_MACOSX
+    // Make sure the menu items are adjusted.
+    document.getElementById("enterFullScreenItem").hidden = enterFS;
+    document.getElementById("exitFullScreenItem").hidden = !enterFS;
+#endif
+
     // On OS X Lion we don't want to hide toolbars when entering fullscreen, unless
     // we're entering DOM fullscreen, in which case we should hide the toolbars.
     // If we're leaving fullscreen, then we'll go through the exit code below to
@@ -4249,7 +4204,7 @@ var FullScreen = {
   cancelWarning: function(event) {
     if (!this.warningBox)
       return;
-    this.fullscreenDocUri = null;
+    this.fullscreenDoc = null;
     this.warningBox.removeEventListener("transitionend", this);
     if (this.warningFadeOutTimeout) {
       clearTimeout(this.warningFadeOutTimeout);
@@ -4269,39 +4224,52 @@ var FullScreen = {
   },
 
   setFullscreenAllowed: function(isApproved) {
-    let remember = document.getElementById("full-screen-remember-decision").checked;
-    if (remember)
-      Services.perms.add(this.fullscreenDocUri,
-                         "fullscreen",
-                         isApproved ? Services.perms.ALLOW_ACTION : Services.perms.DENY_ACTION,
-                         Services.perms.EXPIRE_NEVER);
-    else if (isApproved) {
-      // The user has only temporarily approved fullscren for this domain.
-      // Add the permission (so Gecko knows fullscreen is approved) but add a
-      // listener to remove the permission when the chrome document exits fullscreen.
-      Services.perms.add(this.fullscreenDocUri,
-                         "fullscreen",
-                         Services.perms.ALLOW_ACTION,
-                         Services.perms.EXPIRE_SESSION);
-      let host = this.fullscreenDocUri.host;
-      function onFullscreenchange(event) {
-        if (event.target == document && document.mozFullScreenElement == null) {
-          // The chrome document has left fullscreen. Remove the temporary permission grant.
-          Services.perms.remove(host, "fullscreen");
-          document.removeEventListener("mozfullscreenchange", onFullscreenchange);
+    // The "remember decision" checkbox is hidden when showing for documents that
+    // the permission manager can't handle (documents with URIs without a host).
+    // We simply require those to be approved every time instead.
+    let rememberCheckbox = document.getElementById("full-screen-remember-decision");
+    let uri = this.fullscreenDoc.nodePrincipal.URI;
+    if (!rememberCheckbox.hidden) {
+      if (rememberCheckbox.checked)
+        Services.perms.add(uri,
+                           "fullscreen",
+                           isApproved ? Services.perms.ALLOW_ACTION : Services.perms.DENY_ACTION,
+                           Services.perms.EXPIRE_NEVER);
+      else if (isApproved) {
+        // The user has only temporarily approved fullscren for this fullscreen
+        // session only. Add the permission (so Gecko knows to approve any further
+        // fullscreen requests for this host in this fullscreen session) but add
+        // a listener to revoke the permission when the chrome document exits
+        // fullscreen.
+        Services.perms.add(uri,
+                           "fullscreen",
+                           Services.perms.ALLOW_ACTION,
+                           Services.perms.EXPIRE_SESSION);
+        let host = uri.host;
+        function onFullscreenchange(event) {
+          if (event.target == document && document.mozFullScreenElement == null) {
+            // The chrome document has left fullscreen. Remove the temporary permission grant.
+            Services.perms.remove(host, "fullscreen");
+            document.removeEventListener("mozfullscreenchange", onFullscreenchange);
+          }
         }
+        document.addEventListener("mozfullscreenchange", onFullscreenchange);
       }
-      document.addEventListener("mozfullscreenchange", onFullscreenchange);
     }
     if (this.warningBox)
       this.warningBox.setAttribute("fade-warning-out", "true");
-    if (!isApproved)
+    // If the document has been granted fullscreen, notify Gecko so it can resume
+    // any pending pointer lock requests, otherwise exit fullscreen; the user denied
+    // the fullscreen request.
+    if (isApproved)
+      Services.obs.notifyObservers(this.fullscreenDoc, "fullscreen-approved", "");
+    else
       document.mozCancelFullScreen();
   },
 
   warningBox: null,
   warningFadeOutTimeout: null,
-  fullscreenDocUri: null,
+  fullscreenDoc: null,
 
   // Shows the fullscreen approval UI, or if the domain has already been approved
   // for fullscreen, shows a warning that the site has entered fullscreen for a short
@@ -4312,15 +4280,37 @@ var FullScreen = {
       return;
 
     // Set the strings on the fullscreen approval UI.
-    this.fullscreenDocUri = targetDoc.nodePrincipal.URI;
-    let utils = {};
-    Cu.import("resource://gre/modules/DownloadUtils.jsm", utils);
-    let [displayHost, fullHost] = utils.DownloadUtils.getURIHost(this.fullscreenDocUri.spec);
-    let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    let domainText = bundle.formatStringFromName("fullscreen.entered", [displayHost], 1);
-    document.getElementById("full-screen-domain-text").textContent = domainText;
-    let rememberText = bundle.formatStringFromName("fullscreen.rememberDecision", [displayHost], 1);
-    document.getElementById("full-screen-remember-decision").label = rememberText;
+    this.fullscreenDoc = targetDoc;
+    let uri = this.fullscreenDoc.nodePrincipal.URI;
+    let host = null;
+    try {
+      host = uri.host;
+    } catch (e) { }
+    let hostLabel = document.getElementById("full-screen-domain-text");
+    let rememberCheckbox = document.getElementById("full-screen-remember-decision");
+    let isApproved = false;
+    if (host) {
+      // Document's principal's URI has a host. Display a warning including the hostname and
+      // show UI to enable the user to permanently grant this host permission to enter fullscreen.
+      let utils = {};
+      Cu.import("resource://gre/modules/DownloadUtils.jsm", utils);
+      let displayHost = utils.DownloadUtils.getURIHost(uri.spec)[0];
+      let bundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+
+      hostLabel.textContent = bundle.formatStringFromName("fullscreen.entered", [displayHost], 1);
+      hostLabel.removeAttribute("hidden");
+
+      rememberCheckbox.label = bundle.formatStringFromName("fullscreen.rememberDecision", [displayHost], 1);
+      rememberCheckbox.checked = false;
+      rememberCheckbox.removeAttribute("hidden");
+
+      // Note we only allow documents whose principal's URI has a host to
+      // store permission grants.
+      isApproved = Services.perms.testPermission(uri, "fullscreen") == Services.perms.ALLOW_ACTION;
+    } else {
+      hostLabel.setAttribute("hidden", "true");
+      rememberCheckbox.setAttribute("hidden", "true");
+    }
 
     // Note: the warning box can be non-null if the warning box from the previous request
     // wasn't hidden before another request was made.
@@ -4334,11 +4324,10 @@ var FullScreen = {
     // If fullscreen mode has not yet been approved for the fullscreen
     // document's domain, show the approval UI and don't auto fade out the
     // fullscreen warning box. Otherwise, we're just notifying of entry into
-    // fullscreen mode.
-    let isApproved =
-      Services.perms.testPermission(this.fullscreenDocUri, "fullscreen") == Services.perms.ALLOW_ACTION;
+    // fullscreen mode. Note if the resource's host is null, we must be
+    // showing a local file or a local data URI, and we require explicit
+    // approval every time.
     let authUI = document.getElementById("full-screen-approval-pane");
-    document.getElementById("full-screen-remember-decision").checked = false;
     if (isApproved)
       authUI.setAttribute("hidden", "true");
     else {
@@ -4536,7 +4525,8 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons", "about:permissions", "about:sync-progress"],
+  inContentWhitelist: ["about:addons", "about:permissions",
+                       "about:sync-progress", "about:preferences"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
@@ -7242,6 +7232,25 @@ var gPluginHandler = {
       notification.remove();
   },
 
+  activateSinglePlugin: function PH_activateSinglePlugin(aContentWindow, aPlugin) {
+    let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
+    if (!objLoadingContent.activated)
+      objLoadingContent.playPlugin();
+
+    let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                            .getInterface(Ci.nsIDOMWindowUtils);
+    let haveUnplayedPlugins = cwu.plugins.some(function(plugin) {
+      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
+      return (plugin != aPlugin && !objLoadingContent.activated);
+    });
+    let browser = gBrowser.getBrowserForDocument(aContentWindow.document);
+    let notification = PopupNotifications.getNotification("click-to-play-plugins", browser);
+    if (notification && !haveUnplayedPlugins) {
+      browser._clickToPlayDoorhangerShown = false;
+      notification.remove();
+    }
+  },
+
   newPluginInstalled : function(event) {
     // browser elements are anonymous so we can't just use target.
     var browser = event.originalTarget;
@@ -7312,10 +7321,13 @@ var gPluginHandler = {
     }
 
     let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
-    overlay.addEventListener("click", function(aEvent) {
-      if (aEvent.button == 0 && aEvent.isTrusted)
-        gPluginHandler.activatePlugins(aEvent.target.ownerDocument.defaultView.top);
-    }, true);
+    // The overlay is null if the XBL binding is not attached (element is display:none).
+    if (overlay) {
+      overlay.addEventListener("click", function(aEvent) {
+        if (aEvent.button == 0 && aEvent.isTrusted)
+          gPluginHandler.activateSinglePlugin(aEvent.target.ownerDocument.defaultView.top, aPlugin);
+      }, true);
+    }
 
     if (!browser._clickToPlayDoorhangerShown)
       gPluginHandler._showClickToPlayNotification(browser);
@@ -7367,12 +7379,23 @@ var gPluginHandler = {
         let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
         if (notification)
           notification.remove();
+        gPluginHandler._removeClickToPlayOverlays(contentWindow);
       }
     }];
     let options = { dismissed: true };
     PopupNotifications.show(aBrowser, "click-to-play-plugins",
                             messageString, "plugins-notification-icon",
                             mainAction, secondaryActions, options);
+  },
+
+  _removeClickToPlayOverlays: function PH_removeClickToPlayOverlays(aContentWindow) {
+    let doc = aContentWindow.document;
+    let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                            .getInterface(Ci.nsIDOMWindowUtils);
+    for (let plugin of cwu.plugins) {
+      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      overlay.style.visibility = "hidden";
+    }
   },
 
   // event listener for missing/blocklisted/outdated/carbonFailure plugins.
@@ -7863,7 +7886,7 @@ var FeedHandler = {
   loadFeed: function(href, event) {
     var feeds = gBrowser.selectedBrowser.feeds;
     try {
-      openUILink(href, event, false, true, false, null);
+      openUILink(href, event, { ignoreAlt: true });
     }
     finally {
       // We might default to a livebookmarks modal dialog,
@@ -8830,7 +8853,8 @@ let gPrivateBrowsingUI = {
    * and the setter should only be used in tests.
    */
   get privateWindow() {
-    return window.getInterface(Ci.nsIWebNavigation)
+    return window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIWebNavigation)
                  .QueryInterface(Ci.nsIDocShellTreeItem)
                  .treeOwner
                  .QueryInterface(Ci.nsIInterfaceRequestor)
@@ -8840,7 +8864,8 @@ let gPrivateBrowsingUI = {
   },
 
   set privateWindow(val) {
-    return window.getInterface(Ci.nsIWebNavigation)
+    return window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIWebNavigation)
                  .QueryInterface(Ci.nsIDocShellTreeItem)
                  .treeOwner
                  .QueryInterface(Ci.nsIInterfaceRequestor)
@@ -9328,10 +9353,6 @@ var StyleEditor = {
     return chromeWindow;
   }
 };
-
-function onWebDeveloperMenuShowing() {
-  document.getElementById("Tools:WebConsole").setAttribute("checked", HUDConsoleUI.getOpenHUD() != null);
-}
 
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {

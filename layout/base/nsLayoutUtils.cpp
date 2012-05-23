@@ -1,42 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
- *   Mats Palmgren <matspal@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
 
@@ -143,11 +109,7 @@ static ContentMap* sContentMap = NULL;
 static ContentMap& GetContentMap() {
   if (!sContentMap) {
     sContentMap = new ContentMap();
-#ifdef DEBUG
-    nsresult rv =
-#endif
     sContentMap->Init();
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not initialize map.");
   }
   return *sContentMap;
 }
@@ -2353,7 +2315,7 @@ GetIntrinsicCoord(const nsStyleCoord& aStyle,
 
   // If aFrame is a container for font size inflation, then shrink
   // wrapping inside of it should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(aFrame);
+  AutoMaybeDisableFontInflation an(aFrame);
 
   if (val == NS_STYLE_WIDTH_MAX_CONTENT)
     aResult = aFrame->GetPrefWidth(aRenderingContext);
@@ -2385,7 +2347,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
 
   // If aFrame is a container for font size inflation, then shrink
   // wrapping inside of it should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(aFrame);
+  AutoMaybeDisableFontInflation an(aFrame);
 
   nsIFrame::IntrinsicWidthOffsetData offsets =
     aFrame->IntrinsicWidthOffsets(aRenderingContext);
@@ -2644,7 +2606,7 @@ nsLayoutUtils::ComputeWidthValue(
   } else if (eStyleUnit_Enumerated == aCoord.GetUnit()) {
     // If aFrame is a container for font size inflation, then shrink
     // wrapping inside of it should not apply font size inflation.
-    AutoMaybeNullInflationContainer an(aFrame);
+    AutoMaybeDisableFontInflation an(aFrame);
 
     PRInt32 val = aCoord.GetIntValue();
     switch (val) {
@@ -4606,6 +4568,22 @@ nsLayoutUtils::DeregisterImageRequest(nsPresContext* aPresContext,
   }
 }
 
+/* static */
+void
+nsLayoutUtils::PostRestyleEvent(Element* aElement,
+                                nsRestyleHint aRestyleHint,
+                                nsChangeHint aMinChangeHint)
+{
+  nsIDocument* doc = aElement->GetCurrentDoc();
+  if (doc) {
+    nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+    if (presShell) {
+      presShell->FrameConstructor()->PostRestyleEvent(
+        aElement, aRestyleHint, aMinChangeHint);
+    }
+  }
+}
+
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                                      const nsAString& aValue)
   : mContent(aContent),
@@ -4753,14 +4731,6 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
   return (1.0f / ratio) + (1.0f / 3.0f);
 }
 
-static inline bool
-InflationDataSaysEnabled(const nsIFrame *aFrame)
-{
-  nsFontInflationData *data =
-    nsFontInflationData::FindFontInflationDataFor(aFrame);
-  return data && data->InflationEnabled();
-}
-
 static bool
 ShouldInflateFontsForContainer(const nsIFrame *aFrame)
 {
@@ -4777,44 +4747,16 @@ ShouldInflateFontsForContainer(const nsIFrame *aFrame)
          !(aFrame->GetStateBits() & NS_FRAME_IN_CONSTRAINED_HEIGHT) &&
          // We also want to disable font inflation for containers that have
          // preformatted text.
-         styleText->WhiteSpaceCanWrap() &&
-         InflationDataSaysEnabled(aFrame);
+         styleText->WhiteSpaceCanWrap();
 }
 
 nscoord
-nsLayoutUtils::InflationMinFontSizeFor(const nsIFrame *aFrame,
-                                       WidthDetermination aWidthDetermination)
+nsLayoutUtils::InflationMinFontSizeFor(const nsIFrame *aFrame)
 {
-#ifdef DEBUG
-  if (aWidthDetermination == eNotInReflow) {
-    // Check that neither this frame nor any of its ancestors are
-    // currently being reflowed.
-    // It's ok for box frames (but not arbitrary ancestors of box frames)
-    // since they set their size before reflow.
-    if (!(aFrame->IsBoxFrame() && IsContainerForFontSizeInflation(aFrame))) {
-      for (const nsIFrame *f = aFrame; f; f = f->GetParent()) {
-        NS_ABORT_IF_FALSE(!(f->GetStateBits() & NS_FRAME_IN_REFLOW),
-                          "must call nsHTMLReflowState& version during reflow");
-      }
-    }
-    // It's ok if frames are dirty, or even if they've never been
-    // reflowed, since they will be eventually and then we'll get the
-    // right size.
-  }
-#endif
-
-  if (!FontSizeInflationEnabled(aFrame->PresContext())) {
+  nsPresContext *presContext = aFrame->PresContext();
+  if (!FontSizeInflationEnabled(presContext) ||
+      presContext->mInflationDisabledForShrinkWrap) {
     return 0;
-  }
-
-  if (aWidthDetermination == eInReflow) {
-    nsPresContext *presContext = aFrame->PresContext();
-    nsIFrame *container = presContext->mCurrentInflationContainer;
-    if (!container || !ShouldInflateFontsForContainer(container)) {
-      return 0;
-    }
-    return MinimumFontSizeFor(presContext,
-                              presContext->mCurrentInflationContainerWidth);
   }
 
   for (const nsIFrame *f = aFrame; f; f = f->GetParent()) {
@@ -4823,8 +4765,16 @@ nsLayoutUtils::InflationMinFontSizeFor(const nsIFrame *aFrame,
         return 0;
       }
 
+      nsFontInflationData *data =
+        nsFontInflationData::FindFontInflationDataFor(aFrame);
+      // FIXME: The need to null-check here is sort of a bug, and might
+      // lead to incorrect results.
+      if (!data || !data->InflationEnabled()) {
+        return 0;
+      }
+
       return MinimumFontSizeFor(aFrame->PresContext(),
-                                f->GetContentRect().width);
+                                data->EffectiveWidth());
     }
   }
 
@@ -4834,34 +4784,13 @@ nsLayoutUtils::InflationMinFontSizeFor(const nsIFrame *aFrame,
 }
 
 float
-nsLayoutUtils::FontSizeInflationFor(const nsIFrame *aFrame,
-                                    WidthDetermination aWidthDetermination)
+nsLayoutUtils::FontSizeInflationFor(const nsIFrame *aFrame)
 {
-#ifdef DEBUG
-  if (aWidthDetermination == eNotInReflow) {
-    // Check that neither this frame nor any of its ancestors are
-    // currently being reflowed.
-    // It's ok for box frames (but not arbitrary ancestors of box frames)
-    // since they set their size before reflow.
-    if (!(aFrame->IsBoxFrame() && IsContainerForFontSizeInflation(aFrame))) {
-      for (const nsIFrame *f = aFrame; f; f = f->GetParent()) {
-        NS_ABORT_IF_FALSE(!(f->GetStateBits() & NS_FRAME_IN_REFLOW),
-                          "must call nsHTMLReflowState& version during reflow");
-      }
-    }
-    // It's ok if frames are dirty, or even if they've never been
-    // reflowed, since they will be eventually and then we'll get the
-    // right size.
-  }
-#endif
-
   if (!FontSizeInflationEnabled(aFrame->PresContext())) {
     return 1.0;
   }
 
-  return FontSizeInflationInner(aFrame,
-                                InflationMinFontSizeFor(aFrame,
-                                                        aWidthDetermination));
+  return FontSizeInflationInner(aFrame, InflationMinFontSizeFor(aFrame));
 }
 
 /* static */ bool

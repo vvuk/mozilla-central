@@ -111,6 +111,7 @@ bool Silf::readGraphite(const byte * const silf_start, size_t lSilf, const Face&
     if (p >= silf_end)   { releaseBuffers(); return false; }
     be::skip<uint32>(p, be::read<uint8>(p));	// don't use scriptTag array.
     be::skip<uint16>(p); // lbGID
+    if (p >= silf_end)   { releaseBuffers(); return false; }
     const byte * o_passes = p,
                * const passes_start = silf_start + be::read<uint32>(p);
 
@@ -212,7 +213,8 @@ size_t Silf::readClassMap(const byte *p, size_t data_len, uint32 version)
 	for (const uint32 *o = m_classOffsets + m_nLinear, * const o_end = m_classOffsets + m_nClass; o != o_end; ++o)
 	{
 		const uint16 * lookup = m_classData + *o;
-		if (lookup[0] == 0							// A LookupClass with no looks is a suspicious thing ...
+		if (*o > max_off - 4                        // LookupClass doesn't stretch over max_off
+         || lookup[0] == 0							// A LookupClass with no looks is a suspicious thing ...
 		 || lookup[0] > (max_off - *o - 4)/2  	    // numIDs lookup pairs fits within (start of LookupClass' lookups array, max_off]
 		 || lookup[3] != lookup[0] - lookup[1])		// rangeShift:	 numIDs  - searchRange
 			return 0;

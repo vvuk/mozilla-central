@@ -1,39 +1,7 @@
 # -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is mozilla.org code.
-#
-# The Initial Developer of the Original Code is 
-# Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1998
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or 
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 // XXX Toolkit-specific preferences should be moved into toolkit.js
 
@@ -91,9 +59,8 @@ pref("extensions.hotfix.id", "firefox-hotfix@mozilla.org");
 pref("extensions.hotfix.cert.checkAttributes", true);
 pref("extensions.hotfix.certs.1.sha1Fingerprint", "F1:DB:F9:6A:7B:B8:04:FA:48:3C:16:95:C7:2F:17:C6:5B:C2:9F:45");
 
-// Disable add-ons installed into the shared user and shared system areas by
-// default. This does not include the application directory. See the SCOPE
-// constants in AddonManager.jsm for values to use here
+// Disable add-ons that are not installed by the user in all scopes by default.
+// See the SCOPE constants in AddonManager.jsm for values to use here.
 pref("extensions.autoDisableScopes", 15);
 
 // Dictionary download preference
@@ -177,6 +144,10 @@ pref("app.update.mode", 1);
 
 // If set to true, the Update Service will present no UI for any event.
 pref("app.update.silent", false);
+
+// If set to true, the Update Service will apply updates in the background
+// when it finishes downloading them.
+pref("app.update.stage.enabled", true);
 
 // Update service URL:
 pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
@@ -631,6 +602,9 @@ pref("browser.preferences.animateFadeIn", true);
 pref("browser.preferences.animateFadeIn", false);
 #endif
 
+// Toggles between the two Preferences implementations, pop-up window and in-content
+pref("browser.preferences.inContent", false);
+
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
 
@@ -1039,19 +1013,24 @@ pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 // Disable the error console
 pref("devtools.errorconsole.enabled", false);
 
+// Enable the developer toolbar
+pref("devtools.toolbar.enabled", false);
+
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
 pref("devtools.inspector.htmlHeight", 112);
 pref("devtools.inspector.htmlPanelOpen", false);
 pref("devtools.inspector.sidebarOpen", false);
 pref("devtools.inspector.activeSidebar", "ruleview");
+pref("devtools.inspector.highlighterShowVeil", true);
+pref("devtools.inspector.highlighterShowInfobar", true);
 
 // Enable the Layout View
 pref("devtools.layoutview.enabled", false);
 pref("devtools.layoutview.open", false);
 
 // Enable the Debugger
-pref("devtools.debugger.enabled", false);
+pref("devtools.debugger.enabled", true);
 pref("devtools.debugger.remote-enabled", false);
 pref("devtools.debugger.remote-host", "localhost");
 pref("devtools.debugger.remote-port", 6000);
@@ -1085,8 +1064,14 @@ pref("devtools.styleeditor.transitions", true);
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
 
-// Disable the GCLI enhanced command line.
-pref("devtools.gcli.enable", false);
+// Display the introductory text
+pref("devtools.gcli.hideIntro", false);
+
+// How eager are we to show help: never=1, sometimes=2, always=3
+pref("devtools.gcli.eagerHelper", 2);
+
+// Do we allow the 'pref set' command
+pref("devtools.gcli.allowSet", false);
 
 // The last Web Console height. This is initially 0 which means that the Web
 // Console will use the default height next time it shows.

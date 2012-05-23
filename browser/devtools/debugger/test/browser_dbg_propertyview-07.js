@@ -77,13 +77,13 @@ function testFrameParameters()
         "Should have the right property value for 'fArg'.");
 
       is(localNodes[7].querySelector(".info").textContent, "1",
-        "Should have the right property value for 'a'.");
+       "Should have the right property value for 'a'.");
 
       is(localNodes[8].querySelector(".info").textContent, "[object Object]",
-        "Should have the right property value for 'b'.");
+       "Should have the right property value for 'b'.");
 
       is(localNodes[9].querySelector(".info").textContent, "[object Object]",
-        "Should have the right property value for 'c'.");
+       "Should have the right property value for 'c'.");
 
       is(localNodes[10].querySelector(".info").textContent, "[object Arguments]",
         "Should have the right property value for 'arguments'.");

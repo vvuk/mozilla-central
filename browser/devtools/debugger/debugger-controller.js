@@ -1,44 +1,8 @@
 /* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- *   Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dave Camp <dcamp@mozilla.com>
- *   Panos Astithas <past@mozilla.com>
- *   Victor Porof <vporof@mozilla.com>
- *   Mihai Sucan <mihai.sucan@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
 const Cc = Components.classes;
@@ -569,32 +533,10 @@ StackFrames.prototype = {
         paramVar.setGrip(paramVal);
         this._addExpander(paramVar, paramVal);
       }
-
-      // If we already found 'arguments', we are done here.
-      if ("arguments" in frame.environment.bindings.variables) {
-        // Signal that variables have been fetched.
-        DebuggerController.dispatchEvent("Debugger:FetchedVariables");
-        return;
-      }
     }
 
-    // Sometimes in call frames with arguments we don't get 'arguments' in the
-    // environment (bug 746601) and we have to construct it manually. Note, that
-    // in this case arguments.callee will be absent, even in the cases where it
-    // shouldn't be.
-    if (frame.arguments && frame.arguments.length > 0) {
-      // Add "arguments".
-      let argsVar = localScope.addVar("arguments");
-      argsVar.setGrip({
-        type: "object",
-        class: "Arguments"
-      });
-      this._addExpander(argsVar, frame.arguments);
-
-      // Signal that variables have been fetched.
-      DebuggerController.dispatchEvent("Debugger:FetchedVariables");
-    }
-
+    // Signal that variables have been fetched.
+    DebuggerController.dispatchEvent("Debugger:FetchedVariables");
   },
 
   /**
@@ -602,10 +544,9 @@ StackFrames.prototype = {
    * new properties.
    */
   _addExpander: function SF__addExpander(aVar, aObject) {
-    // No need for expansion for null and undefined values, but we do need them
-    // for frame.arguments which is a regular array.
+    // No need for expansion for null and undefined values.
     if (!aVar || !aObject || typeof aObject !== "object" ||
-        (aObject.type !== "object" && !Array.isArray(aObject))) {
+        aObject.type !== "object") {
       return;
     }
 
@@ -621,23 +562,6 @@ StackFrames.prototype = {
   _addVarProperties: function SF__addVarProperties(aVar, aObject) {
     // Retrieve the properties only once.
     if (aVar.fetched) {
-      return;
-    }
-
-    // For arrays we have to construct a grip-like object.
-    if (Array.isArray(aObject)) {
-      let properties = { length: { value: aObject.length } };
-      for (let i = 0, l = aObject.length; i < l; i++) {
-        properties[i] = { value: aObject[i] };
-      }
-      aVar.addProperties(properties);
-
-      // Expansion handlers must be set after the properties are added.
-      for (let i = 0, l = aObject.length; i < l; i++) {
-        this._addExpander(aVar[i], aObject[i]);
-      }
-
-      aVar.fetched = true;
       return;
     }
 

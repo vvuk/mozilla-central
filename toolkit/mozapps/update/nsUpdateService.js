@@ -1,48 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /*
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Update Service.
-#
-# The Initial Developer of the Original Code is Ben Goodger.
-# Portions created by the Initial Developer are Copyright (C) 2004
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#  Ben Goodger <ben@mozilla.org> (Original Author)
-#  Darin Fisher <darin@meer.net>
-#  Ben Turner <bent.mozilla@gmail.com>
-#  Jeff Walden <jwalden+code@mit.edu>
-#  Alexander J. Vincent <ajvincent@gmail.com>
-#  Dão Gottwald <dao@mozilla.com>
-#  Robert Strong <robert.bugzilla@gmail.com>
-#  Brian R. Bondy <netzen@gmail.com>
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK ***** */
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
+
+#filter substitution
+
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -78,6 +42,7 @@ const PREF_APP_UPDATE_POSTUPDATE          = "app.update.postupdate";
 const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_SILENT              = "app.update.silent";
+const PREF_APP_UPDATE_BACKGROUND          = "app.update.stage.enabled";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
@@ -113,6 +78,11 @@ const KEY_UPDROOT         = "UpdRootD";
 #endif
 
 const DIR_UPDATES         = "updates";
+#ifdef XP_MACOSX
+const UPDATED_DIR         = "Updated.app";
+#else
+const UPDATED_DIR         = "updated";
+#endif
 const FILE_UPDATE_STATUS  = "update.status";
 const FILE_UPDATE_VERSION = "update.version";
 #ifdef MOZ_WIDGET_ANDROID
@@ -133,6 +103,8 @@ const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
 const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
+const STATE_APPLIED         = "applied";
+const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
@@ -152,6 +124,7 @@ const SERVICE_STILL_APPLYING_ON_SUCCESS    = 29;
 const SERVICE_STILL_APPLYING_ON_FAILURE    = 30;
 const SERVICE_UPDATER_NOT_FIXED_DRIVE      = 31;
 const SERVICE_COULD_NOT_LOCK_UPDATER       = 32;
+const SERVICE_INSTALLDIR_ERROR             = 33;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
@@ -389,8 +362,7 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
     }
 
     /**
-#      On Windows, we no longer store the update under the app dir if the app
-#      dir is under C:\Program Files.
+#      On Windows, we no longer store the update under the app dir.
 #
 #      If we are on Windows (including Vista, if we can't elevate) we need to
 #      to check that we can create and remove files from the actual app 
@@ -576,6 +548,31 @@ function getUpdatesDir() {
   return getUpdateDirCreate([DIR_UPDATES, "0"]);
 }
 
+#ifndef USE_UPDROOT
+/**
+ * Get the Active Updates directory inside the directory where we apply the
+ * background updates.
+ * @return The active updates directory inside the updated directory, as a
+ *         nsIFile object.
+ */
+function getUpdatesDirInApplyToDir() {
+  var dir = FileUtils.getDir(KEY_APPDIR, []);
+#ifdef XP_MACOSX
+  dir = dir.parent.parent; // the bundle directory
+#endif
+  dir.append(UPDATED_DIR);
+#ifdef XP_MACOSX
+  dir.append("Contents");
+  dir.append("MacOS");
+#endif
+  dir.append(DIR_UPDATES);
+  if (!dir.exists()) {
+    dir.create(Ci.nsILocalFile.DIRECTORY_TYPE, 0755);
+  }
+  return dir;
+}
+#endif
+
 /**
  * Reads the update state from the update.status file in the specified
  * directory.
@@ -646,8 +643,13 @@ function writeVersionFile(dir, version) {
 
 /**
  * Removes the contents of the Updates Directory
+ *
+ * @param aBackgroundUpdate Whether the update has been performed in the
+ *        background.  If this is true, we move the update log file to the
+ *        updated directory, so that it survives replacing the directories
+ *        later on.
  */
-function cleanUpUpdatesDir() {
+function cleanUpUpdatesDir(aBackgroundUpdate) {
   // Bail out if we don't have appropriate permissions
   try {
     var updateDir = getUpdatesDir();
@@ -661,8 +663,28 @@ function cleanUpUpdatesDir() {
     var f = e.getNext().QueryInterface(Ci.nsIFile);
     // Preserve the last update log file for debugging purposes
     if (f.leafName == FILE_UPDATE_LOG) {
+      var dir;
       try {
-        var dir = f.parent.parent;
+#ifdef USE_UPDROOT
+        // If we're on a platform which uses the update root directory, the log
+        // files are written outside of the application directory, so they will
+        // not get overwritten when we replace the directories after a
+        // background update.  Therefore, we don't need any special logic for
+        // that case here.
+        // Note that this currently only applies to Windows.
+        dir = f.parent.parent;
+#else
+        // If we don't use the update root directory, the log files are written
+        // inside the application directory.  In that case, we want to write
+        // the log files to the updated directory in the case of background
+        // updates, so that they would be available when we replace that
+        // directory with the application directory later on.
+        if (aBackgroundUpdate) {
+          dir = getUpdatesDirInApplyToDir();
+        } else {
+          dir = f.parent.parent;
+        }
+#endif
         var logFile = dir.clone();
         logFile.append(FILE_LAST_LOG);
         if (logFile.exists()) {
@@ -681,6 +703,13 @@ function cleanUpUpdatesDir() {
         LOG("cleanUpUpdatesDir - failed to move file " + f.path + " to " +
             dir.path + " and rename it to " + FILE_LAST_LOG);
       }
+    } else if (f.leafName == FILE_UPDATE_STATUS && aBackgroundUpdate) {
+      // Leave the update.status file alone when a background update
+      // has been performed.  We don't remove this file here because
+      // after the application directory gets replaced by the staged
+      // update, this will end up being the update.status file which
+      // represents the status of the update performed.
+      continue;
     }
     // Now, recursively remove this file.  The recursive removal is really
     // only needed on Mac OSX because this directory will contain a copy of
@@ -1368,6 +1397,34 @@ UpdateService.prototype = {
       return;
     }
 
+    if (status == STATE_APPLYING) {
+      // This indicates that the background updater service is in either of the
+      // following two states:
+      // 1. It is in the process of applying an update in the background, and
+      //    we just happen to be racing against that.
+      // 2. It has failed to apply an update for some reason, and we hit this
+      //    case because the updater process has set the update status to
+      //    applying, but has never finished.
+      // In order to differentiate between these two states, we look at the
+      // state field of the update object.  If it's "pending", then we know
+      // that this is the first time we're hitting this case, so we switch
+      // that state to "applying" and we just wait and hope for the best.
+      // If it's "applying", we know that we've already been here once, so
+      // we really want to start from a clean state.
+      if (update &&
+          (update.state == STATE_PENDING || update.state == STATE_PENDING_SVC)) {
+        LOG("UpdateService:_postUpdateProcessing - patch found in applying " +
+            "state for the first time");
+        update.state = STATE_APPLYING;
+        um.saveUpdates();
+      } else { // We get here even if we don't have an update object
+        LOG("UpdateService:_postUpdateProcessing - patch found in applying " +
+            "state for the second time");
+        cleanupActiveUpdate();
+      }
+      return;
+    }
+
     if (!update)
       update = new Update(null);
 
@@ -1419,7 +1476,8 @@ UpdateService.prototype = {
             update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
             update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
             update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
-            update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER) {
+            update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
+            update.errorCode == SERVICE_INSTALLDIR_ERROR) {
 
           var failCount = getPref("getIntPref", 
                                   PREF_APP_UPDATE_SERVICE_ERRORS, 0);
@@ -1955,6 +2013,26 @@ UpdateService.prototype = {
     return this._downloader.downloadUpdate(update);
   },
 
+  applyUpdateInBackground: function AUS_applyUpdateInBackground(update) {
+    // If background updates are disabled, then just bail out!
+    if (!getPref("getBoolPref", PREF_APP_UPDATE_BACKGROUND, false)) {
+      return;
+    }
+
+    LOG("UpdateService:applyUpdateInBackground called with the following update: " +
+        update.name);
+
+    // Initiate the update in the background
+    try {
+      Cc["@mozilla.org/updates/update-processor;1"].
+        createInstance(Ci.nsIUpdateProcessor).
+        processUpdate(update);
+    } catch (e) {
+      // Fail gracefully in case the application does not support the update
+      // processor service.
+    }
+  },
+
   /**
    * See nsIUpdateService.idl
    */
@@ -2227,6 +2305,7 @@ UpdateManager.prototype = {
       for (let i = updates.length - 1; i >= 0; --i) {
         let state = updates[i].state;
         if (state == STATE_NONE || state == STATE_DOWNLOADING ||
+            state == STATE_APPLIED || state == STATE_APPLIED_SVC ||
             state == STATE_PENDING || state == STATE_PENDING_SVC) {
           updates.splice(i, 1);
         }
@@ -2234,6 +2313,39 @@ UpdateManager.prototype = {
 
       this._writeUpdatesToXMLFile(updates.slice(0, 10),
                                   getUpdateFile([FILE_UPDATES_DB]));
+    }
+  },
+
+  refreshUpdateStatus: function UM_refreshUpdateStatus(update) {
+    var status = readStatusFile(getUpdatesDir());
+    var ary = status.split(":");
+    update.state = ary[0];
+    if (update.state == STATE_FAILED && ary[1]) {
+      update.errorCode = parseInt(ary[1]);
+    }
+    if (update.state == STATE_APPLIED && shouldUseService()) {
+      writeStatusFile(getUpdatesDir(), update.state = STATE_APPLIED_SVC);
+    }
+    var um = Cc["@mozilla.org/updates/update-manager;1"].
+             getService(Ci.nsIUpdateManager);
+    um.saveUpdates();
+
+    // Destroy the updates directory, since we're done with it.
+    cleanUpUpdatesDir(true);
+
+    // Send an observer notification which the update wizard uses in
+    // order to update its UI.
+    Services.obs.notifyObservers(null, "update-staged", update.state);
+
+    // Do this after *everything* else, since it will likely cause the app
+    // to shut down.
+    if (update.state == STATE_APPLIED) {
+      // Notify the user that an update has been staged and is ready for
+      // installation (i.e. that they should restart the application). We do
+      // not notify on failed update attempts.
+      var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
+                     createInstance(Ci.nsIUpdatePrompt);
+      prompter.showUpdateDownloaded(update, true);
     }
   },
 
@@ -2556,8 +2668,12 @@ Downloader.prototype = {
    * Whether or not a patch has been downloaded and staged for installation.
    */
   get patchIsStaged() {
-    var readState = readStatusFile(getUpdatesDir()); 
-    return readState == STATE_PENDING || readState == STATE_PENDING_SVC;
+    var readState = readStatusFile(getUpdatesDir());
+    // Note that if we decide to download and apply new updates after another
+    // update has been successfully applied in the background, we need to stop
+    // checking for the APPLIED state here.
+    return readState == STATE_PENDING || readState == STATE_PENDING_SVC ||
+           readState == STATE_APPLIED || readState == STATE_APPLIED_SVC;
   },
 
   /**
@@ -2870,6 +2986,8 @@ Downloader.prototype = {
       LOG("Downloader:onStopRequest - original URI spec: " + request.URI.spec +
           ", final URI spec: " + request.finalURI.spec + ", status: " + status);
 
+    // XXX ehsan shouldShowPrompt should always be false here.
+    // But what happens when there is already a UI showing?
     var state = this._patch.state;
     var shouldShowPrompt = false;
     var deleteActiveUpdate = false;
@@ -2881,7 +2999,7 @@ Downloader.prototype = {
         // download, since otherwise some kind of UI is already visible and
         // that UI will notify.
         if (this.background)
-          shouldShowPrompt = true;
+          shouldShowPrompt = !getPref("getBoolPref", PREF_APP_UPDATE_BACKGROUND, false);
 
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
@@ -2999,6 +3117,14 @@ Downloader.prototype = {
                      createInstance(Ci.nsIUpdatePrompt);
       prompter.showUpdateDownloaded(this._update, true);
     }
+
+    if (state == STATE_PENDING || state == STATE_PENDING_SVC) {
+      // Initiate the background update job.
+      Cc["@mozilla.org/updates/update-service;1"].
+        getService(Ci.nsIApplicationUpdateService).
+        applyUpdateInBackground(this._update);
+    }
+
     // Prevent leaking the update object (bug 454964)
     this._update = null;
   },
