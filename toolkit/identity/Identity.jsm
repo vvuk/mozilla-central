@@ -38,14 +38,6 @@ function log(aMsg)
   dump("IDService: " + aMsg + "\n");
 }
 
-function supString(aString)
-{
-  let str = Cc["@mozilla.org/supports-string;1"].
-    createInstance(Ci.nsISupportsString);
-  str.data = aString;
-  return str;
-}
-
 function IDService()
 {
   Services.obs.addObserver(this, "quit-application-granted", false);

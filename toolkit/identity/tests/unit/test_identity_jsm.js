@@ -4,6 +4,7 @@
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+// delay the loading of the IDService for performance purposes
 XPCOMUtils.defineLazyGetter(this, "IDService", function (){
   let scope = {};
   Cu.import("resource:///modules/identity/Identity.jsm", scope);
@@ -16,15 +17,9 @@ const TEST_USER = "user@mozilla.com";
 
 const ALGORITHMS = { RS256: 1, DS160: 2, };
 
-function supString(aString)
-{
-  let str = Cc["@mozilla.org/supports-string;1"].
-    createInstance(Ci.nsISupportsString);
-  str.data = aString;
-  return str;
-}
-
 let idObserver = {
+  // nsISupports provides type management in C++
+  // nsIObserver is to be an observer
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
 
   observe: function (aSubject, aTopic, aData)
@@ -46,6 +41,8 @@ let idObserver = {
   },
 };
 
+// we use observers likely for e10s process separation,
+// but maybe a cb interface would work well here, tbd.
 Services.obs.addObserver(idObserver, "id-service-key-gen-finished", false);
 
 function checkRsa(kpo)
@@ -59,6 +56,7 @@ function checkRsa(kpo)
   do_check_true(kpo.exponent != null);
   do_check_true(kpo.modulus != null);
 
+  // TODO: should sign be async?
   let sig = kpo.sign("This is a message to sign");
 
   do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
@@ -84,13 +82,12 @@ function checkDsa(kpo)
 
   Services.obs.removeObserver(idObserver, "id-service-key-gen-finished");
 
-  IDService.registry = null;
+  // pre-emptively shut down to clear resources
+  IDService.shutdown();
+  
   do_test_finished();
   run_next_test();
 }
-
-do_test_pending();
-
 
 function test_keypairs()
 {
@@ -100,6 +97,8 @@ function test_keypairs()
 }
 
 [test_keypairs].forEach(add_test);
+
+do_test_pending();
 
 function run_test()
 {

@@ -4,7 +4,9 @@
 // This has the side-effect of populating Cc, Ci, Cu, Cr. It's best not to
 // ask questions and just accept it.
 do_load_httpd_js();
-const Cm = Components.manager;
+
+// The following boilerplate makes sure that XPCom calls
+// that use the profile directory work.
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -37,7 +39,10 @@ registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"
                           "XULAppInfo", "@mozilla.org/xre/app-info;1",
                           XULAppInfoFactory);
 
+// The following are utility functions for Identity testing
+
 function log(aMsg)
 {
   dump("ID Tests: " + aMsg + "\n");
 }
+
