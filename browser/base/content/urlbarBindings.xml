@@ -1203,7 +1203,7 @@
             <xul:label class="header" value="user@email.com"/>
             <xul:hbox>
               <xul:label anonid="anotheremail" value="Add another email"/>
-              <xul:label value="Sign Out"/>
+              <xul:label anonid="signout" value="Sign Out"/>
             </xul:hbox>
           </xul:vbox>
         </xul:deck>
@@ -1287,6 +1287,13 @@
         anotherEmail.addEventListener("click", addEmailClick);
         let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "newemail")
         newEmail.addEventListener("click", addEmailClick);
+
+        let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "signout")
+        newEmail.addEventListener("click", function signout(evt){
+          // TODO
+          this.SignInToWebsiteUX.signOut(this.notification);
+        });
+
       ]]></constructor>
 
       <field name="SignInToWebsiteUX" readonly="true">

@@ -43,6 +43,17 @@ nsDOMIdentity.prototype = {
     });
   },
 
+  logout: function(aCallback) {
+    cpmm.sendAsyncMessage("Identity:Logout", {
+      oid: this._id,
+      from: this._window.location.href
+    });
+    if (aCallback) {
+      // TODO: when is aCallback supposed to be called and what are the arguments?
+      aCallback();
+    }
+  },
+
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;

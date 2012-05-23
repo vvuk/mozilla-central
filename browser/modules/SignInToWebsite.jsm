@@ -41,7 +41,7 @@ let SignInToWebsiteUX = {
   requestLogin: function(aWin) {
     let browser = aWin.gBrowser;
     let selectedBrowser = browser.selectedBrowser;
-    // Message is only used to pass the origin
+    // Message is only used to pass the origin. signOut relies on this atm.
     let message = selectedBrowser.currentURI.prePath;
     let mainAction = {
       label: "Next",
@@ -63,6 +63,12 @@ let SignInToWebsiteUX = {
 
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
     return IdentityService.getIdentitiesForSite(aOrigin);
+  },
+
+  signOut: function signOut(aNotification) {
+    // TODO: handle signing out of other tabs for the same domain or let ID service notify those tabs.
+    let origin = aNotification.message; // XXX: hack
+    IdentityService.logout(origin);
   },
 };
 

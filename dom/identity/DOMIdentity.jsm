@@ -29,6 +29,9 @@ let DOMIdentity = {
       case "Identity:Request":
         this._request(msg);
         break;
+      case "Identity:Logout":
+        this._logout(msg);
+        break;
     }
   },
 
@@ -78,7 +81,11 @@ let DOMIdentity = {
 
     // TODO: line below is a temporary hack until this is hooked up to identity.jsm
     Services.obs.notifyObservers(null, "identity-request", message);
-  }
+  },
+
+  _logout: function(message) {
+    // TODO: forward to Identity.jsm
+  },
 };
 
 // Object is initialized by nsIDService.js

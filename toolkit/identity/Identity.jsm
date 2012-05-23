@@ -83,6 +83,21 @@ IDService.prototype = {
   },
 
   /**
+   * Invoked when a user wishes to logout of a site (for instance, when clicking
+   * on an in-content logout button).
+   *
+   * @param aWindowID
+   *        int       A unique number representing a window which is requesting
+   *                  the assertion.
+   *
+   * Will cause the onlogout callback passed to navigator.id.watch() to be invoked.
+   */
+  logout: function logout(aWindowID)
+  {
+    // TODO
+  },
+
+  /**
    * Notify the Identity module that content has finished loading its
    * provisioning context and is ready to being the provisioning process.
    * 
@@ -348,6 +363,8 @@ IDService.prototype = {
       lastUsed: "joe@bob.com", // or null if a new origin
     };
   },
+
+  // TODO: need helper to logout of all sites for SITB?
 
   // Private.
   _registry: { },

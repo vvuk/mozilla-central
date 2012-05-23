@@ -7,12 +7,17 @@
 [scriptable, uuid(2f744abf-e017-4801-b1cb-5d28d0ae3a3e)]
 interface nsIDOMIdentity : nsISupports
 {
+
+  /**
+   * Relying Party (RP) APIs
+   */
+
   /**
    * Register a set of callbacks which will notify the calling page on
    * events like login and logout. Valid properties for the calling object
    * are:
    *
-   *  
+   *
    *  onlogin                   : function(assertion) {}
    *  Called when the user has chosen to login to the site and the corresponding
    *  assertion is obtained. The site should proceed to verify this assertion on
@@ -43,4 +48,13 @@ interface nsIDOMIdentity : nsISupports
    * watch() will be invoked.
    */
   void request();
+
+
+  void logout(/* TODO: in nsIDOMIdentityLogoutCallback aCallback */);
+
+  /**
+   *  Identity Provider (IDP) APIs
+   */
+
+
 };
