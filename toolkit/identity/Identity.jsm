@@ -46,8 +46,8 @@ function IDServiceStore()
 }
 
 IDServiceStore.prototype = {
-  addIdentity: function addIdentity(aEmail, aPrivateKey, aCert) {
-    this._identities[aEmail] = {privKey: aPrivateKey, cert: aCert};
+  addIdentity: function addIdentity(aEmail, aKeyPair, aCert) {
+    this._identities[aEmail] = {keyPair: aKeyPair, cert: aCert};
   },
   fetchIdentity: function fetchIdentity(aEmail) {
     return aEmail in this._identities ? this._identities[aEmail] : null;
@@ -63,7 +63,7 @@ IDServiceStore.prototype = {
   clearCert: function clearCert(aEmail) {
     // XXX - should remove key from store?
     this._identities[aEmail].cert = null;
-    this._identities[aEmail].privKey = null;
+    this._identities[aEmail].keyPair = null;
   },
 
   /**
