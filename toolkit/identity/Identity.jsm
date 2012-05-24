@@ -49,6 +49,9 @@ IDServiceStore.prototype = {
   addIdentity: function addIdentity(aEmail, aPrivateKey, aCert) {
     this._identities[aEmail] = {privKey: aPrivateKey, cert: aCert};
   },
+  fetchIdentity: function fetchIdentity(aEmail) {
+    return aEmail in this._identities ? this._identities[aEmail] : null;
+  },
   removeIdentity: function removeIdentity(aEmail) {
     // XXX - should remove key from store?
     delete this._identities[aEmail];
@@ -136,7 +139,7 @@ IDService.prototype = {
    */
   request: function request(aWindowID)
   {
-    Services.obs.notifyObservers(aWindowID, "identity-request", null);
+    Services.obs.notifyObservers(/*aWindowID*/ null, "identity-request", null);
   },
 
   /**
@@ -170,6 +173,28 @@ IDService.prototype = {
    */
   beginProvisioning: function beginProvisioning(aCallback, aWindowID)
   {
+
+  },
+
+  /**
+   * TODO
+   */
+  provisioningFailure: function provisioningFailure(aReason, aWindowID)
+  {
+    log("provisioningFailure: " + aReason);
+    /* TODO:
+     * if (CONTEXT.authenticationDone)
+     *   hard fail
+     * else
+     *   try to authenticate (setting CONTEXT.authenticationDone to true)
+     */
+    let identity = "joe@mockmyid.com"; //"foo@eyedee.me"; // HACK: get identity using aWindowID
+    this._getEndpoints(identity, function(aEndpoints) {
+      if (aEndpoints && aEndpoints.authentication)
+        this._beginAuthenticationFlow(aEndpoints.authentication);
+      else
+        throw new Error("Invalid or non-existent authentication endpoint");
+    }.bind(this));
 
   },
 
@@ -208,6 +233,34 @@ IDService.prototype = {
   registerCertificate: function registerCertificate(aCert, aWindowID)
   {
 
+  },
+
+  /**
+   * Notify the Identity module that content has finished loading its
+   * authentication context and is ready to being the authentication process.
+   *
+   * @param aCallback
+   *        (Function)  A callback that will be called with (identity), where
+   *                    identity is the email address for which authentication is
+   *                    requested.
+   *
+   * @param aWindowID
+   *        int         A unique number representing the window in which the
+   *                    authentication page for the IdP has been loaded.
+   */
+  beginAuthentication: function beginAuthentication(aCallback, aWindowID)
+  {
+    // TODO
+  },
+
+  completeAuthentication: function completeAuthentication(aWindowID)
+  {
+    // TODO: invoke the Provisioning Flow
+  },
+
+  cancelAuthentication: function cancelAuthentication(aWindowID)
+  {
+    // TODO: proceed to Provisioning Hard-Fail.
   },
 
   // Public utility methods.
@@ -289,10 +342,10 @@ IDService.prototype = {
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
     return {
       "result": [
-        "foo@bar.com",
-        "joe@bob.com"
+        "foo@eyedee.me",
+        "joe@mockmyid.com"
       ],
-      lastUsed: "joe@bob.com", // or null if a new origin
+      lastUsed: "joe@mockmyid.com", // or null if a new origin
     };
   },
 
@@ -450,16 +503,18 @@ IDService.prototype = {
   {
     log("_getEndpoints\n");
     // TODO: validate email
-    let domain = email.substring(email.indexOf("@") + 1);
-    log("_getEndpoints: " + domain + "\n");
+    let emailDomain = email.substring(email.indexOf("@") + 1);
+    log("_getEndpoints: " + emailDomain + "\n");
     // TODO: lookup in cache
-    let onSuccess = function(domain, wellKnown) {
-      this._endpoints[domain] = {};
-      this._endpoints[domain].authentication = wellKnown.authentication;
-      this._endpoints[domain].provisioning = wellKnown.provisioning;
-      aCallback(this._endpoints[domain]);
+    let onSuccess = function(aDomain, aWellKnown) {
+      // aDomain is the domain that the well-known file was on (not necessarily the email domain for cases 2 & 3)
+      this._endpoints[emailDomain] = {};
+      // TODO: convert to full URI if not already
+      this._endpoints[emailDomain].authentication = "https://" + aDomain + aWellKnown.authentication;
+      this._endpoints[emailDomain].provisioning = "https://" + aDomain + aWellKnown.provisioning;
+      aCallback(this._endpoints[emailDomain]);
     }.bind(this);
-    this._fetchWellKnownFile(domain, onSuccess, function onFailure() {
+    this._fetchWellKnownFile(emailDomain, onSuccess, function onFailure() {
       // TODO: use proxy IDP service
       //this._fetchWellKnownFile(..., onSuccess);
       // TODO: fallback to persona.org
@@ -480,7 +535,6 @@ IDService.prototype = {
         if (req.status === 200) {
           // TODO validate format
           aSuccess(domain, req.response);
-          log(req.response + "\n");
           log(JSON.stringify(this._endpoints[domain], null, 4) + "\n");
         } else {
           log("Error: " + req.statusText + "\n");
@@ -495,9 +549,19 @@ IDService.prototype = {
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
    */
-  _beginProvisioning: function _beginProvisioning(aURL)
+  _beginProvisioningFlow: function _beginProvisioning(aURL)
   {
     // TODO: do something with toolkit/identity/Sandbox.jsm
+    Services.obs.notifyObservers(null, "identity-auth", aURL); // HACK: loading prov. in visible window for now
+  },
+
+  /**
+   * Load the authentication UI to start the authentication process.
+   */
+  _beginAuthenticationFlow: function _beginAuthentication(aURL)
+  {
+    let someIdentifier = null; // TODO
+    Services.obs.notifyObservers(someIdentifier, "identity-auth", aURL);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
@@ -512,8 +576,21 @@ IDService.prototype = {
         break;
       case "identity-login": // User chose a new or exiting identity after a request() call
         let identity = aData; // String
+        if (!identity) // TODO: validate email format
+          throw new Error("Invalid identity chosen");
         // aData is the email address chosen (TODO: or null if cancelled?)
         // TODO: either do the authentication or provisioning flow depending on the email
+        // TODO: is this correct to assume that if the identity is in the store that we don't need to re-provision?
+        let storedID = this._store.fetchIdentity(identity);
+        if (!storedID) {
+          // begin provisioning
+          this._getEndpoints(identity, function(aEndpoints) {
+            if (aEndpoints && aEndpoints.provisioning)
+              this._beginProvisioningFlow(aEndpoints.provisioning);
+            else
+              throw new Error("Invalid or non-existent provisioning endpoint");
+          }.bind(this));
+        }
         break;
     }
   },

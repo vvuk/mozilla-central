@@ -18,6 +18,9 @@ XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
   );
 });
 
+XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
+                                  "resource://gre/modules/identity/Identity.jsm");
+
 let DOMIdentity = {
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
@@ -31,6 +34,9 @@ let DOMIdentity = {
         break;
       case "Identity:Logout":
         this._logout(msg);
+        break;
+      case "Identity:IDP:ProvisioningFailure":
+        this._provisioningFailure(msg);
         break;
     }
   },
@@ -50,7 +56,7 @@ let DOMIdentity = {
 
   // Private.
   _init: function() {
-    this.messages = ["Identity:Watch", "Identity:Request"];
+    this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout", "Identity:IDP:ProvisioningFailure"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -79,13 +85,16 @@ let DOMIdentity = {
     };
     ppmm.sendAsyncMessage("Identity:Watch:OnLogin", message);
 
-    // TODO: line below is a temporary hack until this is hooked up to identity.jsm
-    Services.obs.notifyObservers(null, "identity-request", message);
+    IdentityService.request(this._pending[0]);
   },
 
   _logout: function(message) {
     // TODO: forward to Identity.jsm
   },
+
+  _provisioningFailure: function(message) {
+    IdentityService.provisioningFailure(message.reason, message.oid);
+  }
 };
 
 // Object is initialized by nsIDService.js

@@ -16,16 +16,19 @@ Cu.import("resource://gre/modules/identity/Identity.jsm");
 let SignInToWebsiteUX = {
 
   init: function SignInToWebsiteUX_init() {
-    Services.obs.addObserver(this, "identity-request", false); // TODO
-    Services.obs.addObserver(this, "identity-login", false); // TODO
+    Services.obs.addObserver(this, "identity-request", false);
+    Services.obs.addObserver(this, "identity-login", false);
+    Services.obs.addObserver(this, "identity-auth", false);
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
     Services.obs.removeObserver(this, "identity-request");
     Services.obs.removeObserver(this, "identity-login");
+    Services.obs.removeObserver(this, "identity-auth");
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
+    dump("SignInToWebsiteUX_observe: received " + aTopic + " with " + aData + " for " + aSubject + "\n");
     switch(aTopic) {
       case "identity-request":
         // XXX: as a hack just use the most recent window for now
@@ -33,7 +36,11 @@ let SignInToWebsiteUX = {
         this.requestLogin(win);
         break;
       case "identity-login":
-        dump("Received identity-login: "+aData+"\n");
+        break;
+      case "identity-auth":
+        let authURI = aData;
+        let winIdentifier = aSubject;
+        this._openAuthenticationUI(authURI, winIdentifier);
         break;
     }
   },
@@ -53,7 +60,7 @@ let SignInToWebsiteUX = {
     };
     let options = {
       eventCallback: function(state) {
-        dump(state + "\n");
+        dump("requestLogin: doorhanger " + state + "\n");
       },
     };
     let secondaryActions = [];
@@ -71,5 +78,15 @@ let SignInToWebsiteUX = {
     dump("signOut for: " + origin + "\n");
     IdentityService.logout(origin);
   },
+
+  // Private
+  _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aID) {
+    // Open a tab/window with aAuthURI with an identifier (aID) attached so that the DOM APIs know this is an auth. window.
+    let win = Services.wm.getMostRecentWindow('navigator:browser');
+    let authArgs = null; //[aID];
+    let features = "chrome=false,width=640,height=480,centerscreen,location=yes,resizable=yes,scrollbars=yes,status=yes";
+    dump("aAuthURI: " + aAuthURI + "\n");
+    return Services.ww.openWindow(win, aAuthURI, "identity-auth-"/* + aID */, features, authArgs);
+  }
 };
 

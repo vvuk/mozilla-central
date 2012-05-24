@@ -56,5 +56,14 @@ interface nsIDOMIdentity : nsISupports
    *  Identity Provider (IDP) APIs
    */
 
+  // provisioning
+  void beginProvisioning(in jsval callback); // TODO: better type?
+  void genKeyPair(in jsval callback); // TODO: better type?
+  void registerCertificate(in DOMString certificate);
+  void raiseProvisioningFailure(in DOMString reason);
 
+  // authentication
+  void beginAuthentication(in jsval callback); // TODO: better type?
+  void completeAuthentication();
+  void raiseAuthenticationFailure(in DOMString reason); // TODO: spec says "cancelAuthentication" in some places (ISSUE #4)
 };

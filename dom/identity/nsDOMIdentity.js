@@ -9,6 +9,8 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+// This is the child process corresponding to nsIDOMIdentity.
+
 XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
   return Cc["@mozilla.org/childprocessmessagemanager;1"].
     getService(Ci.nsIFrameMessageManager);
@@ -19,6 +21,10 @@ function nsDOMIdentity() {
 nsDOMIdentity.prototype = {
 
   // nsIDOMIdentity
+  /**
+   * Relying Party (RP) APIs
+   */
+
   watch: function(params) {
     // Latest watch call wins in case site makes multiple calls.
     this._watcher = params;
@@ -52,6 +58,41 @@ nsDOMIdentity.prototype = {
       // TODO: when is aCallback supposed to be called and what are the arguments?
       aCallback();
     }
+  },
+
+  /**
+   *  Identity Provider (IDP) APIs
+   */
+
+  beginProvisioning: function(aCallback) {
+    cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
+      oid: this._id,
+      from: this._window.location.href,
+    });
+
+    // HACK: to test UI
+    let identity = "";
+    let certValidityDuration = 3600; // TODO
+    aCallback(identity, certValidityDuration);
+  },
+
+  genKeyPair: function(aCallback) {
+
+  },
+
+  registerCertificate: function(aCertificate) {
+
+  },
+
+  raiseProvisioningFailure: function(aReason) {
+    dump("nsDOMIdentity: raiseProvisioningFailure '" + aReason + "'\n");
+    cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", {
+      oid: this._id,
+      from: this._window.location.href,
+      reason: aReason,
+    });
+    // TODO: close provisioning sandbox/window
+    this._window.close();
   },
 
   // nsIFrameMessageListener
