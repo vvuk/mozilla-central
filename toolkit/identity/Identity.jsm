@@ -192,7 +192,7 @@ IDService.prototype = {
     let identity = "joe@mockmyid.com"; //"foo@eyedee.me"; // HACK: get identity using aWindowID
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
-        this._beginAuthenticationFlow(aEndpoints.authentication);
+        this._beginAuthenticationFlow(identity, aEndpoints.authentication);
       else
         throw new Error("Invalid or non-existent authentication endpoint");
     }.bind(this));
@@ -341,6 +341,13 @@ IDService.prototype = {
    * Return the list of identities a user may want to use to login to aOrigin.
    */
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
+/* TODO
+    let rv = {result: []};
+    for (let id in this._store.getIdentities()) {
+      
+    }
+*/
+
     return {
       "result": [
         "foo@eyedee.me",
@@ -368,6 +375,10 @@ IDService.prototype = {
   _endpoints: { },
   _pendingProvisioningData: { },
   _pendingAuthenticationData: { },
+
+  setPendingAuthenticationData: function(aWindowID, aContext) {
+    this._pendingAuthenticationData[aWindowID] = aContext;
+  },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -565,6 +576,7 @@ IDService.prototype = {
    */
   _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL)
   {
+    // TODO: cleanup sandbox (call free)
     new Sandbox(aURL, function(aSandbox) {
       dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
       let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
@@ -577,10 +589,13 @@ IDService.prototype = {
   /**
    * Load the authentication UI to start the authentication process.
    */
-  _beginAuthenticationFlow: function _beginAuthentication(aURL)
+  _beginAuthenticationFlow: function _beginAuthentication(aIdentity, aURL)
   {
-    let someIdentifier = null; // TODO
-    Services.obs.notifyObservers(someIdentifier, "identity-auth", aURL);
+    var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag);
+    propBag.setProperty("identity", aIdentity);
+
+    Services.obs.notifyObservers(propBag, "identity-auth", aURL);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),

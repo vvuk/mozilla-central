@@ -39,8 +39,8 @@ let SignInToWebsiteUX = {
         break;
       case "identity-auth":
         let authURI = aData;
-        let winIdentifier = aSubject;
-        this._openAuthenticationUI(authURI, winIdentifier);
+        let context = aSubject;
+        this._openAuthenticationUI(authURI, context);
         break;
     }
   },
@@ -80,13 +80,16 @@ let SignInToWebsiteUX = {
   },
 
   // Private
-  _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aID) {
+  _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aContext) {
     // Open a tab/window with aAuthURI with an identifier (aID) attached so that the DOM APIs know this is an auth. window.
     let win = Services.wm.getMostRecentWindow('navigator:browser');
-    let authArgs = null; //[aID];
     let features = "chrome=false,width=640,height=480,centerscreen,location=yes,resizable=yes,scrollbars=yes,status=yes";
     dump("aAuthURI: " + aAuthURI + "\n");
-    return Services.ww.openWindow(win, aAuthURI, "identity-auth-"/* + aID */, features, authArgs);
+    let authWin = Services.ww.openWindow(win, aAuthURI, "", features, null);
+    let windowID = authWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+    dump("authWin outer id: " + windowID + "\n");
+
+    IdentityService.setPendingAuthenticationData(windowID, aContext);
   }
 };
 

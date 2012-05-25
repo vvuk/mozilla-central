@@ -103,11 +103,10 @@ nsDOMIdentity.prototype = {
     let msg = aMessage.json;
 
     // Is this message intended for this window?
-/*
     if (msg.oid != this._id) {
       return;
     }
-*/
+
     switch (aMessage.name) {
       case "Identity:Watch:OnLogin":
         // Do we have a watcher?

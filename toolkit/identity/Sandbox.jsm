@@ -47,7 +47,7 @@ Sandbox.prototype = {
    *         (iframe) An empty, hidden iframe
    */
   _createFrame: function _createFrame() {
-    // TODO: What if there is no most recent browser window? (bug 745415).
+    // TODO: What if there is no most recent browser window? (bug 745415). // Or use hiddenWindow
     let doc = Services.wm.getMostRecentWindow("navigator:browser").document;
 
     // Insert iframe in to create docshell.
