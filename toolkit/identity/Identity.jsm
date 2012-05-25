@@ -102,6 +102,13 @@ function IDService()
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
   this._store = new IDServiceStore();
+
+  // the documents that have called .watch()
+  this._docs = {};
+
+  // tracking ongoing flows
+  this._provisionFlows = {};
+  this._authenticationFlows = {};
 }
 
 IDService.prototype = {
@@ -111,84 +118,237 @@ IDService.prototype = {
    * Register a listener for a given windowID as a result of a call to
    * navigator.id.watch().
    *
-   * @param aOptions
-   *        (Object)  An object containing the same properties as handed
-   *                  to the watch call made in DOM. See nsIDOMIdentity.idl
-   *                  for more information on each property.
+   * @param loggedInEmail
+   *        (string)  the currently logged-in email.
    *
-   * @param aWindowID
-   *        (int)     A unique number representing the window from which this
-   *                  call was made.
+   * @param aDoc
+   *        (Object)  an object that represents the document, and
+   *                  is expected to have properties:
+   *                  id (unique, e.g. uuid), origin, do(action, params).
    */
-  watch: function watch(aOptions, aWindowID)
+  watch: function watch(loggedInEmail, aDoc)
   {
-    // TODO: do type checking on aOptions properties.
-    // TODO: only persist a whitelist of properties
+    // register this new doc
+
+    // check if loggedInEmail corresponds to what we think it should be
+
+    // if so, call aDoc.do('ready');
+
+    // if should be logged in but isn't, go generate assertion, then fire login.
+    // this._generateAssertion(aDoc.origin, storedIdentity, cb)
+
+    // if not possible
+    // then we go discover IdP
+    // and provision
+    // but we don't authenticate
+
+    // see selectIdentity for most of this (might need to be refactored out.)
+
+    // if all works and we log in
+    // aDoc.do('login', {assertion: assertion});
+
+    // if should be logged out but is logged in, fire logout.
+    // aDoc.do('logout');
   },
 
   /**
    * Initiate a login with user interaction as a result of a call to
    * navigator.id.request().
    *
-   * @param aWindowID
-   *        int       A unique number representing a window which is requesting
-   *                  the assertion.
+   * @param aDocId
+   *        (integer)  the id of the doc object obtained in .watch()
    *
-   * If an assertion is obtained successfully, aOptions.onlogin will be called,
-   * as registered with a preceding call to watch for the same window ID. It is
-   * an error to invoke request() without first calling watch().
+   * @param aOptions
+   *        (Object)  options including requiredEmail, privacyURL, tosURL
    */
-  request: function request(aWindowID)
+  request: function request(aDocId, aOptions)
   {
-    Services.obs.notifyObservers(/*aWindowID*/ null, "identity-request", null);
+    // notify UX to display identity picker
+    // pass the doc id to UX so it can pass it back to us later.
+    // also pass the options tos and privacy policy, and requiredEmail
   },
 
+  /**
+   * The UX wants to add a new identity
+   * often followed by selectIdentity()
+   *
+   * @param aIdentity
+   *        (string) the email chosen for login
+   */
+  addIdentity: function addIdentity(aIdentity)
+  {
+    // add to the list of identities
+  },
+
+  /**
+   * The UX comes back and calls selectIdentity once the user has picked an identity
+   *
+   * @param aDocId
+   *        (integer) the id of the doc object obtained in .watch() and
+   *                  passed to the UX component.
+   *
+   * @param aIdentity
+   *        (string) the email chosen for login
+   */
+  selectIdentity: function selectIdentity(aDocId, aIdentity)
+  {
+    // set the state of login for the doc origin to be logged in as that identity
+    
+    // go generate assertion for this identity and deliver it to this doc
+    // this._generateAssertion(doc.origin, aIdentity, cb)
+
+    // if fail, we don't have the cert to do the assertion
+
+    // figure out the IdP
+    // this._discoverIdentityProvider(aIdentity, cb);
+    // we get IDPParams in the callback.
+
+    // using IdP info, we provision
+    // this._provisionIdentity(aIdentity, idpParams, cb);
+    
+    // if fail on callback, need to authentication
+    // this.doAuthentication(aIdentity, idpParams, cb)
+
+    // we try provisioning again
+    // this._provisionIdentity(aIdentity, idpParams, cb);
+
+    // if we fail, hard fail.
+    
+    // if succeed, then
+    // this.generateAssertion(aDocId, aIdentity, cb)
+
+    // doc.do('login', {assertion: assertion});
+  },
+
+  /**
+   * Generate an assertion, including provisioning via IdP if necessary,
+   * but no user interaction, so if provisioning fails, aCallback is invoked
+   * with an error.
+   *
+   * @param aAudience
+   *        (string) web origin
+   *
+   * @param aIdentity
+   *        (string) the email we're logging in with
+   *
+   * @param aCallback
+   *        (function) callback to invoke on completion
+   *                   with first-positional parameter the error.
+   */
+  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
+  {
+    // do we have a cert for this identity?
+
+    // if not, error, need to provision
+
+    // if yes, generate the actual assertion using the stored key
+
+    // aCallback(null, assertion);
+  },
+
+  /**
+   * Provision an Identity
+   *
+   * @param aIdentity
+   *        (string) the email we're logging in with
+   *
+   * @param aIDPParams
+   *        (object) parameters of the IdP
+   *
+   * @param aCallback
+   *        (function) callback to invoke on completion
+   *                   with first-positional parameter the error.
+   */
+  _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aCallback)
+  {
+    // create a provisioning flow identifier provId and store the context
+    // stash callback associated with this provisioning workflow.
+    
+    // launch the provisioning workflow given the IdP provisoning URL
+    // using the sandbox, store the sandbox in our provisioning data
+    // XXX - _beginProvisioningFlow ??
+    // pass the provId to the sandbox so its DOM calls can be identified
+
+    // MAYBE
+    // set a timeout to clear out this provisioning workflow if it doesn't
+    // complete in X time.
+  },
+
+  /**
+   * Discover the IdP for an identity
+   *
+   * @param aIdentity
+   *        (string) the email we're logging in with
+   *
+   * @param aCallback
+   *        (function) callback to invoke on completion
+   *                   with first-positional parameter the error.
+   */
+  _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback)
+  {
+    // parse domain out of email address
+    
+    // look up well-known for that domain
+    // follow any authority delegations
+
+    // if no well-known at any point in the delegation
+    // fall back to browserid.org as IdP
+
+    // use email-specific delegation if IdP supports it
+    // XXX update spec
+
+    // idpParams includes pk, authorization, provisioning.
+    // aCallback(null, idpParams);
+  },
+  
   /**
    * Invoked when a user wishes to logout of a site (for instance, when clicking
    * on an in-content logout button).
    *
-   * @param aWindowID
-   *        int       A unique number representing a window which is requesting
-   *                  the assertion.
+   * @param aDocId
+   *        (integer)  the id of the doc object obtained in .watch()
    *
-   * Will cause the onlogout callback passed to navigator.id.watch() to be invoked.
    */
-  logout: function logout(aWindowID)
+  logout: function logout(aDocId)
   {
-    // TODO
+
   },
 
   /**
-   * Notify the Identity module that content has finished loading its
-   * provisioning context and is ready to being the provisioning process.
+   * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
    * 
-   * @param aCallback
-   *        (Function)  A callback that will be called with (email, time), where
-   *                    email is the address for which a certificate is
-   *                    requested, and the time is the *maximum* time allowed
-   *                    for the validity of the ceritificate.
-   *
-   * @param aWindowID
-   *        int         A unique number representing the window in which the
-   *                    provisioning page for the IdP has been loaded.
+   * @param aProvId
+   *        (int)  the identifier of the provisioning flow tied to that sandbox
    */
-  beginProvisioning: function beginProvisioning(aCallback, aWindowID)
+  beginProvisioning: function beginProvisioning(aProvId)
   {
+    // look up the provisioning context and the identity we're trying to provision
+    // as part of that context. determine recommended length of cert.
 
+    // let the sandbox know to invoke the callback to beginProvisioning with
+    // the identity and cert length.
   },
 
   /**
-   * TODO
+   * the provisioning iframe sandbox has called navigator.id.raiseProvisioningFailure()
+   * 
+   * @param aProvId
+   *        (int)  the identifier of the provisioning flow tied to that sandbox
    */
-  provisioningFailure: function provisioningFailure(aReason, aWindowID)
+  raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason)
   {
     log("provisioningFailure: " + aReason);
-    /* TODO:
-     * if (CONTEXT.authenticationDone)
-     *   hard fail
-     * else
-     *   try to authenticate (setting CONTEXT.authenticationDone to true)
-     */
+    
+    // look up the provisioning context and its callback
+
+    // delete the provisioning context
+
+    // invoke the callback with an error.
+    
+    // we probably do the below code at a higher level,
+    // e.g. in selectIdentity()
+    
+    /*
     let identity = this._pendingProvisioningData[aWindowID].identity;
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
@@ -196,75 +356,136 @@ IDService.prototype = {
       else
         throw new Error("Invalid or non-existent authentication endpoint");
     }.bind(this));
+    */
 
   },
 
   /**
-   * Generates a keypair for the current user being provisioned and returns
-   * the public key via the callback.
+   * When navigator.id.genKeyPair is called from provisioning iframe sandbox.
+   * Generates a keypair for the current user being provisioned.
    *
-   * @param aCallback
-   *        (Function)  A callback that will be called with the public key
-   *                    of the generated keypair.
-   *
-   * @param aWindowID
-   *        int         A unique number representing the window in which this
-   *                    call was made.
+   * @param aProvId
+   *        (int)  the identifier of the provisioning context tied to that sandbox
    *
    * It is an error to call genKeypair without receiving the callback for
    * the beginProvisioning() call first.
    */
-  genKeypair: function genKeypair(aCallback, aWindowID)
+  genKeypair: function genKeypair(aProvId)
   {
+    // look up the provisioning context, make sure it's valid.
 
+    // generate a keypair, store it in provisioning context
+
+    // we have a handle on the sandbox, we need to invoke the genKeyPair callback
+    // on it with the serialized public key of the keypair.
+
+    // the API into the sandbox is likely in DOMIdentity.jsm,
+    // but we need some guidance here.
   },
 
   /**
+   * When navigator.id.registerCertificate is called from provisioning iframe sandbox.
    * Sets the certificate for the user for which a certificate was requested
    * via a preceding call to beginProvisioning (and genKeypair).
+   *
+   * @param aProvId
+   *        (int)  the identifier of the provisioning context tied to that sandbox
    *
    * @param aCert
    *        (String)  A JWT representing the signed certificate for the user
    *                  being provisioned, provided by the IdP.
-   *
-   * @param aWindowID
-   *        int         A unique number representing the window in which this
-   *                    call was made.
    */
-  registerCertificate: function registerCertificate(aCert, aWindowID)
+  registerCertificate: function registerCertificate(aProvId, aCert)
   {
+    // look up provisioning context, make sure it's valid.
 
+    // store the keypair and certificate just provided in IDStore.
+
+    // kill the sandbox
+
+    // pull out the prov context callback
+
+    // kill the prov context
+
+    // invoke callback with success.
   },
 
   /**
-   * Notify the Identity module that content has finished loading its
-   * authentication context and is ready to being the authentication process.
+   * Begin the authentication process with an IdP
+   *
+   * @param aIdentity
+   *        (string) the email address we're identifying as to the IdP
    *
    * @param aCallback
-   *        (Function)  A callback that will be called with (identity), where
-   *                    identity is the email address for which authentication is
-   *                    requested.
-   *
-   * @param aWindowID
-   *        int         A unique number representing the window in which the
-   *                    authentication page for the IdP has been loaded.
+   *        (function) to invoke upon completion, with
+   *                   first-positional-param error.
    */
-  beginAuthentication: function beginAuthentication(aCallback, aWindowID)
+  doAuthentication: function doAuthentication(aIdentity, idpParams, aCallback)
   {
-    // TODO
+    // create an authentication context and its identifier AuthId
+    // stash aIdentity, idpparams, and callback in it.
+
+    // extract authentication URL from idpParams
+    
+    // ? create a visible frame with sandbox and notify UX
+    // or notify UX so it can create the visible frame, not sure which one.
+
+    // either we bind the AuthID to the sandbox ourselves, or UX does that,
+    // in which case we need to tell UX the AuthId.
+  },
+  
+  /**
+   * The authentication frame has called navigator.id.beginAuthentication
+   *
+   * @param aAuthId
+   *        (int)  the identifier of the authentication context tied to that sandbox
+   *
+   */
+  beginAuthentication: function beginAuthentication(aAuthId)
+  {
+    // look up AuthId context, and the identity we're attempting to authenticate.
+
+    // XXX we need pointer to the IFRAME/sandbox.
+    // maybe this means we should create it, or maybe UX passes it to us
+    // after it's created it, but we need the direct pointer.
+
+    // tell sandbox to invoke the postBeginAuthentication callback with
+    // the identity we want.
   },
 
-  completeAuthentication: function completeAuthentication(aWindowID)
+  /**
+   * The auth frame has called navigator.id.completeAuthentication
+   *
+   * @param aAuthId
+   *        (int)  the identifier of the authentication context tied to that sandbox
+   *
+   */
+  completeAuthentication: function completeAuthentication(aAuthId)
   {
-    // TODO: invoke the Provisioning Flow
+    // look up the AuthId context, and get its callback.
+
+    // delete context
+
+    // invoke callback with success.
   },
 
+  /**
+   * The auth frame has called navigator.id.cancelAuthentication
+   *
+   * @param aAuthId
+   *        (int)  the identifier of the authentication context tied to that sandbox
+   *
+   */
   cancelAuthentication: function cancelAuthentication(aWindowID)
   {
-    // TODO: proceed to Provisioning Hard-Fail.
+    // look up the AuthId context, and get its callback.
+
+    // delete context
+
+    // invoke callback with ERROR.
   },
 
-  // Public utility methods.
+  // methods for chrome and add-ons
 
   /**
    * Obtain a BrowserID assertion with the specified characteristics.
@@ -331,6 +552,10 @@ IDService.prototype = {
     // XXX - do we need this call?
   },
 
+  //
+  //
+  //
+  
   shutdown: function shutdown()
   {
     this._registry = null;
@@ -374,11 +599,6 @@ IDService.prototype = {
   _registry: { },
   _endpoints: { },
   _pendingProvisioningData: { },
-  _pendingAuthenticationData: { },
-
-  setPendingAuthenticationData: function(aWindowID, aContext) {
-    this._pendingAuthenticationData[aWindowID] = aContext;
-  },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -524,6 +744,7 @@ IDService.prototype = {
    * 3) Fallback to using persona.org as a secondary verifier. Return endpoints
    * for secondary authorization and provisioning provided by BrowserID/Persona.
    */
+  // XXX this looks not great with side-effect instead of just functional.
   _getEndpoints: function _getEndpoints(email, aCallback)
   {
     log("_getEndpoints\n");
