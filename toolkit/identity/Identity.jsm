@@ -109,6 +109,17 @@ function IDService()
   // tracking ongoing flows
   this._provisionFlows = {};
   this._authenticationFlows = {};
+
+ /* Sample data */
+  [
+    "foo@eyedee.me",
+    "joe@mockmyid.com",
+    "matt@browserid.linuxsecured.net",
+  ].forEach(function(identity) {
+    this._store.addIdentity(identity, null, "cert for " + identity);
+  }, this);
+
+  this._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
 }
 
 IDService.prototype = {
@@ -566,20 +577,15 @@ IDService.prototype = {
    * Return the list of identities a user may want to use to login to aOrigin.
    */
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
-/* TODO
-    let rv = {result: []};
+    log("getIdentitiesForSite: " + aOrigin);
+    let rv = { result: [] };
     for (let id in this._store.getIdentities()) {
-      
+      rv.result.push(id);
     }
-*/
-    return {
-      "result": [
-        "foo@eyedee.me",
-        "joe@mockmyid.com",
-        "matt@browserid.linuxsecured.net",
-      ],
-      lastUsed: "foo@eyedee.me", // or null if a new origin
-    };
+    let loginState = this._store.getLoginState(aOrigin);
+    if (loginState && loginState.email)
+      rv.lastUsed = loginState.email;
+    return rv;
   },
 
   get securityLevel() {

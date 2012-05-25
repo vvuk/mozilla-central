@@ -1235,20 +1235,27 @@
         // TODO: this.notification should be a reference to the notification object
 
         // Populate the list of identities to choose from
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(/* TODO: aOrigin */);
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.notification.message);
         dump(identities + "\n");
 
         // Show the add email pane (0) if there are no existing identities otherwise show the list
         this.step = identities.result.length ? 1 : 0;
 
         let identityList = document.getAnonymousElementByAttribute(this, "anonid", "identities")
+        var foundLast = false;
         for (let id in identities.result) {
           let label = identities.result[id];
           let opt = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "radio"); //TODO: default NS?
           opt.setAttribute("label", label);
           identityList.appendChild(opt);
-          if (label == identities.lastUsed)
+          if (label == identities.lastUsed) {
             identityList.selectedItem = opt;
+            foundLast = true;
+          }
+        }
+        if (!foundLast) {
+          identityList.selectedIndex = -1;
+          dump("not found last: " + foundLast + " : " + identityList.selectedIndex + "\n");
         }
 
         // Fire notification with the chosen identity when main button is clicked
