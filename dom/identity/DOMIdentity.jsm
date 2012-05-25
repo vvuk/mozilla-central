@@ -79,7 +79,11 @@ let DOMIdentity = {
 
   _request: function(message) {
     // Forward to Identity.jsm and stash oid somewhere?
-    
+
+
+    IdentityService.request(this._pending[0], message);
+
+
     // Oh look we got a fake assertion back from the JSM, send it onward.
     let message = { 
       // Should not be empty because _watch was *definitely* called before this.
@@ -89,7 +93,6 @@ let DOMIdentity = {
     };
     ppmm.sendAsyncMessage("Identity:Watch:OnLogin", message);
 
-    IdentityService.request(this._pending[0]);
   },
 
   _logout: function(message) {
@@ -97,7 +100,7 @@ let DOMIdentity = {
   },
 
   _beginProvisioning: function(message) {
-    let data = IdentityService._pendingProvisioningData[message.oid];
+    let data = IdentityService._provisioningFlows[message.oid];
 
     ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", {
       identity: data.identity,
@@ -107,7 +110,7 @@ let DOMIdentity = {
   },
 
   _provisioningFailure: function(message) {
-    IdentityService.provisioningFailure(message.reason, message.oid);
+    IdentityService.raiseProvisioningFailure(message.oid, message.reason);
   }
 };
 

@@ -46,8 +46,15 @@ interface nsIDOMIdentity : nsISupports
    * UI that will require user action. When an assertion is successfully
    * obtained, the onlogin callback as registered via a preceiding call to
    * watch() will be invoked.
+   *
+   * Valid properties for the options objects are:
+   *   requiredEmail
+   *   privacyURL
+   *   tosURL
+   *   oncancel
+   *
    */
-  void request();
+  void request([optional] in jsval options);
 
 
   void logout(/* TODO: in nsIDOMIdentityLogoutCallback aCallback */);

@@ -33,7 +33,7 @@ let SignInToWebsiteUX = {
       case "identity-request":
         // XXX: as a hack just use the most recent window for now
         let win = Services.wm.getMostRecentWindow('navigator:browser');
-        this.requestLogin(win);
+        this.requestLogin(aSubject, win);
         break;
       case "identity-login":
         break;
@@ -45,7 +45,7 @@ let SignInToWebsiteUX = {
     }
   },
 
-  requestLogin: function(aWin) {
+  requestLogin: function(aOptions, aWin) {
     let browser = aWin.gBrowser;
     let selectedBrowser = browser.selectedBrowser;
     // Message is only used to pass the origin. signOut relies on this atm.
@@ -64,8 +64,13 @@ let SignInToWebsiteUX = {
       },
     };
     let secondaryActions = [];
-    aWin.PopupNotifications.show(selectedBrowser, "identity-request", message, "identity-notification-icon", mainAction,
-                                secondaryActions, options);
+    let reqNot = aWin.PopupNotifications.show(selectedBrowser, "identity-request", message,
+                                              "identity-notification-icon", mainAction,
+                                              secondaryActions, options);
+    if (aOptions) {
+      aOptions.QueryInterface(Ci.nsIPropertyBag);
+      reqNot.requestID = aOptions.getProperty("requestID");
+    }
   },
 
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
@@ -89,7 +94,7 @@ let SignInToWebsiteUX = {
     let windowID = authWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
     dump("authWin outer id: " + windowID + "\n");
 
-    IdentityService.setPendingAuthenticationData(windowID, aContext);
+    IdentityService.setAuthenticationFlow(windowID, aContext);
   }
 };
 

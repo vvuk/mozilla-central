@@ -37,16 +37,26 @@ nsDOMIdentity.prototype = {
     cpmm.sendAsyncMessage("Identity:Watch", message);
   },
 
-  request: function() {
+  request: function(aOptions) {
     // Has the caller called watch() before this?
     if (!this._watcher) {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
-    cpmm.sendAsyncMessage("Identity:Request", {
+    // TODO: store aOptions.onCancel callback if present
+
+    let message = {
       oid: this._id,
-      from: this._window.location.href
-    });
+      from: this._window.location.href,
+    };
+
+    if (aOptions) {
+      message.requiredEmail = aOptions.requiredEmail;
+      message.privacyURL = aOptions.privacyURL;
+      message.tosURL = aOptions.tosURL;
+    }
+
+    cpmm.sendAsyncMessage("Identity:Request", message);
   },
 
   logout: function(aCallback) {

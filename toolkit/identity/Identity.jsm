@@ -177,6 +177,15 @@ IDService.prototype = {
     // notify UX to display identity picker
     // pass the doc id to UX so it can pass it back to us later.
     // also pass the options tos and privacy policy, and requiredEmail
+
+    var options = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag);
+    options.setProperty("requestID", aDocId);
+    for (let optionName in ["requiredEmail", "privacyURL", "tosURL"]) {
+      options.setProperty(optionName, aOptions[optionName]);
+    }
+
+    Services.obs.notifyObservers(options, "identity-request", null);
   },
 
   /**
@@ -297,6 +306,8 @@ IDService.prototype = {
    */
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback)
   {
+    // See this._getEndpoints and _fetchWellKnownFile which already fetch the .well-known file
+
     // parse domain out of email address
     
     // look up well-known for that domain
@@ -360,7 +371,7 @@ IDService.prototype = {
     // e.g. in selectIdentity()
     
     /*
-    let identity = this._pendingProvisioningData[aWindowID].identity;
+    let identity = this._provisionFlows[aProvId].identity;
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
         this._beginAuthenticationFlow(identity, aEndpoints.authentication);
@@ -478,6 +489,7 @@ IDService.prototype = {
     // delete context
 
     // invoke callback with success.
+    // * what callback? Spec says to invoke the Provisioning Flow -- MN
   },
 
   /**
@@ -494,6 +506,8 @@ IDService.prototype = {
     // delete context
 
     // invoke callback with ERROR.
+
+    // What callback? Specs says to proceed to Provisioning Hard-Fail. -- MN
   },
 
   // methods for chrome and add-ons
@@ -588,6 +602,13 @@ IDService.prototype = {
     return rv;
   },
 
+  /**
+   * Called by the UI to set the ID and context for the authentication flow after it gets its ID
+   */
+  setAuthenticationFlow: function(aAuthID, aContext) {
+    this._authenticationFlows[aAuthID] = aContext;
+  },
+
   get securityLevel() {
     return 1;
   },
@@ -604,7 +625,6 @@ IDService.prototype = {
   // Private.
   _registry: { },
   _endpoints: { },
-  _pendingProvisioningData: { },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -751,6 +771,7 @@ IDService.prototype = {
    * for secondary authorization and provisioning provided by BrowserID/Persona.
    */
   // XXX this looks not great with side-effect instead of just functional.
+  //  -- it's for caching purposes since we shouldn't expect the caller to known how to cache the endpoint
   _getEndpoints: function _getEndpoints(email, aCallback)
   {
     log("_getEndpoints\n");
@@ -810,7 +831,7 @@ IDService.prototype = {
       dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
       let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
       let context = {identity: aIdentity, securityLevel: this.securityLevel/*TODO: remove?*/, authenticationDone: false /* TODO */};
-      IdentityService._pendingProvisioningData[utils.outerWindowID] = context;
+      IdentityService._provisionFlows[utils.outerWindowID] = context;
       dump("_beginProvisioningFlow: " + utils.outerWindowID + "\n");
     }.bind(this));
   },
@@ -838,6 +859,7 @@ IDService.prototype = {
         this.shutdown();
         break;
       case "identity-login": // User chose a new or exiting identity after a request() call
+        let window = aSubject;
         let identity = aData; // String
         if (!identity) // TODO: validate email format
           throw new Error("Invalid identity chosen");
