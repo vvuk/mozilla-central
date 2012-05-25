@@ -101,6 +101,10 @@ SHARED_LIBRARY_LIBS 	+= \
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/gfx/2d/$(LIB_PREFIX)gfx2d.$(LIB_SUFFIX) \
 	$(NULL)
+  
+ifdef MOZ_ENABLE_SKIA
+SHARED_LIBRARY_LIBS += $(MOZ_SKIA_LIBS)
+endif
 
 ifdef MOZ_WEBRTC
 include $(topsrcdir)/media/webrtc/shared_libs.mk
@@ -108,6 +112,7 @@ endif
 
 ifeq (WINNT,$(OS_TARGET))
 EXTRA_DSO_LDOPTS = $(MOZALLOC_LIB) $(NSPR_LIBS)
+OS_LIBS += $(call EXPAND_LIBNAME,usp10)
 
 # OTS uses uncompress2() from libz, so we need to link with this
 ifdef MOZ_NATIVE_ZLIB
@@ -119,7 +124,6 @@ endif
 ifdef MOZ_WEBRTC
 EXTRA_DSO_LDOPTS += \
   -LIBPATH:"$(MOZ_DIRECTX_SDK_PATH)/lib/$(MOZ_DIRECTX_SDK_CPU_SUFFIX)" \
-  $(JPEG_LIBS) \
   $(NULL)
 OS_LIBS += $(call EXPAND_LIBNAME,secur32 crypt32 iphlpapi strmiids dmoguids wmcodecdspuuid amstrmid msdmo wininet)
 endif

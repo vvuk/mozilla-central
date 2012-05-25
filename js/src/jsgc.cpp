@@ -1109,8 +1109,8 @@ MarkConservativeStackRoots(JSTracer *trc, bool useSavedRoots)
 void
 MarkStackRangeConservatively(JSTracer *trc, Value *beginv, Value *endv)
 {
-    const uintptr_t *begin = beginv->payloadWord();
-    const uintptr_t *end = endv->payloadWord();
+    const uintptr_t *begin = beginv->payloadUIntPtr();
+    const uintptr_t *end = endv->payloadUIntPtr();
 #ifdef JS_NUNBOX32
     /*
      * With 64-bit jsvals on 32-bit systems, we can optimize a bit by
@@ -1633,8 +1633,7 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
     JSRuntime *rt = comp->rt;
     JS_ASSERT(!rt->gcRunning);
 
-    bool runGC = rt->gcIncrementalState != NO_INCREMENTAL &&
-            (comp->gcBytes > comp->gcTriggerBytes || comp->isTooMuchMalloc());
+    bool runGC = rt->gcIncrementalState != NO_INCREMENTAL && comp->gcBytes > comp->gcTriggerBytes;
     for (;;) {
         if (JS_UNLIKELY(runGC)) {
             PrepareCompartmentForGC(comp);
@@ -2873,7 +2872,7 @@ PurgeRuntime(JSTracer *trc)
 static bool
 ShouldPreserveJITCode(JSCompartment *c, int64_t currentTime)
 {
-    if (!c->rt->hasContexts() || !c->types.inferenceEnabled)
+    if (c->rt->gcShouldCleanUpEverything || !c->types.inferenceEnabled)
         return false;
 
     if (c->rt->alwaysPreserveCode)
@@ -3323,6 +3322,8 @@ AutoGCSession::~AutoGCSession()
     /* Clear gcMallocBytes for all compartments */
     for (CompartmentsIter c(runtime); !c.done(); c.next())
         c->resetGCMallocBytes();
+
+    runtime->resetGCMallocBytes();
 }
 
 static void
@@ -3512,6 +3513,11 @@ BudgetIncrementalGC(JSRuntime *rt, int64_t *budget)
         return;
     }
 
+    if (rt->isTooMuchMalloc()) {
+        *budget = SliceBudget::Unlimited;
+        rt->gcStats.nonincremental("malloc bytes trigger");
+    }
+
     bool reset = false;
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
         if (c->gcBytes > c->gcTriggerBytes) {
@@ -3622,6 +3628,12 @@ IsDeterministicGCReason(gcreason::Reason reason)
 }
 #endif
 
+static bool
+ShouldCleanUpEverything(JSRuntime *rt, gcreason::Reason reason)
+{
+    return !rt->hasContexts() || reason == gcreason::CC_FORCED;
+}
+
 static void
 Collect(JSRuntime *rt, bool incremental, int64_t budget,
         JSGCInvocationKind gckind, gcreason::Reason reason)
@@ -3673,6 +3685,8 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
             collectedCount++;
     }
 
+    rt->gcShouldCleanUpEverything = ShouldCleanUpEverything(rt, reason);
+
     gcstats::AutoGCSlice agc(rt->gcStats, collectedCount, compartmentCount, reason);
 
     do {
@@ -3696,14 +3710,14 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
         }
 
         /* Need to re-schedule all compartments for GC. */
-        if (!rt->hasContexts() && rt->gcPoke)
+        if (rt->gcPoke && rt->gcShouldCleanUpEverything)
             PrepareForFullGC(rt);
 
         /*
          * On shutdown, iterate until finalizers or the JSGC_END callback
          * stop creating garbage.
          */
-    } while (!rt->hasContexts() && rt->gcPoke);
+    } while (rt->gcPoke && rt->gcShouldCleanUpEverything);
 }
 
 namespace js {
@@ -4572,4 +4586,3 @@ js_NewGCXML(JSContext *cx)
     return NewGCThing<JSXML>(cx, js::gc::FINALIZE_XML, sizeof(JSXML));
 }
 #endif
-

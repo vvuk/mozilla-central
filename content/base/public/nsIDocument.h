@@ -92,9 +92,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x8e51e6d9, 0x914d, 0x46ba, \
-  { 0xb3, 0x11, 0x2f, 0x27, 0x3d, 0xe6, 0x0d, 0x19 } }
-
+{ 0x8c6a1e62, 0xd5ad, 0x4297, \
+  { 0xb9, 0x41, 0x64, 0x49, 0x22, 0x2e, 0xc4, 0xf0 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -675,6 +674,12 @@ public:
     return mWindow ? mWindow->GetOuterWindow() : GetWindowInternal();
   }
 
+  bool IsInBackgroundWindow() const
+  {
+    nsPIDOMWindow* outer = mWindow ? mWindow->GetOuterWindow() : nsnull;
+    return outer && outer->IsBackground();
+  }
+  
   /**
    * Return the inner window used as the script compilation scope for
    * this document. If you're not absolutely sure you need this, use
@@ -743,6 +748,14 @@ public:
    * Returns true if this document is in full-screen mode.
    */
   virtual bool IsFullScreenDoc() = 0;
+
+  /**
+   * Sets whether this document is approved for fullscreen mode.
+   * Documents aren't approved for fullscreen until chrome has sent a
+   * "fullscreen-approved" notification with a subject which is a pointer
+   * to the approved document.
+   */
+  virtual void SetApprovedForFullscreen(bool aIsApproved) = 0;
 
   /**
    * Exits all documents from DOM full-screen mode, and moves the top-level

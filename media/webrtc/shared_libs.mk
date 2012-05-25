@@ -1,6 +1,5 @@
 # shared libs for webrtc
 SHARED_LIBRARY_LIBS += \
-        $(MKSHLIB_FORCE_ALL) \
 	$(call EXPAND_LIBNAME_PATH,jingle,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle) \
 	$(call EXPAND_LIBNAME_PATH,srtp,$(DEPTH)/media/webrtc/trunk/third_party/libsrtp/libsrtp_libsrtp) \
 	$(call EXPAND_LIBNAME_PATH,jingle_p2p,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_p2p) \
@@ -44,15 +43,12 @@ SHARED_LIBRARY_LIBS += \
 	$(call EXPAND_LIBNAME_PATH,ns,$(DEPTH)/media/webrtc/trunk/src/modules/modules_ns) \
 	$(call EXPAND_LIBNAME_PATH,yuv,$(DEPTH)/media/webrtc/trunk/third_party/libyuv/libyuv_libyuv) \
         $(call EXPAND_LIBNAME_PATH,expat,$(DEPTH)/media/webrtc/trunk/third_party/expat/expat_expat) \
-        $(MKSHLIB_UNFORCE_ALL) \
 	$(call EXPAND_LIBNAME_PATH,webrtc_jpeg,$(DEPTH)/media/webrtc/trunk/src/common_video/common_video_webrtc_jpeg) \
 	$(NULL)
 
 ifneq ($(OS_TARGET),WINNT)
 SHARED_LIBRARY_LIBS += \
-        $(MKSHLIB_FORCE_ALL) \
 	$(call EXPAND_LIBNAME_PATH,sipcc,$(DEPTH)/media/webrtc/signaling/signaling_sipcc) \
 	$(call EXPAND_LIBNAME_PATH,ecc,$(DEPTH)/media/webrtc/signaling/signaling_ecc) \
-        $(MKSHLIB_UNFORCE_ALL) \
 	$(NULL)
 endif

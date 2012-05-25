@@ -190,8 +190,10 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 #endif
     }
 
+    RootedVarValue key(cx, *vp);
+
     /* If we already have a wrapper for this value, use it. */
-    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(*vp)) {
+    if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(key)) {
         *vp = p->value;
         if (vp->isObject()) {
             RootedVarObject obj(cx, &vp->toObject());
@@ -250,7 +252,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (wrapper->getProto() != proto && !SetProto(cx, wrapper, proto, false))
         return false;
 
-    if (!crossCompartmentWrappers.put(GetProxyPrivate(wrapper), *vp))
+    if (!crossCompartmentWrappers.put(key, *vp))
         return false;
 
     if (!JSObject::setParent(cx, wrapper, global))
@@ -353,9 +355,28 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
     JS_ASSERT(!isCollecting());
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        Value tmp = e.front().key;
-        MarkValueRoot(trc, &tmp, "cross-compartment wrapper");
-        JS_ASSERT(tmp == e.front().key);
+        Value v = e.front().value;
+        if (v.isObject()) {
+            /*
+             * We have a cross-compartment wrapper. Its private pointer may
+             * point into the compartment being collected, so we should mark it.
+             */
+            Value referent = GetProxyPrivate(&v.toObject());
+            MarkValueRoot(trc, &referent, "cross-compartment wrapper");
+            JS_ASSERT(referent == GetProxyPrivate(&v.toObject()));
+        } else {
+            /*
+             * Strings don't have a private pointer to mark, so we use the
+             * wrapper map key. (This does not work for wrappers because, in the
+             * case of Location objects, the wrapper map key is not the same as
+             * the proxy private slot. If we only marked the wrapper map key, we
+             * would miss same-compartment wrappers for Location objects.)
+             */
+            JS_ASSERT(v.isString());
+            Value v = e.front().key;
+            MarkValueRoot(trc, &v, "cross-compartment wrapper");
+            JS_ASSERT(v == e.front().key);
+        }
     }
 }
 
@@ -530,13 +551,17 @@ JSCompartment::purge()
 void
 JSCompartment::resetGCMallocBytes()
 {
-    gcMallocBytes = gcMaxMallocBytes;
+    gcMallocBytes = ptrdiff_t(gcMaxMallocBytes);
 }
 
 void
 JSCompartment::setGCMaxMallocBytes(size_t value)
 {
-    gcMaxMallocBytes = value;
+    /*
+     * For compatibility treat any value that exceeds PTRDIFF_T_MAX to
+     * mean that value.
+     */
+    gcMaxMallocBytes = (ptrdiff_t(value) >= 0) ? value : size_t(-1) >> 1;
     resetGCMallocBytes();
 }
 
