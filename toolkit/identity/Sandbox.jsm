@@ -67,14 +67,15 @@ Sandbox.prototype = {
   
   _createSandbox: function _createSandbox(aCallback) {
     let self = this;
-    this._frame.addEventListener(
-      "DOMContentLoaded",
+    this._container.addEventListener(
+      "DOMWindowCreated",
       function _makeSandboxContentLoaded(event) {
+        dump("_makeSandboxContentLoaded  " +event.target+ "\n");
         if (event.target.location.toString() != self._url) {
           return;
         }
         event.target.removeEventListener(
-          "DOMContentLoaded", _makeSandboxContentLoaded, false
+          "DOMWindowCreated", _makeSandboxContentLoaded, false
         );
 /* TODO
         let workerWindow = self._frame.contentWindow;

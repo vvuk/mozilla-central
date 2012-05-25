@@ -13,6 +13,7 @@ let Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService",];
 
@@ -349,11 +350,24 @@ IDService.prototype = {
     };
   },
 
+  get securityLevel() {
+    return 1;
+  },
+
+  get certDuration() {
+    switch(this.securityLevel) {
+      default:
+        return 3600;
+    }
+  },
+
   // TODO: need helper to logout of all sites for SITB?
 
   // Private.
   _registry: { },
   _endpoints: { },
+  _pendingProvisioningData: { },
+  _pendingAuthenticationData: { },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -549,10 +563,15 @@ IDService.prototype = {
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
    */
-  _beginProvisioningFlow: function _beginProvisioning(aURL)
+  _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL)
   {
-    // TODO: do something with toolkit/identity/Sandbox.jsm
-    Services.obs.notifyObservers(null, "identity-auth", aURL); // HACK: loading prov. in visible window for now
+    new Sandbox(aURL, function(aSandbox) {
+      dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
+      let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
+      let context = {identity: aIdentity, securityLevel: this.securityLevel/*TODO: remove?*/, authenticationDone: false /* TODO */};
+      IdentityService._pendingProvisioningData[utils.outerWindowID] = context;
+      dump("_beginProvisioningFlow: " + utils.outerWindowID + "\n");
+    }.bind(this));
   },
 
   /**
@@ -586,7 +605,7 @@ IDService.prototype = {
           // begin provisioning
           this._getEndpoints(identity, function(aEndpoints) {
             if (aEndpoints && aEndpoints.provisioning)
-              this._beginProvisioningFlow(aEndpoints.provisioning);
+              this._beginProvisioningFlow(identity, aEndpoints.provisioning);
             else
               throw new Error("Invalid or non-existent provisioning endpoint");
           }.bind(this));

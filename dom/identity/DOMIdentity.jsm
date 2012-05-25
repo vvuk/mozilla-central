@@ -38,6 +38,9 @@ let DOMIdentity = {
       case "Identity:IDP:ProvisioningFailure":
         this._provisioningFailure(msg);
         break;
+      case "Identity:IDP:BeginProvisioning":
+        this._beginProvisioning(msg);
+        break;
     }
   },
 
@@ -56,7 +59,8 @@ let DOMIdentity = {
 
   // Private.
   _init: function() {
-    this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout", "Identity:IDP:ProvisioningFailure"];
+    this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout",
+                     "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -90,6 +94,16 @@ let DOMIdentity = {
 
   _logout: function(message) {
     // TODO: forward to Identity.jsm
+  },
+
+  _beginProvisioning: function(message) {
+    let data = IdentityService._pendingProvisioningData[message.oid];
+
+    ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", {
+      identity: data.identity,
+      cert_duration: IdentityService.certDuration,
+      oid: message.oid,
+    });
   },
 
   _provisioningFailure: function(message) {

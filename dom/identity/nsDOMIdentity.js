@@ -65,19 +65,22 @@ nsDOMIdentity.prototype = {
    */
 
   beginProvisioning: function(aCallback) {
+    dump("DOM beginProvisioning: " + this._id + "\n");
+    this._provisioningCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
       oid: this._id,
       from: this._window.location.href,
     });
+  },
 
-    // HACK: to test UI
-    let identity = "";
-    let certValidityDuration = 3600; // TODO
-    aCallback(identity, certValidityDuration);
+  _callBeginProvisioningCallback: function(message) {
+    let identity = message.identity;
+    let certValidityDuration = message.cert_duration;
+    this._provisioningCallback(identity, certValidityDuration);
   },
 
   genKeyPair: function(aCallback) {
-
+    dump("DOM genKeyPair\n");
   },
 
   registerCertificate: function(aCertificate) {
@@ -100,18 +103,19 @@ nsDOMIdentity.prototype = {
     let msg = aMessage.json;
 
     // Is this message intended for this window?
+/*
     if (msg.oid != this._id) {
       return;
     }
-
-    // Do we have a watcher?
-    let params = this._watcher;
-    if (!params) {
-      return;
-    }
-
+*/
     switch (aMessage.name) {
       case "Identity:Watch:OnLogin":
+        // Do we have a watcher?
+        let params = this._watcher;
+        if (!params) {
+          return;
+        }
+
         if (params.onlogin) {
           params.onlogin(msg.assertion);
         }
@@ -119,6 +123,9 @@ nsDOMIdentity.prototype = {
       case "Identity:Watch:OnLogout":
         break;
       case "Identity:Watch:OnReady":
+        break;
+      case "Identity:IDP:CallBeginProvisioningCallback":
+        this._callBeginProvisioningCallback(msg);
         break;
     }
   },
@@ -133,6 +140,7 @@ nsDOMIdentity.prototype = {
     Services.obs.removeObserver(this, "inner-window-destroyed");       
     this._window = null;
     this._watcher = null;
+    this._provisioningCallback = null;
 
     // Also send message to DOMIdentity.jsm notifiying window is no longer valid
     this._messages.forEach((function(msgName) {
@@ -146,20 +154,22 @@ nsDOMIdentity.prototype = {
 
     // Store window and origin URI.
     this._watcher = null;
+    this._provisioningCallback = null;
     this._window = aWindow;
     this._origin = aWindow.document.nodePrincipal.uri;
 
     // Setup identifiers for current window.
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).
       getInterface(Ci.nsIDOMWindowUtils);
-    this._id = this._getRandomId();
+    this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
 
     // Setup listeners for messages from child process.
     this._messages = [
       "Identity:Watch:OnLogin",
       "Identity:Watch:OnLogout",
-      "Identity:Watch:OnReady"
+      "Identity:Watch:OnReady",
+      "Identity:IDP:CallBeginProvisioningCallback",
     ];
     this._messages.forEach((function(msgName) {
       cpmm.addMessageListener(msgName, this);
