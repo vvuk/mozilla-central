@@ -353,7 +353,7 @@ IDService.prototype = {
         "joe@mockmyid.com",
         "matt@browserid.linuxsecured.net",
       ],
-      lastUsed: "matt@browserid.linuxsecured.net", // or null if a new origin
+      lastUsed: "foo@eyedee.me", // or null if a new origin
     };
   },
 
@@ -536,8 +536,8 @@ IDService.prototype = {
       this._endpoints[emailDomain] = {};
       // TODO: convert to full URI if not already
       // TODO: require HTTPS?
-      this._endpoints[emailDomain].authentication = "http://" + aDomain + aWellKnown.authentication;
-      this._endpoints[emailDomain].provisioning = "http://" + aDomain + aWellKnown.provisioning;
+      this._endpoints[emailDomain].authentication = "https://" + aDomain + aWellKnown.authentication;
+      this._endpoints[emailDomain].provisioning = "https://" + aDomain + aWellKnown.provisioning;
       aCallback(this._endpoints[emailDomain]);
     }.bind(this);
     this._fetchWellKnownFile(emailDomain, onSuccess, function onFailure() {
@@ -554,7 +554,7 @@ IDService.prototype = {
                            .hiddenDOMWindow.XMLHttpRequest;
     var req  = new XMLHttpRequest();
     // TODO: require HTTPS?
-    req.open("GET", "http://" + domain + "/.well-known/browserid", true);
+    req.open("GET", "https://" + domain + "/.well-known/browserid", true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
     req.onreadystatechange = function(oEvent) {
