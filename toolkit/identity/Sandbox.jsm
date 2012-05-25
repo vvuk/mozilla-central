@@ -23,9 +23,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
  * @param cb
  *        (function) Callback to be invoked with a Sandbox, when ready.
  */
-function Sandbox(cb) {
+function Sandbox(aURL, aCallback) {
+  this._url = aURL;
   this._createFrame();
-  this._createSandbox(cb);
+  this._createSandbox(aCallback);
 }
 Sandbox.prototype = {
   /**
@@ -64,30 +65,32 @@ Sandbox.prototype = {
     this._container = doc.documentElement;
   },
   
-  _createSandbox: function _createSandbox(cb) {
+  _createSandbox: function _createSandbox(aCallback) {
     let self = this;
     this._frame.addEventListener(
       "DOMContentLoaded",
       function _makeSandboxContentLoaded(event) {
-        if (event.target.location.toString() != ID_URI) {
+        if (event.target.location.toString() != self._url) {
           return;
         }
         event.target.removeEventListener(
           "DOMContentLoaded", _makeSandboxContentLoaded, false
         );
+/* TODO
         let workerWindow = self._frame.contentWindow;
         self.sandbox = new Cu.Sandbox(workerWindow, {
           wantXrays:        false,
           sandboxPrototype: workerWindow
         });
-        cb(self);
+*/
+        aCallback(self);
       },
       true
     );
 
     // Load the iframe.
-    this._frame.docShell.loadURI(
-      ID_URI,
+    this._frame.webNavigation.loadURI(
+      this._url,
       this._frame.docShell.LOAD_FLAGS_NONE,
       null, // referrer
       null, // postData
