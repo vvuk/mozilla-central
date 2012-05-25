@@ -189,7 +189,7 @@ IDService.prototype = {
      * else
      *   try to authenticate (setting CONTEXT.authenticationDone to true)
      */
-    let identity = "joe@mockmyid.com"; //"foo@eyedee.me"; // HACK: get identity using aWindowID
+    let identity = this._pendingProvisioningData[aWindowID].identity;
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
         this._beginAuthenticationFlow(identity, aEndpoints.authentication);
@@ -347,13 +347,13 @@ IDService.prototype = {
       
     }
 */
-
     return {
       "result": [
         "foo@eyedee.me",
-        "joe@mockmyid.com"
+        "joe@mockmyid.com",
+        "matt@browserid.linuxsecured.net",
       ],
-      lastUsed: "joe@mockmyid.com", // or null if a new origin
+      lastUsed: "matt@browserid.linuxsecured.net", // or null if a new origin
     };
   },
 
@@ -535,8 +535,9 @@ IDService.prototype = {
       // aDomain is the domain that the well-known file was on (not necessarily the email domain for cases 2 & 3)
       this._endpoints[emailDomain] = {};
       // TODO: convert to full URI if not already
-      this._endpoints[emailDomain].authentication = "https://" + aDomain + aWellKnown.authentication;
-      this._endpoints[emailDomain].provisioning = "https://" + aDomain + aWellKnown.provisioning;
+      // TODO: require HTTPS?
+      this._endpoints[emailDomain].authentication = "http://" + aDomain + aWellKnown.authentication;
+      this._endpoints[emailDomain].provisioning = "http://" + aDomain + aWellKnown.provisioning;
       aCallback(this._endpoints[emailDomain]);
     }.bind(this);
     this._fetchWellKnownFile(emailDomain, onSuccess, function onFailure() {
@@ -552,7 +553,8 @@ IDService.prototype = {
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;
     var req  = new XMLHttpRequest();
-    req.open("GET", "https://" + domain + "/.well-known/browserid", true);
+    // TODO: require HTTPS?
+    req.open("GET", "http://" + domain + "/.well-known/browserid", true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
     req.onreadystatechange = function(oEvent) {
