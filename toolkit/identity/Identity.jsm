@@ -513,6 +513,37 @@ IDService.prototype = {
   // methods for chrome and add-ons
 
   /**
+   * Twiddle the login state at an origin
+   * a bit more hackish
+   */
+  getLoginStatus: function getLoginStatus(aOrigin, aCallback)
+  {
+    
+  },
+
+  /**
+   * @param aStatus
+   *        (object) with fields isLoggedIn and identity
+   */
+  setLoginStatus: function setLoginStatus(aOrigin, aStatus, aCallback)
+  {
+    
+  },
+
+  /**
+   * watches for state changes to a particular origin
+   * and invokes callback with a status object
+   *
+   * @param aOrigin
+   * 
+   * @param aCallback
+   */
+  internalWatch: function internalWatch(aOrigin, aCallback)
+  {
+    
+  },
+  
+  /**
    * Obtain a BrowserID assertion with the specified characteristics.
    *
    * @param aCallback
@@ -528,16 +559,7 @@ IDService.prototype = {
    *                            issued. If one could not be obtained, the call
    *                            will fail. If this property is not specified,
    *                            the default email as set by the user will be
-   *                            chosen. If both this property and "sameEmailAs"
-   *                            are set, an exception will be thrown.
-   *
-   *          "sameEmailAs"   : If set, instructs the function to issue an
-   *                            assertion for the same email that was provided
-   *                            to the domain specified by this value. If this
-   *                            information could not be obtained, the call
-   *                            will fail. If both this property and
-   *                            "requiredEmail" are set, an exception will be
-   *                            thrown.
+   *                            chosen.
    *
    *          "audience"      : The audience for which the assertion is to be
    *                            issued. If this property is not set an exception
@@ -545,7 +567,7 @@ IDService.prototype = {
    *
    *        Any properties not listed above will be ignored.
    */
-  getAssertion: function getAssertion(aCallback, aOptions)
+  getAssertion: function getAssertion(aOptions, aCallback)
   {
 
   },
