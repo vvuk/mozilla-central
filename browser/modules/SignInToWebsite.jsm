@@ -23,12 +23,14 @@ let SignInToWebsiteUX = {
     Services.obs.addObserver(this, "identity-request", false);
     Services.obs.addObserver(this, "identity-login", false);
     Services.obs.addObserver(this, "identity-auth", false);
+    Services.obs.addObserver(this, "identity-logged-in", false);
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
     Services.obs.removeObserver(this, "identity-request");
     Services.obs.removeObserver(this, "identity-login");
     Services.obs.removeObserver(this, "identity-auth");
+    Services.obs.removeObserver(this, "identity-logged-in");
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
@@ -45,9 +47,10 @@ let SignInToWebsiteUX = {
         IdentityService.selectIdentity(requestID, identity);
         break;
       case "identity-auth":
-        let authURI = aData;
-        let context = aSubject;
-        this._openAuthenticationUI(authURI, context);
+        this._openAuthenticationUI(aData, aSubject);
+        break;
+      case "identity-logged-in":
+        this._showLoggedInUI(aData, aSubject);
         break;
     }
   },
@@ -55,29 +58,10 @@ let SignInToWebsiteUX = {
   requestLogin: function(aOptions) {
     let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
     log("requestLogin for " + windowID);
-    // XXX: as a hack just use the most recent window for now
-    let someWindow = Services.wm.getMostRecentWindow('navigator:browser');
-    let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindowUtils);
-    let content = windowUtils.getOuterWindowWithId(windowID);
+    let [win, browser, browserEl] = this._getUIForID(windowID);
 
-    let win = null, browser = null;
-    if (content) {
-      browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIWebNavigation)
-                       .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
-      win = browser.ownerDocument.defaultView;
-      if (!win) {
-        log("Could not get a window for requestLogin");
-        return;
-      }
-    } else {
-      log("no content");
-    }
-
-    let selectedBrowser = win.gBrowser.getBrowserForDocument(content.document);
     // Message is only used to pass the origin. signOut relies on this atm.
-    let message = selectedBrowser.currentURI.prePath;
+    let message = browserEl.currentURI.prePath;
     let mainAction = {
       label: "Next",
       accessKey: "i", // TODO
@@ -92,7 +76,7 @@ let SignInToWebsiteUX = {
       },
     };
     let secondaryActions = [];
-    let reqNot = win.PopupNotifications.show(selectedBrowser, "identity-request", message,
+    let reqNot = win.PopupNotifications.show(browserEl, "identity-request", message,
                                               "identity-notification-icon", mainAction,
                                               secondaryActions, options);
     if (aOptions) {
@@ -114,6 +98,31 @@ let SignInToWebsiteUX = {
   },
 
   // Private
+  _getUIForID: function(aWindowID) {
+
+    // XXX: as a hack just use the most recent window for now
+    let someWindow = Services.wm.getMostRecentWindow('navigator:browser');
+    let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils);
+    let content = windowUtils.getOuterWindowWithId(aWindowID);
+
+    if (content) {
+      let browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIWebNavigation)
+                           .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
+      let win = browser.ownerDocument.defaultView;
+      let browserEl = win.gBrowser.getBrowserForDocument(content.document);
+      if (!win) {
+        log("Could not get a window for _getUIForID");
+        return null;
+      }
+      return [win, browser, browserEl];
+    } else {
+      log("no content");
+    }
+    return null;
+  },
+
   _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aContext) {
     // Open a tab/window with aAuthURI with an identifier (aID) attached so that the DOM APIs know this is an auth. window.
     let win = Services.wm.getMostRecentWindow('navigator:browser');
@@ -124,6 +133,31 @@ let SignInToWebsiteUX = {
     log("authWin outer id: " + windowID);
 
     IdentityService.setAuthenticationFlow(windowID, aContext);
-  }
+  },
+
+  _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
+    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+    log("_showLoggedInUI for " + windowID);
+    let [win, browser, browserEl] = this._getUIForID(windowID);
+
+    let message = "Signed in as: " + aIdentity;
+    let mainAction = {
+      label: "Sign Out",
+      accessKey: "o", // TODO
+      callback: function(notification) {
+        log("sign out callback fired");
+        // TODO
+        IdentityService.logout(windowID);
+      },
+    };
+    let secondaryActions = [];
+    let options = {
+      dismissed: true,
+    };
+    let reqNot = win.PopupNotifications.show(browserEl, "identity-logged-in", message,
+                                             "identity-notification-icon", mainAction,
+                                             secondaryActions, options);
+    reqNot.requestID = windowID;
+  },
 };
 

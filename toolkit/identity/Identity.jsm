@@ -139,11 +139,13 @@ IDService.prototype = {
    */
   watch: function watch(loggedInEmail, aDoc)
   {
+    log("watch: " + loggedInEmail + " : " + aDoc);
     // register this new doc
 
     // check if loggedInEmail corresponds to what we think it should be
 
     // if so, call aDoc.do('ready');
+    this.loginStateChanged(aDoc, loggedInEmail);
 
     // if should be logged in but isn't, go generate assertion, then fire login.
     // this._generateAssertion(aDoc.origin, storedIdentity, cb)
@@ -178,7 +180,7 @@ IDService.prototype = {
     // pass the doc id to UX so it can pass it back to us later.
     // also pass the options tos and privacy policy, and requiredEmail
 
-    var options = Cc["@mozilla.org/hash-property-bag;1"].
+    let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("requestID", aDocId);
     for (let optionName in ["requiredEmail", "privacyURL", "tosURL"]) {
@@ -340,7 +342,7 @@ IDService.prototype = {
    */
   logout: function logout(aDocId)
   {
-
+    log("logout of " + aDocId);
   },
 
   /**
@@ -628,6 +630,15 @@ IDService.prototype = {
     return rv;
   },
 
+  loginStateChanged: function loginStateChanged(aDocId, aIdentity) {
+    log("loginStateChanged: " + aDocId + " : " + aIdentity);
+    let options = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag);
+    options.setProperty("requestID", aDocId);
+
+    Services.obs.notifyObservers(options, "identity-logged-in", aIdentity);
+  },
+
   /**
    * Called by the UI to set the ID and context for the authentication flow after it gets its ID
    */
@@ -823,10 +834,10 @@ IDService.prototype = {
   },
 
   _fetchWellKnownFile: function _fetchWellKnownFile(domain, aSuccess, aFailure) {
-    var XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
+    let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;
-    var req  = new XMLHttpRequest();
+    let req  = new XMLHttpRequest();
     // TODO: require HTTPS?
     req.open("GET", "https://" + domain + "/.well-known/browserid", true);
     req.responseType = "json";
@@ -867,7 +878,7 @@ IDService.prototype = {
    */
   _beginAuthenticationFlow: function _beginAuthentication(aIdentity, aURL)
   {
-    var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+    let propBag = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     propBag.setProperty("identity", aIdentity);
 

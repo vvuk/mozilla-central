@@ -75,6 +75,7 @@ let DOMIdentity = {
     // Forward to Identity.jsm and stash the oid somewhere so we can make
     // callback after sending a message to parent process.
     this._pending.push(message.oid);
+    IdentityService.watch(message.loggedIn, message.oid);
   },
 
   _request: function(message) {
