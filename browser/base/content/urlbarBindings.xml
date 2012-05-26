@@ -1266,12 +1266,19 @@
           switch(this.step) {
             case "0":
               let email = document.getAnonymousElementByAttribute(this, "anonid", "email")
-              Services.obs.notifyObservers(window, "identity-login", email.value);
+              var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+                            createInstance(Ci.nsIWritablePropertyBag);
+              propBag.setProperty("requestID", this.notification.requestID);
+              Services.obs.notifyObservers(propBag, "identity-login", email.value);
               break;
             case "1":
               let identity = document.getAnonymousElementByAttribute(this, "anonid", "identities")
               let selected = identity.selectedItem ? identity.selectedItem.label : null;
-              Services.obs.notifyObservers(window, "identity-login", selected);
+              var propBag = Cc["@mozilla.org/hash-property-bag;1"].
+                            createInstance(Ci.nsIWritablePropertyBag);
+              propBag.setProperty("requestID", this.notification.requestID);
+
+              Services.obs.notifyObservers(propBag, "identity-login", selected);
               break;
             default:
               dump("Unknown case\n");

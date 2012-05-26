@@ -100,7 +100,7 @@ let DOMIdentity = {
   },
 
   _beginProvisioning: function(message) {
-    let data = IdentityService._provisioningFlows[message.oid];
+    let data = IdentityService._provisionFlows[message.oid];
 
     ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", {
       identity: data.identity,

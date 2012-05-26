@@ -212,6 +212,7 @@ IDService.prototype = {
    */
   selectIdentity: function selectIdentity(aDocId, aIdentity)
   {
+    log("selectIdentity: for request " + aDocId + " and " + aIdentity);
     // set the state of login for the doc origin to be logged in as that identity
     
     // go generate assertion for this identity and deliver it to this doc
@@ -225,7 +226,13 @@ IDService.prototype = {
 
     // using IdP info, we provision
     // this._provisionIdentity(aIdentity, idpParams, cb);
-    
+    this._getEndpoints(aIdentity, function(aEndpoints) {
+      if (aEndpoints && aEndpoints.provisioning)
+        this._beginProvisioningFlow(aIdentity, aEndpoints.provisioning);
+      else
+        throw new Error("Invalid or non-existent provisioning endpoint");
+    }.bind(this));
+
     // if fail on callback, need to authentication
     // this.doAuthentication(aIdentity, idpParams, cb)
 
@@ -369,8 +376,6 @@ IDService.prototype = {
     
     // we probably do the below code at a higher level,
     // e.g. in selectIdentity()
-    
-    /*
     let identity = this._provisionFlows[aProvId].identity;
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
@@ -378,7 +383,6 @@ IDService.prototype = {
       else
         throw new Error("Invalid or non-existent authentication endpoint");
     }.bind(this));
-    */
 
   },
 
@@ -879,25 +883,6 @@ IDService.prototype = {
         Services.obs.removeObserver(this, "quit-application-granted", false);
         Services.obs.removeObserver(this, "identity-login", false);
         this.shutdown();
-        break;
-      case "identity-login": // User chose a new or exiting identity after a request() call
-        let window = aSubject;
-        let identity = aData; // String
-        if (!identity) // TODO: validate email format
-          throw new Error("Invalid identity chosen");
-        // aData is the email address chosen (TODO: or null if cancelled?)
-        // TODO: either do the authentication or provisioning flow depending on the email
-        // TODO: is this correct to assume that if the identity is in the store that we don't need to re-provision?
-        let storedID = this._store.fetchIdentity(identity);
-        if (!storedID) {
-          // begin provisioning
-          this._getEndpoints(identity, function(aEndpoints) {
-            if (aEndpoints && aEndpoints.provisioning)
-              this._beginProvisioningFlow(identity, aEndpoints.provisioning);
-            else
-              throw new Error("Invalid or non-existent provisioning endpoint");
-          }.bind(this));
-        }
         break;
     }
   },

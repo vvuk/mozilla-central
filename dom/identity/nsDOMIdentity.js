@@ -26,6 +26,7 @@ nsDOMIdentity.prototype = {
    */
 
   watch: function(params) {
+    dump("Called watch for ID " + this._id + "\n");
     // Latest watch call wins in case site makes multiple calls.
     this._watcher = params;
 
