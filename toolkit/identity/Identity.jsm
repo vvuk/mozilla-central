@@ -344,6 +344,7 @@ IDService.prototype = {
   logout: function logout(aDocId)
   {
     log("logout of " + aDocId);
+    this.loginStateChanged(aDocId, null);
     DOMIdentity.onLogout(aDocId);
   },
 

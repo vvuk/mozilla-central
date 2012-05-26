@@ -50,7 +50,10 @@ let SignInToWebsiteUX = {
         this._openAuthenticationUI(aData, aSubject);
         break;
       case "identity-logged-in":
-        this._showLoggedInUI(aData, aSubject);
+        if (aData) // if there is en email address
+          this._showLoggedInUI(aData, aSubject);
+        else
+          this._removeLoggedInUI(aSubject);
         break;
     }
   },
@@ -154,10 +157,20 @@ let SignInToWebsiteUX = {
     let options = {
       dismissed: true,
     };
-    let reqNot = win.PopupNotifications.show(browserEl, "identity-logged-in", message,
-                                             "identity-notification-icon", mainAction,
-                                             secondaryActions, options);
-    reqNot.requestID = windowID;
+    let loggedInNot = win.PopupNotifications.show(browserEl, "identity-logged-in", message,
+                                                  "identity-notification-icon", mainAction,
+                                                  secondaryActions, options);
+    loggedInNot.requestID = windowID;
+  },
+
+  _removeLoggedInUI: function _removeLoggedInUI(aContext) {
+    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+    log("_removeLoggedInUI for " + windowID);
+    let [win, browser, browserEl] = this._getUIForID(windowID);
+
+    let loggedInNot = win.PopupNotifications.getNotification("identity-logged-in", browserEl);
+    if (loggedInNot)
+      win.PopupNotifications.remove(loggedInNot);
   },
 };
 
