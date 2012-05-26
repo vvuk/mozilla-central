@@ -14,6 +14,7 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
+Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService",];
 
@@ -343,6 +344,7 @@ IDService.prototype = {
   logout: function logout(aDocId)
   {
     log("logout of " + aDocId);
+    DOMIdentity.onLogout(aDocId);
   },
 
   /**

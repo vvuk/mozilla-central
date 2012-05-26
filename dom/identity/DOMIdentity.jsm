@@ -68,13 +68,13 @@ let DOMIdentity = {
 
     Services.obs.addObserver(this, "xpcom-shutdown", false);
 
-    this._pending = [];
+    this._pending = {};
   },
 
   _watch: function(message) {
     // Forward to Identity.jsm and stash the oid somewhere so we can make
     // callback after sending a message to parent process.
-    this._pending.push(message.oid);
+    this._pending[message.oid] = true;
     IdentityService.watch(message.loggedIn, message.oid);
   },
 
@@ -82,14 +82,14 @@ let DOMIdentity = {
     // Forward to Identity.jsm and stash oid somewhere?
 
 
-    IdentityService.request(this._pending[0], message);
+    IdentityService.request(message.oid, message);
 
 
     // Oh look we got a fake assertion back from the JSM, send it onward.
-    let message = { 
+    let message = {
       // Should not be empty because _watch was *definitely* called before this.
       // Right? Right.
-      oid: this._pending[0],
+      oid: message.oid,
       assertion: "fake.jwt.token"
     };
     ppmm.sendAsyncMessage("Identity:Watch:OnLogin", message);
@@ -97,7 +97,15 @@ let DOMIdentity = {
   },
 
   _logout: function(message) {
-    // TODO: forward to Identity.jsm
+    IdentityService.logout(message.oid);
+  },
+
+  onLogout: function(oid) {
+    // TODO: check rv above and then fire onlogout?
+    let message = {
+      oid: oid,
+    };
+    ppmm.sendAsyncMessage("Identity:Watch:OnLogout", message);
   },
 
   _beginProvisioning: function(message) {

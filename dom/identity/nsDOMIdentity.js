@@ -121,18 +121,33 @@ nsDOMIdentity.prototype = {
     switch (aMessage.name) {
       case "Identity:Watch:OnLogin":
         // Do we have a watcher?
-        let params = this._watcher;
-        if (!params) {
+        if (!this._watcher) {
           return;
         }
 
-        if (params.onlogin) {
-          params.onlogin(msg.assertion);
+        if (this._watcher.onlogin) {
+          this._watcher.onlogin(msg.assertion);
         }
         break;
       case "Identity:Watch:OnLogout":
+        // Do we have a watcher?
+        if (!this._watcher) {
+          return;
+        }
+
+        if (this._watcher.onlogout) {
+          this._watcher.onlogout();
+        }
         break;
       case "Identity:Watch:OnReady":
+        // Do we have a watcher?
+        if (!this._watcher) {
+          return;
+        }
+
+        if (this._watcher.onready) {
+          this._watcher.onready();
+        }
         break;
       case "Identity:IDP:CallBeginProvisioningCallback":
         this._callBeginProvisioningCallback(msg);
