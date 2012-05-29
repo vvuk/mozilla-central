@@ -102,14 +102,7 @@ function IDService()
 {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
-  this._store = new IDServiceStore();
-
-  // the documents that have called .watch()
-  this._docs = {};
-
-  // tracking ongoing flows
-  this._provisionFlows = {};
-  this._authenticationFlows = {};
+  this.reset();
 
  /* Sample data */
   [
@@ -184,7 +177,7 @@ IDService.prototype = {
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("requestID", aDocId);
-    for (let optionName in ["requiredEmail", "privacyURL", "tosURL"]) {
+    for (let optionName of ["requiredEmail", "privacyURL", "tosURL"]) {
       options.setProperty(optionName, aOptions[optionName]);
     }
 
@@ -900,6 +893,19 @@ IDService.prototype = {
         break;
     }
   },
+
+  reset: function reset()
+  {
+    // the store of identities
+    this._store = new IDServiceStore();
+    
+    // the documents that have called .watch()
+    this._docs = {};
+    
+    // tracking ongoing flows
+    this._provisionFlows = {};
+    this._authenticationFlows = {};
+  }
 };
 
 var IdentityService = new IDService();

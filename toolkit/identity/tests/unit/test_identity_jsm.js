@@ -213,9 +213,9 @@ function test_id_store()
 function setup_test_identity(cb)
 {
   // set up the store so that we're supposed to be logged in
+  IDService.reset();
   let store = get_idstore();
-  store.reset();
-
+  
   makeObserver("id-service-key-gen-finished", function (aSubject, aTopic, aData) {
     let key = JSON.parse(aData);
     let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
@@ -344,9 +344,7 @@ function test_watch_notloggedin_ready()
 {
   do_test_pending();
 
-  // set up the store so that we're not logged in
-  let store = get_idstore();
-  store.reset();
+  IDService.reset();
 
   IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
     do_check_eq(action, 'ready');
@@ -361,9 +359,7 @@ function test_watch_notloggedin_logout()
 {
   do_test_pending();
 
-  // set up the store so that we're not logged in
-  let store = get_idstore();
-  store.reset();
+  IDService.reset();
 
   IDService.watch(TEST_USER, mock_doc(TEST_URL, call_sequentially(
     function(action, params) {
@@ -382,12 +378,37 @@ function test_watch_notloggedin_logout()
 
 function test_request()
 {
+  do_test_pending();
   
+  // set up a watch, to be consistent
+  var mockedDoc = mock_doc(TEST_URL, function(action, params) {
+    // this isn't going to be called for now.
+  });
+  
+  IDService.watch(null, mockedDoc);
+
+  // be ready for the UX identity-request notification
+  makeObserver("identity-request", function (aSubject, aTopic, aData) {
+    do_check_neq(aSubject, null);
+    try {
+      var s = aSubject.QueryInterface(Ci.nsIPropertyBag);
+      do_check_eq(s.getProperty('requiredEmail'), TEST_USER);
+      do_check_eq(s.getProperty('requestID'), mockedDoc.id);
+    } catch (x) {
+      log(x);
+    }
+    
+    do_test_finished();
+    run_next_test();
+  });
+
+  IDService.request(mockedDoc.id, {requiredEmail: TEST_USER});
 }
 
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
+TESTS = TESTS.concat([test_request]);
 TESTS.forEach(add_test);
 
 function run_test()
