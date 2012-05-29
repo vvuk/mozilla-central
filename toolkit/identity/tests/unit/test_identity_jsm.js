@@ -224,6 +224,8 @@ function setup_test_identity(cb)
 
     cb(TEST_USER);
   });
+
+  IDService._generateKeyPair("DS160", TEST_URL, TEST_USER);
 }
 
 // create a mock "doc" object, which the Identity Service
