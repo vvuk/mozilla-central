@@ -237,6 +237,32 @@ function mock_doc(aOrigin, aDoFunc)
   return mockedDoc;
 }
 
+// takes a list of functions and returns a function that
+// when called the first time, calls the first func,
+// then the next time the second, etc.
+function call_sequentially()
+{
+  var numCalls = 0;
+  var funcs = arguments;
+
+  return function() {
+    funcs[numCalls].apply(funcs[numCalls],arguments);
+    numCalls += 1;
+  };
+}
+
+function test_mock_doc()
+{
+  do_test_pending();
+  var mockedDoc = mock_doc(TEST_URL, function(action, params) {
+    do_check_eq(action, 'fun');
+    do_test_finished();
+    run_next_test();
+  });
+
+  mockedDoc.do('fun');
+}
+
 function test_watch_loggedin_ready()
 {
   do_test_pending();
@@ -266,15 +292,22 @@ function test_watch_loggedin_login()
     
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
-    
-    IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
-      do_check_eq(action, 'login');
-      do_check_neq(params, null);
-      do_check_neq(params.assertion, null);
-      
-      do_test_finished();
-      run_next_test();
-    }));
+
+    // check for first a login() call, then a ready() call
+    IDService.watch(null, mock_doc(TEST_URL, call_sequentially(
+      function(action, params) {
+        do_check_eq(action, 'login');
+        do_check_neq(params, null);
+        do_check_neq(params.assertion, null);
+      },
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, null);
+
+        do_test_finished();
+        run_next_test();
+      }
+    )));
   });
 }
 
@@ -288,14 +321,20 @@ function test_watch_loggedin_logout()
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
     
-    IDService.watch("otherid@foo.com", mock_doc(TEST_URL, function(action, params) {
-      do_check_eq(action, 'login');
-      do_check_neq(params, null);
-      do_check_neq(params.assertion, null);
-      
-      do_test_finished();
-      run_next_test();
-    }));
+    IDService.watch("otherid@foo.com", mock_doc(TEST_URL, call_sequentially(
+      function(action, params) {
+        do_check_eq(action, 'login');
+        do_check_neq(params, null);
+        do_check_neq(params.assertion, null);
+      },
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, null);
+
+        do_test_finished();
+        run_next_test();        
+      }
+    )));
   });
 }
 
@@ -304,8 +343,8 @@ function test_request()
   
 }
 
-var TESTS = [test_overall, test_rsa, test_dsa, test_id_store];
-TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login]);
+var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
+TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS.forEach(add_test);
 
 function run_test()
