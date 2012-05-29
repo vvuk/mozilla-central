@@ -19,6 +19,28 @@ const TEST_CERT = "fake-cert";
 
 const ALGORITHMS = { RS256: 1, DS160: 2, };
 
+// mimicking callback funtionality for ease of testing
+// this observer auto-removes itself after the observe function
+// is called, so this is meant to observe only ONE event.
+function makeObserver(aObserveTopic, aObserveFunc)
+{
+  let observer = {
+    // nsISupports provides type management in C++
+    // nsIObserver is to be an observer
+    QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+    
+    observe: function (aSubject, aTopic, aData)
+    {
+      if (aTopic == aObserveTopic) {
+        aObserveFunc(aSubject, aTopic, aData);
+        Services.obs.removeObserver(observer, aObserveTopic);
+      }
+    }
+  };
+
+  Services.obs.addObserver(observer, aObserveTopic, false);
+}
+
 let idObserver = {
   // nsISupports provides type management in C++
   // nsIObserver is to be an observer
@@ -47,57 +69,67 @@ let idObserver = {
 // but maybe a cb interface would work well here, tbd.
 Services.obs.addObserver(idObserver, "id-service-key-gen-finished", false);
 
-function checkRsa(kpo)
-{
-  do_check_true(kpo.sign != null);
-  do_check_true(typeof kpo.sign == "function");
-  do_check_true(kpo.userID != null);
-  do_check_true(kpo.url != null);
-  do_check_true(kpo.url == TEST_URL);
-  do_check_true(kpo.publicKey != null);
-  do_check_true(kpo.exponent != null);
-  do_check_true(kpo.modulus != null);
-
-  // TODO: should sign be async?
-  let sig = kpo.sign("This is a message to sign");
-
-  do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
-
-  do_test_finished();
-  run_next_test();
-}
-
-function checkDsa(kpo)
-{
-  do_check_true(kpo.sign != null);
-  do_check_true(typeof kpo.sign == "function");
-  do_check_true(kpo.userID != null);
-  do_check_true(kpo.url != null);
-  do_check_true(kpo.url == TEST_URL2);
-  do_check_true(kpo.publicKey != null);
-  do_check_true(kpo.generator != null);
-  do_check_true(kpo.prime != null);
-  do_check_true(kpo.subPrime != null);
-
-  let sig = kpo.sign("This is a message to sign");
-
-  do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
-
-  // Services.obs.removeObserver(idObserver, "id-service-key-gen-finished");
-
-  do_test_finished();
-  run_next_test();
-}
-
 function test_rsa()
 {
   do_test_pending();
+  makeObserver("id-service-key-gen-finished", function checkRSA(aSubject, aTopic, aData) {
+    var kpo;
+    // now we can pluck the keyPair from the store
+    let key = JSON.parse(aData);
+    kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+    do_check_true(kpo != undefined);
+    do_check_true(kpo.algorithm == ALGORITHMS.RS256);
+
+    do_check_true(kpo.sign != null);
+    do_check_true(typeof kpo.sign == "function");
+    do_check_true(kpo.userID != null);
+    do_check_true(kpo.url != null);
+    do_check_true(kpo.url == TEST_URL);
+    do_check_true(kpo.publicKey != null);
+    do_check_true(kpo.exponent != null);
+    do_check_true(kpo.modulus != null);
+    
+    // TODO: should sign be async?
+    let sig = kpo.sign("This is a message to sign");
+    
+    do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
+    
+    do_test_finished();
+    run_next_test();
+  });
+  
   IDService._generateKeyPair("RS256", TEST_URL, TEST_USER);
 }
 
 function test_dsa()
 {
   do_test_pending();
+  makeObserver("id-service-key-gen-finished", function checkDSA(aSubject, aTopic, aData) {
+    var kpo;
+    // now we can pluck the keyPair from the store
+    let key = JSON.parse(aData);
+    kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+    do_check_true(kpo != undefined);
+    do_check_true(kpo.algorithm == ALGORITHMS.DS160);
+
+    do_check_true(kpo.sign != null);
+    do_check_true(typeof kpo.sign == "function");
+    do_check_true(kpo.userID != null);
+    do_check_true(kpo.url != null);
+    do_check_true(kpo.url == TEST_URL2);
+    do_check_true(kpo.publicKey != null);
+    do_check_true(kpo.generator != null);
+    do_check_true(kpo.prime != null);
+    do_check_true(kpo.subPrime != null);
+    
+    let sig = kpo.sign("This is a message to sign");
+    
+    do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
+    
+    do_test_finished();
+    run_next_test();
+  });
+  
   IDService._generateKeyPair("DS160", TEST_URL2, TEST_USER);
 }
 
@@ -152,9 +184,16 @@ function test_id_store()
   run_next_test();
 }
 
-function test_watch()
+function setup_test_identity()
 {
-  
+  // set up the store so that we're supposed to be logged in
+  let store = IDService._store;
+  store.reset();
+}
+
+function test_watch_loggedin()
+{
+  setup_test_identity();
 }
 
 function test_request()
