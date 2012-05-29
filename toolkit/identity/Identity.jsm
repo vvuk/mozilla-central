@@ -519,16 +519,16 @@ IDService.prototype = {
    * Twiddle the login state at an origin
    * a bit more hackish
    */
-  getLoginStatus: function getLoginStatus(aOrigin, aCallback)
+  getLoginState: function getLoginState(aOrigin, aCallback)
   {
     
   },
 
   /**
-   * @param aStatus
+   * @param aState
    *        (object) with fields isLoggedIn and identity
    */
-  setLoginStatus: function setLoginStatus(aOrigin, aStatus, aCallback)
+  setLoginState: function setLoginState(aOrigin, aState, aCallback)
   {
     
   },
