@@ -9,12 +9,12 @@
 #include "nsAccessibilityService.h"
 #include "nsARIAMap.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
+#include "DocAccessible.h"
 #include "nsHyperTextAccessible.h"
 #include "nsIAccessibleTypes.h"
-#include "nsTextAccessible.h"
 #include "Role.h"
 #include "States.h"
+#include "TextLeafAccessible.h"
 
 #include "nsIDOMXULContainerElement.h"
 #include "nsIDOMXULSelectCntrlEl.h"
@@ -273,7 +273,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
     nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
 
   // Get text accessible containing the result node.
-  nsDocAccessible* doc = 
+  DocAccessible* doc = 
     GetAccService()->GetDocAccessible(resultNode->OwnerDoc());
   nsAccessible* accessible = doc ? 
     doc->GetAccessibleOrContainer(resultNode) : nsnull;
@@ -372,7 +372,7 @@ nsAccUtils::GetScreenCoordsForWindow(nsAccessNode *aAccessNode)
 nsIntPoint
 nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
 {
-  nsDocAccessible* document = aAccessNode->Document();
+  DocAccessible* document = aAccessNode->Document();
   nsAccessible* parent = document->GetContainerAccessible(aAccessNode->GetNode());
   if (!parent)
     return nsIntPoint(0, 0);
@@ -421,8 +421,8 @@ nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible* aAccessible)
     return true;
 
   bool foundText = false;
-  PRInt32 childCount = aAccessible->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+  PRUint32 childCount = aAccessible->ChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible* child = aAccessible->GetChildAt(childIdx);
     if (IsText(child)) {
       foundText = true;
@@ -447,7 +447,7 @@ nsAccUtils::TextLength(nsAccessible *aAccessible)
   if (!IsText(aAccessible))
     return 1;
 
-  nsTextAccessible* textLeaf = aAccessible->AsTextLeaf();
+  TextLeafAccessible* textLeaf = aAccessible->AsTextLeaf();
   if (textLeaf)
     return textLeaf->Text().Length();
 

@@ -23,10 +23,9 @@ const PRUint32 kDefaultTreeCacheSize = 256;
 class nsXULTreeAccessible : public nsAccessibleWrap
 {
 public:
-  using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
 
-  nsXULTreeAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -44,7 +43,7 @@ public:
                                      EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
-  virtual PRInt32 GetChildCount();
+  virtual PRUint32 ChildCount() const;
 
   // SelectAccessible
   virtual bool IsSelect();
@@ -131,7 +130,7 @@ class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 public:
   using nsAccessible::GetParent;
 
-  nsXULTreeItemAccessibleBase(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeItemAccessibleBase(nsIContent* aContent, DocAccessible* aDoc,
                               nsAccessible* aParent, nsITreeBoxObject* aTree,
                               nsITreeView* aTreeView, PRInt32 aRow);
 
@@ -225,7 +224,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeItemAccessibleBase,
 class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeItemAccessible(nsIContent* aContent, DocAccessible* aDoc,
                           nsAccessible* aParent, nsITreeBoxObject* aTree,
                           nsITreeView* aTreeView, PRInt32 aRow);
 
@@ -262,7 +261,7 @@ protected:
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible
 {
 public:
-  nsXULTreeColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULTreeColumnsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
 protected:
 

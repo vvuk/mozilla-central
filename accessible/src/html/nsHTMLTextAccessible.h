@@ -6,27 +6,8 @@
 #ifndef _nsHTMLTextAccessible_H_
 #define _nsHTMLTextAccessible_H_
 
-#include "nsTextAccessibleWrap.h"
 #include "nsAutoPtr.h"
 #include "nsBaseWidgetAccessible.h"
-
-/**
- * Used for text nodes within HTML document.
- */
-class nsHTMLTextAccessible : public nsTextAccessibleWrap
-{
-public:
-  nsHTMLTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // nsAccessible
-  virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual mozilla::a11y::role NativeRole();
-  virtual PRUint64 NativeState();
-};
 
 /**
  * Used for HTML hr element.
@@ -34,7 +15,7 @@ public:
 class nsHTMLHRAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLHRAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLHRAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
@@ -46,7 +27,7 @@ public:
 class nsHTMLBRAccessible : public nsLeafAccessible
 {
 public:
-  nsHTMLBRAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLBRAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
@@ -60,7 +41,7 @@ public:
 class nsHTMLLabelAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLLabelAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLLabelAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -75,7 +56,7 @@ public:
 class nsHTMLOutputAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLOutputAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLOutputAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_ISUPPORTS_INHERITED
 

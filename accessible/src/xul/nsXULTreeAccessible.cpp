@@ -9,7 +9,7 @@
 #include "nsAccCache.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
+#include "DocAccessible.h"
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
@@ -32,7 +32,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeAccessible::
-  nsXULTreeAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
+  nsXULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
   mFlags |= eXULTreeAccessible;
@@ -187,7 +187,7 @@ nsXULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
-  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
+  nsIPresShell* presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
   NS_ENSURE_TRUE(rootFrame, nsnull);
@@ -428,22 +428,19 @@ nsXULTreeAccessible::SelectAll()
 nsAccessible*
 nsXULTreeAccessible::GetChildAt(PRUint32 aIndex)
 {
-  PRInt32 childCount = nsAccessible::GetChildCount();
-  if (childCount == -1)
-    return nsnull;
-
-  if (static_cast<PRInt32>(aIndex) < childCount)
+  PRUint32 childCount = nsAccessible::ChildCount();
+  if (aIndex < childCount)
     return nsAccessible::GetChildAt(aIndex);
 
   return GetTreeItemAccessible(aIndex - childCount);
 }
 
-PRInt32
-nsXULTreeAccessible::GetChildCount()
+PRUint32
+nsXULTreeAccessible::ChildCount() const
 {
-  // tree's children count is row count + treecols count.
-  PRInt32 childCount = nsAccessible::GetChildCount();
-  if (childCount == -1 || !mTreeView)
+  // Tree's children count is row count + treecols count.
+  PRUint32 childCount = nsAccessible::ChildCount();
+  if (!mTreeView)
     return childCount;
 
   PRInt32 rowCount = 0;
@@ -561,7 +558,7 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
   if (aCount > 0)
     return;
 
-  nsDocAccessible* document = Document();
+  DocAccessible* document = Document();
 
   // Fire destroy event for removed tree items and delete them from caches.
   for (PRInt32 rowIdx = aRow; rowIdx < aRow - aCount; rowIdx++) {
@@ -690,7 +687,7 @@ nsXULTreeAccessible::CreateTreeItemAccessible(PRInt32 aRow)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeItemAccessibleBase::
-  nsXULTreeItemAccessibleBase(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeItemAccessibleBase(nsIContent* aContent, DocAccessible* aDoc,
                               nsAccessible* aParent, nsITreeBoxObject* aTree,
                               nsITreeView* aTreeView, PRInt32 aRow) :
   nsAccessibleWrap(aContent, aDoc),
@@ -1111,7 +1108,7 @@ nsXULTreeItemAccessibleBase::GetCellName(nsITreeColumn* aColumn,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeItemAccessible::
-  nsXULTreeItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeItemAccessible(nsIContent* aContent, DocAccessible* aDoc,
                           nsAccessible* aParent, nsITreeBoxObject* aTree,
                           nsITreeView* aTreeView, PRInt32 aRow) :
   nsXULTreeItemAccessibleBase(aContent, aDoc, aParent, aTree, aTreeView, aRow)
@@ -1220,7 +1217,7 @@ nsXULTreeItemAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeColumnsAccessible::
-  nsXULTreeColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
+  nsXULTreeColumnsAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsXULColumnsAccessible(aContent, aDoc)
 {
 }

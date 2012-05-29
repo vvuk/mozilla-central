@@ -23,13 +23,9 @@
 #include "States.h"
 #include "StyleInfo.h"
 
-#include "nsIDOMCSSValue.h"
-#include "nsIDOMCSSPrimitiveValue.h"
+#include "nsContentUtils.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMDocumentXBL.h"
-#include "nsIDOMHTMLDocument.h"
-#include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMTreeWalker.h"
@@ -159,7 +155,7 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   return nsAccessNodeWrap::QueryInterface(aIID, aInstancePtr);
 }
 
-nsAccessible::nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
+nsAccessible::nsAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsAccessNodeWrap(aContent, aDoc),
   mParent(nsnull), mIndexInParent(-1), mFlags(eChildrenUninitialized),
   mIndexOfEmbeddedChild(-1), mRoleMapEntry(nsnull)
@@ -485,12 +481,7 @@ nsAccessible::GetFirstChild(nsIAccessible **aFirstChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
-
-  if (childCount > 0)
-    NS_ADDREF(*aFirstChild = GetChildAt(0));
-
+  NS_IF_ADDREF(*aFirstChild = FirstChild());
   return NS_OK;
 }
 
@@ -504,10 +495,7 @@ nsAccessible::GetLastChild(nsIAccessible **aLastChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
-
-  NS_IF_ADDREF(*aLastChild = GetChildAt(childCount - 1));
+  NS_IF_ADDREF(*aLastChild = LastChild());
   return NS_OK;
 }
 
@@ -520,13 +508,10 @@ nsAccessible::GetChildAt(PRInt32 aChildIndex, nsIAccessible **aChild)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
-
   // If child index is negative, then return last child.
   // XXX: do we really need this?
   if (aChildIndex < 0)
-    aChildIndex = childCount - 1;
+    aChildIndex = ChildCount() - 1;
 
   nsAccessible* child = GetChildAt(aChildIndex);
   if (!child)
@@ -546,15 +531,13 @@ nsAccessible::GetChildren(nsIArray **aOutChildren)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  PRInt32 childCount = GetChildCount();
-  NS_ENSURE_TRUE(childCount != -1, NS_ERROR_FAILURE);
-
   nsresult rv = NS_OK;
   nsCOMPtr<nsIMutableArray> children =
     do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+  PRUint32 childCount = ChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsIAccessible* child = GetChildAt(childIdx);
     children->AppendElement(child, false);
   }
@@ -578,8 +561,8 @@ nsAccessible::GetChildCount(PRInt32 *aChildCount)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  *aChildCount = GetChildCount();
-  return *aChildCount != -1 ? NS_OK : NS_ERROR_FAILURE;  
+  *aChildCount = ChildCount();
+  return NS_OK;
 }
 
 /* readonly attribute long indexInParent; */
@@ -665,7 +648,7 @@ nsAccessible::NativeState()
 {
   PRUint64 state = 0;
 
-  nsDocAccessible* document = Document();
+  DocAccessible* document = Document();
   if (!document || !document->IsInDocument(this))
     state |= states::STALE;
 
@@ -775,7 +758,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   // therefore accessible for containing block may be different from accessible
   // for DOM parent but GetFrameForPoint() should be called for containing block
   // to get an out of flow element.
-  nsDocAccessible* accDocument = Document();
+  DocAccessible* accDocument = Document();
   NS_ENSURE_TRUE(accDocument, nsnull);
 
   nsIFrame *frame = accDocument->GetFrame();
@@ -787,7 +770,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   nsPoint offset(presContext->DevPixelsToAppUnits(aX) - screenRect.x,
                  presContext->DevPixelsToAppUnits(aY) - screenRect.y);
 
-  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
+  nsIPresShell* presShell = presContext->PresShell();
   nsIFrame *foundFrame = presShell->GetFrameForPoint(frame, offset);
 
   nsIContent* content = nsnull;
@@ -796,7 +779,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 
   // Get accessible for the node with the point or the first accessible in
   // the DOM parent chain.
-  nsDocAccessible* contentDocAcc = GetAccService()->
+  DocAccessible* contentDocAcc = GetAccService()->
     GetDocAccessible(content->OwnerDoc());
 
   // contentDocAcc in some circumstances can be NULL. See bug 729861
@@ -814,9 +797,9 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     // where layout won't walk into things for us, such as image map areas and
     // sub documents (XXX: subdocuments should be handled by methods of
     // OuterDocAccessibles).
-    PRInt32 childCount = GetChildCount();
-    for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-      nsAccessible *child = GetChildAt(childIdx);
+    PRUint32 childCount = ChildCount();
+    for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+      nsAccessible* child = GetChildAt(childIdx);
 
       PRInt32 childX, childY, childWidth, childHeight;
       child->GetBounds(&childX, &childY, &childWidth, &childHeight);
@@ -1679,13 +1662,8 @@ nsAccessible::Value(nsString& aValue)
     return;
 
   // Check if it's a simple xlink.
-  if (nsCoreUtils::IsXLink(mContent)) {
-    nsIPresShell* presShell = mDoc->PresShell();
-    if (presShell) {
-      nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mContent));
-      presShell->GetLinkLocation(DOMNode, aValue);
-    }
-  }
+  if (nsCoreUtils::IsXLink(mContent))
+    nsContentUtils::GetLinkLocation(mContent->AsElement(), aValue);
 }
 
 // nsIAccessibleValue
@@ -1830,9 +1808,9 @@ nsAccessible::NativeRole()
   return nsCoreUtils::IsXLink(mContent) ? roles::LINK : roles::NOTHING;
 }
 
-// readonly attribute PRUint8 numActions
+// readonly attribute PRUint8 actionCount
 NS_IMETHODIMP
-nsAccessible::GetNumActions(PRUint8* aActionCount)
+nsAccessible::GetActionCount(PRUint8* aActionCount)
 {
   NS_ENSURE_ARG_POINTER(aActionCount);
   *aActionCount = 0;
@@ -2113,20 +2091,12 @@ nsAccessible::RelationByType(PRUint32 aType)
             }
           }
           if (!buttonEl) { // Check for anonymous accept button in <dialog>
-            nsCOMPtr<nsIDOMDocumentXBL> xblDoc(do_QueryInterface(xulDoc));
-            if (xblDoc) {
-              nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(xulDoc);
-              NS_ASSERTION(domDoc, "No DOM document");
-              nsCOMPtr<nsIDOMElement> rootEl;
-              domDoc->GetDocumentElement(getter_AddRefs(rootEl));
-              if (rootEl) {
-                nsCOMPtr<nsIDOMElement> possibleButtonEl;
-                xblDoc->GetAnonymousElementByAttribute(rootEl,
-                                                      NS_LITERAL_STRING("default"),
-                                                      NS_LITERAL_STRING("true"),
-                                                      getter_AddRefs(possibleButtonEl));
-                buttonEl = do_QueryInterface(possibleButtonEl);
-              }
+            dom::Element* rootElm = mContent->OwnerDoc()->GetRootElement();
+            if (rootElm) {
+              nsIContent* possibleButtonEl = rootElm->OwnerDoc()->
+                GetAnonymousElementByAttribute(rootElm, nsGkAtoms::_default,
+                                               NS_LITERAL_STRING("true"));
+              buttonEl = do_QueryInterface(possibleButtonEl);
             }
           }
           nsCOMPtr<nsIContent> relatedContent(do_QueryInterface(buttonEl));
@@ -2674,8 +2644,8 @@ nsAccessible::GetChildAt(PRUint32 aIndex)
   return child;
 }
 
-PRInt32
-nsAccessible::GetChildCount()
+PRUint32
+nsAccessible::ChildCount() const
 {
   return mChildren.Length();
 }
@@ -2692,16 +2662,16 @@ nsAccessible::IndexInParent() const
   return mIndexInParent;
 }
 
-PRInt32
-nsAccessible::GetEmbeddedChildCount()
+PRUint32
+nsAccessible::EmbeddedChildCount()
 {
   if (IsChildrenFlag(eMixedChildren)) {
     if (!mEmbeddedObjCollector)
       mEmbeddedObjCollector = new EmbeddedObjCollector(this);
-    return mEmbeddedObjCollector ? mEmbeddedObjCollector->Count() : -1;
+    return mEmbeddedObjCollector->Count();
   }
 
-  return GetChildCount();
+  return ChildCount();
 }
 
 nsAccessible*
@@ -2971,7 +2941,7 @@ nsAccessible::CurrentItem()
     nsIDocument* DOMDoc = mContent->OwnerDoc();
     dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
     if (activeDescendantElm) {
-      nsDocAccessible* document = Document();
+      DocAccessible* document = Document();
       if (document)
         return document->GetAccessible(activeDescendantElm);
     }
@@ -3017,7 +2987,7 @@ nsAccessible::ContainerWidget() const
 void
 nsAccessible::CacheChildren()
 {
-  nsDocAccessible* doc = Document();
+  DocAccessible* doc = Document();
   NS_ENSURE_TRUE(doc,);
 
   nsAccTreeWalker walker(doc, mContent, CanHaveAnonChildren());
@@ -3078,7 +3048,8 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError) const
     return nsnull;
   }
 
-  if (aError && mIndexInParent + aOffset >= mParent->GetChildCount()) {
+  if (aError &&
+      mIndexInParent + aOffset >= static_cast<PRInt32>(mParent->ChildCount())) {
     *aError = NS_OK; // fail peacefully
     return nsnull;
   }
@@ -3253,8 +3224,8 @@ nsAccessible::GetLevelInternal()
       // If this listitem is on top of nested lists then expose 'level'
       // attribute.
       parent = Parent();
-      PRInt32 siblingCount = parent->GetChildCount();
-      for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
+      PRUint32 siblingCount = parent->ChildCount();
+      for (PRUint32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
         nsAccessible* sibling = parent->GetChildAt(siblingIdx);
 
         nsAccessible* siblingChild = sibling->LastChild();

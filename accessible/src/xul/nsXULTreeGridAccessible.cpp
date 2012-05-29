@@ -8,7 +8,7 @@
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsDocAccessible.h"
+#include "DocAccessible.h"
 #include "nsEventShell.h"
 #include "Relation.h"
 #include "Role.h"
@@ -24,7 +24,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridAccessible::
-  nsXULTreeGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
+  nsXULTreeGridAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   nsXULTreeAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
 }
@@ -549,7 +549,7 @@ nsXULTreeGridAccessible::CreateTreeItemAccessible(PRInt32 aRow)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridRowAccessible::
-  nsXULTreeGridRowAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeGridRowAccessible(nsIContent* aContent, DocAccessible* aDoc,
                              nsAccessible* aTreeAcc, nsITreeBoxObject* aTree,
                              nsITreeView* aTreeView, PRInt32 aRow) :
   nsXULTreeItemAccessibleBase(aContent, aDoc, aTreeAcc, aTree, aTreeView, aRow)
@@ -630,7 +630,7 @@ nsXULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
     return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
-  nsCOMPtr<nsIPresShell> presShell = presContext->PresShell();
+  nsIPresShell* presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
   NS_ENSURE_TRUE(rootFrame, nsnull);
@@ -667,12 +667,9 @@ nsXULTreeGridRowAccessible::GetChildAt(PRUint32 aIndex)
   return GetCellAccessible(column);
 }
 
-PRInt32
-nsXULTreeGridRowAccessible::GetChildCount()
+PRUint32
+nsXULTreeGridRowAccessible::ChildCount() const
 {
-  if (IsDefunct())
-    return -1;
-
   return nsCoreUtils::GetSensibleColumnCount(mTree);
 }
 
@@ -739,7 +736,7 @@ nsXULTreeGridRowAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridCellAccessible::
-  nsXULTreeGridCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
+  nsXULTreeGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc,
                               nsXULTreeGridRowAccessible* aRowAcc,
                               nsITreeBoxObject* aTree, nsITreeView* aTreeView,
                               PRInt32 aRow, nsITreeColumn* aColumn) :
