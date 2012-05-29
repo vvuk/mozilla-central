@@ -340,6 +340,46 @@ function test_watch_loggedin_logout()
   });
 }
 
+function test_watch_notloggedin_ready()
+{
+  do_test_pending();
+
+  // set up the store so that we're not logged in
+  let store = get_idstore();
+  store.reset();
+
+  IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
+    do_check_eq(action, 'ready');
+    do_check_eq(params, undefined);
+    
+    do_test_finished();
+    run_next_test();
+  }));
+}
+
+function test_watch_notloggedin_logout()
+{
+  do_test_pending();
+
+  // set up the store so that we're not logged in
+  let store = get_idstore();
+  store.reset();
+
+  IDService.watch(TEST_USER, mock_doc(TEST_URL, call_sequentially(
+    function(action, params) {
+      do_check_eq(action, 'ready');
+      do_check_eq(params, undefined);
+    },
+    function(action, params) {
+      do_check_eq(action, 'logout');
+      do_check_eq(params, undefined);
+      do_test_finished();
+      run_next_test();
+    }
+  )));
+}
+
+
 function test_request()
 {
   
@@ -347,6 +387,7 @@ function test_request()
 
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
+TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS.forEach(add_test);
 
 function run_test()
