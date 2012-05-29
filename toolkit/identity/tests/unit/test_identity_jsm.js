@@ -68,7 +68,7 @@ let idObserver = {
       // now we can pluck the keyPair from the store
       let key = JSON.parse(aData);
       kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
-      do_check_true(kpo != undefined);
+      do_check_neq(kpo, undefined);
 
       if (kpo.algorithm == ALGORITHMS.RS256) {
         checkRsa(kpo);
@@ -92,22 +92,24 @@ function test_rsa()
     // now we can pluck the keyPair from the store
     let key = JSON.parse(aData);
     kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
-    do_check_true(kpo != undefined);
-    do_check_true(kpo.algorithm == ALGORITHMS.RS256);
+    do_check_neq(kpo, undefined);
+    do_check_eq(kpo.algorithm, ALGORITHMS.RS256);
 
-    do_check_true(kpo.sign != null);
-    do_check_true(typeof kpo.sign == "function");
-    do_check_true(kpo.userID != null);
-    do_check_true(kpo.url != null);
-    do_check_true(kpo.url == TEST_URL);
-    do_check_true(kpo.publicKey != null);
-    do_check_true(kpo.exponent != null);
-    do_check_true(kpo.modulus != null);
+    do_check_neq(kpo.sign, null);
+    do_check_eq(typeof kpo.sign, "function");
+    do_check_neq(kpo.userID, null);
+    do_check_neq(kpo.url, null);
+    do_check_eq(kpo.url, TEST_URL);
+    do_check_neq(kpo.publicKey, null);
+    do_check_neq(kpo.exponent, null);
+    do_check_neq(kpo.modulus, null);
     
     // TODO: should sign be async?
     let sig = kpo.sign("This is a message to sign");
     
-    do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
+    do_check_neq(sig, null);
+    do_check_eq(typeof sig, "string");
+    do_check_true(sig.length > 1);
     
     do_test_finished();
     run_next_test();
@@ -124,22 +126,24 @@ function test_dsa()
     // now we can pluck the keyPair from the store
     let key = JSON.parse(aData);
     kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
-    do_check_true(kpo != undefined);
-    do_check_true(kpo.algorithm == ALGORITHMS.DS160);
+    do_check_neq(kpo, undefined);
+    do_check_eq(kpo.algorithm, ALGORITHMS.DS160);
 
-    do_check_true(kpo.sign != null);
-    do_check_true(typeof kpo.sign == "function");
-    do_check_true(kpo.userID != null);
-    do_check_true(kpo.url != null);
-    do_check_true(kpo.url == TEST_URL2);
-    do_check_true(kpo.publicKey != null);
-    do_check_true(kpo.generator != null);
-    do_check_true(kpo.prime != null);
-    do_check_true(kpo.subPrime != null);
+    do_check_neq(kpo.sign, null);
+    do_check_eq(typeof kpo.sign, "function");
+    do_check_neq(kpo.userID, null);
+    do_check_neq(kpo.url, null);
+    do_check_eq(kpo.url, TEST_URL2);
+    do_check_neq(kpo.publicKey, null);
+    do_check_neq(kpo.generator, null);
+    do_check_neq(kpo.prime, null);
+    do_check_neq(kpo.subPrime, null);
     
     let sig = kpo.sign("This is a message to sign");
     
-    do_check_true(sig != null && typeof sig == "string" && sig.length > 1);
+    do_check_neq(sig, null);
+    do_check_eq(typeof sig, "string");
+    do_check_true(sig.length > 1);
     
     do_test_finished();
     run_next_test();
@@ -150,7 +154,7 @@ function test_dsa()
 
 function test_overall()
 {
-  do_check_true(IDService != null);
+  do_check_neq(IDService, null);
   run_next_test();
 }
 
@@ -167,39 +171,39 @@ function test_id_store()
 
   // try adding an identity
   store.addIdentity(TEST_USER, TEST_PRIVKEY, TEST_CERT);
-  do_check_true(store.getIdentities()[TEST_USER] != null);
-  do_check_true(store.getIdentities()[TEST_USER].cert == TEST_CERT);
+  do_check_neq(store.getIdentities()[TEST_USER], null);
+  do_check_eq(store.getIdentities()[TEST_USER].cert, TEST_CERT);
 
   // clear the cert should keep the identity but not the cert
   store.clearCert(TEST_USER);
-  do_check_true(store.getIdentities()[TEST_USER] != null);
-  do_check_true(store.getIdentities()[TEST_USER].cert == null);
+  do_check_neq(store.getIdentities()[TEST_USER], null);
+  do_check_eq(store.getIdentities()[TEST_USER].cert, null);
   
   // remove it should remove everything
   store.removeIdentity(TEST_USER);
-  do_check_true(store.getIdentities()[TEST_USER] == undefined);
+  do_check_eq(store.getIdentities()[TEST_USER], undefined);
 
   // act like we're logged in to TEST_URL
   store.setLoginState(TEST_URL, true, TEST_USER);
-  do_check_true(store.getLoginState(TEST_URL) != null);
+  do_check_neq(store.getLoginState(TEST_URL), null);
   do_check_true(store.getLoginState(TEST_URL).isLoggedIn);
-  do_check_true(store.getLoginState(TEST_URL).email == TEST_USER);
+  do_check_eq(store.getLoginState(TEST_URL).email, TEST_USER);
 
   // log out
   store.setLoginState(TEST_URL, false, TEST_USER);
-  do_check_true(store.getLoginState(TEST_URL) != null);
+  do_check_neq(store.getLoginState(TEST_URL), null);
   do_check_false(store.getLoginState(TEST_URL).isLoggedIn);
 
   // email is still set
-  do_check_true(store.getLoginState(TEST_URL).email == TEST_USER);
+  do_check_eq(store.getLoginState(TEST_URL).email, TEST_USER);
 
   // not logged into other site
-  do_check_true(store.getLoginState(TEST_URL2) == null);
+  do_check_eq(store.getLoginState(TEST_URL2), null);
 
   // clear login state
   store.clearLoginState(TEST_URL);
-  do_check_true(store.getLoginState(TEST_URL) == null);
-  do_check_true(store.getLoginState(TEST_URL2) == null);
+  do_check_eq(store.getLoginState(TEST_URL), null);
+  do_check_eq(store.getLoginState(TEST_URL2), null);
   
   run_next_test();
 }
@@ -243,10 +247,9 @@ function test_watch_loggedin_ready()
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
     
-    log("about to call watch");
     IDService.watch(id, mock_doc(TEST_URL, function(action, params) {
-      do_check_true(action == 'ready');
-      do_check_true(params == undefined);
+      do_check_eq(action, 'ready');
+      do_check_eq(params, undefined);
       
       do_test_finished();
       run_next_test();
@@ -264,11 +267,31 @@ function test_watch_loggedin_login()
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
     
-    log("about to call watch");
     IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
-      do_check_true(action == 'login');
-      do_check_true(params != null);
-      do_check_true(params.assertion != null);
+      do_check_eq(action, 'login');
+      do_check_neq(params, null);
+      do_check_neq(params.assertion, null);
+      
+      do_test_finished();
+      run_next_test();
+    }));
+  });
+}
+
+function test_watch_loggedin_logout()
+{
+  do_test_pending();
+
+  setup_test_identity(function(id) {
+    let store = get_idstore();
+    
+    // set it up so we're supposed to be logged in to TEST_URL
+    store.setLoginState(TEST_URL, true, id);
+    
+    IDService.watch("otherid@foo.com", mock_doc(TEST_URL, function(action, params) {
+      do_check_eq(action, 'login');
+      do_check_neq(params, null);
+      do_check_neq(params.assertion, null);
       
       do_test_finished();
       run_next_test();
@@ -281,8 +304,8 @@ function test_request()
   
 }
 
-const TESTS = [test_overall, test_rsa, test_dsa, test_id_store,
-               test_watch_loggedin_ready, test_watch_loggedin_login];
+var TESTS = [test_overall, test_rsa, test_dsa, test_id_store];
+TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login]);
 TESTS.forEach(add_test);
 
 function run_test()
