@@ -16,10 +16,10 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
-var EXPORTED_SYMBOLS = ["IdentityService",];
+var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";
 
-const ALGORITHMS = { RS256: 1, DS160: 2, };
+const ALGORITHMS = { RS256: 1, DS160: 2 };
 
 XPCOMUtils.defineLazyGetter(this, "IDKeyPair", function () {
   return Cc["@mozilla.org/identityservice-keypair;1"].
@@ -121,7 +121,7 @@ IDService.prototype = {
    *                  is expected to have properties:
    *                  id (unique, e.g. uuid), origin, do(action, params).
    */
-  watch: function watch(loggedInEmail, aDoc)
+  watch: function watch(aLoggedInEmail, aDoc)
   {
     this._docs[aDoc.id] = aDoc;
 
@@ -664,8 +664,8 @@ IDService.prototype = {
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
    * provides all of the public key properties needed by a JW* formatted object
    *
-   * @param string aAlgorithm
-   *        Either RS256: "1" or DS160: "2", see constant ALGORITHMS above
+   * @param string aAlgorithmName
+   *        Either RS256 or DS160 (keys to constant ALGORITHMS above)
    * @param string aOrigin
    *        a 'prepath' url, ex: https://www.mozilla.org:1234/
    * @param string aUserID
@@ -675,10 +675,11 @@ IDService.prototype = {
    *          "id-service-key-gen-finished" when the keypair is ready.
    *          Access to the keypair is via the getIdentityServiceKeyPair() method
    **/
-  _generateKeyPair: function _generateKeyPair(aAlgorithm, aOrigin, aUserID)
+  _generateKeyPair: function _generateKeyPair(aAlgorithmName, aOrigin, aUserID)
   {
-    if (!ALGORITHMS[aAlgorithm]) {
-      throw new Error("IdentityService: Unsupported algorithm");
+    let alg = ALGORITHMS[aAlgorithmName];
+    if (! alg) {
+      throw new Error("IdentityService: Unsupported algorithm: " + aAlgorithmName);
     }
 
     var self = this;
@@ -697,7 +698,6 @@ IDService.prototype = {
 
       keyPairGenFinished: function (aKeyPair)
       {
-        let alg = ALGORITHMS[aAlgorithm];
         let url = Services.io.newURI(aOrigin, null, null).prePath;
         let id = uuid();
         var keyWrapper;
@@ -742,7 +742,7 @@ IDService.prototype = {
       },
     };
 
-    IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithm], new keyGenCallback());
+    IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithmName], new keyGenCallback());
   },
 
   /**
