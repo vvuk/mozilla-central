@@ -78,6 +78,7 @@ CPPSRCS = \
 
 DIRS = \
   test \
+  third_party \
   $(NULL)
 
 #CPP_UNIT_TESTS = \

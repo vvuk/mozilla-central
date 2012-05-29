@@ -9045,6 +9045,20 @@ if test -n "$MOZ_WEBRTC"; then
    if test "$?" != 0; then
       AC_MSG_ERROR([failed to generate gtest Makefiles])
    fi
+
+   AC_MSG_RESULT("generating nrappkit Makefiles...")
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+     --depth=${srcdir}/media/webrtc/trunk \
+     -D build_with_mozilla=1 \
+     $EXTRA_GYP_DEFINES \
+     --generator-output=${_objdir}/media/mtransport/third_party/nrappkit \
+     --toplevel-dir=${srcdir} \
+     -G OBJDIR=${_objdir} \
+     ${srcdir}/media/mtransport/third_party/nrappkit/nrappkit.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate gtest Makefiles])
+   fi
+
 fi
 
 # Generate a JSON config file for unittest harnesses etc to read
