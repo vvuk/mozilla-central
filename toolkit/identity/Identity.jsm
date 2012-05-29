@@ -17,6 +17,7 @@ Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService",];
+var FALLBACK_PROVIDER = "browserid.org";
 
 const ALGORITHMS = { RS256: 1, DS160: 2, };
 
@@ -122,21 +123,29 @@ IDService.prototype = {
    */
   watch: function watch(loggedInEmail, aDoc)
   {
-    log("watch: " + loggedInEmail + " : " + aDoc);
-    // register this new doc
+    this._docs[aDoc.id] = aDoc;
 
-    // check if loggedInEmail corresponds to what we think it should be
+    let origin = aDoc.origin;
+    let state = this._store.getLoginState(origin);
 
-    // if so, call aDoc.do('ready');
-    this.loginStateChanged(aDoc, loggedInEmail);
+    if (state.isLoggedIn && state.email === aLoggedInEmail) {
+      return aDoc.do('ready');
 
     // if should be logged in but isn't, go generate assertion, then fire login.
-    // this._generateAssertion(aDoc.origin, storedIdentity, cb)
+    } else {
+      this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
 
-    // if not possible
-    // then we go discover IdP
-    // and provision
-    // but we don't authenticate
+        // XXX to do ...
+        //
+        // if not possible
+        // then we go discover IdP
+        // and provision
+        // but we don't authenticate
+
+      }.bind(this));
+    }
+
+    // XXX (jp) in progress ...
 
     // see selectIdentity for most of this (might need to be refactored out.)
 
@@ -145,6 +154,9 @@ IDService.prototype = {
 
     // if should be logged out but is logged in, fire logout.
     // aDoc.do('logout');
+    //
+    // stays silent - no UI stuff follows
+    
   },
 
   /**
