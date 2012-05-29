@@ -24,6 +24,18 @@ let SignInToWebsiteUX = {
     Services.obs.addObserver(this, "identity-login", false);
     Services.obs.addObserver(this, "identity-auth", false);
     Services.obs.addObserver(this, "identity-logged-in", false);
+
+    /* Sample data */
+    [
+      "foo@eyedee.me",
+      "joe@mockmyid.com",
+      "matt@browserid.linuxsecured.net",
+    ].forEach(function(identity) {
+      IdentityService._store.addIdentity(identity, null, "cert for " + identity);
+    }, this);
+
+    IdentityService._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
+
   },
 
   uninit: function SignInToWebsiteUX_uninit() {

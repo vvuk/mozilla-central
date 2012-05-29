@@ -103,17 +103,6 @@ function IDService()
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
   this.reset();
-
- /* Sample data */
-  [
-    "foo@eyedee.me",
-    "joe@mockmyid.com",
-    "matt@browserid.linuxsecured.net",
-  ].forEach(function(identity) {
-    this._store.addIdentity(identity, null, "cert for " + identity);
-  }, this);
-
-  this._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
 }
 
 IDService.prototype = {
