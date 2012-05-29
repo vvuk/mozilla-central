@@ -11,6 +11,21 @@ XPCOMUtils.defineLazyGetter(this, "IDService", function (){
   return scope.IdentityService;
 });
 
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "uuidGenerator",
+                                   "@mozilla.org/uuid-generator;1",
+                                   "nsIUUIDGenerator");
+
+function uuid()
+{
+  return uuidGenerator.generateUUID();
+}
+
+function log(aMsg)
+{
+  dump("IDService-Testing: " + aMsg + "\n");
+}
+
 const TEST_URL = "https://myfavoritebacon.com";
 const TEST_URL2 = "https://myfavoritebaconinacan.com";
 const TEST_USER = "user@mozilla.com";
@@ -139,11 +154,16 @@ function test_overall()
   run_next_test();
 }
 
+function get_idstore()
+{
+  return IDService._store;
+}
+
 function test_id_store()
 {
   // XXX - this is ugly, peaking in like this into IDService
   // probably should instantiate our own.
-  var store = IDService._store;
+  var store = get_idstore();
 
   // try adding an identity
   store.addIdentity(TEST_USER, TEST_PRIVKEY, TEST_CERT);
@@ -184,16 +204,76 @@ function test_id_store()
   run_next_test();
 }
 
-function setup_test_identity()
+// set up the ID service with an identity with keypair and all
+// when ready, invoke callback with the identity
+function setup_test_identity(cb)
 {
   // set up the store so that we're supposed to be logged in
-  let store = IDService._store;
+  let store = get_idstore();
   store.reset();
+
+  makeObserver("id-service-key-gen-finished", function (aSubject, aTopic, aData) {
+    let key = JSON.parse(aData);
+    let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+
+    store.addIdentity(TEST_USER, kpo, "fake-cert");
+
+    cb(TEST_USER);
+  });
 }
 
-function test_watch_loggedin()
+// create a mock "doc" object, which the Identity Service
+// uses as a pointer back into the doc object
+function mock_doc(aOrigin, aDoFunc)
 {
-  setup_test_identity();
+  var mockedDoc = {};
+  mockedDoc.id = uuid();
+  mockedDoc.origin = aOrigin;
+  mockedDoc['do'] = aDoFunc;
+  return mockedDoc;
+}
+
+function test_watch_loggedin_ready()
+{
+  do_test_pending();
+
+  setup_test_identity(function(id) {
+    let store = get_idstore();
+    
+    // set it up so we're supposed to be logged in to TEST_URL
+    store.setLoginState(TEST_URL, true, id);
+    
+    log("about to call watch");
+    IDService.watch(id, mock_doc(TEST_URL, function(action, params) {
+      do_check_true(action == 'ready');
+      do_check_true(params == undefined);
+      
+      do_test_finished();
+      run_next_test();
+    }));
+  });
+}
+
+function test_watch_loggedin_login()
+{
+  do_test_pending();
+
+  setup_test_identity(function(id) {
+    let store = get_idstore();
+    
+    // set it up so we're supposed to be logged in to TEST_URL
+    store.setLoginState(TEST_URL, true, id);
+    
+    log("about to call watch");
+    IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
+      do_check_true(action == 'login');
+      do_check_true(params != null);
+      do_check_true(params.assertion != null);
+      
+      do_test_finished();
+      run_next_test();
+    }));
+  });
 }
 
 function test_request()
@@ -201,7 +281,8 @@ function test_request()
   
 }
 
-const TESTS = [test_overall, test_rsa, test_dsa, test_id_store];
+const TESTS = [test_overall, test_rsa, test_dsa, test_id_store,
+               test_watch_loggedin_ready, test_watch_loggedin_login];
 TESTS.forEach(add_test);
 
 function run_test()
