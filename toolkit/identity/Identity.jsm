@@ -157,8 +157,20 @@ IDService.prototype = {
 
         
       } else {
-        // not logged in; ready
-        aDoc.do('ready');        
+        // No loggedInEmail declared
+        // Is there an identity we can already use for this site?
+        let identities = this.getIdentitiesForSite(aDoc.origin);
+        // XXX is this ok?
+        let identity = identities.lastUsed || identities.result[0] || null;
+        if (!! identity) {
+          this._generateAssertion(origin, identity, function(err, assertion) {
+            aDoc.do('login', {assertion: assertion});
+            aDoc.do('ready');
+          });
+        } else {
+          // not logged in; no identity; ready
+          aDoc.do('ready');        
+        }
       }
     }
 
@@ -366,9 +378,8 @@ IDService.prototype = {
    */
   logout: function logout(aDocId)
   {
-    log("logout of " + aDocId);
-    this.loginStateChanged(aDocId, null);
-    DOMIdentity.onLogout(aDocId);
+    this._docs[aDocId].do('logout');
+    delete this._docs[aDocId];
   },
 
   /**
@@ -645,7 +656,6 @@ IDService.prototype = {
    * Return the list of identities a user may want to use to login to aOrigin.
    */
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
-    log("getIdentitiesForSite: " + aOrigin);
     let rv = { result: [] };
     for (let id in this._store.getIdentities()) {
       rv.result.push(id);
@@ -654,15 +664,6 @@ IDService.prototype = {
     if (loginState && loginState.email)
       rv.lastUsed = loginState.email;
     return rv;
-  },
-
-  loginStateChanged: function loginStateChanged(aDocId, aIdentity) {
-    log("loginStateChanged: " + aDocId + " : " + aIdentity);
-    let options = Cc["@mozilla.org/hash-property-bag;1"].
-                  createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("requestID", aDocId);
-
-    Services.obs.notifyObservers(options, "identity-logged-in", aIdentity);
   },
 
   /**
