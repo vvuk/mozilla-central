@@ -555,6 +555,31 @@ function test_begin_provisioning()
     });
 }
 
+function test_raise_provisioning_failure()
+{
+  do_test_pending();
+
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      // call .beginProvisioning()
+      IDService.beginProvisioning(provId);
+    }, function(err) {
+      // this should be invoked with a populated error
+      do_check_neq(err, null);
+      do_check_true(err.indexOf("can't authenticate this email") > -1);
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        // raise the failure as if we can't provision this email
+        IDService.raiseProvisioningFailure("can't authenticate this email");
+      }
+    });
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
@@ -565,8 +590,7 @@ TESTS.push(test_logout);
 
 // provisioning tests
 TESTS.push(test_begin_provisioning);
-
-// TESTS.push(test_begin_provisioning);
+TESTS.push(test_raise_provisioning_failure);
 
 TESTS.forEach(add_test);
 
