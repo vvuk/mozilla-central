@@ -390,13 +390,9 @@ function test_request()
   // be ready for the UX identity-request notification
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
     do_check_neq(aSubject, null);
-    try {
-      var s = aSubject.QueryInterface(Ci.nsIPropertyBag);
-      do_check_eq(s.getProperty('requiredEmail'), TEST_USER);
-      do_check_eq(s.getProperty('requestID'), mockedDoc.id);
-    } catch (x) {
-      log(x);
-    }
+    var subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
+    do_check_eq(subj.getProperty('requiredEmail'), TEST_USER);
+    do_check_eq(subj.getProperty('requestID'), mockedDoc.id);
     
     do_test_finished();
     run_next_test();
@@ -418,11 +414,57 @@ function test_add_identity()
   run_next_test();
 }
 
+function test_select_identity()
+{
+  do_test_pending();
+  
+  setup_test_identity(function(id) {
+    var gotAssertion = false;
+    var mockedDoc = mock_doc(TEST_URL, call_sequentially(
+      // first the login call
+      function(action, params) {
+        do_check_eq(action, 'login');
+        do_check_neq(params.assertion, null);
+
+        // XXX - check that the assertion is for the right email
+        
+        gotAssertion = true;
+      },
+      // then the ready call
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, null);
+
+        // we should have gotten the assertion already
+        do_check_true(gotAssertion);
+
+        do_test_finished();
+        run_next_test();
+      }));
+
+    // register the callbacks
+    IDService.watch(null, mockedDoc);
+
+    // register the request UX observer
+    makeObserver("identity-request", function (aSubject, aTopic, aData) {
+      // do the select identity
+      // we expect this to succeed right away because of test_identity
+      // so we don't mock network requests or otherwise
+      IDService.selectIdentity(aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty('requestID'), id);
+    });
+
+    // do the request
+    IDService.request(mockedDoc.id, {});
+  });
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
-TESTS = TESTS.concat([test_request]);
-TESTS = TESTS.concat([test_add_identity]);
+TESTS.push(test_request);
+TESTS.push(test_add_identity);
+TESTS.push(test_select_identity);
+
 TESTS.forEach(add_test);
 
 function run_test()
