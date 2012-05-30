@@ -493,25 +493,66 @@ function test_logout()
   });  
 }
 
-function test_begin_provisioning()
+/*
+ * Setup a provisioning workflow with appropriate callbacks
+ *
+ * identity is the email we're provisioning.
+ * 
+ * afterSetupCallback is required.
+ *
+ * doneProvisioningCallback is optional, if the caller
+ * wants to be notified when the whole provisioning workflow is done
+ *
+ * frameCallbacks is optional, contains the callbacks that the sandbox
+ * frame would provide in response to DOM calls.
+ */
+function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, frameCallbacks)
 {
   IDService.reset();
-
-  // set up a fake provisioning flow
+  
   var provID = uuid();
   IDService._provisionFlows[provID] = {
-    identity : TEST_USER,
+    identity : identity,
     idpParams: {},
     cb: function() {
-      // done provisioning
+      if (doneProvisioningCallback)
+        doneProvisioningCallback();
     },
     provisioningFrame: {
       beginProvisioningCallback: function(id, duration_s) {
+        if (frameCallbacks && frameCallbacks.beginProvisioningCallback)
+          frameCallbacks.beginProvisioningCallback(id, duration_s);
       },
       genKeyPairCallback: function(pk) {
+        if (frameCallbacks && frameCallbacks.genKeyPairCallback)
+          frameCallbacks.genKeyPairCallback(pk);
       }
     }
   };
+
+  afterSetupCallback(provID);
+}
+
+function test_begin_provisioning()
+{
+  do_test_pending();
+  
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      // call .beginProvisioning()
+      IDService.beginProvisioning(provId);
+    }, function() {},
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        do_check_eq(email, TEST_USER);
+        do_check_true(duration_s > 0);
+        do_check_true(duration_s <= (24 * 3600));
+
+        do_test_finished();
+        run_next_test();
+      }
+    });
 }
 
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
@@ -521,6 +562,9 @@ TESTS.push(test_request);
 TESTS.push(test_add_identity);
 TESTS.push(test_select_identity);
 TESTS.push(test_logout);
+
+// provisioning tests
+TESTS.push(test_begin_provisioning);
 
 // TESTS.push(test_begin_provisioning);
 
