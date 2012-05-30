@@ -55,7 +55,7 @@ IDServiceStore.prototype = {
   fetchIdentity: function fetchIdentity(aEmail) {
     return aEmail in this._identities ? this._identities[aEmail] : null;
   },
-  popIdentity: function popIdentity(aEmail) {
+  removeIdentity: function removeIdentity(aEmail) {
     let data = this._identities[aEmail];
     delete this._identities[aEmail];
     return data;
@@ -125,24 +125,22 @@ IDService.prototype = {
   watch: function watch(aLoggedInEmail, aDoc)
   {
     this._docs[aDoc.id] = aDoc;
-    dump("@@@ doc + " + aDoc.origin + " watch: " + aLoggedInEmail + '\n');
     let origin = aDoc.origin;
     let state = this._store.getLoginState(origin) || {};
 
     if (state.isLoggedIn) {
-      dump("@@@ logged in ; ready1\n");
+      // Logged in; ready
       if (!!state.email && aLoggedInEmail === state.email) {
          aDoc.do('ready');
 
       } else if (aLoggedInEmail === null) {
-        dump("@@@ 2 generate assertion for existing login\n");
+        // Generate assertion for existing login
         this._generateAssertion(origin, state.email, function(err, assertion) {
-          aDoc.do('login');
+          aDoc.do('login', {assertion:assertion});
           aDoc.do('ready');
         });
 
       } else {
-        dump("@@@ 3 change login identity\n");
         // Change login identity
         this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
           aDoc.do('login', {assertion: assertion});
@@ -153,16 +151,12 @@ IDService.prototype = {
     } else {
 
       if (!! aLoggedInEmail) {
-        dump("@@@ 4 should be logged in\n");
-        // Not logged in but should be
-        // Generate an assertion and fire login
-        this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
-          aDoc.do('login', {assertion: assertion});
-          aDoc.do('ready');
-        });
+        // not logged in; logout
+        aDoc.do('ready');
+        aDoc.do('logout');
+
         
       } else {
-        dump ("@@@ 5 not logged in;ready\n");
         // not logged in; ready
         aDoc.do('ready');        
       }
@@ -932,19 +926,10 @@ IDService.prototype = {
 
   reset: function reset()
   {
-    // Send logout to all documents that have called .watch()
-    // wand forget about these documents.
-    for (let docId in this._docs) {
-      if (this._docs.hasOwnProperty(docId)) {
-        let doc = this._docs[docId];
-        dump("@@@ doc  "+ doc.origin + ' ' + docId + " logging out ...\n");
-//        doc.do('logout');
-//        doc.do('ready');
-      }
-    }
+    // Forget all documents
     this._docs = {};
 
-    // the store of identities
+    // Forget all identities
     this._store = new IDServiceStore();
     
     // tracking ongoing flows
