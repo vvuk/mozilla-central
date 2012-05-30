@@ -493,6 +493,27 @@ function test_logout()
   });  
 }
 
+function test_begin_provisioning()
+{
+  IDService.reset();
+
+  // set up a fake provisioning flow
+  var provID = uuid();
+  IDService._provisionFlows[provID] = {
+    identity : TEST_USER,
+    idpParams: {},
+    cb: function() {
+      // done provisioning
+    },
+    provisioningFrame: {
+      beginProvisioningCallback: function(id, duration_s) {
+      },
+      genKeyPairCallback: function(pk) {
+      }
+    }
+  };
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
@@ -500,6 +521,8 @@ TESTS.push(test_request);
 TESTS.push(test_add_identity);
 TESTS.push(test_select_identity);
 TESTS.push(test_logout);
+
+// TESTS.push(test_begin_provisioning);
 
 TESTS.forEach(add_test);
 

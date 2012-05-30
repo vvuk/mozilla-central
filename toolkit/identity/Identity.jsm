@@ -892,7 +892,16 @@ IDService.prototype = {
     this._docs = {};
     
     // tracking ongoing flows
+
+    // a provisioning flow contains
+    // identity, idpParams, cb, provisioningFrame
+    // idpParams includes the normal BrowserID IdP Parameters
+    // cb is just a completion callback for when things are done
+    // provisioningFrame is the provisioning frame pointer
+    // with fields beginProvisioningCallback and genKeyPairCallback.
     this._provisionFlows = {};
+
+    // an authentication flow contains...
     this._authenticationFlows = {};
   }
 };
