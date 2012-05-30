@@ -128,6 +128,11 @@ IDService.prototype = {
     let origin = aDoc.origin;
     let state = this._store.getLoginState(origin) || {};
 
+    // If the user is already logged in, then there are three cases
+    // to deal with
+    // 1. the email is valid and unchanged:  'ready'
+    // 2. the email is null:                 'login'; 'ready'
+    // 3. the email has changed:             'login'; 'ready'
     if (state.isLoggedIn) {
       // Logged in; ready
       if (!!state.email && aLoggedInEmail === state.email) {
@@ -135,26 +140,30 @@ IDService.prototype = {
 
       } else if (aLoggedInEmail === null) {
         // Generate assertion for existing login
-        this._generateAssertion(origin, state.email, function(err, assertion) {
+        let options = {requiredEmail: state.email, audience: origin};
+        this.getAssertion(options, function(err, assertion) {
           aDoc.do('login', {assertion:assertion});
           aDoc.do('ready');
         });
 
       } else {
         // Change login identity
-        this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
+        let options = {requiredEmail: aLoggedInEmail, audience: origin};
+        this.getAssertion(options, function(err, assertion) {
           aDoc.do('login', {assertion: assertion});
           aDoc.do('ready');
         });
       }
 
+    // If the user is not logged in, there are two cases:
+    // 1. a logged in email was provided:                   'ready'; 'logout'
+    // 2. no email provided, but there is an id we can use: 'login'; 'ready'
+    // 3. not logged in, no email given, no id to use:      'ready';
     } else {
-
       if (!! aLoggedInEmail) {
         // not logged in; logout
         aDoc.do('ready');
         aDoc.do('logout');
-
         
       } else {
         // No loggedInEmail declared
@@ -163,7 +172,8 @@ IDService.prototype = {
         // XXX is this ok?
         let identity = identities.lastUsed || identities.result[0] || null;
         if (!! identity) {
-          this._generateAssertion(origin, identity, function(err, assertion) {
+          let options = {requiredEmail: identity, audience: origin};
+          this.getAssertion(options, function(err, assertion) {
             aDoc.do('login', {assertion: assertion});
             aDoc.do('ready');
           });
@@ -173,28 +183,6 @@ IDService.prototype = {
         }
       }
     }
-
-
-        // XXX to do on generateAssertion ...
-        //
-        // if not possible
-        // then we go discover IdP
-        // and provision
-        // but we don't authenticate
-
-
-    // XXX (jp) in progress ...
-
-    // see selectIdentity for most of this (might need to be refactored out.)
-
-    // if all works and we log in
-    // aDoc.do('login', {assertion: assertion});
-
-    // if should be logged out but is logged in, fire logout.
-    // aDoc.do('logout');
-    //
-    // stays silent - no UI stuff follows
-    
   },
 
   /**
@@ -612,6 +600,18 @@ IDService.prototype = {
    */
   getAssertion: function getAssertion(aOptions, aCallback)
   {
+    let email = aOptions.requiredEmail || 'default';
+    let audience = aOptions.audience;
+
+    // XXX todo...
+    // if not possible
+    // then we go discover IdP
+    // and provision
+    // but we don't authenticate
+
+    this._generateAssertion(audience, email, function(err, assertion) {
+      return aCallback(err, assertion);
+    });
 
   },
 
