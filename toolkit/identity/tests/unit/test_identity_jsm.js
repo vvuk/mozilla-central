@@ -405,10 +405,24 @@ function test_request()
   IDService.request(mockedDoc.id, {requiredEmail: TEST_USER});
 }
 
+function test_add_identity()
+{
+  IDService.reset();
+
+  IDService.addIdentity(TEST_USER);
+
+  var identities = IDService.getIdentitiesForSite(TEST_URL);
+  do_check_eq(identities.result.length, 1);
+  do_check_eq(identities.result[0], TEST_USER);
+
+  run_next_test();
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS = TESTS.concat([test_request]);
+TESTS = TESTS.concat([test_add_identity]);
 TESTS.forEach(add_test);
 
 function run_test()
