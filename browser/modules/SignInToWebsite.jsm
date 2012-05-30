@@ -32,7 +32,7 @@ let SignInToWebsiteUX = {
       "matt@browserid.linuxsecured.net",
     ].forEach(function(identity) {
       IdentityService._store.addIdentity(identity, null, "cert for " + identity);
-    }, this);
+    });
 
     IdentityService._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
 
@@ -53,9 +53,10 @@ let SignInToWebsiteUX = {
         break;
       case "identity-login": // User chose a new or exiting identity after a request() call
         let requestID = aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
-        log("identity-login: requestID: " + requestID);
         // aData is the email address chosen (TODO: or null if cancelled?)
         let identity = aData; // String
+
+        log("identity-login: requestID: " + requestID);
         IdentityService.selectIdentity(requestID, identity);
         break;
       case "identity-auth":
@@ -70,6 +71,9 @@ let SignInToWebsiteUX = {
     }
   },
 
+  /**
+   * The website is requesting login so the user must choose an identity to use.
+   */
   requestLogin: function(aOptions) {
     let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
     log("requestLogin for " + windowID);
@@ -101,10 +105,16 @@ let SignInToWebsiteUX = {
     }
   },
 
+  /**
+   * Get the list of possible identities to login to the given origin.
+   */
   getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
     return IdentityService.getIdentitiesForSite(aOrigin);
   },
 
+  /**
+   * User clicked sign out on the given notification.  Notify the identity service.
+   */
   signOut: function signOut(aNotification) {
     // TODO: handle signing out of other tabs for the same domain or let ID service notify those tabs.
     let origin = aNotification.message; // XXX: hack
@@ -113,6 +123,10 @@ let SignInToWebsiteUX = {
   },
 
   // Private
+
+  /**
+   * Return the window, browser and <browser> for the given outer window ID.
+   */
   _getUIForID: function(aWindowID) {
 
     // XXX: as a hack just use the most recent window for now
@@ -138,6 +152,11 @@ let SignInToWebsiteUX = {
     return null;
   },
 
+  /**
+   * Open UI with a content frame displaying aAuthURI so that the user can authenticate with their
+   * IDP.  Then tell Identity.jsm the identifier for the window so that it knows that the DOM API
+   * calls are for this authentication flow.
+   */
   _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aContext) {
     // Open a tab/window with aAuthURI with an identifier (aID) attached so that the DOM APIs know this is an auth. window.
     let win = Services.wm.getMostRecentWindow('navigator:browser');
@@ -150,6 +169,9 @@ let SignInToWebsiteUX = {
     IdentityService.setAuthenticationFlow(windowID, aContext);
   },
 
+  /**
+   * Show a doorhanger indicating the currently logged-in user.
+   */
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
     let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
     log("_showLoggedInUI for " + windowID);
@@ -175,6 +197,9 @@ let SignInToWebsiteUX = {
     loggedInNot.requestID = windowID;
   },
 
+  /**
+   * Remove the doorhanger indicating the currently logged-in user.
+   */
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
     let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
     log("_removeLoggedInUI for " + windowID);
