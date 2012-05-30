@@ -168,9 +168,7 @@ IDService.prototype = {
       } else {
         // No loggedInEmail declared
         // Is there an identity we can already use for this site?
-        let identities = this.getIdentitiesForSite(aDoc.origin);
-        // XXX is this ok?
-        let identity = identities.lastUsed || identities.result[0] || null;
+        let identity = this.getDefaultEmailForOrigin(aDoc.origin);
         if (!! identity) {
           let options = {requiredEmail: identity, audience: origin};
           this.getAssertion(options, function(err, assertion) {
@@ -251,6 +249,7 @@ IDService.prototype = {
 
     // using IdP info, we provision
     // this._provisionIdentity(aIdentity, idpParams, cb);
+
     this._getEndpoints(aIdentity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.provisioning)
         this._beginProvisioningFlow(aIdentity, aEndpoints.provisioning);
@@ -289,14 +288,11 @@ IDService.prototype = {
    */
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
-    // do we have a cert for this identity?
+    let cert = this._store.fetchIdentity(aIdentity)['cert'];
 
-    // if not, error, need to provision
-
-    // if yes, generate the actual assertion using the stored key
-
-    // aCallback(null, assertion);
-    return aCallback(null, "T35T.CERT.FTW~T35T.A553RT10N.W00T");
+    // XXX generate the assertion using the stored key 
+    // XXX here's a dummy assertion for now ...
+    return aCallback(null, "T35T.CERT.FTW~T35T.A553RT10N.W00T"); 
   },
 
   /**
@@ -339,21 +335,22 @@ IDService.prototype = {
    */
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback)
   {
-    // See this._getEndpoints and _fetchWellKnownFile which already fetch the .well-known file
+    let domain = aIdentity.split('@')[1];
 
-    // parse domain out of email address
-    
-    // look up well-known for that domain
-    // follow any authority delegations
+    return aCallback(null, {"some": "params"});
 
-    // if no well-known at any point in the delegation
-    // fall back to browserid.org as IdP
+    // XXX not until we have this mocked in the tests
+    this._fetchWellKnownFile(domain, function(err, idpParams) {
+      // XXX TODO follow any authority delegations
+      // if no well-known at any point in the delegation
+      // fall back to browserid.org as IdP
 
-    // use email-specific delegation if IdP supports it
-    // XXX update spec
+      // XXX TODO use email-specific delegation if IdP supports it
+      // XXX TODO will need to update spec for that
 
-    // idpParams includes pk, authorization, provisioning.
-    // aCallback(null, idpParams);
+      // idpParams includes pk, authorization, provisioning.
+      return aCallback(null, idpParams);
+    });
   },
   
   /**
@@ -600,19 +597,35 @@ IDService.prototype = {
    */
   getAssertion: function getAssertion(aOptions, aCallback)
   {
-    let email = aOptions.requiredEmail || 'default';
     let audience = aOptions.audience;
+    let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
+    // We might not have any identity info for this email
+    // XXX is this right? 
+    // if not, fix generateAssertion, which assumes we can fetchIdentity
+    if (! this._store.fetchIdentity(email)) {
+      this.addIdentity(email, null, null);
+    }
 
-    // XXX todo...
-    // if not possible
-    // then we go discover IdP
-    // and provision
-    // but we don't authenticate
+    let cert = this._store.fetchIdentity(email)['cert'];
 
-    this._generateAssertion(audience, email, function(err, assertion) {
-      return aCallback(err, assertion);
-    });
+    if (cert) {
+      this._generateAssertion(audience, email, function(err, assertion) {
+        return aCallback(err, assertion);
+      });
 
+    } else {
+      // We need to get a certificate.  Discover the identity's
+      // IdP and provision
+      this._discoverIdentityProvider(email, function(err, idpParams) {
+        if (err) return aCallback(err);
+
+        // Now begin provisioning from the IdP   
+        // XXX TODO
+        this._generateAssertion(audience, email, function(err, assertion) {
+          return aCallback(err, assertion);
+        }.bind(this));
+      }.bind(this));
+    }
   },
 
   /**
@@ -650,6 +663,11 @@ IDService.prototype = {
   {
     this._registry = null;
     this._endpoints = null;
+  },
+
+  getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
+    let identities = this.getIdentitiesForSite(aOrigin);
+    return identities.lastUsed || identities.result[0] || null;
   },
 
   /**
@@ -860,24 +878,38 @@ IDService.prototype = {
     }.bind(this));
   },
 
-  _fetchWellKnownFile: function _fetchWellKnownFile(domain, aSuccess, aFailure) {
+  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback) {
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;
     let req  = new XMLHttpRequest();
     // TODO: require HTTPS?
-    req.open("GET", "https://" + domain + "/.well-known/browserid", true);
+    req.open("GET", "https://" + aDomain + "/.well-known/browserid", true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
     req.onreadystatechange = function(oEvent) {
       if (req.readyState === 4) {
         if (req.status === 200) {
-          // TODO validate format
-          aSuccess(domain, req.response);
-          log(JSON.stringify(this._endpoints[domain], null, 4) + "\n");
+          try {
+            let idpParams = JSON.parse(req.response);
+
+            // Verify that the IdP returned a valid configuration
+            if (! idpParams.provisioning && 
+                  idpParams.authentication && 
+                  idpParams['public-key']) {
+              throw new Error("Invalid well-known file from: " + aDomain);
+            }
+
+            // Yay.  Valid IdP configuration for the domain.
+            return aCallback(null, idpParams);
+
+          } catch (err) {
+            // Bad configuration from this domain.
+            return aCallback(err);
+          }
         } else {
-          log("Error: " + req.statusText + "\n");
-          aFailure(req.statusText);
+          // We get nothing from this domain.
+          return aCallback(req.statusText);
         }
       }
     }.bind(this);
