@@ -1201,6 +1201,9 @@
         </xul:deck>
         <xul:hbox class="popup-notification-button-container"
                   pack="end" align="center">
+          <xul:label anonid="tos" class="text-link" hidden="true"/>
+          <xul:label anonid="privacypolicy" class="text-link" hidden="true"/>
+          <xul:spacer flex="1"/>
           <xul:button anonid="button"
                       type="menu-button"
                       class="popup-notification-menubutton"
@@ -1224,19 +1227,37 @@
     </content>
     <implementation>
       <constructor><![CDATA[
-        // TODO: this.notification should be a reference to the notification object
+        // NOTE: this.notification should be a reference to the notification object
+        dump("id: " + this.notification.options.identity + "\n");
 
         // Populate the list of identities to choose from
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.notification.message);
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.notification.options.identity.origin);
 
         // Show the add email pane (0) if there are no existing identities otherwise show the list
-        this.step = identities.result.length ? 1 : 0;
+        this.step = "result" in identities && identities.result.length ? 1 : 0;
+
+        if (this.notification.options.identity.tosURL) {
+          // Show optional TOS and privacy policy links
+          let tos = document.getAnonymousElementByAttribute(this, "anonid", "tos");
+          dump("tos\n");
+          tos.value = "Terms of Service"; // TODO: l10n
+          tos.href = this.notification.options.identity.tosURL;
+          tos.hidden = false;
+        }
+
+        if (this.notification.options.identity.privacyURL) {
+          let pp = document.getAnonymousElementByAttribute(this, "anonid", "privacypolicy");
+          dump("pp\n");
+          pp.value = "Privacy Policy"; // TODO: l10n
+          pp.href = this.notification.options.identity.privacyURL;
+          pp.hidden = false;
+        }
 
         let identityList = document.getAnonymousElementByAttribute(this, "anonid", "identities")
         var foundLast = false;
         for (let id in identities.result) {
           let label = identities.result[id];
-          let opt = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "radio"); //TODO: default NS?
+          let opt = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "radio");
           opt.setAttribute("label", label);
           identityList.appendChild(opt);
           if (label == identities.lastUsed) {
@@ -1259,7 +1280,7 @@
               let email = document.getAnonymousElementByAttribute(this, "anonid", "email")
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("requestID", this.notification.requestID);
+              propBag.setProperty("requestID", this.notification.options.identity.requestID);
               Services.obs.notifyObservers(propBag, "identity-login", email.value);
               break;
             case "1":
@@ -1267,7 +1288,7 @@
               let selected = identity.selectedItem ? identity.selectedItem.label : null;
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("requestID", this.notification.requestID);
+              propBag.setProperty("requestID", this.notification.options.identity.requestID);
 
               Services.obs.notifyObservers(propBag, "identity-login", selected);
               break;

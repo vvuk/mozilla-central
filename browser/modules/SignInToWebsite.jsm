@@ -84,25 +84,34 @@ let SignInToWebsiteUX = {
     let mainAction = {
       label: "Next",
       accessKey: "i", // TODO
-      callback: function(notification) {
+      callback: function() {
+        let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
         // TODO: mostly handled in the binding already
-        log("requestLogin callback fired");
+        log("requestLogin callback fired for " + requestNot.options.identity.requestID);
       },
     };
     let options = {
       eventCallback: function(state) {
         log("requestLogin: doorhanger " + state);
       },
+      identity: {
+        origin: browserEl.currentURI.prePath,
+      },
     };
     let secondaryActions = [];
+
+    // add some extra properties to the notification to store some identity-related state
+    let requestOptions = aOptions.QueryInterface(Ci.nsIPropertyBag).enumerator;
+    while (requestOptions.hasMoreElements()) {
+      let opt = requestOptions.getNext().QueryInterface(Ci.nsIProperty);
+      options.identity[opt.name] = opt.value;
+      log("opt: " + opt.name + " : " + opt.value);
+    }
+    log("requestLogin: requestID: " + options.identity.requestID);
+
     let reqNot = win.PopupNotifications.show(browserEl, "identity-request", message,
                                               "identity-notification-icon", mainAction,
                                               secondaryActions, options);
-    if (aOptions) {
-      aOptions.QueryInterface(Ci.nsIPropertyBag);
-      reqNot.requestID = aOptions.getProperty("requestID");
-      log("requestLogin: requestID: " + reqNot.requestID);
-    }
   },
 
   /**
