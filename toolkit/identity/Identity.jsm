@@ -55,9 +55,10 @@ IDServiceStore.prototype = {
   fetchIdentity: function fetchIdentity(aEmail) {
     return aEmail in this._identities ? this._identities[aEmail] : null;
   },
-  removeIdentity: function removeIdentity(aEmail) {
-    // XXX - should remove key from store?
+  popIdentity: function popIdentity(aEmail) {
+    let data = this._identities[aEmail];
     delete this._identities[aEmail];
+    return data;
   },
   getIdentities: function getIdentities() {
     // XXX - should clone?
@@ -124,26 +125,57 @@ IDService.prototype = {
   watch: function watch(aLoggedInEmail, aDoc)
   {
     this._docs[aDoc.id] = aDoc;
-
+    dump("@@@ doc + " + aDoc.origin + " watch: " + aLoggedInEmail + '\n');
     let origin = aDoc.origin;
-    let state = this._store.getLoginState(origin);
+    let state = this._store.getLoginState(origin) || {};
 
-    if (state.isLoggedIn && state.email === aLoggedInEmail) {
-      return aDoc.do('ready');
+    if (state.isLoggedIn) {
+      dump("@@@ logged in ; ready1\n");
+      if (!!state.email && aLoggedInEmail === state.email) {
+         aDoc.do('ready');
 
-    // if should be logged in but isn't, go generate assertion, then fire login.
+      } else if (aLoggedInEmail === null) {
+        dump("@@@ 2 generate assertion for existing login\n");
+        this._generateAssertion(origin, state.email, function(err, assertion) {
+          aDoc.do('login');
+          aDoc.do('ready');
+        });
+
+      } else {
+        dump("@@@ 3 change login identity\n");
+        // Change login identity
+        this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
+          aDoc.do('login', {assertion: assertion});
+          aDoc.do('ready');
+        });
+      }
+
     } else {
-      this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
 
-        // XXX to do ...
+      if (!! aLoggedInEmail) {
+        dump("@@@ 4 should be logged in\n");
+        // Not logged in but should be
+        // Generate an assertion and fire login
+        this._generateAssertion(origin, aLoggedInEmail, function(err, assertion) {
+          aDoc.do('login', {assertion: assertion});
+          aDoc.do('ready');
+        });
+        
+      } else {
+        dump ("@@@ 5 not logged in;ready\n");
+        // not logged in; ready
+        aDoc.do('ready');        
+      }
+    }
+
+
+        // XXX to do on generateAssertion ...
         //
         // if not possible
         // then we go discover IdP
         // and provision
         // but we don't authenticate
 
-      }.bind(this));
-    }
 
     // XXX (jp) in progress ...
 
@@ -194,7 +226,9 @@ IDService.prototype = {
    */
   addIdentity: function addIdentity(aIdentity)
   {
-    // add to the list of identities
+    if (this._store.fetchIdentity(aIdentity) === null) {
+      this._store.addIdentity(aIdentity, null, null);
+    }
   },
 
   /**
@@ -268,6 +302,7 @@ IDService.prototype = {
     // if yes, generate the actual assertion using the stored key
 
     // aCallback(null, assertion);
+    return aCallback(null, "T35T.CERT.FTW~T35T.A553RT10N.W00T");
   },
 
   /**
@@ -897,11 +932,20 @@ IDService.prototype = {
 
   reset: function reset()
   {
+    // Send logout to all documents that have called .watch()
+    // wand forget about these documents.
+    for (let docId in this._docs) {
+      if (this._docs.hasOwnProperty(docId)) {
+        let doc = this._docs[docId];
+        dump("@@@ doc  "+ doc.origin + ' ' + docId + " logging out ...\n");
+//        doc.do('logout');
+//        doc.do('ready');
+      }
+    }
+    this._docs = {};
+
     // the store of identities
     this._store = new IDServiceStore();
-    
-    // the documents that have called .watch()
-    this._docs = {};
     
     // tracking ongoing flows
 
@@ -915,6 +959,8 @@ IDService.prototype = {
 
     // an authentication flow contains...
     this._authenticationFlows = {};
+
+
   }
 };
 
