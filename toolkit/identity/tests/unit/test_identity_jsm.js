@@ -458,12 +458,48 @@ function test_select_identity()
   });
 }
 
+
+function test_logout()
+{
+  do_test_pending();
+
+  setup_test_identity(function(id) {
+    let store = get_idstore();
+    
+    // set it up so we're supposed to be logged in to TEST_URL
+    store.setLoginState(TEST_URL, true, id);
+
+    var doLogout;
+    var mockedDoc = mock_doc(TEST_URL, call_sequentially(
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, undefined);
+
+        do_timeout(100, doLogout);
+      },
+      function(action, params) {
+        do_check_eq(action, 'logout');
+        do_check_eq(params, undefined);
+        
+        do_test_finished();
+        run_next_test();
+      }));
+
+    doLogout = function() {
+      IDService.logout(mockedDoc.id);
+    };
+    
+    IDService.watch(id, mockedDoc);
+  });  
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS.push(test_request);
 TESTS.push(test_add_identity);
 TESTS.push(test_select_identity);
+TESTS.push(test_logout);
 
 TESTS.forEach(add_test);
 
