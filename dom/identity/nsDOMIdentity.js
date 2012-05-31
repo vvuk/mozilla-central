@@ -16,6 +16,10 @@ XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
     getService(Ci.nsIFrameMessageManager);
 });
 
+function log(msg) {
+  dump("nsDOMIdentity: " + msg + "\n");
+}
+
 function nsDOMIdentity() {
 }
 nsDOMIdentity.prototype = {
@@ -33,7 +37,8 @@ nsDOMIdentity.prototype = {
     let message = {
       oid: this._id,
       loggedIn: params.loggedInEmail, // Could be undefined or null
-      from: this._window.location.href
+      from: this._window.location.href,
+      origin: this._origin,
     };
     cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },
@@ -150,9 +155,10 @@ nsDOMIdentity.prototype = {
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
-
+    log("receiveMessage: " + aMessage.name + " : " + msg.oid);
     // Is this message intended for this window?
     if (msg.oid != this._id) {
+      log("ignoring");
       return;
     }
 
@@ -226,7 +232,7 @@ nsDOMIdentity.prototype = {
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
     this._window = aWindow;
-    this._origin = aWindow.document.nodePrincipal.uri;
+    this._origin = aWindow.document.nodePrincipal.origin;
 
     // Setup identifiers for current window.
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).

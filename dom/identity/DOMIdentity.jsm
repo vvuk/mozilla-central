@@ -21,12 +21,12 @@ XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
-function IDDOMMessage(aID) {
-  this._id = aID;
+function log(msg) { // TODO: debug
+  dump("DOMIdentity: " + msg + "\n");
 }
 
-IDDOMMessage.prototype = {
-  get id() this._id,
+function IDDOMMessage(aID) {
+  this.id = this.oid = aID; // TODO: decide on id or oid
 }
 
 function IDPProvisioningContext(aID, aOrigin) {
@@ -64,17 +64,21 @@ RPWatchContext.prototype = {
   get loggedInEmail() this._loggedInEmail,
 
   doLogin: function RPWatchContext_onlogin(aAssertion) {
+    log("doLogin: " + this.id + " : " + aAssertion);
     let message = new IDDOMMessage(this.id);
     message.assertion = aAssertion;
+    log(message.id + " : " + message.oid);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 
   doLogout: function RPWatchContext_onlogout() {
+    log("doLogout :" + this.id);
     let message = new IDDOMMessage(this.id);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
   },
 
   doReady: function RPWatchContext_onready() {
+    log("doReady: " + this.id);
     let message = new IDDOMMessage(this.id);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
   }
@@ -166,7 +170,7 @@ let DOMIdentity = {
     // Forward to Identity.jsm and stash the oid somewhere so we can make
     // callback after sending a message to parent process.
     this._pending[message.oid] = true; // TODO?
-    let context = new RPWatchContext(message.oid, message.loggedInEmail);
+    let context = new RPWatchContext(message.oid, message.origin, message.loggedInEmail);
     IdentityService.watch(context);
   },
 
