@@ -132,7 +132,7 @@ IDService.prototype = {
    */
   watch: function watch(aCaller)
   {
-    this._docs[aCaller.id] = aCaller;
+    this._rpFlows[aCaller.id] = aCaller;
     let origin = aCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
@@ -371,8 +371,8 @@ IDService.prototype = {
    */
   logout: function logout(aCallerId)
   {
-    this._docs[aCallerId].doLogout();
-    delete this._docs[aCallerId];
+    this._rpFlows[aCallerId].doLogout();
+    delete this._rpFlows[aCallerId];
   },
 
   /**
@@ -1009,7 +1009,7 @@ IDService.prototype = {
   reset: function reset()
   {
     // Forget all documents
-    this._docs = {};
+    this._rpFlows = {};
 
     // Forget all identities
     this._store = new IDServiceStore();
