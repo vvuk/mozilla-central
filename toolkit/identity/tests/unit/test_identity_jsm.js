@@ -65,34 +65,6 @@ function makeObserver(aObserveTopic, aObserveFunc)
   Services.obs.addObserver(observer, aObserveTopic, false);
 }
 
-let idObserver = {
-  // nsISupports provides type management in C++
-  // nsIObserver is to be an observer
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-
-  observe: function (aSubject, aTopic, aData)
-  {
-    var kpo;
-    if (aTopic == "id-service-key-gen-finished") {
-      // now we can pluck the keyPair from the store
-      let key = JSON.parse(aData);
-      kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
-      do_check_neq(kpo, undefined);
-
-      if (kpo.algorithm == ALGORITHMS.RS256) {
-        checkRsa(kpo);
-      }
-      else if (kpo.algorithm == ALGORITHMS.DS160) {
-        checkDsa(kpo);
-      }
-    }
-  },
-};
-
-// we use observers likely for e10s process separation,
-// but maybe a cb interface would work well here, tbd.
-Services.obs.addObserver(idObserver, "id-service-key-gen-finished", false);
-
 function test_rsa()
 {
   do_test_pending();
