@@ -35,7 +35,7 @@ nsDOMIdentity.prototype = {
       loggedIn: params.loggedInEmail, // Could be undefined or null
       from: this._window.location.href
     };
-    cpmm.sendAsyncMessage("Identity:Watch", message);
+    cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
   request: function(aOptions) {
@@ -57,11 +57,11 @@ nsDOMIdentity.prototype = {
       message.tosURL = aOptions.tosURL;
     }
 
-    cpmm.sendAsyncMessage("Identity:Request", message);
+    cpmm.sendAsyncMessage("Identity:RP:Request", message);
   },
 
   logout: function(aCallback) {
-    cpmm.sendAsyncMessage("Identity:Logout", {
+    cpmm.sendAsyncMessage("Identity:RP:Logout", {
       oid: this._id,
       from: this._window.location.href
     });
@@ -153,7 +153,7 @@ nsDOMIdentity.prototype = {
     }
 
     switch (aMessage.name) {
-      case "Identity:Watch:OnLogin":
+      case "Identity:RP:Watch:OnLogin":
         // Do we have a watcher?
         if (!this._watcher) {
           return;
@@ -163,7 +163,7 @@ nsDOMIdentity.prototype = {
           this._watcher.onlogin(msg.assertion);
         }
         break;
-      case "Identity:Watch:OnLogout":
+      case "Identity:RP:Watch:OnLogout":
         // Do we have a watcher?
         if (!this._watcher) {
           return;
@@ -173,7 +173,7 @@ nsDOMIdentity.prototype = {
           this._watcher.onlogout();
         }
         break;
-      case "Identity:Watch:OnReady":
+      case "Identity:RP:Watch:OnReady":
         // Do we have a watcher?
         if (!this._watcher) {
           return;
@@ -229,9 +229,9 @@ nsDOMIdentity.prototype = {
 
     // Setup listeners for messages from parent process.
     this._messages = [
-      "Identity:Watch:OnLogin",
-      "Identity:Watch:OnLogout",
-      "Identity:Watch:OnReady",
+      "Identity:RP:Watch:OnLogin",
+      "Identity:RP:Watch:OnLogout",
+      "Identity:RP:Watch:OnReady",
       "Identity:IDP:CallBeginProvisioningCallback",
     ];
     this._messages.forEach((function(msgName) {

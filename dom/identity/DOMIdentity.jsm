@@ -27,13 +27,13 @@ let DOMIdentity = {
     let msg = aMessage.json;
     switch (aMessage.name) {
       // RP
-      case "Identity:Watch":
+      case "Identity:RP:Watch":
         this._watch(msg);
         break;
-      case "Identity:Request":
+      case "Identity:RP:Request":
         this._request(msg);
         break;
-      case "Identity:Logout":
+      case "Identity:RP:Logout":
         this._logout(msg);
         break;
       // IDP
@@ -83,12 +83,12 @@ let DOMIdentity = {
     let message = {
       oid: oid,
     };
-    ppmm.sendAsyncMessage("Identity:Watch:OnLogout", message);
+    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
   },
 
   // Private.
   _init: function() {
-    this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout",
+    this.messages = ["Identity:RP:Watch", "Identity:RP:Request", "Identity:RP:Logout",
                      "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
                      "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate",
                      "Identity:IDP:BeginAuthentication", "Identity:IDP:CompleteAuthentication",
@@ -120,7 +120,7 @@ let DOMIdentity = {
       oid: message.oid,
       assertion: "fake.jwt.token"
     };
-    ppmm.sendAsyncMessage("Identity:Watch:OnLogin", message);
+    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
 
   },
 
