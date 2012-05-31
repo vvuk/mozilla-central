@@ -533,6 +533,11 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   afterSetupCallback(provID);
 }
 
+function check_provision_flow_done(provId)
+{
+  do_check_eq(IDService._provisionFlows[provId], null);
+}
+
 function test_begin_provisioning()
 {
   do_test_pending();
@@ -568,7 +573,7 @@ function test_raise_provisioning_failure()
       // this should be invoked with a populated error
       do_check_neq(err, null);
       do_check_true(err.indexOf("can't authenticate this email") > -1);
-
+      
       do_test_finished();
       run_next_test();
     },
@@ -641,6 +646,70 @@ function test_genkeypair()
   );  
 }
 
+// we've already ensured that genkeypair can't be called
+// before beginProvisioning, so this test should be enough
+// to ensure full sequential call of the 3 APIs.
+function test_register_certificate_before_genkeypair()
+{
+  do_test_pending();
+
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      // do the right thing for beginProvisioning
+      IDService.beginProvisioning(provId);
+    },
+    // expect this to be called with an error
+    function(err) {
+      do_check_neq(err, null);
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        // now we try to register cert but no keygen has been done
+        IDService.registerCertificate(provId, "fake-cert");
+      }      
+    }
+  );  
+}
+
+function test_register_certificate()
+{
+  do_test_pending();
+
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      IDService.beginProvisioning(provId);
+    },
+    function(err) {
+      // we should be cool!
+      do_check_eq(err, null);
+
+      check_provision_flow_done(provId);
+
+      // check that the cert is there
+      var identity = get_idstore().fetchIdentity(TEST_USER);
+      do_check_neq(identity,null);
+      do_check_eq(identity.cert, "fake-cert-42");
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        IDService.genKeyPair(provId);
+      },
+      genKeyPairCallback: function(pk) {
+        IDService.registerCertificate(provId, "fake-cert-42");
+      }      
+    }
+  );  
+  
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
@@ -654,6 +723,8 @@ TESTS.push(test_begin_provisioning);
 TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
+TESTS.push(test_register_certificate_before_genkeypair);
+TESTS.push(test_register_certificate);
 
 TESTS.forEach(add_test);
 
