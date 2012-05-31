@@ -580,6 +580,67 @@ function test_raise_provisioning_failure()
     });
 }
 
+function test_genkeypair_before_begin_provisioning()
+{
+  do_test_pending();
+
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      // call genKeyPair without beginProvisioning
+      IDService.genKeyPair(provId);
+    },
+    // expect this to be called with an error
+    function(err) {
+      do_check_neq(err, null);
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      // this should not be called at all!
+      genKeyPairCallback: function(pk) {
+        // a test that will surely fail because we shouldn't be here.
+        do_check_true(false);
+
+        do_test_finished();
+        run_next_test();
+      }
+    }
+  );
+}
+
+function test_genkeypair()
+{
+  do_test_pending();
+
+  setup_provisioning(
+    TEST_USER,
+    function(provId) {
+      IDService.beginProvisioning(provId);
+    },
+    function(err) {
+      // should not be called!
+      do_check_true(false);
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, time_s) {
+        IDService.genKeyPair(provId);
+      },
+      genKeyPairCallback: function(pk) {
+        do_check_neq(pk, null);
+
+        // yay!
+        do_test_finished();
+        run_next_test();
+      }
+    }
+  );  
+}
+
 var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
@@ -591,6 +652,8 @@ TESTS.push(test_logout);
 // provisioning tests
 TESTS.push(test_begin_provisioning);
 TESTS.push(test_raise_provisioning_failure);
+TESTS.push(test_genkeypair_before_begin_provisioning);
+TESTS.push(test_genkeypair);
 
 TESTS.forEach(add_test);
 

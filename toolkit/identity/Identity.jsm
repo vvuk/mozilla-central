@@ -383,7 +383,7 @@ IDService.prototype = {
    * It is an error to call genKeypair without receiving the callback for
    * the beginProvisioning() call first.
    */
-  genKeypair: function genKeypair(aProvId)
+  genKeyPair: function genKeyPair(aProvId)
   {
     // look up the provisioning context, make sure it's valid.
 
