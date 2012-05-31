@@ -914,21 +914,21 @@ dump("@@@ generateKeyPair url : " + url);
     let emailDomain = email.substring(email.indexOf("@") + 1);
     log("_getEndpoints: " + emailDomain + "\n");
     // TODO: lookup in cache
-    let onSuccess = function(aDomain, aWellKnown) {
-      // aDomain is the domain that the well-known file was on (not necessarily the email domain for cases 2 & 3)
-      this._endpoints[emailDomain] = {};
-      // TODO: convert to full URI if not already
-      // TODO: require HTTPS?
-      this._endpoints[emailDomain].authentication = "https://" + aDomain + aWellKnown.authentication;
-      this._endpoints[emailDomain].provisioning = "https://" + aDomain + aWellKnown.provisioning;
-      aCallback(this._endpoints[emailDomain]);
+    let wellKnownCallback = function(aError, aResult) {
+      log("wellKnownCallback: " + !!aError);
+      if (!!aError) {
+        aCallback(null);
+      } else {
+        // aDomain is the domain that the well-known file was on (not necessarily the email domain for cases 2 & 3)
+        this._endpoints[emailDomain] = {};
+        // TODO: convert to full URI if not already
+        // TODO: require HTTPS?
+        this._endpoints[emailDomain].authentication = "https://" + aResult.domain + aResult.idpParams.authentication;
+        this._endpoints[emailDomain].provisioning = "https://" + aResult.domain + aResult.idpParams.provisioning;
+        aCallback(this._endpoints[emailDomain]);
+      }
     }.bind(this);
-    this._fetchWellKnownFile(emailDomain, onSuccess, function onFailure() {
-      // TODO: use proxy IDP service
-      //this._fetchWellKnownFile(..., onSuccess);
-      // TODO: fallback to persona.org
-      aCallback(null);
-    }.bind(this));
+    this._fetchWellKnownFile(emailDomain, wellKnownCallback);
   },
 
   _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback) {
@@ -942,9 +942,10 @@ dump("@@@ generateKeyPair url : " + url);
     req.mozBackgroundRequest = true;
     req.onreadystatechange = function(oEvent) {
       if (req.readyState === 4) {
+        log("HTTP status: " + req.status);
         if (req.status === 200) {
           try {
-            let idpParams = JSON.parse(req.response);
+            let idpParams = req.response;
 
             // Verify that the IdP returned a valid configuration
             if (! idpParams.provisioning && 
@@ -953,8 +954,12 @@ dump("@@@ generateKeyPair url : " + url);
               throw new Error("Invalid well-known file from: " + aDomain);
             }
 
+            let callbackObj = {
+              domain: aDomain,
+              idpParams: idpParams,
+            };
             // Yay.  Valid IdP configuration for the domain.
-            return aCallback(null, idpParams);
+            return aCallback(null, callbackObj);
 
           } catch (err) {
             // Bad configuration from this domain.
@@ -967,6 +972,7 @@ dump("@@@ generateKeyPair url : " + url);
       }
     }.bind(this);
     req.send(null);
+    log("fetching https://" + aDomain + "/.well-known/browserid");
   },
 
   /**
