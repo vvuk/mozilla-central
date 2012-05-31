@@ -107,7 +107,7 @@ function test_rsa()
     do_check_eq(typeof kpo.sign, "function");
     do_check_neq(kpo.userID, null);
     do_check_neq(kpo.url, null);
-    do_check_eq(kpo.url, TEST_URL);
+    do_check_eq(kpo.url, INTERNAL_ORIGIN);
     do_check_neq(kpo.publicKey, null);
     do_check_neq(kpo.exponent, null);
     do_check_neq(kpo.modulus, null);
@@ -140,7 +140,7 @@ function test_dsa()
     do_check_eq(typeof kpo.sign, "function");
     do_check_neq(kpo.userID, null);
     do_check_neq(kpo.url, null);
-    do_check_eq(kpo.url, TEST_URL2);
+    do_check_eq(kpo.url, INTERNAL_ORIGIN);
     do_check_neq(kpo.publicKey, null);
     do_check_neq(kpo.generator, null);
     do_check_neq(kpo.prime, null);
@@ -156,7 +156,7 @@ function test_dsa()
     run_next_test();
   };
   
-  IDService._generateKeyPair("DS160", TEST_URL2, TEST_USER, checkDSA);
+  IDService._generateKeyPair("DS160", INTERNAL_ORIGIN, TEST_USER, checkDSA);
 }
 
 function test_overall()
