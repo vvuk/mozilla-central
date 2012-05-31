@@ -620,10 +620,12 @@ function test_genkeypair_before_begin_provisioning()
 function test_genkeypair()
 {
   do_test_pending();
+  let _provId = null;
 
   setup_provisioning(
     TEST_USER,
     function(provId) {
+      _provId = provId;
       IDService.beginProvisioning(provId);
     },
     function(err) {
@@ -635,7 +637,7 @@ function test_genkeypair()
     },
     {
       beginProvisioningCallback: function(email, time_s) {
-        IDService.genKeyPair(provId);
+        IDService.genKeyPair(_provId);
       },
       genKeyPairCallback: function(pk) {
         do_check_neq(pk, null);
