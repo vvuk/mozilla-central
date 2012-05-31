@@ -41,6 +41,12 @@ let DOMIdentity = {
       case "Identity:IDP:BeginProvisioning":
         this._beginProvisioning(msg);
         break;
+      case "Identity:IDP:GenKeyPair":
+        this._genKeyPair(msg);
+        break;
+      case "Identity:IDP:RegisterCertificate":
+        this._registerCertificate(msg);
+        break;
     }
   },
 
@@ -49,7 +55,7 @@ let DOMIdentity = {
     if (aTopic != "xpcom-shutdown") {
       return;
     }
-    
+
     this.messages.forEach((function(msgName) {
       ppmm.removeMessageListener(msgName, this);
     }).bind(this));
@@ -57,10 +63,23 @@ let DOMIdentity = {
     ppmm = null;
   },
 
+  // Methods for IdentityService to call
+  /**
+   * Call the onlogout RP callback
+   */
+  onLogout: function(oid) {
+    // TODO: check rv above and then fire onlogout?
+    let message = {
+      oid: oid,
+    };
+    ppmm.sendAsyncMessage("Identity:Watch:OnLogout", message);
+  },
+
   // Private.
   _init: function() {
     this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout",
-                     "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning"];
+                     "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
+                     "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -79,13 +98,9 @@ let DOMIdentity = {
   },
 
   _request: function(message) {
-    // Forward to Identity.jsm and stash oid somewhere?
-
-
     IdentityService.request(message.oid, message);
 
-
-    // Oh look we got a fake assertion back from the JSM, send it onward.
+    // TODO: Oh look we got a fake assertion back from the JSM, send it onward.
     let message = {
       // Should not be empty because _watch was *definitely* called before this.
       // Right? Right.
@@ -100,15 +115,10 @@ let DOMIdentity = {
     IdentityService.logout(message.oid);
   },
 
-  onLogout: function(oid) {
-    // TODO: check rv above and then fire onlogout?
-    let message = {
-      oid: oid,
-    };
-    ppmm.sendAsyncMessage("Identity:Watch:OnLogout", message);
-  },
-
   _beginProvisioning: function(message) {
+    IdentityService.beginProvisioning(message.oid);
+
+    // TODO: move below code to function that Identity.jsm calls
     let data = IdentityService._provisionFlows[message.oid];
 
     ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", {
@@ -116,6 +126,14 @@ let DOMIdentity = {
       cert_duration: IdentityService.certDuration,
       oid: message.oid,
     });
+  },
+
+  _genKeyPair: function(message) {
+    IdentityService.genKeyPair(message.oid); // TODO: pass ref. to callback?
+  },
+
+  _registerCertificate: function(message) {
+    IdentityService.registerCertificate(message.oid, message.cert);
   },
 
   _provisioningFailure: function(message) {

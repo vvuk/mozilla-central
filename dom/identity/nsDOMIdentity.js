@@ -92,10 +92,19 @@ nsDOMIdentity.prototype = {
 
   genKeyPair: function(aCallback) {
     dump("DOM genKeyPair\n");
+    this._genKeyPairCallback = aCallback;
+    cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", {
+      oid: this._id,
+      from: this._window.location.href,
+    });
   },
 
   registerCertificate: function(aCertificate) {
-
+    cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", {
+      oid: this._id,
+      from: this._window.location.href,
+      cert: aCertificate,
+    });
   },
 
   raiseProvisioningFailure: function(aReason) {
@@ -165,7 +174,8 @@ nsDOMIdentity.prototype = {
     Services.obs.removeObserver(this, "inner-window-destroyed");       
     this._window = null;
     this._watcher = null;
-    this._provisioningCallback = null;
+    this._beginProvisioningCallback = null;
+    this._genKeyPairCallback = null;
 
     // Also send message to DOMIdentity.jsm notifiying window is no longer valid
     this._messages.forEach((function(msgName) {
@@ -179,7 +189,8 @@ nsDOMIdentity.prototype = {
 
     // Store window and origin URI.
     this._watcher = null;
-    this._provisioningCallback = null;
+    this._beginProvisioningCallback = null;
+    this._genKeyPairCallback = null;
     this._window = aWindow;
     this._origin = aWindow.document.nodePrincipal.uri;
 
