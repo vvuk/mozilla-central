@@ -144,22 +144,22 @@ IDService.prototype = {
     if (state.isLoggedIn) {
       // Logged in; ready
       if (!!state.email && aCaller.loggedInEmail === state.email) {
-         aCaller.do('ready');
+         aCaller.doReady();
 
       } else if (aCaller.loggedInEmail === null) {
         // Generate assertion for existing login
         let options = {requiredEmail: state.email, audience: origin};
         this.getAssertion(options, function(err, assertion) {
-          aCaller.do('login', {assertion:assertion});
-          aCaller.do('ready');
+          aCaller.doLogin(assertion);
+          aCaller.doReady();
         });
 
       } else {
         // Change login identity
         let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
         this.getAssertion(options, function(err, assertion) {
-          aCaller.do('login', {assertion: assertion});
-          aCaller.do('ready');
+          aCaller.doLogin(assertion);
+          aCaller.doReady();
         });
       }
 
@@ -170,8 +170,8 @@ IDService.prototype = {
     } else {
       if (!! aCaller.loggedInEmail) {
         // not logged in; logout
-        aCaller.do('ready');
-        aCaller.do('logout');
+        aCaller.doReady();
+        aCaller.doLogout();
         
       } else {
         // No loggedInEmail declared
@@ -180,12 +180,12 @@ IDService.prototype = {
         if (!! identity) {
           let options = {requiredEmail: identity, audience: origin};
           this.getAssertion(options, function(err, assertion) {
-            aCaller.do('login', {assertion: assertion});
-            aCaller.do('ready');
+            aCaller.doLogin(assertion);
+            aCaller.doReady();
           });
         } else {
           // not logged in; no identity; ready
-          aCaller.do('ready');        
+          aCaller.doReady();        
         }
       }
     }
@@ -276,7 +276,7 @@ IDService.prototype = {
     // if succeed, then
     // this.generateAssertion(aCallerId, aIdentity, cb)
 
-    // doc.do('login', {assertion: assertion});
+    // doc.doLogin(assertion);
   },
 
   /**
@@ -371,7 +371,7 @@ IDService.prototype = {
    */
   logout: function logout(aCallerId)
   {
-    this._docs[aCallerId].do('logout');
+    this._docs[aCallerId].doLogout();
     delete this._docs[aCallerId];
   },
 
