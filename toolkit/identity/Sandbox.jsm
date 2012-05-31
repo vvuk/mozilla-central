@@ -60,6 +60,13 @@ Sandbox.prototype = {
     let webNav = frame.docShell.QueryInterface(Ci.nsIWebNavigation);
     webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
 
+    // Disable some types of content
+    webNav.allowAuth = false; // TODO: check
+    webNav.allowPlugins = false;
+    webNav.allowImages = false;
+    webNav.allowWindowControl = false;
+    // TODO: disable media (bug 759964)
+
     // Set instance properties.
     this._frame = frame;
     this._container = doc.documentElement;
