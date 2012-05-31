@@ -26,6 +26,7 @@ let DOMIdentity = {
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
     switch (aMessage.name) {
+      // RP
       case "Identity:Watch":
         this._watch(msg);
         break;
@@ -35,9 +36,7 @@ let DOMIdentity = {
       case "Identity:Logout":
         this._logout(msg);
         break;
-      case "Identity:IDP:ProvisioningFailure":
-        this._provisioningFailure(msg);
-        break;
+      // IDP
       case "Identity:IDP:BeginProvisioning":
         this._beginProvisioning(msg);
         break;
@@ -46,6 +45,18 @@ let DOMIdentity = {
         break;
       case "Identity:IDP:RegisterCertificate":
         this._registerCertificate(msg);
+        break;
+      case "Identity:IDP:ProvisioningFailure":
+        this._provisioningFailure(msg);
+        break;
+      case "Identity:IDP:BeginAuthentication":
+        this._beginAuthentication(msg);
+        break;
+      case "Identity:IDP:CompleteAuthentication":
+        this._completeAuthentication(msg);
+        break;
+      case "Identity:IDP:AuthenticationFailure":
+        this._authenticationFailure(msg);
         break;
     }
   },
@@ -79,7 +90,9 @@ let DOMIdentity = {
   _init: function() {
     this.messages = ["Identity:Watch", "Identity:Request", "Identity:Logout",
                      "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
-                     "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate"];
+                     "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate",
+                     "Identity:IDP:BeginAuthentication", "Identity:IDP:CompleteAuthentication",
+                     "Identity:IDP:AuthenticationFailure"];
 
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -138,7 +151,19 @@ let DOMIdentity = {
 
   _provisioningFailure: function(message) {
     IdentityService.raiseProvisioningFailure(message.oid, message.reason);
-  }
+  },
+
+  _beginAuthentication: function(message) {
+    IdentityService.beginAuthentication(message.oid);
+  },
+
+  _completeAuthentication: function(message) {
+    IdentityService.completeAuthentication(message.oid);
+  },
+
+  _authenticationFailure: function(message) {
+    IdentityService.cancelAuthentication(message.oid); // TODO: see issue #4
+  },
 };
 
 // Object is initialized by nsIDService.js

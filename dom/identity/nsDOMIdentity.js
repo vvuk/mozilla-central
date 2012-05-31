@@ -77,7 +77,7 @@ nsDOMIdentity.prototype = {
 
   beginProvisioning: function(aCallback) {
     dump("DOM beginProvisioning: " + this._id + "\n");
-    this._provisioningCallback = aCallback;
+    this._beginProvisioningCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
       oid: this._id,
       from: this._window.location.href,
@@ -87,7 +87,7 @@ nsDOMIdentity.prototype = {
   _callBeginProvisioningCallback: function(message) {
     let identity = message.identity;
     let certValidityDuration = message.cert_duration;
-    this._provisioningCallback(identity, certValidityDuration);
+    this._beginProvisioningCallback(identity, certValidityDuration);
   },
 
   genKeyPair: function(aCallback) {
@@ -114,8 +114,33 @@ nsDOMIdentity.prototype = {
       from: this._window.location.href,
       reason: aReason,
     });
-    // TODO: close provisioning sandbox/window
+    // TODO: close provisioning sandbox/window => let UI handle this
     this._window.close();
+  },
+
+  // IDP Authentication
+  beginAuthentication: function(aCallback) {
+    dump("DOM beginAuthentication: " + this._id + "\n");
+    this._beginAuthenticationCallback = aCallback;
+    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", {
+      oid: this._id,
+      from: this._window.location.href,
+    });
+  },
+
+  completeAuthentication: function() {
+    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication", {
+      oid: this._id,
+      from: this._window.location.href,
+    });
+  },
+
+  raiseAuthenticationFailure: function(aReason) {
+    cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", {
+      oid: this._id,
+      from: this._window.location.href,
+      reason: aReason,
+    });
   },
 
   // nsIFrameMessageListener
@@ -171,11 +196,12 @@ nsDOMIdentity.prototype = {
       return;
     }
 
-    Services.obs.removeObserver(this, "inner-window-destroyed");       
+    Services.obs.removeObserver(this, "inner-window-destroyed");
     this._window = null;
     this._watcher = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
+    this._beginAuthenticationCallback = null;
 
     // Also send message to DOMIdentity.jsm notifiying window is no longer valid
     this._messages.forEach((function(msgName) {
@@ -191,6 +217,7 @@ nsDOMIdentity.prototype = {
     this._watcher = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
+    this._beginAuthenticationCallback = null;
     this._window = aWindow;
     this._origin = aWindow.document.nodePrincipal.uri;
 
@@ -200,7 +227,7 @@ nsDOMIdentity.prototype = {
     this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
 
-    // Setup listeners for messages from child process.
+    // Setup listeners for messages from parent process.
     this._messages = [
       "Identity:Watch:OnLogin",
       "Identity:Watch:OnLogout",
