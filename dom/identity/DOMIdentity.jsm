@@ -63,18 +63,18 @@ RPWatchContext.prototype = {
   get origin() this._origin,
   get loggedInEmail() this._loggedInEmail,
 
-  dologin: function RPWatchContext_onlogin(aAssertion) {
+  doLogin: function RPWatchContext_onlogin(aAssertion) {
     let message = new IDDOMMessage(this.id);
     message.assertion = aAssertion;
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 
-  dologout: function RPWatchContext_onlogout() {
+  doLogout: function RPWatchContext_onlogout() {
     let message = new IDDOMMessage(this.id);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
   },
 
-  doready: function RPWatchContext_onready() {
+  doReady: function RPWatchContext_onready() {
     let message = new IDDOMMessage(this.id);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
   }
@@ -189,7 +189,7 @@ let DOMIdentity = {
   },
 
   _beginProvisioning: function(message) {
-    
+
     IdentityService.beginProvisioning(message.oid);
 
     // TODO: move below code to function that Identity.jsm calls
