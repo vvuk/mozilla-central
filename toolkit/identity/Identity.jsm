@@ -881,8 +881,7 @@ dump("@@@ generateKeyPair url : " + url);
    **/
   _getIdentityServiceKeyPair: function _getIdentityServiceKeypair(aUserID, aUrl)
   {
-    let uri = Services.io.newURI(aUrl, null, null);
-    let key = aUserID + "__" + uri.prePath;
+    let key = aUserID + "__" + aUrl;
     let keyObj =  this._registry[key];
 
     if (!keyObj) {
