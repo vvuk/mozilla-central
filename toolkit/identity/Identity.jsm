@@ -117,15 +117,15 @@ IDService.prototype = {
    * @param loggedInEmail
    *        (string)  the currently logged-in email.
    *
-   * @param aDoc
-   *        (Object)  an object that represents the document, and
+   * @param aCaller
+   *        (Object)  an object that represents the caller document, and
    *                  is expected to have properties:
    *                  id (unique, e.g. uuid), origin, do(action, params).
    */
-  watch: function watch(aLoggedInEmail, aDoc)
+  watch: function watch(aLoggedInEmail, aCaller)
   {
-    this._docs[aDoc.id] = aDoc;
-    let origin = aDoc.origin;
+    this._docs[aCaller.id] = aCaller;
+    let origin = aCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
     // If the user is already logged in, then there are three cases
@@ -136,22 +136,22 @@ IDService.prototype = {
     if (state.isLoggedIn) {
       // Logged in; ready
       if (!!state.email && aLoggedInEmail === state.email) {
-         aDoc.do('ready');
+         aCaller.do('ready');
 
       } else if (aLoggedInEmail === null) {
         // Generate assertion for existing login
         let options = {requiredEmail: state.email, audience: origin};
         this.getAssertion(options, function(err, assertion) {
-          aDoc.do('login', {assertion:assertion});
-          aDoc.do('ready');
+          aCaller.do('login', {assertion:assertion});
+          aCaller.do('ready');
         });
 
       } else {
         // Change login identity
         let options = {requiredEmail: aLoggedInEmail, audience: origin};
         this.getAssertion(options, function(err, assertion) {
-          aDoc.do('login', {assertion: assertion});
-          aDoc.do('ready');
+          aCaller.do('login', {assertion: assertion});
+          aCaller.do('ready');
         });
       }
 
@@ -162,22 +162,22 @@ IDService.prototype = {
     } else {
       if (!! aLoggedInEmail) {
         // not logged in; logout
-        aDoc.do('ready');
-        aDoc.do('logout');
+        aCaller.do('ready');
+        aCaller.do('logout');
         
       } else {
         // No loggedInEmail declared
         // Is there an identity we can already use for this site?
-        let identity = this.getDefaultEmailForOrigin(aDoc.origin);
+        let identity = this.getDefaultEmailForOrigin(aCaller.origin);
         if (!! identity) {
           let options = {requiredEmail: identity, audience: origin};
           this.getAssertion(options, function(err, assertion) {
-            aDoc.do('login', {assertion: assertion});
-            aDoc.do('ready');
+            aCaller.do('login', {assertion: assertion});
+            aCaller.do('ready');
           });
         } else {
           // not logged in; no identity; ready
-          aDoc.do('ready');        
+          aCaller.do('ready');        
         }
       }
     }
@@ -187,13 +187,13 @@ IDService.prototype = {
    * Initiate a login with user interaction as a result of a call to
    * navigator.id.request().
    *
-   * @param aDocId
+   * @param aCallerId
    *        (integer)  the id of the doc object obtained in .watch()
    *
    * @param aOptions
    *        (Object)  options including requiredEmail, privacyURL, tosURL
    */
-  request: function request(aDocId, aOptions)
+  request: function request(aCallerId, aOptions)
   {
     // notify UX to display identity picker
     // pass the doc id to UX so it can pass it back to us later.
@@ -201,7 +201,7 @@ IDService.prototype = {
 
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("requestID", aDocId);
+    options.setProperty("requestID", aCallerId);
     for (let optionName of ["requiredEmail", "privacyURL", "tosURL"]) {
       options.setProperty(optionName, aOptions[optionName]);
     }
@@ -226,16 +226,16 @@ IDService.prototype = {
   /**
    * The UX comes back and calls selectIdentity once the user has picked an identity
    *
-   * @param aDocId
+   * @param aCallerId
    *        (integer) the id of the doc object obtained in .watch() and
    *                  passed to the UX component.
    *
    * @param aIdentity
    *        (string) the email chosen for login
    */
-  selectIdentity: function selectIdentity(aDocId, aIdentity)
+  selectIdentity: function selectIdentity(aCallerId, aIdentity)
   {
-    log("selectIdentity: for request " + aDocId + " and " + aIdentity);
+    log("selectIdentity: for request " + aCallerId + " and " + aIdentity);
     // set the state of login for the doc origin to be logged in as that identity
     
     // go generate assertion for this identity and deliver it to this doc
@@ -266,7 +266,7 @@ IDService.prototype = {
     // if we fail, hard fail.
     
     // if succeed, then
-    // this.generateAssertion(aDocId, aIdentity, cb)
+    // this.generateAssertion(aCallerId, aIdentity, cb)
 
     // doc.do('login', {assertion: assertion});
   },
@@ -310,7 +310,7 @@ IDService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aCallback)
   {
-    // create a provisioning flow identifier provId and store the context
+    // create a provisioning flow identifier provId and store the caller
     // stash callback associated with this provisioning workflow.
     
     // launch the provisioning workflow given the IdP provisoning URL
@@ -357,32 +357,39 @@ IDService.prototype = {
    * Invoked when a user wishes to logout of a site (for instance, when clicking
    * on an in-content logout button).
    *
-   * @param aDocId
+   * @param aCallerId
    *        (integer)  the id of the doc object obtained in .watch()
    *
    */
-  logout: function logout(aDocId)
+  logout: function logout(aCallerId)
   {
-    this._docs[aDocId].do('logout');
-    delete this._docs[aDocId];
+    this._docs[aCallerId].do('logout');
+    delete this._docs[aCallerId];
   },
 
   /**
    * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
-   * 
-   * @param aProvId
-   *        (int)  the identifier of the provisioning flow tied to that sandbox
+   *
+   * @param aCaller
+   *        (object)  the caller with all callbacks and other information
    */
-  beginProvisioning: function beginProvisioning(aProvId)
+  beginProvisioning: function beginProvisioning(aCaller)
   {
-    // look up the provisioning context and the identity we're trying to provision
-    let flow = this._provisionFlows[aProvId];
+    // look up the provisioning caller and the identity we're trying to provision
+    let flow = this._provisionFlows[aCaller.id];
+    if (!flow) {
+      aCaller.doError("no such provisioning flow");
+      return;
+    }
+
+    // keep the caller object around
+    flow.caller = aCaller;
+    
     let identity = flow.identity;
     let frame = flow.provisioningFrame;
 
-    // as part of that context. determine recommended length of cert.
+    // as part of that caller. determine recommended length of cert.
     let duration = this.certDuration;
-
 
     // XXX is this where we indicate that the flow is "valid" for keygen?
     flow.state = "provisioning";
@@ -390,7 +397,7 @@ IDService.prototype = {
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
     // XXX stub
-    return frame.beginProvisioningCallback(identity, duration);
+    return flow.caller.doBeginProvisioningCallback(identity, duration);
   },
 
   /**
@@ -403,7 +410,7 @@ IDService.prototype = {
   {
     log("provisioningFailure: " + aReason);
     
-    // look up the provisioning context and its callback
+    // look up the provisioning caller and its callback
     let flow = this._provisionFlows[aProvId];
     let cb = flow.cb;
 
@@ -431,21 +438,21 @@ IDService.prototype = {
    * Generates a keypair for the current user being provisioned.
    *
    * @param aProvId
-   *        (int)  the identifier of the provisioning context tied to that sandbox
+   *        (int)  the identifier of the provisioning caller tied to that sandbox
    *
    * It is an error to call genKeypair without receiving the callback for
    * the beginProvisioning() call first.
    */
   genKeyPair: function genKeyPair(aProvId)
   {
-    // look up the provisioning context, make sure it's valid.
+    // look up the provisioning caller, make sure it's valid.
     let flow = this._provisionFlows[aProvId];
     
     if (flow.state !== "provisioning") {
       return flow.cb("Cannot genKeyPair before beginProvisioning");
     }
 
-    // generate a keypair, store it in provisioning context
+    // generate a keypair, store it in provisioning caller
     let origin = "how do i get this?";
     flow.kp = this._generateKeyPair("DS160", origin, flow.identity);
 
@@ -462,7 +469,7 @@ IDService.prototype = {
    * via a preceding call to beginProvisioning (and genKeypair).
    *
    * @param aProvId
-   *        (int)  the identifier of the provisioning context tied to that sandbox
+   *        (int)  the identifier of the provisioning caller tied to that sandbox
    *
    * @param aCert
    *        (String)  A JWT representing the signed certificate for the user
@@ -470,15 +477,15 @@ IDService.prototype = {
    */
   registerCertificate: function registerCertificate(aProvId, aCert)
   {
-    // look up provisioning context, make sure it's valid.
+    // look up provisioning caller, make sure it's valid.
 
     // store the keypair and certificate just provided in IDStore.
 
     // kill the sandbox
 
-    // pull out the prov context callback
+    // pull out the prov caller callback
 
-    // kill the prov context
+    // kill the prov caller
 
     // invoke callback with success.
   },
@@ -495,7 +502,7 @@ IDService.prototype = {
    */
   doAuthentication: function doAuthentication(aIdentity, idpParams, aCallback)
   {
-    // create an authentication context and its identifier AuthId
+    // create an authentication caller and its identifier AuthId
     // stash aIdentity, idpparams, and callback in it.
 
     // extract authentication URL from idpParams
@@ -510,13 +517,18 @@ IDService.prototype = {
   /**
    * The authentication frame has called navigator.id.beginAuthentication
    *
+   * IMPORTANT: the aAuthId is *always* non-null, even if this is called from
+   * a regular content page. We have to make sure, on every DOM call, that aAuthId
+   * is an expected authentication-flow identifier. If not, we throw an error
+   * or something.
+   *
    * @param aAuthId
-   *        (int)  the identifier of the authentication context tied to that sandbox
+   *        (int)  the identifier of the authentication caller tied to that sandbox
    *
    */
   beginAuthentication: function beginAuthentication(aAuthId)
   {
-    // look up AuthId context, and the identity we're attempting to authenticate.
+    // look up AuthId caller, and the identity we're attempting to authenticate.
 
     // XXX we need pointer to the IFRAME/sandbox.
     // maybe this means we should create it, or maybe UX passes it to us
@@ -530,14 +542,14 @@ IDService.prototype = {
    * The auth frame has called navigator.id.completeAuthentication
    *
    * @param aAuthId
-   *        (int)  the identifier of the authentication context tied to that sandbox
+   *        (int)  the identifier of the authentication caller tied to that sandbox
    *
    */
   completeAuthentication: function completeAuthentication(aAuthId)
   {
-    // look up the AuthId context, and get its callback.
+    // look up the AuthId caller, and get its callback.
 
-    // delete context
+    // delete caller
 
     // invoke callback with success.
     // * what callback? Spec says to invoke the Provisioning Flow -- MN
@@ -547,14 +559,14 @@ IDService.prototype = {
    * The auth frame has called navigator.id.cancelAuthentication
    *
    * @param aAuthId
-   *        (int)  the identifier of the authentication context tied to that sandbox
+   *        (int)  the identifier of the authentication caller tied to that sandbox
    *
    */
   cancelAuthentication: function cancelAuthentication(aWindowID)
   {
-    // look up the AuthId context, and get its callback.
+    // look up the AuthId caller, and get its callback.
 
-    // delete context
+    // delete caller
 
     // invoke callback with ERROR.
 
@@ -708,10 +720,10 @@ IDService.prototype = {
   },
 
   /**
-   * Called by the UI to set the ID and context for the authentication flow after it gets its ID
+   * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
    */
-  setAuthenticationFlow: function(aAuthID, aContext) {
-    this._authenticationFlows[aAuthID] = aContext;
+  setAuthenticationFlow: function(aAuthID, aCaller) {
+    this._authenticationFlows[aAuthID] = aCaller;
   },
 
   get securityLevel() {
@@ -949,8 +961,8 @@ IDService.prototype = {
     new Sandbox(aURL, function(aSandbox) {
       dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
       let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
-      let context = {identity: aIdentity, securityLevel: this.securityLevel/*TODO: remove?*/, authenticationDone: false /* TODO */};
-      IdentityService._provisionFlows[utils.outerWindowID] = context;
+      let caller = {identity: aIdentity, securityLevel: this.securityLevel/*TODO: remove?*/, authenticationDone: false /* TODO */};
+      IdentityService._provisionFlows[utils.outerWindowID] = caller;
       dump("_beginProvisioningFlow: " + utils.outerWindowID + "\n");
     }.bind(this));
   },
