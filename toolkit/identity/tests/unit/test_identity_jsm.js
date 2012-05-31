@@ -514,9 +514,9 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   IDService._provisionFlows[provID] = {
     identity : identity,
     idpParams: {},
-    cb: function() {
+    cb: function(err) {
       if (doneProvisioningCallback)
-        doneProvisioningCallback();
+        doneProvisioningCallback(err);
     },
     provisioningFrame: {
       beginProvisioningCallback: function(id, duration_s) {
@@ -563,11 +563,13 @@ function test_begin_provisioning()
 function test_raise_provisioning_failure()
 {
   do_test_pending();
+  let _provId = null;
 
   setup_provisioning(
     TEST_USER,
     function(provId) {
       // call .beginProvisioning()
+      _provId = provId;
       IDService.beginProvisioning(provId);
     }, function(err) {
       // this should be invoked with a populated error
@@ -580,7 +582,7 @@ function test_raise_provisioning_failure()
     {
       beginProvisioningCallback: function(email, duration_s) {
         // raise the failure as if we can't provision this email
-        IDService.raiseProvisioningFailure("can't authenticate this email");
+        IDService.raiseProvisioningFailure(_provId, "can't authenticate this email");
       }
     });
 }
