@@ -674,12 +674,14 @@ function test_genkeypair()
 function test_register_certificate_before_genkeypair()
 {
   do_test_pending();
+  let _callerID = null;
 
   setup_provisioning(
     TEST_USER,
-    function(provId) {
+    function(caller) {
       // do the right thing for beginProvisioning
-      IDService.beginProvisioning(provId);
+      _callerID = caller.id;
+      IDService.beginProvisioning(caller);
     },
     // expect this to be called with an error
     function(err) {
@@ -691,7 +693,7 @@ function test_register_certificate_before_genkeypair()
     {
       beginProvisioningCallback: function(email, duration_s) {
         // now we try to register cert but no keygen has been done
-        IDService.registerCertificate(provId, "fake-cert");
+        IDService.registerCertificate(_callerID, "fake-cert");
       }      
     }
   );  
@@ -745,7 +747,7 @@ TESTS.push(test_begin_provisioning);
 TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
-//TESTS.push(test_register_certificate_before_genkeypair);
+TESTS.push(test_register_certificate_before_genkeypair);
 //TESTS.push(test_register_certificate);
 
 TESTS.forEach(add_test);

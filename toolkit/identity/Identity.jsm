@@ -483,7 +483,7 @@ IDService.prototype = {
    * via a preceding call to beginProvisioning (and genKeypair).
    *
    * @param aProvId
-   *        (int)  the identifier of the provisioning caller tied to that sandbox
+   *        (uuid) the identifier of the provisioning caller tied to that sandbox
    *
    * @param aCert
    *        (String)  A JWT representing the signed certificate for the user
@@ -492,6 +492,15 @@ IDService.prototype = {
   registerCertificate: function registerCertificate(aProvId, aCert)
   {
     // look up provisioning caller, make sure it's valid.
+    let flow = this._provisionFlows[aProvId];
+    if (! flow && flow.caller) {
+      return null;
+    }
+    if (! flow.caller.kp)  {
+      return flow.cb("Cannot register a cert without generating a keypair first");
+    }
+
+    
 
     // store the keypair and certificate just provided in IDStore.
 
