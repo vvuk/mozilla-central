@@ -16,6 +16,13 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
+function partial(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return function() {
+    return fn.apply(this, args.concat(Array.prototype.slice.call(arguments)));
+  };
+}
+
 function uuid()
 {
   return uuidGenerator.generateUUID();
@@ -237,6 +244,13 @@ function mock_doc(aIdentity, aOrigin, aDoFunc)
   mockedDoc.loggedInEmail = aIdentity;
   mockedDoc.origin = aOrigin;
   mockedDoc['do'] = aDoFunc;
+  mockedDoc.doReady = partial(aDoFunc, 'ready');
+  mockedDoc.doLogin = partial(aDoFunc, 'login');
+  mockedDoc.doLogout = partial(aDoFunc, 'logout');
+  mockedDoc.doError = partial(aDoFunc, 'error');
+  mockedDoc.doCancel = partial(aDoFunc, 'cancel');
+  mockedDoc.doCoffee = partial(aDoFunc, 'coffee');
+   
   return mockedDoc;
 }
 
@@ -258,12 +272,12 @@ function test_mock_doc()
 {
   do_test_pending();
   var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
-    do_check_eq(action, 'fun');
+    do_check_eq(action, 'coffee');
     do_test_finished();
     run_next_test();
   });
 
-  mockedDoc.do('fun');
+  mockedDoc.doCoffee();
 }
 
 function test_watch_loggedin_ready()
@@ -302,7 +316,6 @@ function test_watch_loggedin_login()
       function(action, params) {
         do_check_eq(action, 'login');
         do_check_neq(params, null);
-        do_check_neq(params.assertion, null);
       },
       function(action, params) {
         do_check_eq(action, 'ready');
@@ -329,7 +342,6 @@ function test_watch_loggedin_logout()
       function(action, params) {
         do_check_eq(action, 'login');
         do_check_neq(params, null);
-        do_check_neq(params.assertion, null);
       },
       function(action, params) {
         do_check_eq(action, 'ready');
@@ -426,7 +438,7 @@ function test_select_identity()
       // first the login call
       function(action, params) {
         do_check_eq(action, 'login');
-        do_check_neq(params.assertion, null);
+        do_check_neq(params, null);
 
         // XXX - check that the assertion is for the right email
         
