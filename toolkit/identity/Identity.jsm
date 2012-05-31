@@ -18,6 +18,7 @@ Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";
+var INTERNAL_ORIGIN = "browserid://";
 
 const ALGORITHMS = { RS256: 1, DS160: 2 };
 
@@ -453,9 +454,11 @@ IDService.prototype = {
     }
 
     // generate a keypair, store it in provisioning caller
-    let origin = "how do i get this?";
-    flow.kp = this._generateKeyPair("DS160", origin, flow.identity);
+    flow.kp = this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity);
 
+    // XXX if we're storing this on the flow, do we need to pass this in 
+    // the callback?
+    return flow.provisioningFrame.genKeyPairCallback(flow.kp);
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
     // on it with the serialized public key of the keypair.
 
