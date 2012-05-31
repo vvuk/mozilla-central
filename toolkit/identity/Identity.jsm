@@ -376,10 +376,21 @@ IDService.prototype = {
   beginProvisioning: function beginProvisioning(aProvId)
   {
     // look up the provisioning context and the identity we're trying to provision
+    let flow = this._provisionFlows[aProvId];
+    let identity = flow.identity;
+    let frame = flow.provisioningFrame;
+
     // as part of that context. determine recommended length of cert.
+    let duration = this.certDuration;
+
+
+    // XXX is this where we indicate that the flow is "valid" for keygen?
+    flow.state = "provisioning";
 
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
+    // XXX stub
+    return frame.beginProvisioningCallback(identity, duration);
   },
 
   /**
@@ -393,13 +404,18 @@ IDService.prototype = {
     log("provisioningFailure: " + aReason);
     
     // look up the provisioning context and its callback
+    let flow = this._provisionFlows[aProvId];
+    let cb = flow.cb;
 
     // delete the provisioning context
+    delete this._provisionFlows[aProvId];
 
     // invoke the callback with an error.
-    
+    return cb(aReason);
+
     // we probably do the below code at a higher level,
     // e.g. in selectIdentity()
+    /*
     let identity = this._provisionFlows[aProvId].identity;
     this._getEndpoints(identity, function(aEndpoints) {
       if (aEndpoints && aEndpoints.authentication)
@@ -407,7 +423,7 @@ IDService.prototype = {
       else
         throw new Error("Invalid or non-existent authentication endpoint");
     }.bind(this));
-
+     */
   },
 
   /**
@@ -423,8 +439,15 @@ IDService.prototype = {
   genKeyPair: function genKeyPair(aProvId)
   {
     // look up the provisioning context, make sure it's valid.
+    let flow = this._provisionFlows[aProvId];
+    
+    if (flow.state !== "provisioning") {
+      return flow.cb("Cannot genKeyPair before beginProvisioning");
+    }
 
     // generate a keypair, store it in provisioning context
+    let origin = "how do i get this?";
+    flow.kp = this._generateKeyPair("DS160", origin, flow.identity);
 
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
     // on it with the serialized public key of the keypair.
@@ -980,6 +1003,7 @@ IDService.prototype = {
 
 
   }
+
 };
 
 var IdentityService = new IDService();
