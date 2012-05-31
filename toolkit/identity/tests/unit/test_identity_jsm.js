@@ -230,10 +230,11 @@ function setup_test_identity(cb)
 
 // create a mock "doc" object, which the Identity Service
 // uses as a pointer back into the doc object
-function mock_doc(aOrigin, aDoFunc)
+function mock_doc(aIdentity, aOrigin, aDoFunc)
 {
   var mockedDoc = {};
   mockedDoc.id = uuid();
+  mockedDoc.loggedInEmail = aIdentity;
   mockedDoc.origin = aOrigin;
   mockedDoc['do'] = aDoFunc;
   return mockedDoc;
@@ -256,7 +257,7 @@ function call_sequentially()
 function test_mock_doc()
 {
   do_test_pending();
-  var mockedDoc = mock_doc(TEST_URL, function(action, params) {
+  var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'fun');
     do_test_finished();
     run_next_test();
@@ -274,8 +275,9 @@ function test_watch_loggedin_ready()
     
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
-    
-    IDService.watch(id, mock_doc(TEST_URL, function(action, params) {
+    dump("mock dock with id " + id + "\n");
+    IDService.watch(mock_doc(id, TEST_URL, function(action, params) {
+				 dump("@@@ in ready callback\n");
       do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
       
@@ -296,7 +298,7 @@ function test_watch_loggedin_login()
     store.setLoginState(TEST_URL, true, id);
 
     // check for first a login() call, then a ready() call
-    IDService.watch(null, mock_doc(TEST_URL, call_sequentially(
+    IDService.watch(mock_doc(null, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'login');
         do_check_neq(params, null);
@@ -323,7 +325,7 @@ function test_watch_loggedin_logout()
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
     
-    IDService.watch("otherid@foo.com", mock_doc(TEST_URL, call_sequentially(
+    IDService.watch(mock_doc("otherid@foo.com", TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'login');
         do_check_neq(params, null);
@@ -346,7 +348,7 @@ function test_watch_notloggedin_ready()
 
   IDService.reset();
 
-  IDService.watch(null, mock_doc(TEST_URL, function(action, params) {
+  IDService.watch(mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'ready');
     do_check_eq(params, undefined);
     
@@ -361,7 +363,7 @@ function test_watch_notloggedin_logout()
 
   IDService.reset();
 
-  IDService.watch(TEST_USER, mock_doc(TEST_URL, call_sequentially(
+  IDService.watch(mock_doc(TEST_USER, TEST_URL, call_sequentially(
     function(action, params) {
       do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
@@ -381,11 +383,11 @@ function test_request()
   do_test_pending();
   
   // set up a watch, to be consistent
-  var mockedDoc = mock_doc(TEST_URL, function(action, params) {
+  var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
     // this isn't going to be called for now.
   });
   
-  IDService.watch(null, mockedDoc);
+  IDService.watch(mockedDoc);
 
   // be ready for the UX identity-request notification
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
@@ -420,7 +422,7 @@ function test_select_identity()
   
   setup_test_identity(function(id) {
     var gotAssertion = false;
-    var mockedDoc = mock_doc(TEST_URL, call_sequentially(
+    var mockedDoc = mock_doc(null, TEST_URL, call_sequentially(
       // first the login call
       function(action, params) {
         do_check_eq(action, 'login');
@@ -443,7 +445,7 @@ function test_select_identity()
       }));
 
     // register the callbacks
-    IDService.watch(null, mockedDoc);
+    IDService.watch(mockedDoc);
 
     // register the request UX observer
     makeObserver("identity-request", function (aSubject, aTopic, aData) {
@@ -470,7 +472,7 @@ function test_logout()
     store.setLoginState(TEST_URL, true, id);
 
     var doLogout;
-    var mockedDoc = mock_doc(TEST_URL, call_sequentially(
+    var mockedDoc = mock_doc(id, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
@@ -489,7 +491,7 @@ function test_logout()
       IDService.logout(mockedDoc.id);
     };
     
-    IDService.watch(id, mockedDoc);
+    IDService.watch(mockedDoc);
   });  
 }
 
@@ -565,14 +567,14 @@ function test_begin_provisioning()
 function test_raise_provisioning_failure()
 {
   do_test_pending();
-  let _provId = null;
+  let _callerId = null;
 
   setup_provisioning(
     TEST_USER,
-    function(provId) {
+    function(caller) {
       // call .beginProvisioning()
-      _provId = provId;
-      IDService.beginProvisioning(provId);
+      _callerId = caller.id;
+      IDService.beginProvisioning(caller);
     }, function(err) {
       // this should be invoked with a populated error
       do_check_neq(err, null);
@@ -584,7 +586,7 @@ function test_raise_provisioning_failure()
     {
       beginProvisioningCallback: function(email, duration_s) {
         // raise the failure as if we can't provision this email
-        IDService.raiseProvisioningFailure(_provId, "can't authenticate this email");
+        IDService.raiseProvisioningFailure(_callerId, "can't authenticate this email");
       }
     });
 }
@@ -595,9 +597,9 @@ function test_genkeypair_before_begin_provisioning()
 
   setup_provisioning(
     TEST_USER,
-    function(provId) {
+    function(caller) {
       // call genKeyPair without beginProvisioning
-      IDService.genKeyPair(provId);
+      IDService.genKeyPair(caller.id);
     },
     // expect this to be called with an error
     function(err) {
@@ -622,13 +624,13 @@ function test_genkeypair_before_begin_provisioning()
 function test_genkeypair()
 {
   do_test_pending();
-  let _provId = null;
+  let _callerId = null;
 
   setup_provisioning(
     TEST_USER,
-    function(provId) {
-      _provId = provId;
-      IDService.beginProvisioning(provId);
+    function(caller) {
+      _callerId = caller.id;
+      IDService.beginProvisioning(caller);
     },
     function(err) {
       // should not be called!
@@ -639,9 +641,12 @@ function test_genkeypair()
     },
     {
       beginProvisioningCallback: function(email, time_s) {
-        IDService.genKeyPair(_provId);
+	  dump("@@@ begin prov - gen key pair\n");
+        IDService.genKeyPair(_callerId);
       },
       genKeyPairCallback: function(pk) {
+	  dump("@@@ in gen key pair callback \n");
+	  dump("kp = "+ JSON.stringify(pk));
         do_check_neq(pk, null);
 
         // yay!
@@ -726,11 +731,11 @@ TESTS.push(test_logout);
 
 // provisioning tests
 TESTS.push(test_begin_provisioning);
-/*TESTS.push(test_raise_provisioning_failure);
+TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
-TESTS.push(test_genkeypair);
-TESTS.push(test_register_certificate_before_genkeypair);
-TESTS.push(test_register_certificate);*/
+//TESTS.push(test_genkeypair);
+//TESTS.push(test_register_certificate_before_genkeypair);
+//TESTS.push(test_register_certificate);
 
 TESTS.forEach(add_test);
 

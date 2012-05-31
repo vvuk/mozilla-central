@@ -115,15 +115,22 @@ IDService.prototype = {
    * Register a listener for a given windowID as a result of a call to
    * navigator.id.watch().
    *
-   * @param loggedInEmail
-   *        (string)  the currently logged-in email.
-   *
    * @param aCaller
    *        (Object)  an object that represents the caller document, and
    *                  is expected to have properties:
-   *                  id (unique, e.g. uuid), origin, do(action, params).
+   *                  - id (unique, e.g. uuid)
+   *                  - loggedInEmail (string or null)
+   *                  - origin
+   * 
+   *                  and a bunch of callbacks
+   *                  - doReady()
+   *                  - doLogin() 
+   *                  - doLogout()
+   *                  - doError() 
+   *                  - doCancel()
+   * 
    */
-  watch: function watch(aLoggedInEmail, aCaller)
+  watch: function watch(aCaller)
   {
     this._docs[aCaller.id] = aCaller;
     let origin = aCaller.origin;
@@ -136,10 +143,10 @@ IDService.prototype = {
     // 3. the email has changed:             'login'; 'ready'
     if (state.isLoggedIn) {
       // Logged in; ready
-      if (!!state.email && aLoggedInEmail === state.email) {
+      if (!!state.email && aCaller.loggedInEmail === state.email) {
          aCaller.do('ready');
 
-      } else if (aLoggedInEmail === null) {
+      } else if (aCaller.loggedInEmail === null) {
         // Generate assertion for existing login
         let options = {requiredEmail: state.email, audience: origin};
         this.getAssertion(options, function(err, assertion) {
@@ -149,7 +156,7 @@ IDService.prototype = {
 
       } else {
         // Change login identity
-        let options = {requiredEmail: aLoggedInEmail, audience: origin};
+        let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
         this.getAssertion(options, function(err, assertion) {
           aCaller.do('login', {assertion: assertion});
           aCaller.do('ready');
@@ -161,7 +168,7 @@ IDService.prototype = {
     // 2. no email provided, but there is an id we can use: 'login'; 'ready'
     // 3. not logged in, no email given, no id to use:      'ready';
     } else {
-      if (!! aLoggedInEmail) {
+      if (!! aCaller.loggedInEmail) {
         // not logged in; logout
         aCaller.do('ready');
         aCaller.do('logout');
@@ -373,14 +380,16 @@ IDService.prototype = {
    *
    * @param aCaller
    *        (object)  the caller with all callbacks and other information
+   *                  callbacks include:
+   *                  - doBeginProvisioningCallback(id, duration_s)
+   *                  - doGenKeyPairCallback(pk)
    */
   beginProvisioning: function beginProvisioning(aCaller)
   {
     // look up the provisioning caller and the identity we're trying to provision
     let flow = this._provisionFlows[aCaller.id];
     if (!flow) {
-      aCaller.doError("no such provisioning flow");
-      return;
+      return aCaller.doError("no such provisioning flow");
     }
 
     // keep the caller object around
@@ -395,9 +404,9 @@ IDService.prototype = {
     // XXX is this where we indicate that the flow is "valid" for keygen?
     flow.state = "provisioning";
 
+    log("@@@@ flow.caller.id = " + flow.caller.id + "\n");
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
-    // XXX stub
     return flow.caller.doBeginProvisioningCallback(identity, duration);
   },
 
@@ -453,12 +462,14 @@ IDService.prototype = {
       return flow.cb("Cannot genKeyPair before beginProvisioning");
     }
 
-    // generate a keypair, store it in provisioning caller
-    flow.kp = this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity);
+    // generate a keypair
+    this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity);
+    dump("@@@ " + JSON.stringify(this._registry) + "\n");
+    dump("@" + flow.identity + "__" + INTERNAL_ORIGIN + '\n');
+    let kp = this._registry[flow.identity + "__" + INTERNAL_ORIGIN];
+    flow.caller.kp = kp;
 
-    // XXX if we're storing this on the flow, do we need to pass this in 
-    // the callback?
-    return flow.provisioningFrame.genKeyPairCallback(flow.kp);
+    return flow.caller.doGenKeyPairCallback(flow.kp);
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
     // on it with the serialized public key of the keypair.
 
