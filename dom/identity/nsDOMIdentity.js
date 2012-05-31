@@ -86,7 +86,7 @@ nsDOMIdentity.prototype = {
 
   _callBeginProvisioningCallback: function(message) {
     let identity = message.identity;
-    let certValidityDuration = message.cert_duration;
+    let certValidityDuration = message.certDuration;
     this._beginProvisioningCallback(identity, certValidityDuration);
   },
 
@@ -97,6 +97,10 @@ nsDOMIdentity.prototype = {
       oid: this._id,
       from: this._window.location.href,
     });
+  },
+
+  _callGenKeyPairCallback: function (message) {
+    this._genKeyPairCallback(message.publicKey);
   },
 
   registerCertificate: function(aCertificate) {
@@ -186,6 +190,9 @@ nsDOMIdentity.prototype = {
       case "Identity:IDP:CallBeginProvisioningCallback":
         this._callBeginProvisioningCallback(msg);
         break;
+      case "Identity:IDP:CallGenKeyPairCallback":
+        this._callGenKeyPairCallback(msg);
+        break;
     }
   },
 
@@ -233,6 +240,7 @@ nsDOMIdentity.prototype = {
       "Identity:RP:Watch:OnLogout",
       "Identity:RP:Watch:OnReady",
       "Identity:IDP:CallBeginProvisioningCallback",
+      "Identity:IDP:CallGenKeyPairCallback",
     ];
     this._messages.forEach((function(msgName) {
       cpmm.addMessageListener(msgName, this);

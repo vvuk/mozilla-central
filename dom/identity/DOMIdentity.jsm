@@ -21,6 +21,65 @@ XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
+function IDDOMMessage(aID) {
+  this._id = aID;
+}
+
+IDDOMMessage.prototype = {
+  get id() this._id,
+}
+
+function IDPProvisioningContext(aID, aOrigin) {
+  this._id = aID;
+  this._origin = aOrigin;
+}
+
+IDPProvisioningContext.prototype = {
+  get id() this._id,
+  get origin() this._origin,
+
+  doBeginProvisioningCallback: function IDPProvisioningContext_doBeginProvisioningCallback(aID, aCertDuration) {
+    let message = new IDDOMMessage(this.id);
+    message.identity = aID;
+    message.certDuration = aCertDuration;
+    ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", message);
+  },
+
+  doGenKeyPairCallback: function IDPProvisioningContext_doGenKeyPairCallback(aPublicKey) {
+    let message = new IDDOMMessage(this.id);
+    message.publicKey = aPublicKey;
+    ppmm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
+  },
+};
+
+function RPWatchContext(aID, aOrigin, aLoggedInEmail) {
+  this._id = aID;
+  this._origin = aOrigin;
+  this._loggedInEmail = aLoggedInEmail;
+}
+
+RPWatchContext.prototype = {
+  get id() this._id,
+  get origin() this._origin,
+  get loggedInEmail() this._loggedInEmail,
+
+  dologin: function RPWatchContext_onlogin(aAssertion) {
+    let message = new IDDOMMessage(this.id);
+    message.assertion = aAssertion;
+    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
+  },
+
+  dologout: function RPWatchContext_onlogout() {
+    let message = new IDDOMMessage(this.id);
+    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
+  },
+
+  doready: function RPWatchContext_onready() {
+    let message = new IDDOMMessage(this.id);
+    ppmm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
+  }
+};
+
 let DOMIdentity = {
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
@@ -106,8 +165,9 @@ let DOMIdentity = {
   _watch: function(message) {
     // Forward to Identity.jsm and stash the oid somewhere so we can make
     // callback after sending a message to parent process.
-    this._pending[message.oid] = true;
-    IdentityService.watch(message.loggedIn, message.oid);
+    this._pending[message.oid] = true; // TODO?
+    let context = new RPWatchContext(message.oid, message.loggedInEmail);
+    IdentityService.watch(context);
   },
 
   _request: function(message) {
@@ -129,16 +189,11 @@ let DOMIdentity = {
   },
 
   _beginProvisioning: function(message) {
+    
     IdentityService.beginProvisioning(message.oid);
 
     // TODO: move below code to function that Identity.jsm calls
     let data = IdentityService._provisionFlows[message.oid];
-
-    ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", {
-      identity: data.identity,
-      cert_duration: IdentityService.certDuration,
-      oid: message.oid,
-    });
   },
 
   _genKeyPair: function(message) {
