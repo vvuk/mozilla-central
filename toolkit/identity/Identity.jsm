@@ -120,7 +120,7 @@ IDService.prototype = {
    *                  is expected to have properties:
    *                  - id (unique, e.g. uuid)
    *                  - loggedInEmail (string or null)
-   *                  - origin
+   *                  - origin (string)
    * 
    *                  and a bunch of callbacks
    *                  - doReady()
@@ -176,7 +176,7 @@ IDService.prototype = {
       } else {
         // No loggedInEmail declared
         // Is there an identity we can already use for this site?
-        let identity = this.getDefaultEmailForOrigin(aCaller.origin);
+        let identity = this.getDefaultEmailForOrigin(origin);
         if (!! identity) {
           let options = {requiredEmail: identity, audience: origin};
           this.getAssertion(options, function(err, assertion) {
@@ -463,13 +463,13 @@ IDService.prototype = {
     }
 
     // generate a keypair
-    this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity);
-    dump("@@@ " + JSON.stringify(this._registry) + "\n");
-    dump("@" + flow.identity + "__" + INTERNAL_ORIGIN + '\n');
-    let kp = this._registry[flow.identity + "__" + INTERNAL_ORIGIN];
-    flow.caller.kp = kp;
+    this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity, function(err, key) {
+                            dump("@@@ got one \n");
 
-    return flow.caller.doGenKeyPairCallback(flow.kp);
+      //flow.caller.kp = this._registry[kpID];
+      return flow.caller.doGenKeyPairCallback(key);
+    });
+
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
     // on it with the serialized public key of the keypair.
 
@@ -772,7 +772,7 @@ IDService.prototype = {
    *          "id-service-key-gen-finished" when the keypair is ready.
    *          Access to the keypair is via the getIdentityServiceKeyPair() method
    **/
-  _generateKeyPair: function _generateKeyPair(aAlgorithmName, aOrigin, aUserID)
+  _generateKeyPair: function _generateKeyPair(aAlgorithmName, aOrigin, aUserID, aCallback)
   {
     let alg = ALGORITHMS[aAlgorithmName];
     if (! alg) {
@@ -795,7 +795,8 @@ IDService.prototype = {
 
       keyPairGenFinished: function (aKeyPair)
       {
-        let url = Services.io.newURI(aOrigin, null, null).prePath;
+        let url = aOrigin; // Services.io.newURI(aOrigin, null, null).prePath;
+dump("@@@ generateKeyPair url : " + url);
         let id = uuid();
         var keyWrapper;
         let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
@@ -832,10 +833,14 @@ IDService.prototype = {
           throw new Error("Unsupported algorithm");
         }
 
-        self._registry[key.userID + "__" + key.url] = keyWrapper;
-        Services.obs.notifyObservers(null,
-                                     "id-service-key-gen-finished",
-                                     JSON.stringify({ url: url, userID: aUserID }));
+        let keyID = key.userID + "__" + key.url;
+        self._registry[keyID] = keyWrapper;
+
+        dump("@@@ sweet.  key is " + keyID + "\n");
+        dump("@ callback: " + JSON.stringify(aCallback) + "\n");
+        
+        return  aCallback(null, {url:url, userID: aUserID});
+
       },
     };
 

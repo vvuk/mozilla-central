@@ -16,6 +16,8 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
+var INTERNAL_ORIGIN = "browserid://";
+
 function partial(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   return function() {
@@ -94,10 +96,9 @@ Services.obs.addObserver(idObserver, "id-service-key-gen-finished", false);
 function test_rsa()
 {
   do_test_pending();
-  makeObserver("id-service-key-gen-finished", function checkRSA(aSubject, aTopic, aData) {
+  function checkRSA(err, key) {
     var kpo;
     // now we can pluck the keyPair from the store
-    let key = JSON.parse(aData);
     kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.RS256);
@@ -120,18 +121,17 @@ function test_rsa()
     
     do_test_finished();
     run_next_test();
-  });
+  };
   
-  IDService._generateKeyPair("RS256", TEST_URL, TEST_USER);
+  IDService._generateKeyPair("RS256", INTERNAL_ORIGIN, TEST_USER, checkRSA);
 }
 
 function test_dsa()
 {
   do_test_pending();
-  makeObserver("id-service-key-gen-finished", function checkDSA(aSubject, aTopic, aData) {
+  function checkDSA(err, key) {
     var kpo;
     // now we can pluck the keyPair from the store
-    let key = JSON.parse(aData);
     kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.DS160);
@@ -154,9 +154,9 @@ function test_dsa()
     
     do_test_finished();
     run_next_test();
-  });
+  };
   
-  IDService._generateKeyPair("DS160", TEST_URL2, TEST_USER);
+  IDService._generateKeyPair("DS160", TEST_URL2, TEST_USER, checkDSA);
 }
 
 function test_overall()
@@ -223,16 +223,15 @@ function setup_test_identity(cb)
   IDService.reset();
   let store = get_idstore();
   
-  makeObserver("id-service-key-gen-finished", function (aSubject, aTopic, aData) {
-    let key = JSON.parse(aData);
+  function keyGenerated(err, key) {
     let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
 
     store.addIdentity(TEST_USER, kpo, "fake-cert");
 
     cb(TEST_USER);
-  });
+  };
 
-  IDService._generateKeyPair("DS160", TEST_URL, TEST_USER);
+  IDService._generateKeyPair("DS160", TEST_URL, TEST_USER, keyGenerated);
 }
 
 // create a mock "doc" object, which the Identity Service
@@ -656,10 +655,10 @@ function test_genkeypair()
 	  dump("@@@ begin prov - gen key pair\n");
         IDService.genKeyPair(_callerId);
       },
-      genKeyPairCallback: function(pk) {
+      genKeyPairCallback: function(kp) {
 	  dump("@@@ in gen key pair callback \n");
-	  dump("kp = "+ JSON.stringify(pk));
-        do_check_neq(pk, null);
+	  dump("kp = "+ JSON.stringify(kp));
+        do_check_neq(kp, null);
 
         // yay!
         do_test_finished();
@@ -745,7 +744,7 @@ TESTS.push(test_logout);
 TESTS.push(test_begin_provisioning);
 TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
-//TESTS.push(test_genkeypair);
+TESTS.push(test_genkeypair);
 //TESTS.push(test_register_certificate_before_genkeypair);
 //TESTS.push(test_register_certificate);
 
