@@ -67,6 +67,9 @@ Sandbox.prototype = {
     webNav.allowWindowControl = false;
     // TODO: disable media (bug 759964)
 
+    let markupDocViewer = frame.docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+    markupDocViewer.authorStyleDisabled = true;
+
     // Set instance properties.
     this._frame = frame;
     this._container = doc.documentElement;
