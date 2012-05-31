@@ -1,4 +1,8 @@
 
 // pre-emptively shut down to clear resources
-IDService.shutdown();
-  
+if (typeof IdentityService !== "undefined")
+  IdentityService.shutdown();
+if (typeof IDService !== "undefined")
+  IDService.shutdown();
+
+
