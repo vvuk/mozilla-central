@@ -158,7 +158,6 @@ IDService.prototype = {
     let origin = aCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
-    log("watch", aCaller);
     // If the user is already logged in, then there are three cases
     // to deal with
     // 1. the email is valid and unchanged:  'ready'
@@ -182,26 +181,15 @@ IDService.prototype = {
       }
 
     // If the user is not logged in, there are two cases:
-    // 1. a logged in email was provided:                   'ready'; 'logout'
-    // 2. no email provided, but there is an id we can use: 'login'; 'ready'
-    // 3. not logged in, no email given, no id to use:      'ready';
+    // 1. a logged in email was provided: 'ready'; 'logout'
+    // 2. not logged in, no email given:  'ready';
     } else {
       if (!! aCaller.loggedInEmail) {
         // not logged in; logout
         return this._doLogout(aCaller, {audience: origin});
 
       } else {
-        // No loggedInEmail declared
-        // Is there an identity we can already use for this site?
-        let identity = this.getDefaultEmailForOrigin(origin);
-        if (!! identity) {
-          let options = {requiredEmail: identity, audience: origin};
-          return this._doLogin(aCaller, options);
-
-        } else {
-          // not logged in; no identity; ready
-          return aCaller.doReady();        
-        }
+        return aCaller.doReady();
       }
     }
   },
@@ -293,40 +281,63 @@ IDService.prototype = {
    */
   selectIdentity: function selectIdentity(aCallerId, aIdentity)
   {
-    log("selectIdentity: for request " + aCallerId + " and " + aIdentity);
-    // set the state of login for the doc origin to be logged in as that identity
-    
+    let caller = this._rpFlows[aCallerId];
+    if (! caller) {
+      log("No caller with id", aCallerId);
+      return null;
+    }
+
+    // set the state of logi
+    let state = this._store.getLoginState(caller.origin) || {};
+    state.isLoggedIn = true;
+    state.email = aIdentity;
+
     // go generate assertion for this identity and deliver it to this doc
-    // this._generateAssertion(doc.origin, aIdentity, cb)
+    // XXX duplicates getAssertion
+    this._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+      // if fail, we don't have the cert to do the assertion
+      if (err) {
+        log("need to get cert");
+        
+        // figure out the IdP
+        this._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
+           log("discovered idp", idpParams);
+                                         
+          // using IdP info, we provision 
+          this._provisionIdentity(aIdentity, idpParams, function(err, identity) {
+            log("provisioned identity", identity);
 
-    // if fail, we don't have the cert to do the assertion
+            // if fail on callback, need to authentication
+            if (err) {
+              this.doAuthentication(aIdentity, idpParams, function(err, authd) {
+                // we try provisioning again
+                this._provisionIdentity(aIdentity, idpParams, function (err, identity) {
+                  // if we fail, hard fail
+                  if (err) {
+                    return caller.doError("Aw, snap.");
+                  } else {
+                    // yay
+                    this.generateAssertion(aCallerId, aIdentity, function(err, assertion) {
+                      return caller.doLogin(assertion);
+                    });
+                  }
+                });
+              });
 
-    // figure out the IdP
-    // this._discoverIdentityProvider(aIdentity, cb);
-    // we get IDPParams in the callback.
+            // successfully provisioned using idp info
+            } else {
+              return caller.doLogin(assertion);
+            }
+          });
+        });
 
-    // using IdP info, we provision
-    // this._provisionIdentity(aIdentity, idpParams, cb);
 
-    this._getEndpoints(aIdentity, function(aEndpoints) {
-      if (aEndpoints && aEndpoints.provisioning)
-        this._beginProvisioningFlow(aIdentity, aEndpoints.provisioning);
-      else
-        throw new Error("Invalid or non-existent provisioning endpoint");
-    }.bind(this));
-
-    // if fail on callback, need to authentication
-    // this.doAuthentication(aIdentity, idpParams, cb)
-
-    // we try provisioning again
-    // this._provisionIdentity(aIdentity, idpParams, cb);
-
-    // if we fail, hard fail.
-    
-    // if succeed, then
-    // this.generateAssertion(aCallerId, aIdentity, cb)
-
-    // doc.doLogin(assertion);
+      } else {
+        log("no error on getAssertion", assertion);
+        caller.doLogin(assertion);
+        return caller.doReady();
+      }
+    });
   },
 
   /**
@@ -347,12 +358,12 @@ IDService.prototype = {
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
     let id = this._store.fetchIdentity(aIdentity);
-    log("generating assertion for " ,aIdentity, id);
     if (! (id && id.cert)) {
       return aCallback("Cannot generate assertion without a cert");
     }
     
     let kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
+    log("have kp");
     if (kp) {
       return jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
       
@@ -800,7 +811,7 @@ IDService.prototype = {
 
   getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
     let identities = this.getIdentitiesForSite(aOrigin);
-    return identities.lastUsed || identities.result[0] || null;
+    return identities.lastUsed || null;
   },
 
   /**
