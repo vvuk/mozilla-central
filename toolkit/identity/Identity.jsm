@@ -346,7 +346,6 @@ IDService.prototype = {
    */
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
-    return aCallback(null, "THIS_IS_AWESOME");
     let id = this._store.fetchIdentity(aIdentity);
     log("generating assertion for " ,aIdentity, id);
     if (! (id && id.cert)) {
