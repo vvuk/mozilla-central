@@ -385,13 +385,16 @@ function test_request()
   
   // set up a watch, to be consistent
   var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
-    // this isn't going to be called for now.
+    log("test_request " + action + " " + params);
+    // this isn't going to be called for now
+    // XXX but it is called - is that bad?
   });
   
   IDService.watch(mockedDoc);
 
   // be ready for the UX identity-request notification
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
+    log("test_request identity-request " + aSubject);
     do_check_neq(aSubject, null);
     var subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
     do_check_eq(subj.getProperty('requiredEmail'), TEST_USER);
@@ -427,6 +430,11 @@ function test_select_identity()
   setup_test_identity(id, function() {
     var gotAssertion = false;
     var mockedDoc = mock_doc(null, TEST_URL, call_sequentially(
+      function(action, params) {
+        // ready emitted from first watch() call
+	do_check_eq(action, 'ready');
+	do_check_eq(params, null);
+      },
       // first the login call
       function(action, params) {
         do_check_eq(action, 'login');
@@ -450,7 +458,7 @@ function test_select_identity()
 
     // register the callbacks
     IDService.watch(mockedDoc);
-
+			  
     // register the request UX observer
     makeObserver("identity-request", function (aSubject, aTopic, aData) {
       // do the select identity
@@ -735,6 +743,7 @@ TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logou
 TESTS.push(test_request);
 TESTS.push(test_add_identity);
 TESTS.push(test_select_identity);
+
 TESTS.push(test_logout);
 
 // provisioning tests
@@ -744,6 +753,7 @@ TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
 TESTS.push(test_register_certificate_before_genkeypair);
 TESTS.push(test_register_certificate);
+
 
 TESTS.forEach(add_test);
 
