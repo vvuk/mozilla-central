@@ -48,8 +48,8 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 		  $(XPCOM_LIBS) \
 		  $(NSPR_LIBS) \
 		  $(NSS_LIBS) \
-		  $(DEPTH)/media/mtransport/libmtransport.$(LIB_SUFFIX) \
-		  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/libgtest.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/mtransport/$(LIB_PREFIX)mtransport.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
 		  $(NULL)
 
 LOCAL_INCLUDES += \
