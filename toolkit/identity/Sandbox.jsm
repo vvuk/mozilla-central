@@ -50,6 +50,10 @@ function Sandbox(aURL, aCallback) {
   this._createSandbox(aCallback);
 }
 Sandbox.prototype = {
+  get id() {
+    return this._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+  },
+
   /**
    * Frees the sandbox and releases the iframe created to host it.
    */
