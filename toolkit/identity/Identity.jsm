@@ -424,6 +424,9 @@ IDService.prototype = {
     let flow = this._provisionFlows[aProvId];
     let cb = flow.cb;
 
+    // Clean up the sandbox here?
+    flow.sandbox.free();
+
     // delete the provisioning context
     delete this._provisionFlows[aProvId];
 
@@ -457,7 +460,11 @@ IDService.prototype = {
   {
     // look up the provisioning caller, make sure it's valid.
     let flow = this._provisionFlows[aProvId];
-    
+    if (!flow) {
+      log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
+      return;
+    }
+
     if (flow.state !== "provisioning") {
       return flow.cb("Cannot genKeyPair before beginProvisioning");
     }
@@ -989,7 +996,7 @@ IDService.prototype = {
     new Sandbox(aURL, function(aSandbox) {
       dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
       let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
-      let caller = {identity: aIdentity, securityLevel: this.securityLevel/*TODO: remove?*/, authenticationDone: false /* TODO */};
+      let caller = {identity: aIdentity, securityLevel: this.securityLevel, sandbox: aSandbox};
       IdentityService._provisionFlows[utils.outerWindowID] = caller;
       dump("_beginProvisioningFlow: " + utils.outerWindowID + "\n");
     }.bind(this));

@@ -86,6 +86,7 @@ nsDOMIdentity.prototype = {
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
       oid: this._id,
       from: this._window.location.href,
+      origin: this._origin,
     });
   },
 

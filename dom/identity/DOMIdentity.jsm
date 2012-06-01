@@ -50,6 +50,10 @@ IDPProvisioningContext.prototype = {
     message.publicKey = aPublicKey;
     ppmm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
   },
+
+  doError: function(msg) {
+    log("Provisioning ERROR: " + msg);
+  },
 };
 
 function RPWatchContext(aID, aOrigin, aLoggedInEmail) {
@@ -194,10 +198,9 @@ let DOMIdentity = {
 
   _beginProvisioning: function(message) {
 
-    IdentityService.beginProvisioning(message.oid);
+    let context = new IDPProvisioningContext(message.oid, message.origin);
 
-    // TODO: move below code to function that Identity.jsm calls
-    let data = IdentityService._provisionFlows[message.oid];
+    IdentityService.beginProvisioning(context);
   },
 
   _genKeyPair: function(message) {
