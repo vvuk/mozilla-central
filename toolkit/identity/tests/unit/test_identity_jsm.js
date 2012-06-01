@@ -260,9 +260,7 @@ function test_watch_loggedin_ready()
     
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
-    dump("mock dock with id " + id + "\n");
     IDService.watch(mock_doc(id, TEST_URL, function(action, params) {
-				 dump("@@@ in ready callback\n");
       do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
       
@@ -624,12 +622,9 @@ function test_genkeypair()
     },
     {
       beginProvisioningCallback: function(email, time_s) {
-	  dump("@@@ begin prov - gen key pair\n");
         IDService.genKeyPair(_callerId);
       },
       genKeyPairCallback: function(kp) {
-	  dump("@@@ in gen key pair callback \n");
-	  dump("kp = "+ JSON.stringify(kp));
         do_check_neq(kp, null);
 
         // yay!
@@ -674,17 +669,19 @@ function test_register_certificate_before_genkeypair()
 function test_register_certificate()
 {
   do_test_pending();
+  let _callerId = null;
 
   setup_provisioning(
     TEST_USER,
-    function(provId) {
-      IDService.beginProvisioning(provId);
+    function(caller) {
+      _callerId = caller.id;
+      IDService.beginProvisioning(caller);
     },
     function(err) {
       // we should be cool!
       do_check_eq(err, null);
 
-      check_provision_flow_done(provId);
+      check_provision_flow_done(_callerId);
 
       // check that the cert is there
       var identity = get_idstore().fetchIdentity(TEST_USER);
@@ -696,10 +693,10 @@ function test_register_certificate()
     },
     {
       beginProvisioningCallback: function(email, duration_s) {
-        IDService.genKeyPair(provId);
+        IDService.genKeyPair(_callerId);
       },
       genKeyPairCallback: function(pk) {
-        IDService.registerCertificate(provId, "fake-cert-42");
+        IDService.registerCertificate(_callerId, "fake-cert-42");
       }      
     }
   );  
@@ -720,7 +717,7 @@ TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
 TESTS.push(test_register_certificate_before_genkeypair);
-//TESTS.push(test_register_certificate);
+TESTS.push(test_register_certificate);
 
 TESTS.forEach(add_test);
 

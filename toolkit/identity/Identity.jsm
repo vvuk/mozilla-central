@@ -464,11 +464,9 @@ IDService.prototype = {
 
     // generate a keypair
     this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity, function(err, key) {
-                            dump("@@@ got one \n");
-
-      //flow.caller.kp = this._registry[kpID];
+      flow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
       return flow.caller.doGenKeyPairCallback(key);
-    });
+    }.bind(this));
 
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
     // on it with the serialized public key of the keypair.
@@ -496,21 +494,24 @@ IDService.prototype = {
     if (! flow && flow.caller) {
       return null;
     }
-    if (! flow.caller.kp)  {
+    if (! flow.kp)  {
       return flow.cb("Cannot register a cert without generating a keypair first");
     }
 
-    
-
     // store the keypair and certificate just provided in IDStore.
+    this._store.addIdentity(flow.identity, flow.kp, aCert);
 
     // kill the sandbox
+    delete flow.caller;
 
     // pull out the prov caller callback
+    let callback = flow.cb;
 
     // kill the prov caller
+    delete this._provisionFlows[aProvId];
 
     // invoke callback with success.
+    return callback(null);
   },
 
   /**
@@ -805,7 +806,6 @@ IDService.prototype = {
       keyPairGenFinished: function (aKeyPair)
       {
         let url = aOrigin; // Services.io.newURI(aOrigin, null, null).prePath;
-dump("@@@ generateKeyPair url : " + url);
         let id = uuid();
         var keyWrapper;
         let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
@@ -845,11 +845,7 @@ dump("@@@ generateKeyPair url : " + url);
         let keyID = key.userID + "__" + key.url;
         self._registry[keyID] = keyWrapper;
 
-        dump("@@@ sweet.  key is " + keyID + "\n");
-        dump("@ callback: " + JSON.stringify(aCallback) + "\n");
-        
         return  aCallback(null, {url:url, userID: aUserID});
-
       },
     };
 
@@ -892,7 +888,6 @@ dump("@@@ generateKeyPair url : " + url);
   {
     let key = aUserID + "__" + aUrl;
     let keyObj =  this._registry[key];
-
     if (!keyObj) {
       throw new Error("getIdentityServiceKeyPair: Invalid Key");
     }
