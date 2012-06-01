@@ -27,6 +27,12 @@ XPCOMUtils.defineLazyGetter(this, "IDKeyPair", function () {
     createInstance(Ci.nsIIdentityServiceKeyPair);
 });
 
+XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
+  let scope = {};
+  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
+  return scope.jwcrypto;
+});
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
@@ -37,9 +43,25 @@ function uuid()
   return uuidGenerator.generateUUID();
 }
 
-function log(aMsg)
+/**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log()
 {
-  dump("IDService: " + aMsg + "\n");
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });                
+  dump("@@ Identity.jsm: " + strings.join(' ') + "\n");
 }
 
 // the data store for IDService
@@ -158,6 +180,7 @@ IDService.prototype = {
         // Change login identity
         let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
         this.getAssertion(options, function(err, assertion) {
+          log("changed login id.  err, assertion:", err, assertion);
           aCaller.doLogin(assertion);
           aCaller.doReady();
         });
@@ -297,7 +320,7 @@ IDService.prototype = {
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
     let cert = this._store.fetchIdentity(aIdentity)['cert'];
-
+ 
     // XXX generate the assertion using the stored key 
     // XXX here's a dummy assertion for now ...
     return aCallback(null, "T35T.CERT.FTW~T35T.A553RT10N.W00T"); 
@@ -404,7 +427,6 @@ IDService.prototype = {
     // XXX is this where we indicate that the flow is "valid" for keygen?
     flow.state = "provisioning";
 
-    log("@@@@ flow.caller.id = " + flow.caller.id + "\n");
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
     return flow.caller.doBeginProvisioningCallback(identity, duration);
@@ -425,7 +447,9 @@ IDService.prototype = {
     let cb = flow.cb;
 
     // Clean up the sandbox here?
-    flow.sandbox.free();
+    if (flow.sandbox) {
+      flow.sandbox.free();
+    }
 
     // delete the provisioning context
     delete this._provisionFlows[aProvId];
@@ -462,7 +486,7 @@ IDService.prototype = {
     let flow = this._provisionFlows[aProvId];
     if (!flow) {
       log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
-      return;
+      return null;
     }
 
     if (flow.state !== "provisioning") {
