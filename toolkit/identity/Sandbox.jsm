@@ -12,6 +12,27 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 /**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log()
+{
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });                
+  dump("@@ Sandbox.jsm: " + strings.join(' ') + "\n");
+}
+
+/**
  * An object that represents a sandbox in an iframe loaded with ID_URI. The
  * callback provided to the constructor will be invoked when the sandbox is
  * ready to be used. The callback will receive this object as its only argument
@@ -48,6 +69,7 @@ Sandbox.prototype = {
    */
   _createFrame: function _createFrame() {
     // TODO: What if there is no most recent browser window? (bug 745415). // Or use hiddenWindow
+    log("**creating frame");
     let doc = Services.wm.getMostRecentWindow("navigator:browser").document;
 
     // Insert iframe in to create docshell.
@@ -76,6 +98,7 @@ Sandbox.prototype = {
   },
   
   _createSandbox: function _createSandbox(aCallback) {
+    log("**creating sandbox");
     let self = this;
     this._container.addEventListener(
       "DOMWindowCreated",
