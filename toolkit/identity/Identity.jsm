@@ -294,6 +294,7 @@ IDService.prototype = {
     state.isLoggedIn = true;
     state.email = aIdentity;
 
+    log("selectIdentity with state", state);
     // go generate assertion for this identity and deliver it to this doc
     // XXX duplicates getAssertion
     self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
@@ -306,10 +307,10 @@ IDService.prototype = {
            log("discovered idp", idpParams);
                                          
           // using IdP info, we provision 
-          log("now provision")                                         ;
+          log("now provisioning")                                         ;
           self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
             log("provisioned identity", identity);
-
+            
             // if fail on callback, need to authentication
             if (err) {
               self.doAuthentication(aIdentity, idpParams, function(err, authd) {
@@ -329,6 +330,7 @@ IDService.prototype = {
 
             // successfully provisioned using idp info
             } else {
+              log("successful provisioning, now doing assertion");
               return caller.doLogin(assertion);
             }
           });
@@ -465,6 +467,7 @@ IDService.prototype = {
    */
   beginProvisioning: function beginProvisioning(aCaller)
   {
+    log("**beginProvisioning", aCaller);
     // look up the provisioning caller and the identity we're trying to provision
     let flow = this._provisionFlows[aCaller.id];
     if (!flow) {
@@ -540,6 +543,8 @@ IDService.prototype = {
   {
     // look up the provisioning caller, make sure it's valid.
     let flow = this._provisionFlows[aProvId];
+    log("**genKeyPair", flow);
+    
     if (!flow) {
       log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
       return null;
@@ -551,8 +556,13 @@ IDService.prototype = {
 
     // generate a keypair
     this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity, function(err, key) {
+      if (err)
+        log("error generating keypair:" + err);
+      
       flow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
-      return flow.caller.doGenKeyPairCallback(key);
+      log("about to genkeypair callback with" , key);
+      flow.caller.doGenKeyPairCallback(key);
+      log("done callback");
     }.bind(this));
 
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
@@ -576,6 +586,7 @@ IDService.prototype = {
    */
   registerCertificate: function registerCertificate(aProvId, aCert)
   {
+    log("registerCertificate", aCert);
     // look up provisioning caller, make sure it's valid.
     let flow = this._provisionFlows[aProvId];
     if (! flow && flow.caller) {

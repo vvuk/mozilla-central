@@ -31,7 +31,7 @@ let SignInToWebsiteUX = {
       "joe@mockmyid.com",
       "matt@browserid.linuxsecured.net",
     ].forEach(function(identity) {
-      IdentityService._store.addIdentity(identity, null, "cert for " + identity);
+      IdentityService._store.addIdentity(identity, null, null);
     });
 
     IdentityService._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
