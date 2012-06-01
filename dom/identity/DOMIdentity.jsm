@@ -180,16 +180,6 @@ let DOMIdentity = {
 
   _request: function(message) {
     IdentityService.request(message.oid, message);
-
-    // TODO: Oh look we got a fake assertion back from the JSM, send it onward.
-    let message = {
-      // Should not be empty because _watch was *definitely* called before this.
-      // Right? Right.
-      oid: message.oid,
-      assertion: "fake.jwt.token"
-    };
-    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
-
   },
 
   _logout: function(message) {
