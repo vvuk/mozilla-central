@@ -306,6 +306,7 @@ IDService.prototype = {
            log("discovered idp", idpParams);
                                          
           // using IdP info, we provision 
+          log("now provision")                                         ;
           self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
             log("provisioned identity", identity);
 
@@ -394,6 +395,11 @@ IDService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aCallback)
   {
+    log('provision identity', aIdentity, aIDPParams);
+    let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
+    this._beginProvisioningFlow(aIdentity, url, function(err, hotdamn) {
+      log(err, hotdamn);                             
+    });
     // create a provisioning flow identifier provId and store the caller
     // stash callback associated with this provisioning workflow.
     
@@ -1081,15 +1087,23 @@ IDService.prototype = {
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
    */
-  _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL)
+  _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL, aCallback)
   {
+log("begin prov flow", aIdentity, aURL);
+
     // TODO: cleanup sandbox (call free)
     new Sandbox(aURL, function(aSandbox) {
-      dump("creating sandbox in _beginProvisioningFlow for " + aIdentity + " at " + aURL + "\n");
-      let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); // TODO: move to helper in Sandbox.jsm
-      let caller = {identity: aIdentity, securityLevel: this.securityLevel, sandbox: aSandbox};
-      IdentityService._provisionFlows[utils.outerWindowID] = caller;
-      dump("_beginProvisioningFlow: " + utils.outerWindowID + "\n");
+log(aURL, aSandbox);
+      // TODO: move to helper in Sandbox.jsm
+      let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); 
+      let callerId = utils.outerWindowID;
+      let caller = {
+        id: callerId,
+        identity: aIdentity, 
+        securityLevel: this.securityLevel, 
+        sandbox: aSandbox};
+      this._provisionFlows[callerId] = caller;
+      return aCallback(null, caller.id);
     }.bind(this));
   },
 
