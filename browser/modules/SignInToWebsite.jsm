@@ -23,7 +23,7 @@ let SignInToWebsiteUX = {
     Services.obs.addObserver(this, "identity-request", false);
     Services.obs.addObserver(this, "identity-login", false);
     Services.obs.addObserver(this, "identity-auth", false);
-    Services.obs.addObserver(this, "identity-logged-in", false);
+    Services.obs.addObserver(this, "identity-login-state-changed", false);
 
     /* Sample data */
     [
@@ -43,7 +43,7 @@ let SignInToWebsiteUX = {
     Services.obs.removeObserver(this, "identity-request");
     Services.obs.removeObserver(this, "identity-login");
     Services.obs.removeObserver(this, "identity-auth");
-    Services.obs.removeObserver(this, "identity-logged-in");
+    Services.obs.removeObserver(this, "identity-login-state-changed");
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
@@ -63,7 +63,7 @@ let SignInToWebsiteUX = {
       case "identity-auth":
         this._openAuthenticationUI(aData, aSubject);
         break;
-      case "identity-logged-in":
+      case "identity-login-state-changed":
         if (aData) // if there is en email address
           this._showLoggedInUI(aData, aSubject);
         else
