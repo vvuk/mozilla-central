@@ -45,6 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS = \
   nrappkit \
+  nICEr \
   $(NULL)
 
 NO_SUBMAKEFILES_RULE = 1

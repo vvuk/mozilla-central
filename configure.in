@@ -9056,7 +9056,20 @@ if test -n "$MOZ_WEBRTC"; then
      -G OBJDIR=${_objdir} \
      ${srcdir}/media/mtransport/third_party/nrappkit/nrappkit.gyp
    if test "$?" != 0; then
-      AC_MSG_ERROR([failed to generate gtest Makefiles])
+      AC_MSG_ERROR([failed to generate nrappkit Makefiles])
+   fi
+
+   AC_MSG_RESULT("generating nICEr Makefiles...")
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+     --depth=${srcdir}/media/webrtc/trunk \
+     -D build_with_mozilla=1 \
+     $EXTRA_GYP_DEFINES \
+     --generator-output=${_objdir}/media/mtransport/third_party/nICEr \
+     --toplevel-dir=${srcdir} \
+     -G OBJDIR=${_objdir} \
+     ${srcdir}/media/mtransport/third_party/nICEr/nicer.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate nICEr Makefiles])
    fi
 
 fi
