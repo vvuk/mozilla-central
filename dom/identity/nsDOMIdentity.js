@@ -90,12 +90,6 @@ nsDOMIdentity.prototype = {
     });
   },
 
-  _callBeginProvisioningCallback: function(message) {
-    let identity = message.identity;
-    let certValidityDuration = message.certDuration;
-    this._beginProvisioningCallback(identity, certValidityDuration);
-  },
-
   genKeyPair: function(aCallback) {
     dump("DOM genKeyPair\n");
     this._genKeyPairCallback = aCallback;
@@ -103,10 +97,6 @@ nsDOMIdentity.prototype = {
       oid: this._id,
       from: this._window.location.href,
     });
-  },
-
-  _callGenKeyPairCallback: function (message) {
-    this._genKeyPairCallback(message.publicKey);
   },
 
   registerCertificate: function(aCertificate) {
@@ -135,6 +125,7 @@ nsDOMIdentity.prototype = {
     cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", {
       oid: this._id,
       from: this._window.location.href,
+      origin: this._origin,
     });
   },
 
@@ -200,6 +191,9 @@ nsDOMIdentity.prototype = {
       case "Identity:IDP:CallGenKeyPairCallback":
         this._callGenKeyPairCallback(msg);
         break;
+      case "Identity:IDP:CallBeginAuthenticationCallback":
+        this._callBeginAuthenticationCallback(msg);
+        break;
     }
   },
 
@@ -248,6 +242,7 @@ nsDOMIdentity.prototype = {
       "Identity:RP:Watch:OnReady",
       "Identity:IDP:CallBeginProvisioningCallback",
       "Identity:IDP:CallGenKeyPairCallback",
+      "Identity:IDP:CallBeginAuthenticationCallback",
     ];
     this._messages.forEach((function(msgName) {
       cpmm.addMessageListener(msgName, this);
@@ -258,6 +253,21 @@ nsDOMIdentity.prototype = {
   },
   
   // Private.
+  _callGenKeyPairCallback: function (message) {
+    this._genKeyPairCallback(message.publicKey);
+  },
+
+  _callBeginProvisioningCallback: function(message) {
+    let identity = message.identity;
+    let certValidityDuration = message.certDuration;
+    this._beginProvisioningCallback(identity, certValidityDuration);
+  },
+
+  _callBeginAuthenticationCallback: function(message) {
+    let identity = message.identity;
+    this._beginProvisioningCallback(identity);
+  },
+
   _getRandomId: function() {
     return Cc["@mozilla.org/uuid-generator;1"].
       getService(Ci.nsIUUIDGenerator).

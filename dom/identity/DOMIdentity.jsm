@@ -56,6 +56,22 @@ IDPProvisioningContext.prototype = {
   },
 };
 
+function IDPAuthenticationContext(aID, aOrigin) {
+  this._id = aID;
+  this._origin = aOrigin;
+}
+
+IDPAuthenticationContext.prototype = {
+  get id() this._id,
+  get origin() this._origin,
+
+  doBeginAuthenticationCallback: function(aIdentity) {
+    let message = new IDDOMMessage(this.id);
+    message.identity = aIdentity;
+    ppmm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback", message);
+  },
+};
+
 function RPWatchContext(aID, aOrigin, aLoggedInEmail) {
   this._id = aID;
   this._origin = aOrigin;
@@ -187,9 +203,7 @@ let DOMIdentity = {
   },
 
   _beginProvisioning: function(message) {
-
     let context = new IDPProvisioningContext(message.oid, message.origin);
-
     IdentityService.beginProvisioning(context);
   },
 
@@ -206,7 +220,8 @@ let DOMIdentity = {
   },
 
   _beginAuthentication: function(message) {
-    IdentityService.beginAuthentication(message.oid);
+    let context = new IDPAuthenticationContext(message.oid, message.origin);
+    IdentityService.beginAuthentication(context);
   },
 
   _completeAuthentication: function(message) {
