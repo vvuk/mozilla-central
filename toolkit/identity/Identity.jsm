@@ -281,6 +281,8 @@ IDService.prototype = {
    */
   selectIdentity: function selectIdentity(aCallerId, aIdentity)
   {
+    var self = this;
+
     let caller = this._rpFlows[aCallerId];
     if (! caller) {
       log("No caller with id", aCallerId);
@@ -294,30 +296,30 @@ IDService.prototype = {
 
     // go generate assertion for this identity and deliver it to this doc
     // XXX duplicates getAssertion
-    this._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
       // if fail, we don't have the cert to do the assertion
       if (err) {
         log("need to get cert");
         
         // figure out the IdP
-        this._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
+        self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
            log("discovered idp", idpParams);
                                          
           // using IdP info, we provision 
-          this._provisionIdentity(aIdentity, idpParams, function(err, identity) {
+          self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
             log("provisioned identity", identity);
 
             // if fail on callback, need to authentication
             if (err) {
-              this.doAuthentication(aIdentity, idpParams, function(err, authd) {
+              self.doAuthentication(aIdentity, idpParams, function(err, authd) {
                 // we try provisioning again
-                this._provisionIdentity(aIdentity, idpParams, function (err, identity) {
+                self._provisionIdentity(aIdentity, idpParams, function (err, identity) {
                   // if we fail, hard fail
                   if (err) {
                     return caller.doError("Aw, snap.");
                   } else {
                     // yay
-                    this.generateAssertion(aCallerId, aIdentity, function(err, assertion) {
+                    self.generateAssertion(aCallerId, aIdentity, function(err, assertion) {
                       return caller.doLogin(assertion);
                     });
                   }
@@ -418,9 +420,6 @@ IDService.prototype = {
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback)
   {
     let domain = aIdentity.split('@')[1];
-
-    return aCallback(null, {"some": "params"});
-
     // XXX not until we have this mocked in the tests
     this._fetchWellKnownFile(domain, function(err, idpParams) {
       // XXX TODO follow any authority delegations
@@ -1021,6 +1020,20 @@ IDService.prototype = {
   },
 
   _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback) {
+    // Mock now - just returns mockmyid.com well-known
+
+    log("fetch well known", aDomain);
+    let idpParams = {
+    "public-key": {
+        "algorithm": "RS",
+        "n": "15498874758090276039465094105837231567265546373975960480941122651107772824121527483107402353899846252489837024870191707394743196399582959425513904762996756672089693541009892030848825079649783086005554442490232900875792851786203948088457942416978976455297428077460890650409549242124655536986141363719589882160081480785048965686285142002320767066674879737238012064156675899512503143225481933864507793118457805792064445502834162315532113963746801770187685650408560424682654937744713813773896962263709692724630650952159596951348264005004375017610441835956073275708740239518011400991972811669493356682993446554779893834303",
+        "e": "65537"},
+    "authentication": "/browserid/sign_in.html",
+    "provisioning": "/browserid/provision.html"
+};
+    return aCallback(null, {domain:"mockmyid.com", idpParams:idpParams});
+
+    // XXX we'll do this LATER!
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;

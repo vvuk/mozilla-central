@@ -193,7 +193,7 @@ function test_id_store()
 
 // set up the ID service with an identity with keypair and all
 // when ready, invoke callback with the identity
-function setup_test_identity(identity, cb)
+function setup_test_identity(identity, cert, cb)
 {
   // set up the store so that we're supposed to be logged in
   let store = get_idstore();
@@ -203,7 +203,7 @@ function setup_test_identity(identity, cb)
     let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
 
     log("adding identity " + identity);
-    store.addIdentity(identity, kpo, "fake-cert");
+    store.addIdentity(identity, kpo, cert);
 
     cb();
   };
@@ -263,7 +263,7 @@ function test_watch_loggedin_ready()
   IDService.reset();
   
   var id = TEST_USER;
-  setup_test_identity(id, function() {
+  setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
     
     // set it up so we're supposed to be logged in to TEST_URL
@@ -285,7 +285,7 @@ function test_watch_loggedin_login()
   IDService.reset();
   
   var id = TEST_USER;
-  setup_test_identity(id, function() {
+  setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
     
     // set it up so we're supposed to be logged in to TEST_URL
@@ -316,8 +316,8 @@ function test_watch_loggedin_logout()
   
   var id = TEST_USER;
   var other_id = "otherid@foo.com";
-  setup_test_identity(other_id, function() {
-    setup_test_identity(id, function() {
+  setup_test_identity(other_id, TEST_CERT, function() {
+    setup_test_identity(id, TEST_CERT, function() {
       let store = get_idstore();
       
       // set it up so we're supposed to be logged in to TEST_URL
@@ -426,8 +426,9 @@ function test_select_identity()
 
   IDService.reset();
 
-  var id = TEST_USER;
-  setup_test_identity(id, function() {
+  var id = "ishtar@mockmyid.com";
+  // no cert - force it to provision
+  setup_test_identity(id, null, function() {
     var gotAssertion = false;
     var mockedDoc = mock_doc(null, TEST_URL, call_sequentially(
       function(action, params) {
@@ -480,7 +481,7 @@ function test_logout()
   IDService.reset();
   
   var id = TEST_USER;
-  setup_test_identity(id, function() {
+  setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
     
     // set it up so we're supposed to be logged in to TEST_URL
