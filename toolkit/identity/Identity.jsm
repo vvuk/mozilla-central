@@ -319,11 +319,23 @@ IDService.prototype = {
    */
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
-    let cert = this._store.fetchIdentity(aIdentity)['cert'];
- 
-    // XXX generate the assertion using the stored key 
-    // XXX here's a dummy assertion for now ...
-    return aCallback(null, "T35T.CERT.FTW~T35T.A553RT10N.W00T"); 
+    let id = this._store.fetchIdentity(aIdentity);
+    if (! (id && id.cert)) {
+      return aCallback("Cannot generate assertion without a cert");
+    }
+    
+    let kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
+    if (kp) {
+      return jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
+      
+    // XXX Maybe have to generate a key pair first ?
+    // e.g., when changing identities
+    } else {
+      this._generateKeyPair("DS160", INTERNAL_ORIGIN, aIdentity, function(err, key) {
+        kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
+        return jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
+      });
+    } 
   },
 
   /**
