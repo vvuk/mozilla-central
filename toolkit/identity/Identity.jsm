@@ -297,50 +297,41 @@ IDService.prototype = {
     log("selectIdentity with state", state);
     // go generate assertion for this identity and deliver it to this doc
     // XXX duplicates getAssertion
-    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
-      // if fail, we don't have the cert to do the assertion
-      if (err) {
+    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {       if (! err) {
+        // great!  I can't believe it was so easy!
+        caller.doLogin(assertion);
+        return caller.doReady();
+
+      } else {
         log("need to get cert");
-        
-        // figure out the IdP
+        // figure out the IdP and try to provision an identity
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
-           log("discovered idp", idpParams);
-                                         
-          // using IdP info, we provision 
-          log("now provisioning")                                         ;
           self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
-            log("provisioned identity", identity);
-            
-            // if fail on callback, need to authentication
-            if (err) {
+            if (! err) {
+              // splendid.  successfully provisioned using idp info
+              return caller.doLogin(assertion);
+
+            } else {
+              // soft fail.
+              // We will need to authenticate with the idp
               self.doAuthentication(aIdentity, idpParams, function(err, authd) {
-                // we try provisioning again
+                // and try to provision again
                 self._provisionIdentity(aIdentity, idpParams, function (err, identity) {
-                  // if we fail, hard fail
-                  if (err) {
-                    return caller.doError("Aw, snap.");
-                  } else {
-                    // yay
-                    self.generateAssertion(aCallerId, aIdentity, function(err, assertion) {
+                  if (! err) {
+                    // yay.  we could provision after all.
+                    self.generateAssertion(aCallerId, aIdentity, 
+                                           function(err, assertion) {
                       return caller.doLogin(assertion);
                     });
+                  } else {
+                    // hard fail
+                    return caller.doError("Aw, snap.");
                   }
                 });
               });
-
-            // successfully provisioned using idp info
-            } else {
-              log("successful provisioning, now doing assertion");
-              return caller.doLogin(assertion);
             }
           });
         });
-
-
-      } else {
-        log("no error on getAssertion", assertion);
-        caller.doLogin(assertion);
-        return caller.doReady();
       }
     });
   },
@@ -515,18 +506,6 @@ IDService.prototype = {
 
     // invoke the callback with an error.
     return cb(aReason);
-
-    // we probably do the below code at a higher level,
-    // e.g. in selectIdentity()
-    /*
-    let identity = this._provisionFlows[aProvId].identity;
-    this._getEndpoints(identity, function(aEndpoints) {
-      if (aEndpoints && aEndpoints.authentication)
-        this._beginAuthenticationFlow(identity, aEndpoints.authentication);
-      else
-        throw new Error("Invalid or non-existent authentication endpoint");
-    }.bind(this));
-     */
   },
 
   /**
@@ -622,8 +601,9 @@ IDService.prototype = {
    *        (function) to invoke upon completion, with
    *                   first-positional-param error.
    */
-  doAuthentication: function doAuthentication(aIdentity, idpParams, aCallback)
+  doAuthentication: function doAuthentication(aIdentity, aIDPParams, aCallback)
   {
+    
     // create an authentication caller and its identifier AuthId
     // stash aIdentity, idpparams, and callback in it.
 
@@ -631,7 +611,10 @@ IDService.prototype = {
     
     // ? create a visible frame with sandbox and notify UX
     // or notify UX so it can create the visible frame, not sure which one.
-
+    let authURL = aIDPParams.idpParams.authentication;
+    this._beginAuthenticationFlow(aIdentity, authURL, function(err, authd) {
+                                    
+    });
     // either we bind the AuthID to the sandbox ourselves, or UX does that,
     // in which case we need to tell UX the AuthId.
   },
@@ -1040,6 +1023,7 @@ IDService.prototype = {
     // Mock now - just returns mockmyid.com well-known
 
     log("fetch well known", aDomain);
+/*
     let idpParams = {
     "public-key": {
         "algorithm": "RS",
@@ -1049,8 +1033,8 @@ IDService.prototype = {
     "provisioning": "/browserid/provision.html"
 };
     return aCallback(null, {domain:"mockmyid.com", idpParams:idpParams});
-
-    // XXX we'll do this LATER!
+*/
+    
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;
@@ -1119,7 +1103,7 @@ log(aURL, aSandbox);
   /**
    * Load the authentication UI to start the authentication process.
    */
-  _beginAuthenticationFlow: function _beginAuthentication(aIdentity, aURL)
+  _beginAuthenticationFlow: function _beginAuthenticationFlow(aIdentity, aURL)
   {
     let propBag = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
