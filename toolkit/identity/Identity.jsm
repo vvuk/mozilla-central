@@ -1105,9 +1105,7 @@ log("begin prov flow", aIdentity, aURL);
     // TODO: cleanup sandbox (call free)
     new Sandbox(aURL, function(aSandbox) {
 log(aURL, aSandbox);
-      // TODO: move to helper in Sandbox.jsm
-      let utils = aSandbox._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils); 
-      let callerId = utils.outerWindowID;
+      let callerId = aSandbox.id;
       let caller = {
         id: callerId,
         identity: aIdentity, 

@@ -1301,8 +1301,6 @@
         let addEmailClick = function(evt) {
           this.step = 0;
         }.bind(this);
-        let anotherEmail = document.getAnonymousElementByAttribute(this, "anonid", "anotheremail")
-        anotherEmail.addEventListener("click", addEmailClick);
         let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "newemail")
         newEmail.addEventListener("click", addEmailClick);
 
