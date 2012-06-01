@@ -548,24 +548,27 @@ IDService.prototype = {
   /**
    * The authentication frame has called navigator.id.beginAuthentication
    *
-   * IMPORTANT: the aAuthId is *always* non-null, even if this is called from
-   * a regular content page. We have to make sure, on every DOM call, that aAuthId
-   * is an expected authentication-flow identifier. If not, we throw an error
-   * or something.
+   * IMPORTANT: the aCaller is *always* non-null, even if this is called from
+   * a regular content page. We have to make sure, on every DOM call, that 
+   * aCaller is an expected authentication-flow identifier. If not, we throw 
+   * an error or something.
    *
-   * @param aAuthId
-   *        (int)  the identifier of the authentication caller tied to that sandbox
+   * @param aCaller
+   *        (object)  the authentication caller tied to that sandbox
    *
    */
-  beginAuthentication: function beginAuthentication(aAuthId)
+  beginAuthentication: function beginAuthentication(aCaller)
   {
     // look up AuthId caller, and the identity we're attempting to authenticate.
+
+    // get the flow that goes with this caller
+    // sandbox is already attached as .sandbox
 
     // XXX we need pointer to the IFRAME/sandbox.
     // maybe this means we should create it, or maybe UX passes it to us
     // after it's created it, but we need the direct pointer.
 
-    // tell sandbox to invoke the postBeginAuthentication callback with
+    // tell sandbox to invoke the doBeginAuthentication callback with
     // the identity we want.
   },
 
