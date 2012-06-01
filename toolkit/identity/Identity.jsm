@@ -158,6 +158,7 @@ IDService.prototype = {
     let origin = aCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
+    log("watch", aCaller);
     // If the user is already logged in, then there are three cases
     // to deal with
     // 1. the email is valid and unchanged:  'ready'
@@ -166,24 +167,18 @@ IDService.prototype = {
     if (state.isLoggedIn) {
       // Logged in; ready
       if (!!state.email && aCaller.loggedInEmail === state.email) {
-         aCaller.doReady();
+        return aCaller.doReady();
 
       } else if (aCaller.loggedInEmail === null) {
         // Generate assertion for existing login
         let options = {requiredEmail: state.email, audience: origin};
-        this.getAssertion(options, function(err, assertion) {
-          aCaller.doLogin(assertion);
-          aCaller.doReady();
-        });
+        return this._doLogin(aCaller, options);
 
       } else {
+        // A loggedInEmail different from state.email has been specified
         // Change login identity
         let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
-        this.getAssertion(options, function(err, assertion) {
-          log("changed login id.  err, assertion:", err, assertion);
-          aCaller.doLogin(assertion);
-          aCaller.doReady();
-        });
+        return this._doLogin(aCaller, options);
       }
 
     // If the user is not logged in, there are two cases:
@@ -193,25 +188,57 @@ IDService.prototype = {
     } else {
       if (!! aCaller.loggedInEmail) {
         // not logged in; logout
-        aCaller.doReady();
-        aCaller.doLogout();
-        
+        return this._doLogout(aCaller, {audience: origin});
+
       } else {
         // No loggedInEmail declared
         // Is there an identity we can already use for this site?
         let identity = this.getDefaultEmailForOrigin(origin);
         if (!! identity) {
           let options = {requiredEmail: identity, audience: origin};
-          this.getAssertion(options, function(err, assertion) {
-            aCaller.doLogin(assertion);
-            aCaller.doReady();
-          });
+          return this._doLogin(aCaller, options);
+
         } else {
           // not logged in; no identity; ready
-          aCaller.doReady();        
+          return aCaller.doReady();        
         }
       }
     }
+  },
+
+  /**
+   * A utility for watch() to set state and notify the dom
+   * on login
+   */
+  _doLogin: function _doLogin(aCaller, aOptions) 
+  {
+    let state = this._store.getLoginState(aOptions.audience) || {};
+
+    this.getAssertion(aOptions, function(err, assertion) {
+      if (err) {
+        // XXX i think this is right?
+        return this._doLogout(aCaller);
+      } 
+
+      // XXX add tests for state change
+      state.isLoggedIn = true;
+      state.email = aOptions.loggedInEmail;
+      aCaller.doLogin(assertion);
+      return aCaller.doReady();
+    }.bind(this));
+  },
+
+  /**
+   * A utility for watch() to set state and notify the dom
+   * on logout.
+   */
+  _doLogout: function _doLogout(aCaller, aOptions) {
+    let state = this._store.getLoginState(aOptions.audience) || {};
+
+    // XXX add tests for state change
+    state.isLoggedIn = false;    
+    aCaller.doReady();
+    return aCaller.doLogout();
   },
 
   /**
@@ -319,6 +346,7 @@ IDService.prototype = {
    */
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback)
   {
+    return aCallback(null, "THIS_IS_AWESOME");
     let id = this._store.fetchIdentity(aIdentity);
     if (! (id && id.cert)) {
       return aCallback("Cannot generate assertion without a cert");
