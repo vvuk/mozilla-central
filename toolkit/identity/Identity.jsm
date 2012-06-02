@@ -27,10 +27,19 @@ XPCOMUtils.defineLazyGetter(this, "IDKeyPair", function () {
     createInstance(Ci.nsIIdentityServiceKeyPair);
 });
 
+/*
 XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
   let scope = {};
   Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
   return scope.jwcrypto;
+});
+*/
+
+// delay the loading of the IDService for performance purposes
+XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
+  let scope = {};
+  Cu.import("resource:///modules/identity/bidbundle.jsm", scope);
+  return scope.require("./lib/jwcrypto");
 });
 
 XPCOMUtils.defineLazyServiceGetter(this,
@@ -202,15 +211,19 @@ IDService.prototype = {
   {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
+    log("doing _doLogin");
     this.getAssertion(aOptions, function(err, assertion) {
       if (err) {
+        log("ERROR", err);
         // XXX i think this is right?
         return this._doLogout(aCaller);
       } 
 
       // XXX add tests for state change
       state.isLoggedIn = true;
+      log("setting state");
       state.email = aOptions.loggedInEmail;
+      log("done setting state");      
       aCaller.doLogin(assertion);
       return aCaller.doReady();
     }.bind(this));
@@ -360,17 +373,19 @@ IDService.prototype = {
     
     let kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
     log("have kp");
-    if (kp) {
-      return jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
-      
-    // XXX Maybe have to generate a key pair first ?
-    // e.g., when changing identities
-    } else {
-      this._generateKeyPair("DS160", INTERNAL_ORIGIN, aIdentity, function(err, key) {
-        kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
-        return jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
+
+    if (!kp) {
+      return aCallback("no kp");
+    }
+
+    // generate the assertion
+    var in_2_minutes = new Date(new Date().valueOf() + (2 * 60 * 1000));
+    var assertion = jwcrypto.assertion.sign(
+      {}, {expiresAt: in_2_minutes, audience: aAudience},
+      kp.kp.secretKey, function(err, signedAssertion) {
+        // bundle with cert
+        aCallback(err, id.cert + "~" + signedAssertion);
       });
-    } 
   },
 
   /**
@@ -539,9 +554,8 @@ IDService.prototype = {
         log("error generating keypair:" + err);
       
       flow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
-      log("about to genkeypair callback with" , key);
-      flow.caller.doGenKeyPairCallback(key);
-      log("done callback");
+      log("about to genkeypair callback with" , flow.kp.kp.publicKey.serialize());
+      flow.caller.doGenKeyPairCallback(flow.kp.kp.publicKey.serialize());
     }.bind(this));
 
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
@@ -895,7 +909,8 @@ IDService.prototype = {
         let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
         let key = { userID: aUserID, url: url };
 
-        switch (alg) {
+        /*
+          switch (alg) {
         case ALGORITHMS.RS256:
           keyWrapper = {
             algorithm: alg,
@@ -904,7 +919,7 @@ IDService.prototype = {
             url:         url,
             publicKey:   aKeyPair.encodedPublicKey,
             exponent:    aKeyPair.encodedRSAPublicKeyExponent,
-            modulus:     aKeyPair.encodedRSAPublicKeyModulus,
+            modulus:     aKeyPair.encodedRSAPublicKeyModulus
           };
 
           break;
@@ -918,13 +933,18 @@ IDService.prototype = {
             publicKey:  pubK,
             generator:  aKeyPair.encodedDSAGenerator,
             prime:      aKeyPair.encodedDSAPrime,
-            subPrime:   aKeyPair.encodedDSASubPrime,
+            subPrime:   aKeyPair.encodedDSASubPrime
           };
 
           break;
         default:
           throw new Error("Unsupported algorithm");
-        }
+        }*/
+        keyWrapper = {
+          userID: aUserID,
+          url: url,
+          kp: aKeyPair
+        };
 
         let keyID = key.userID + "__" + key.url;
         self._registry[keyID] = keyWrapper;
@@ -933,7 +953,19 @@ IDService.prototype = {
       },
     };
 
-    IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithmName], new keyGenCallback());
+    //IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithmName], new keyGenCallback());
+    var algorithm = aAlgorithmName.substring(0,2);
+    var keysize = parseInt(aAlgorithmName.substring(2));
+    log("KEYSIZE", keysize);
+
+    var cbObj = new keyGenCallback();
+
+    if (keysize == 160)
+      keysize = 128;
+    jwcrypto.generateKeypair({algorithm: algorithm, keysize: keysize}, function(err, kp) {
+      if (!err)
+        cbObj.keyPairGenFinished(kp);
+    });
   },
 
   /**
@@ -1023,8 +1055,9 @@ IDService.prototype = {
     // Mock now - just returns mockmyid.com well-known
 
     log("fetch well known", aDomain);
+    let idpParams;
 /*
-    let idpParams = {
+  idpParams = {
     "public-key": {
         "algorithm": "RS",
         "n": "15498874758090276039465094105837231567265546373975960480941122651107772824121527483107402353899846252489837024870191707394743196399582959425513904762996756672089693541009892030848825079649783086005554442490232900875792851786203948088457942416978976455297428077460890650409549242124655536986141363719589882160081480785048965686285142002320767066674879737238012064156675899512503143225481933864507793118457805792064445502834162315532113963746801770187685650408560424682654937744713813773896962263709692724630650952159596951348264005004375017610441835956073275708740239518011400991972811669493356682993446554779893834303",
@@ -1032,9 +1065,18 @@ IDService.prototype = {
     "authentication": "/browserid/sign_in.html",
     "provisioning": "/browserid/provision.html"
 };
-    return aCallback(null, {domain:"mockmyid.com", idpParams:idpParams});
 */
+
+    idpParams = {
+        "public-key": {"algorithm":"RS","n":"82818905405105134410187227495885391609221288015566078542117409373192106382993306537273677557482085204736975067567111831005921322991127165013340443563713385983456311886801211241492470711576322130577278575529202840052753612576061450560588102139907846854501252327551303482213505265853706269864950437458242988327","e":"65537"},
+        "authentication": "/browserid/sign_in.html",
+        "provisioning": "/browserid/provision.html"
+    };
     
+    //return aCallback(null, {domain:"mockmyid.com", idpParams:idpParams});
+    return aCallback(null, {domain:"eyedee.me", idpParams:idpParams});
+
+    // XXX we'll do this LATER!
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
                            .hiddenDOMWindow.XMLHttpRequest;

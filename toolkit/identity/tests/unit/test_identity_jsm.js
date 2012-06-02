@@ -11,6 +11,13 @@ XPCOMUtils.defineLazyGetter(this, "IDService", function (){
   return scope.IdentityService;
 });
 
+// delay the loading of the IDService for performance purposes
+XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
+  let scope = {};
+  Cu.import("resource:///modules/identity/bidbundle.jsm", scope);
+  return scope.require("./lib/jwcrypto");
+});
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
@@ -30,9 +37,25 @@ function uuid()
   return uuidGenerator.generateUUID();
 }
 
-function log(aMsg)
+/**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log()
 {
-  dump("IDService-Testing: " + aMsg + "\n");
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });                
+  dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
 }
 
 const TEST_URL = "https://myfavoritebacon.com";
@@ -427,14 +450,13 @@ function test_select_identity()
   IDService.reset();
 
   var id = "ishtar@mockmyid.com";
-  // no cert - force it to provision
-  setup_test_identity(id, null, function() {
+  setup_test_identity(id, TEST_CERT, function() {
     var gotAssertion = false;
     var mockedDoc = mock_doc(null, TEST_URL, call_sequentially(
       function(action, params) {
         // ready emitted from first watch() call
-	do_check_eq(action, 'ready');
-	do_check_eq(params, null);
+	      do_check_eq(action, 'ready');
+	      do_check_eq(params, null);
       },
       // first the login call
       function(action, params) {
@@ -735,10 +757,68 @@ function test_register_certificate()
       }      
     }
   );  
+}
+
+function test_get_assertion_after_provision()
+{
+  do_test_pending();
+  let _callerId = null;
+
+  setup_provisioning(
+    TEST_USER,
+    function(caller) {
+      _callerId = caller.id;
+      IDService.beginProvisioning(caller);
+    },
+    function(err) {
+      // we should be cool!
+      do_check_eq(err, null);
+
+      check_provision_flow_done(_callerId);
+
+      // check that the cert is there
+      var identity = get_idstore().fetchIdentity(TEST_USER);
+      do_check_neq(identity,null);
+      do_check_eq(identity.cert, "fake-cert-42");
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        IDService.genKeyPair(_callerId);
+      },
+      genKeyPairCallback: function(pk) {
+        IDService.registerCertificate(_callerId, "fake-cert-42");
+      }      
+    }
+  );  
   
 }
 
-var TESTS = [test_overall, test_rsa, test_dsa, test_id_store, test_mock_doc];
+
+function test_jwcrypto()
+{
+  do_test_pending();
+
+  jwcrypto.generateKeypair({algorithm: "DS", keysize: 128}, function(err, kp) {
+    log("KP generated", kp);
+    do_check_eq(err, null);
+    
+
+    do_test_finished();
+    run_next_test();
+  });
+}
+
+var TESTS = [test_overall, test_id_store, test_mock_doc];
+
+// no test_rsa, test_dsa for now
+//TESTS = TESTS.concat([test_rsa, test_dsa]);
+
+TESTS.push(test_jwcrypto);
+
+
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS.push(test_request);
@@ -754,7 +834,6 @@ TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
 TESTS.push(test_register_certificate_before_genkeypair);
 TESTS.push(test_register_certificate);
-
 
 TESTS.forEach(add_test);
 

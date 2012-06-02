@@ -28,6 +28,7 @@ let SignInToWebsiteUX = {
     /* Sample data */
     [
       "foo@eyedee.me",
+      "benadida@eyedee.me",
       "joe@mockmyid.com",
       "matt@browserid.linuxsecured.net",
     ].forEach(function(identity) {

@@ -16,6 +16,7 @@ GRE_MODULE = 1
 EXTRA_JS_MODULES = \
 	Identity.jsm \
 	jwcrypto.jsm \
+	bidbundle.jsm \
 	$(NULL)
 
 ifdef ENABLE_TESTS
