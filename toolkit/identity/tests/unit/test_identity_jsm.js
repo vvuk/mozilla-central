@@ -558,7 +558,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
       if (doneProvisioningCallback)
         doneProvisioningCallback(err);
     },
-    provisioningFrame: {}
+    provisioningSandbox: {}
   };
 
   var caller = {};

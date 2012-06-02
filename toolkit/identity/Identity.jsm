@@ -310,11 +310,12 @@ IDService.prototype = {
     log("selectIdentity with state", state);
     // go generate assertion for this identity and deliver it to this doc
     // XXX duplicates getAssertion
-    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {       if (! err) {
+    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+      if (! err) {
         // great!  I can't believe it was so easy!
         caller.doLogin(assertion);
         return caller.doReady();
-
+        
       } else {
         log("need to get cert");
         // figure out the IdP and try to provision an identity
@@ -322,9 +323,13 @@ IDService.prototype = {
           self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
             log("provision callback", err, identity);
             if (! err) {
-              // splendid.  successfully provisioned using idp info
-              return caller.doLogin(assertion);
-
+              self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+                if (! err) {
+                  // great!  I can't believe it was so easy!
+                  caller.doLogin(assertion);
+                  return caller.doReady();
+                }
+              });
             } else {
               // soft fail.
               // We will need to authenticate with the idp
@@ -333,10 +338,11 @@ IDService.prototype = {
                 self._provisionIdentity(aIdentity, idpParams, function (err, identity) {
                   if (! err) {
                     // yay.  we could provision after all.
-                    self.generateAssertion(aCallerId, aIdentity, 
-                                           function(err, assertion) {
-                      return caller.doLogin(assertion);
-                    });
+                    self.generateAssertion(
+                      aCallerId, aIdentity, 
+                      function(err, assertion) {
+                        return caller.doLogin(assertion);
+                      });
                   } else {
                     // hard fail
                     return caller.doError("Aw, snap.");
@@ -349,7 +355,7 @@ IDService.prototype = {
       }
     });
   },
-
+    
   /**
    * Generate an assertion, including provisioning via IdP if necessary,
    * but no user interaction, so if provisioning fails, aCallback is invoked
@@ -414,8 +420,9 @@ IDService.prototype = {
       let flowId = aSandbox.id;
       this._provisionFlows[flowId] = {
         identity: aIdentity,
+        idpParams: aIDPParams,
         securityLevel: this.securityLevel,
-        sandbox: aSandbox,
+        provisioningSandbox: aSandbox,
         callback: aCallback
       };
 
@@ -1176,10 +1183,10 @@ IDService.prototype = {
     // tracking ongoing flows
 
     // a provisioning flow contains
-    // identity, idpParams, cb, provisioningFrame
+    // identity, idpParams, callback, provisioningFrame
     // idpParams includes the normal BrowserID IdP Parameters
-    // cb is just a completion callback for when things are done
-    // provisioningFrame is the provisioning frame pointer
+    // callback is just a completion callback for when things are done
+    // provisioningSandbox is the provisioning sandbox
     // with fields beginProvisioningCallback and genKeyPairCallback.
     this._provisionFlows = {};
 
