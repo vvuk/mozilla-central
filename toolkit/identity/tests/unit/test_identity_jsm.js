@@ -554,7 +554,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   IDService._provisionFlows[provId] = {
     identity : identity,
     idpParams: {},
-    cb: function(err) {
+    callback: function(err) {
       if (doneProvisioningCallback)
         doneProvisioningCallback(err);
     },

@@ -320,6 +320,7 @@ IDService.prototype = {
         // figure out the IdP and try to provision an identity
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
           self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
+            log("provision callback", err, identity);
             if (! err) {
               // splendid.  successfully provisioned using idp info
               return caller.doLogin(assertion);
@@ -403,22 +404,26 @@ IDService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aCallback)
   {
-    log('provision identity', aIdentity, aIDPParams);
+    log('provision identity', aIdentity, aIDPParams, aCallback);
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
-    this._beginProvisioningFlow(aIdentity, url, function(err, hotdamn) {
-      log(err, hotdamn);                             
-    });
-    // create a provisioning flow identifier provId and store the caller
-    // stash callback associated with this provisioning workflow.
-    
-    // launch the provisioning workflow given the IdP provisoning URL
-    // using the sandbox, store the sandbox in our provisioning data
-    // XXX - _beginProvisioningFlow ??
-    // pass the provId to the sandbox so its DOM calls can be identified
 
-    // MAYBE
-    // set a timeout to clear out this provisioning workflow if it doesn't
-    // complete in X time.
+    this._createProvisioningSandbox(url, function(aSandbox) {
+      // create a provisioning flow, using the sandbox id, and
+      // stash callback associated with this provisioning workflow.
+
+      let flowId = aSandbox.id;
+      this._provisionFlows[flowId] = {
+        identity: aIdentity,
+        securityLevel: this.securityLevel,
+        sandbox: aSandbox,
+        callback: aCallback
+      };
+
+      // MAYBE
+      // set a timeout to clear out this provisioning workflow if it doesn't
+      // complete in X time.
+      
+    }.bind(this));      
   },
 
   /**
@@ -509,8 +514,8 @@ IDService.prototype = {
     
     // look up the provisioning caller and its callback
     let flow = this._provisionFlows[aProvId];
-    let cb = flow.cb;
-
+    let cb = flow.callback;
+    log("callback is ", cb);
     // Clean up the sandbox here?
     if (flow.sandbox) {
       flow.sandbox.free();
@@ -545,7 +550,7 @@ IDService.prototype = {
     }
 
     if (flow.state !== "provisioning") {
-      return flow.cb("Cannot genKeyPair before beginProvisioning");
+      return flow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
     // generate a keypair
@@ -586,7 +591,7 @@ IDService.prototype = {
       return null;
     }
     if (! flow.kp)  {
-      return flow.cb("Cannot register a cert without generating a keypair first");
+      return flow.callback("Cannot register a cert without generating a keypair first");
     }
 
     // store the keypair and certificate just provided in IDStore.
@@ -596,7 +601,7 @@ IDService.prototype = {
     delete flow.caller;
 
     // pull out the prov caller callback
-    let callback = flow.cb;
+    let callback = flow.callback;
 
     // kill the prov caller
     delete this._provisionFlows[aProvId];
@@ -1127,22 +1132,12 @@ IDService.prototype = {
    * of the flow object in _provisionIdentity instead, so that method has full
    * context.
    */
-  _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL, aCallback)
+  _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback)
   {
-    log("begin prov flow", aIdentity, aURL);
+    log("creating provisioning sandbox", aURL);
 
     // TODO: cleanup sandbox (call free)
-    new Sandbox(aURL, function(aSandbox) {
-      log(aURL, aSandbox);
-      let callerId = aSandbox.id;
-      let caller = {
-        id: callerId,
-        identity: aIdentity, 
-        securityLevel: this.securityLevel, 
-        sandbox: aSandbox};
-      this._provisionFlows[callerId] = caller;
-      return aCallback(null, caller.id);
-    }.bind(this));
+    new Sandbox(aURL, aCallback);
   },
 
   /**
