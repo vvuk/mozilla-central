@@ -1069,67 +1069,48 @@ IDService.prototype = {
     // Mock now - just returns mockmyid.com well-known
 
     log("fetch well known", aDomain);
-    let idpParams;
-/*
-  idpParams = {
-    "public-key": {
-        "algorithm": "RS",
-        "n": "15498874758090276039465094105837231567265546373975960480941122651107772824121527483107402353899846252489837024870191707394743196399582959425513904762996756672089693541009892030848825079649783086005554442490232900875792851786203948088457942416978976455297428077460890650409549242124655536986141363719589882160081480785048965686285142002320767066674879737238012064156675899512503143225481933864507793118457805792064445502834162315532113963746801770187685650408560424682654937744713813773896962263709692724630650952159596951348264005004375017610441835956073275708740239518011400991972811669493356682993446554779893834303",
-        "e": "65537"},
-    "authentication": "/browserid/sign_in.html",
-    "provisioning": "/browserid/provision.html"
-};
-*/
 
-    idpParams = {
-        "public-key": {"algorithm":"RS","n":"82818905405105134410187227495885391609221288015566078542117409373192106382993306537273677557482085204736975067567111831005921322991127165013340443563713385983456311886801211241492470711576322130577278575529202840052753612576061450560588102139907846854501252327551303482213505265853706269864950437458242988327","e":"65537"},
-        "authentication": "/browserid/sign_in.html",
-        "provisioning": "/browserid/provision.html"
-    };
-    
-    //return aCallback(null, {domain:"mockmyid.com", idpParams:idpParams});
-    return aCallback(null, {domain:"eyedee.me", idpParams:idpParams});
-
-    // XXX we'll do this LATER!
+    /*
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
                            .getService(Ci.nsIAppShellService)
-                           .hiddenDOMWindow.XMLHttpRequest;
-    let req  = new XMLHttpRequest();
+                           .hiddenDOMWindow.XMLHttpRequest;*/
+
+    // let req  = new XMLHttpRequest();
+
+    // this appears to be a more successful way to get at xmlhttprequest
+    let req = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
+      .getService(Components.interfaces.nsIXMLHttpRequest);
+    
     // TODO: require HTTPS?
     req.open("GET", "https://" + aDomain + "/.well-known/browserid", true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
-    req.onreadystatechange = function(oEvent) {
-      if (req.readyState === 4) {
-        log("HTTP status: " + req.status);
-        if (req.status === 200) {
-          try {
-            let idpParams = req.response;
-
-            // Verify that the IdP returned a valid configuration
-            if (! idpParams.provisioning && 
-                  idpParams.authentication && 
-                  idpParams['public-key']) {
-              throw new Error("Invalid well-known file from: " + aDomain);
-            }
-
-            let callbackObj = {
-              domain: aDomain,
-              idpParams: idpParams,
-            };
-            // Yay.  Valid IdP configuration for the domain.
-            return aCallback(null, callbackObj);
-
-          } catch (err) {
-            // Bad configuration from this domain.
-            return aCallback(err);
-          }
-        } else {
-          // We get nothing from this domain.
-          return aCallback(req.statusText);
+    req.onload = function() {
+      try {
+        let idpParams = req.response;
+        
+        // Verify that the IdP returned a valid configuration
+        if (! idpParams.provisioning && 
+            idpParams.authentication && 
+            idpParams['public-key']) {
+          throw new Error("Invalid well-known file from: " + aDomain);
         }
+        
+        let callbackObj = {
+          domain: aDomain,
+          idpParams: idpParams,
+        };
+        // Yay.  Valid IdP configuration for the domain.
+        return aCallback(null, callbackObj);
+        
+      } catch (err) {
+        // Bad configuration from this domain.
+        return aCallback(err);
       }
-    }.bind(this);
+    };
+    req.onerror = function() {
+      return aCallback(req.statusText);
+    };
     req.send(null);
     log("fetching https://" + aDomain + "/.well-known/browserid");
   },
