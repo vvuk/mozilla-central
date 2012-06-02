@@ -471,7 +471,9 @@ IDService.prototype = {
   logout: function logout(aCallerId)
   {
     this._rpFlows[aCallerId].doLogout();
-    delete this._rpFlows[aCallerId];
+
+    // no we don't delete, the user might log back in.
+    // delete this._rpFlows[aCallerId];
   },
 
   /**
