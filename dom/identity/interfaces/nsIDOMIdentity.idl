@@ -4,6 +4,12 @@
 
 #include "domstubs.idl"
 
+[scriptable, function, uuid(6070c8ce-acf3-11e1-8a5f-000c295c4dc0)]
+interface nsIDOMIdentityKeypairCallback : nsISupports
+{
+  void onSuccess(in jsval pubkey);
+};
+
 [scriptable, uuid(2f744abf-e017-4801-b1cb-5d28d0ae3a3e)]
 interface nsIDOMIdentity : nsISupports
 {
@@ -65,7 +71,7 @@ interface nsIDOMIdentity : nsISupports
 
   // provisioning
   void beginProvisioning(in jsval callback); // TODO: better type?
-  void genKeyPair(in jsval callback); // TODO: better type?
+  void genKeyPair(in nsIDOMIdentityKeypairCallback callback); // TODO: better type?
   void registerCertificate(in DOMString certificate);
   void raiseProvisioningFailure(in DOMString reason);
 

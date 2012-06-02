@@ -1123,14 +1123,17 @@ IDService.prototype = {
   /**
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
+   * TODO: CHANGE this call to be just _createSandbox, and do the population
+   * of the flow object in _provisionIdentity instead, so that method has full
+   * context.
    */
   _beginProvisioningFlow: function _beginProvisioning(aIdentity, aURL, aCallback)
   {
-log("begin prov flow", aIdentity, aURL);
+    log("begin prov flow", aIdentity, aURL);
 
     // TODO: cleanup sandbox (call free)
     new Sandbox(aURL, function(aSandbox) {
-log(aURL, aSandbox);
+      log(aURL, aSandbox);
       let callerId = aSandbox.id;
       let caller = {
         id: callerId,

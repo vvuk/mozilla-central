@@ -254,7 +254,28 @@ nsDOMIdentity.prototype = {
   
   // Private.
   _callGenKeyPairCallback: function (message) {
-    this._genKeyPairCallback(message.publicKey);
+    // create a pubkey object that works
+    var chrome_pubkey = JSON.parse(message.publicKey);
+
+    // bunch of stuff to create a proper object in window context
+    function genPropDesc(value) {  
+      return {  
+        enumerable: true, configurable: true, writable: true, value: value  
+      };
+    }
+      
+    var propList = {};
+    
+    for (var k in chrome_pubkey) {
+      propList[k] = genPropDesc(chrome_pubkey[k]);
+    }
+    
+    var pubkey = Cu.createObjectIn(this._window);
+    Object.defineProperties(pubkey, propList);  
+    Cu.makeObjectPropsNormal(pubkey);
+
+    // do the callback
+    this._genKeyPairCallback.onSuccess(pubkey);
   },
 
   _callBeginProvisioningCallback: function(message) {
