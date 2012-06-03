@@ -1065,8 +1065,16 @@ IDService.prototype = {
     this._fetchWellKnownFile(emailDomain, wellKnownCallback);
   },
 
-  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback) {
-    // Mock now - just returns mockmyid.com well-known
+  /**
+   * Fetch the well-known file from the domain.
+   *
+   * @param aDomain
+   * @param aCallback
+   * @param aScheme
+   *        (string) (optional) port to use for testing (since we can't test HTTPS)
+   */
+  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback, aScheme) {
+    aScheme = aScheme || "https";
 
     log("fetch well known", aDomain);
 
@@ -1082,37 +1090,45 @@ IDService.prototype = {
       .getService(Components.interfaces.nsIXMLHttpRequest);
     
     // TODO: require HTTPS?
-    req.open("GET", "https://" + aDomain + "/.well-known/browserid", true);
+    // TODO: decide on how to handle redirects
+    req.open("GET", aScheme + "://" + aDomain + "/.well-known/browserid", true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
-    req.onload = function() {
+    req.onload = function _fetchWellKnownFile_onload() {
+      if (req.status < 200 || req.status >= 400)
+        return aCallback(req.status);
       try {
+        log("_fetchWellKnownFile onload: " + req.status);
         let idpParams = req.response;
-        
+
         // Verify that the IdP returned a valid configuration
-        if (! idpParams.provisioning && 
-            idpParams.authentication && 
-            idpParams['public-key']) {
-          throw new Error("Invalid well-known file from: " + aDomain);
+        if (! (idpParams.provisioning &&
+            idpParams.authentication &&
+            idpParams['public-key'])) {
+          log("Invalid well-known file from: " + aDomain);
+          return aCallback("Invalid well-known file from: " + aDomain);
         }
         
         let callbackObj = {
           domain: aDomain,
           idpParams: idpParams,
         };
+        log("valid idp");
         // Yay.  Valid IdP configuration for the domain.
         return aCallback(null, callbackObj);
         
       } catch (err) {
+        log("exception: " + err);
         // Bad configuration from this domain.
-        return aCallback(err);
+        return aCallback(err.toString());
       }
     };
-    req.onerror = function() {
-      return aCallback(req.statusText);
+    req.onerror = function _fetchWellKnownFile_onerror() {
+      log("error: " + req.statusText);
+      return aCallback(req.status + " : " + req.statusText);
     };
     req.send(null);
-    log("fetching https://" + aDomain + "/.well-known/browserid");
+    log("fetching " + aScheme + "://" + aDomain + "/.well-known/browserid");
   },
 
   /**
