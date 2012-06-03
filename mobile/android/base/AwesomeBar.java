@@ -11,7 +11,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -102,22 +101,6 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
             }
         });
 
-        Resources resources = getResources();
-        
-        int padding[] = { mText.getPaddingLeft(),
-                          mText.getPaddingTop(),
-                          mText.getPaddingRight(),
-                          mText.getPaddingBottom() };
-
-        GeckoStateListDrawable states = new GeckoStateListDrawable();
-        states.initializeFilter(GeckoApp.mBrowserToolbar.getHighlightColor());
-        states.addState(new int[] { android.R.attr.state_focused }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { }, resources.getDrawable(R.drawable.address_bar_url_default));
-        mText.setBackgroundDrawable(states);
-
-        mText.setPadding(padding[0], padding[1], padding[2], padding[3]);
-
         Intent intent = getIntent();
         String currentUrl = intent.getStringExtra(CURRENT_URL_KEY);
         mType = intent.getStringExtra(TYPE_KEY);
@@ -198,15 +181,6 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                     return true;
                 } else {
                     return false;
-                }
-            }
-        });
-
-        mText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            public void onFocusChange(View v, boolean hasFocus) {
-                if (!hasFocus) {
-                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                    imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
                 }
             }
         });

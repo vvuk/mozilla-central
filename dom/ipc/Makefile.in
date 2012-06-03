@@ -70,7 +70,8 @@ LOCAL_INCLUDES += \
 	-I$(srcdir)/../src/base \
 	-I$(srcdir)/../src/storage \
 	-I$(srcdir)/../../xpcom/base \
-	-I$(srcdir)/../indexedDB \
+	-I$(topsrcdir)/dom/indexedDB \
+	-I$(topsrcdir)/dom/indexedDB/ipc \
 	-I$(topsrcdir)/extensions/cookie \
 	-I$(topsrcdir)/dom/base \
 	-I$(topsrcdir)/toolkit/xre \
@@ -79,6 +80,10 @@ LOCAL_INCLUDES += \
 	$(NULL)
 
 DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),$(findstring $(MOZ_WIDGET_TOOLKIT),android gtk2 gonk qt))
+DEFINES += -DMOZ_ENABLE_FREETYPE
+endif
 
 ifdef MOZ_PERMISSIONS
 DEFINES += -DMOZ_PERMISSIONS

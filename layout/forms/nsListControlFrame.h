@@ -109,7 +109,7 @@ public:
 
     // for accessibility purposes
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
     // nsContainerFrame
@@ -130,7 +130,6 @@ public:
   virtual void CaptureMouseEvents(bool aGrabMouseEvents);
   virtual nscoord GetHeightOfARow();
   virtual PRInt32 GetNumberOfOptions();  
-  virtual void SyncViewWithFrame();
   virtual void AboutToDropDown();
 
   /**
@@ -231,6 +230,17 @@ public:
    * Return whether the list is in dropdown mode.
    */
   bool IsInDropDownMode() const;
+
+  /**
+   * Return the number of displayed rows in the list.
+   */
+  PRUint32 GetNumDisplayRows() const { return mNumDisplayRows; }
+
+  /**
+   * Return true if the drop-down list can display more rows.
+   * (always false if not in drop-down mode)
+   */
+  bool GetDropdownCanGrow() const { return mDropdownCanGrow; }
 
   /**
    * Dropdowns need views
@@ -414,6 +424,10 @@ protected:
    */
   bool mHasPendingInterruptAtStartOfReflow:1;
 
+  // True if the drop-down can show more rows.  Always false if this list
+  // is not in drop-down mode.
+  bool mDropdownCanGrow:1;
+  
   // The last computed height we reflowed at if we're a combobox dropdown.
   // XXXbz should we be using a subclass here?  Or just not worry
   // about the extra member on listboxes?

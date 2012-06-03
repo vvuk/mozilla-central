@@ -191,13 +191,27 @@ pref("gfx.font_rendering.fallback.always_use_cmaps", false);
 pref("gfx.font_rendering.graphite.enabled", false);
 #endif
 
-// see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
+// Check intl/unicharutil/util/nsUnicodeProperties.h for definitions of script bits
+// in the ShapingType enumeration
+// Currently-defined bits:
+//  SHAPING_DEFAULT   = 0x0001,
+//  SHAPING_ARABIC    = 0x0002,
+//  SHAPING_HEBREW    = 0x0004,
+//  SHAPING_HANGUL    = 0x0008,
+//  SHAPING_MONGOLIAN = 0x0010,
+//  SHAPING_INDIC     = 0x0020,
+//  SHAPING_THAI      = 0x0040
+// (see http://mxr.mozilla.org/mozilla-central/ident?i=ShapingType)
+// Scripts not listed are grouped in the default category.
+// Set the pref to -1 to have all text shaped via the harfbuzz backend.
 #ifdef XP_MACOSX
 // use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04) + thai (0x40)
 pref("gfx.font_rendering.harfbuzz.scripts", 71);
 #else
 #ifdef ANDROID
-pref("gfx.font_rendering.harfbuzz.scripts", 71);
+// use harfbuzz for everything, as we don't have a platform script-shaping lib
+// to fall back on anyhow, and Indic support is coming along well
+pref("gfx.font_rendering.harfbuzz.scripts", -1);
 #else
 // use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04)
 pref("gfx.font_rendering.harfbuzz.scripts", 7);
@@ -211,6 +225,7 @@ pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 
 #ifdef XP_WIN
 pref("gfx.canvas.azure.enabled", true);
+pref("gfx.content.azure.enabled", true);
 #else
 #ifdef XP_MACOSX
 pref("gfx.canvas.azure.enabled", true);
@@ -651,7 +666,8 @@ pref("javascript.options.typeinference", true);
 pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
-pref("javascript.options.mem.gc_incremental", false);
+pref("javascript.options.mem.disable_explicit_compartment_gc", true);
+pref("javascript.options.mem.gc_incremental", true);
 pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 pref("javascript.options.mem.log", false);
 pref("javascript.options.gc_on_memory_pressure", true);
@@ -828,6 +844,8 @@ pref("network.http.fast-fallback-to-IPv4", true);
 
 // Try and use SPDY when using SSL
 pref("network.http.spdy.enabled", true);
+pref("network.http.spdy.enabled.v2", true);
+pref("network.http.spdy.enabled.v3", false);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
@@ -3409,7 +3427,6 @@ pref("webgl.disabled", false);
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.osmesalib", "");
-pref("webgl.verbose", false);
 pref("webgl.prefer-native-gl", false);
 pref("webgl.min_capability_mode", false);
 pref("webgl.disable-extensions", false);
@@ -3432,8 +3449,6 @@ pref("layers.acceleration.disabled", false);
 pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
-
-pref("layers.offmainthreadcomposition.enabled", false);
 
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2
@@ -3461,6 +3476,9 @@ pref("geo.enabled", true);
 
 // Enable/Disable the orientation API for content
 pref("device.motion.enabled", true);
+
+// Enable/Disable the device storage API for content
+pref("device.storage.enabled", false);
 
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);

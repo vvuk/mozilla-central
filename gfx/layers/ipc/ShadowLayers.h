@@ -195,6 +195,11 @@ public:
   bool EndTransaction(InfallibleTArray<EditReply>* aReplies);
 
   /**
+   * Composite ShadowLayerManager's layer tree into aTarget.
+   */
+  bool ShadowDrawToTarget(gfxContext* aTarget);
+
+  /**
    * Set an actor through which layer updates will be pushed.
    */
   void SetShadowManager(PLayersChild* aShadowManager)
@@ -297,6 +302,9 @@ public:
    */
   void SetIsFirstPaint() { mIsFirstPaint = true; }
 
+  virtual PRInt32 GetMaxTextureSize() const { return mMaxTextureSize; }
+  void SetMaxTextureSize(PRInt32 aMaxTextureSize) { mMaxTextureSize = aMaxTextureSize; }
+
 protected:
   ShadowLayerForwarder();
 
@@ -320,6 +328,7 @@ private:
   static void PlatformSyncBeforeUpdate();
 
   Transaction* mTxn;
+  PRInt32 mMaxTextureSize;
   LayersBackend mParentBackend;
 
   bool mIsFirstPaint;

@@ -153,7 +153,7 @@
 #include "nsDOMCSSAttrDeclaration.h"
 
 // XBL related includes.
-#include "nsIXBLService.h"
+#include "nsXBLService.h"
 #include "nsXBLBinding.h"
 #include "nsBindingManager.h"
 #include "nsIFrame.h"
@@ -414,6 +414,10 @@
 // Storage includes
 #include "nsDOMStorage.h"
 
+// Device Storage
+#include "nsIDOMDeviceStorage.h"
+#include "nsIDOMDeviceStorageCursor.h"
+
 // Drag and drop
 #include "nsIDOMDataTransfer.h"
 
@@ -434,6 +438,7 @@
 
 #include "nsIDOMDesktopNotification.h"
 #include "nsIDOMNavigatorDesktopNotification.h"
+#include "nsIDOMNavigatorDeviceStorage.h"
 #include "nsIDOMNavigatorGeolocation.h"
 #include "Navigator.h"
 
@@ -501,6 +506,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #endif
 
 #ifdef MOZ_B2G_BT
+#include "BluetoothManager.h"
 #include "BluetoothAdapter.h"
 #endif
 
@@ -511,6 +517,8 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 
 #undef None // something included above defines this preprocessor symbol, maybe Xlib headers
 #include "WebGLContext.h"
+
+#include "nsIDOMGlobalObjectConstructor.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1394,6 +1402,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(MessageEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(DeviceStorage, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(DeviceStorageCursor, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
   NS_DEFINE_CLASSINFO_DATA(GeoGeolocation, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   
@@ -1519,7 +1533,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(WebGLExtensionLoseContext, WebGLExtensionSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_ADDPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionCompressedTextureS3TC, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionCompressedTextureS3TC, WebGLExtensionSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_ADDPROPERTY)
 
@@ -1596,7 +1610,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CustomEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozMutationObserver, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(MutationObserver, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MutationRecord, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1613,6 +1627,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
 #endif
 
 #ifdef MOZ_B2G_BT
+  NS_DEFINE_CLASSINFO_DATA(BluetoothManager, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
@@ -1646,7 +1662,7 @@ static const nsContractIDMapData kConstructorMap[] =
   NS_DEFINE_CONSTRUCTOR_DATA(XSLTProcessor,
                              "@mozilla.org/document-transformer;1?type=xslt")
   NS_DEFINE_CONSTRUCTOR_DATA(EventSource, NS_EVENTSOURCE_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(MozMutationObserver, NS_DOMMUTATIONOBSERVER_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(MutationObserver, NS_DOMMUTATIONOBSERVER_CONTRACTID)
 };
 
 #define NS_DEFINE_EVENT_CTOR(_class)                        \
@@ -2431,6 +2447,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorDeviceStorage)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMNavigatorDesktopNotification,
                                         Navigator::HasDesktopNotificationSupport())
@@ -4034,6 +4051,16 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(DeviceStorage, nsIDOMDeviceStorage)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceStorage)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(DeviceStorageCursor, nsIDOMDeviceStorageCursor)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceStorageCursor)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(GeoGeolocation, nsIDOMGeoGeolocation)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoGeolocation)
   DOM_CLASSINFO_MAP_END
@@ -4383,8 +4410,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MozMutationObserver, nsIDOMMozMutationObserver)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozMutationObserver)
+  DOM_CLASSINFO_MAP_BEGIN(MutationObserver, nsIDOMMutationObserver)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMutationObserver)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MutationRecord, nsIDOMMutationRecord)
@@ -4414,6 +4441,10 @@ nsDOMClassInfo::Init()
 #endif
 
 #ifdef MOZ_B2G_BT
+  DOM_CLASSINFO_MAP_BEGIN(BluetoothManager, nsIDOMBluetoothManager)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothManager)
+  DOM_CLASSINFO_MAP_END  
+
   DOM_CLASSINFO_MAP_BEGIN(BluetoothAdapter, nsIDOMBluetoothAdapter)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothAdapter)
   DOM_CLASSINFO_MAP_END
@@ -5025,7 +5056,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // Don't overwrite a property set by content.
   JSBool found;
   if (!::JS_AlreadyHasOwnUCProperty(cx, global, reinterpret_cast<const jschar*>(mData->mNameUTF16),
-                                    nsCRT::strlen(mData->mNameUTF16), &found)) {
+                                    NS_strlen(mData->mNameUTF16), &found)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -5230,10 +5261,6 @@ nsWindowSH::GlobalScopePolluterGetProperty(JSContext *cx, JSHandleObject obj,
     return JS_FALSE;
   }
 
-  // Print a warning on the console so developers have a chance to
-  // catch and fix these mistakes.
-  PrintWarningOnConsole(cx, "GlobalScopeElementReference");
-
   return JS_TRUE;
 }
 
@@ -5277,11 +5304,10 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
                                           JSObject **objp)
 {
   if (flags & (JSRESOLVE_ASSIGNING | JSRESOLVE_DECLARING |
-               JSRESOLVE_CLASSNAME | JSRESOLVE_QUALIFIED) ||
+               JSRESOLVE_QUALIFIED) ||
       !JSID_IS_STRING(id)) {
     // Nothing to do here if we're either assigning or declaring,
-    // resolving a class name, doing a qualified resolve, or
-    // resolving a number.
+    // doing a qualified resolve, or resolving a number.
 
     return JS_TRUE;
   }
@@ -5610,7 +5636,8 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
   }
 
   nsCOMPtr<nsIJSNativeInitializer> initializer(do_QueryInterface(native));
-  if (initializer) {
+  nsCOMPtr<nsIDOMGlobalObjectConstructor> constructor(do_QueryInterface(native));
+  if (initializer || constructor) {
     // Initialize object using the current inner window, but only if
     // the caller can access it.
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryReferent(aWeakOwner);
@@ -5623,9 +5650,61 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    rv = initializer->Initialize(currentInner, cx, obj, argc, argv);
-    if (NS_FAILED(rv)) {
-      return rv;
+    if (initializer) {
+      rv = initializer->Initialize(currentInner, cx, obj, argc, argv);
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+    } else {
+      nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(native);
+
+      JSObject* object = nsnull;
+      wrappedJS->GetJSObject(&object);
+      if (!object) {
+        return NS_ERROR_UNEXPECTED;
+      }
+
+      nsCxPusher pusher;
+      NS_ENSURE_STATE(pusher.Push(cx, false));
+
+      JSAutoRequest ar(cx);
+
+      JSAutoEnterCompartment ac;
+      if (!ac.enter(cx, object)) {
+        return NS_ERROR_FAILURE;
+      }
+
+      JS::Value thisValue = JSVAL_VOID;
+      JS::Value funval;
+      if (!JS_GetProperty(cx, object, "constructor", &funval) || !funval.isObject()) {
+        return NS_ERROR_UNEXPECTED;
+      }
+
+      // Check if the object is even callable.
+      NS_ENSURE_STATE(JS_ObjectIsCallable(cx, &funval.toObject()));
+      thisValue.setObject(*object);
+
+      {
+        JSObject* thisObject = &thisValue.toObject();
+
+        // wrap parameters in the target compartment
+        nsAutoArrayPtr<JS::Value> args(new JS::Value[argc]);
+        JS::AutoArrayRooter rooter(cx, 0, args);
+
+        for (size_t i = 0; i < argc; ++i) {
+          args[i] = argv[i];
+          if (!JS_WrapValue(cx, &args[i]))
+            return NS_ERROR_FAILURE;
+          rooter.changeLength(i + 1);
+        }
+
+        JS::Value frval;
+        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argc, args, &frval);
+
+        if (!ret) {
+        	return NS_ERROR_FAILURE;
+        }
+      }
     }
   }
 
@@ -5902,7 +5981,7 @@ public:
     JSBool ok = JS_WrapValue(cx, &thisAsVal) &&
       ::JS_DefineUCProperty(cx, target,
                             reinterpret_cast<const jschar *>(mClassName),
-                            nsCRT::strlen(mClassName), thisAsVal, nsnull,
+                            NS_strlen(mClassName), thisAsVal, nsnull,
                             nsnull, 0);
 
     return ok ? NS_OK : NS_ERROR_UNEXPECTED;
@@ -6915,7 +6994,7 @@ static JSBool
 LocationSetterUnwrapper(JSContext *cx, JSHandleObject obj_, JSHandleId id, JSBool strict,
                         jsval *vp)
 {
-  JS::RootedVarObject obj(cx, obj_);
+  JS::RootedObject obj(cx, obj_);
 
   JSObject *wrapped = XPCWrapper::UnsafeUnwrapSecurityWrapper(obj);
   if (wrapped) {
@@ -6930,8 +7009,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                        JSObject *obj_, jsid id_, PRUint32 flags,
                        JSObject **objp, bool *_retval)
 {
-  JS::RootedVarObject obj(cx, obj_);
-  JS::RootedVarId id(cx, id_);
+  JS::RootedObject obj(cx, obj_);
+  JS::RootedId id(cx, id_);
 
   nsGlobalWindow *win = nsGlobalWindow::FromWrapper(wrapper);
 
@@ -8008,7 +8087,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // We have a binding that must be installed.
   bool dummy;
 
-  nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
+  nsXBLService* xblService = nsXBLService::GetInstance();
   NS_ENSURE_TRUE(xblService, NS_ERROR_NOT_AVAILABLE);
 
   nsRefPtr<nsXBLBinding> binding;
@@ -9551,7 +9630,8 @@ nsHTMLPluginObjElementSH::GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *wra
   }
 
   // If it's not safe to run script we'll only return the instance if it exists.
-  if (!nsContentUtils::IsSafeToRunScript()) {
+  // Ditto if the document is inactive.
+  if (!nsContentUtils::IsSafeToRunScript() || !content->OwnerDoc()->IsActive()) {
     return rv;
   }
 

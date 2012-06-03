@@ -1,7 +1,7 @@
 #filter substitution
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync;
 
@@ -14,4 +14,6 @@ public class GlobalConstants {
 
   public static final String USER_AGENT = "Firefox AndroidSync " + SYNC_VERSION_STRING +
                                           " (" + PRODUCT_NAME + ")";
+  public static final String BROWSER_INTENT_PACKAGE = "@ANDROID_PACKAGE_NAME@";
+  public static final String BROWSER_INTENT_CLASS = BROWSER_INTENT_PACKAGE + ".App";
 }

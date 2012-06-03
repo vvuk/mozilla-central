@@ -18,6 +18,7 @@ MAKEFILES_dom="
   dom/interfaces/canvas/Makefile
   dom/interfaces/core/Makefile
   dom/interfaces/css/Makefile
+  dom/interfaces/devicestorage/Makefile
   dom/interfaces/events/Makefile
   dom/interfaces/geolocation/Makefile
   dom/interfaces/html/Makefile
@@ -1580,6 +1581,18 @@ if [ "$MOZ_WEBM" ]; then
       media/libvpx/Makefile
     "
   fi
+fi
+
+if [ "$MOZ_MEDIA_PLUGINS" ]; then
+  add_makefiles "
+    content/media/plugins/Makefile
+  "
+fi
+
+if [ "$MOZ_OMX_PLUGIN" ]; then
+  add_makefiles "
+    media/omx-plugin/Makefile
+  "
 fi
 
 if [ "$MOZ_WAVE" ]; then

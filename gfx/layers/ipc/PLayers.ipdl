@@ -94,7 +94,10 @@ struct ThebesLayerAttributes {
 struct ContainerLayerAttributes{ FrameMetrics metrics; };
 struct ColorLayerAttributes    { gfxRGBA color; };
 struct CanvasLayerAttributes   { GraphicsFilterType filter; };
-struct ImageLayerAttributes    { GraphicsFilterType filter; };
+struct ImageLayerAttributes    {
+  GraphicsFilterType filter;
+  bool forceSingleTile;
+};
 
 union SpecificLayerAttributes {
   null_t;
@@ -210,6 +213,10 @@ parent:
   // for a particular document.
   sync Update(Edit[] cset, bool isFirstPaint)
     returns (EditReply[] reply);
+
+  // Composite the layer tree to the given surface, and return the surface.
+  sync DrawToSurface(SurfaceDescriptor surfaceIn)
+    returns (SurfaceDescriptor surfaceOut);
 
   // We don't need to send a sync transaction if
   // no transaction operate require a swap.

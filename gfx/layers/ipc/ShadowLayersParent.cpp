@@ -253,13 +253,15 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
           specific.get_CanvasLayerAttributes().filter());
         break;
 
-      case Specific::TImageLayerAttributes:
+      case Specific::TImageLayerAttributes: {
         MOZ_LAYERS_LOG(("[ParentSide]   image layer"));
 
-        static_cast<ImageLayer*>(layer)->SetFilter(
-          specific.get_ImageLayerAttributes().filter());
+        ImageLayer* imageLayer = static_cast<ImageLayer*>(layer);
+        const ImageLayerAttributes& attrs = specific.get_ImageLayerAttributes();
+        imageLayer->SetFilter(attrs.filter());
+        imageLayer->SetForceSingleTile(attrs.forceSingleTile());
         break;
-
+      }
       default:
         NS_RUNTIMEABORT("not reached");
       }
@@ -405,6 +407,30 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   }
 #endif
 
+  return true;
+}
+
+bool
+ShadowLayersParent::RecvDrawToSurface(const SurfaceDescriptor& surfaceIn,
+                                      SurfaceDescriptor* surfaceOut)
+{
+  *surfaceOut = surfaceIn;
+  if (mDestroyed || layer_manager()->IsDestroyed()) {
+    return true;
+  }
+
+  nsRefPtr<gfxASurface> sharedSurface = ShadowLayerForwarder::OpenDescriptor(surfaceIn);
+
+  nsRefPtr<gfxASurface> localSurface =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(sharedSurface->GetSize(),
+                                                       sharedSurface->GetContentType());
+  nsRefPtr<gfxContext> context = new gfxContext(localSurface);
+
+  layer_manager()->BeginTransactionWithTarget(context);
+  layer_manager()->EndTransaction(NULL, NULL);
+  nsRefPtr<gfxContext> contextForCopy = new gfxContext(sharedSurface);
+  contextForCopy->SetOperator(gfxContext::OPERATOR_SOURCE);
+  contextForCopy->DrawSurface(localSurface, localSurface->GetSize());
   return true;
 }
 

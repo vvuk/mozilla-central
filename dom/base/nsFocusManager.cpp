@@ -927,15 +927,20 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   nsIContent* oldFocusedContent = mFocusedContent;
   mFocusedContent = nsnull;
 
+  nsCOMPtr<nsIDocShell> focusedDocShell = mFocusedWindow->GetDocShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  focusedDocShell->GetPresShell(getter_AddRefs(presShell));
+
   if (oldFocusedContent && oldFocusedContent->IsInDoc()) {
     NotifyFocusStateChange(oldFocusedContent,
                            mFocusedWindow->ShouldShowFocusRing(),
                            false);
-  }
+    window->UpdateCommands(NS_LITERAL_STRING("focus"));
 
-  nsCOMPtr<nsIDocShell> focusedDocShell = mFocusedWindow->GetDocShell();
-  nsCOMPtr<nsIPresShell> presShell;
-  focusedDocShell->GetPresShell(getter_AddRefs(presShell));
+    SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell,
+                         oldFocusedContent->GetCurrentDoc(),
+                         oldFocusedContent, 1, false);
+  }
 
   nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
   if (presShell) {
@@ -2433,11 +2438,13 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
   }
   else {
 #ifdef MOZ_XUL
-    // if there is no focus, yet a panel is open, focus the first item in
-    // the panel
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    if (pm)
-      popupFrame = pm->GetTopPopup(ePopupTypePanel);
+    if (aType != MOVEFOCUS_CARET) {
+      // if there is no focus, yet a panel is open, focus the first item in
+      // the panel
+      nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+      if (pm)
+        popupFrame = pm->GetTopPopup(ePopupTypePanel);
+    }
 #endif
     if (popupFrame) {
       rootContent = popupFrame->GetContent();

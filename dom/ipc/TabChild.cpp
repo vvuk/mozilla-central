@@ -59,12 +59,14 @@
 #include "nsEventListenerManager.h"
 #include "PCOMContentPermissionRequestChild.h"
 #include "xpcpublic.h"
+#include "IndexedDBChild.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
 using namespace mozilla::docshell;
+using namespace mozilla::dom::indexedDB;
 
 NS_IMPL_ISUPPORTS1(ContentListener, nsIDOMEventListener)
 
@@ -910,7 +912,8 @@ TabChild::InitWidget(const nsIntSize& size)
     NS_ABORT_IF_FALSE(0 == remoteFrame->ManagedPLayersChild().Length(),
                       "shouldn't have a shadow manager yet");
     LayerManager::LayersBackend be;
-    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor(&be);
+    PRInt32 maxTextureSize;
+    PLayersChild* shadowManager = remoteFrame->SendPLayersConstructor(&be, &maxTextureSize);
     if (!shadowManager) {
       NS_WARNING("failed to construct LayersChild");
       // This results in |remoteFrame| being deleted.
@@ -923,6 +926,7 @@ TabChild::InitWidget(const nsIntSize& size)
     NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
                       "PuppetWidget should have shadow manager");
     lf->SetParentBackendType(be);
+    lf->SetMaxTextureSize(maxTextureSize);
 
     mRemoteFrame = remoteFrame;
     return true;
@@ -935,6 +939,31 @@ TabChild::SetBackgroundColor(const nscolor& aColor)
     mLastBackgroundColor = aColor;
     SendSetBackgroundColor(mLastBackgroundColor);
   }
+}
+
+NS_IMETHODIMP
+TabChild::GetMessageManager(nsIContentFrameMessageManager** aResult)
+{
+  if (mTabChildGlobal) {
+    NS_ADDREF(*aResult = mTabChildGlobal);
+    return NS_OK;
+  }
+  *aResult = nsnull;
+  return NS_ERROR_FAILURE;
+}
+
+PIndexedDBChild*
+TabChild::AllocPIndexedDB(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
+{
+  NS_NOTREACHED("Should never get here!");
+  return NULL;
+}
+
+bool
+TabChild::DeallocPIndexedDB(PIndexedDBChild* aActor)
+{
+  delete aActor;
+  return true;
 }
 
 static bool

@@ -89,6 +89,7 @@ abstract public class GeckoApp
     public static SurfaceView cameraView;
     public static GeckoApp mAppContext;
     public static boolean mDOMFullScreen = false;
+    private MenuPanel mMenuPanel;
     public static Menu sMenu;
     private static GeckoThread sGeckoThread = null;
     public Handler mMainHandler;
@@ -108,6 +109,9 @@ abstract public class GeckoApp
     private static GeckoLayerClient mLayerClient;
     private AboutHomeContent mAboutHomeContent;
     private static AbsoluteLayout mPluginContainer;
+    private static FindInPageBar mFindInPageBar;
+
+    private View mFullScreenPluginView;
 
     private int mRestoreMode = GeckoAppShell.RESTORE_NONE;
     private boolean mInitialized = false;
@@ -119,6 +123,7 @@ abstract public class GeckoApp
         public boolean onMenuItemClick(MenuItem item) {
             Log.i(LOGTAG, "menu item clicked");
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id)));
+            ((Activity) GeckoApp.mAppContext).closeOptionsMenu();
             return true;
         }
     }
@@ -343,11 +348,27 @@ abstract public class GeckoApp
     }
 
     @Override
+    public void invalidateOptionsMenu() {
+        if (sMenu == null)
+            return;
+
+        onPrepareOptionsMenu(sMenu);
+
+        if (Build.VERSION.SDK_INT >= 11)
+            super.invalidateOptionsMenu();
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu)
     {
         sMenu = menu;
+
+        // Inform the menu about the action-items bar. 
+        if (menu instanceof GeckoMenu && isTablet())
+            ((GeckoMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
+
         MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.gecko_menu, menu);
+        inflater.inflate(R.menu.gecko_menu, sMenu);
         return true;
     }
 
@@ -394,15 +415,17 @@ abstract public class GeckoApp
         MenuItem share = aMenu.findItem(R.id.share);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
+        MenuItem findInPage = aMenu.findItem(R.id.find_in_page);
 
         if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);
             forward.setEnabled(false);
             share.setEnabled(false);
             saveAsPDF.setEnabled(false);
+            findInPage.setEnabled(false);
             return true;
         }
-        
+
         bookmark.setEnabled(true);
         bookmark.setCheckable(true);
         
@@ -425,9 +448,127 @@ abstract public class GeckoApp
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
                                tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
 
+        // Disable find in page for about:home, since it won't work on Java content
+        if (!tab.getURL().equals("about:home"))
+            findInPage.setEnabled(true);
+
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 
         return true;
+    }
+
+    @Override
+    public void openOptionsMenu() {
+        if (mBrowserToolbar.hasSoftMenuButton()) {
+            onPreparePanel(Window.FEATURE_OPTIONS_PANEL, mMenuPanel, sMenu);
+            mBrowserToolbar.openOptionsMenu();
+        } else {
+            super.openOptionsMenu();
+        }
+    }
+
+    @Override
+    public void closeOptionsMenu() {
+        if (mBrowserToolbar.hasSoftMenuButton())
+            mBrowserToolbar.closeOptionsMenu();
+        else
+            super.closeOptionsMenu();
+    }
+
+    @Override
+    public MenuInflater getMenuInflater() {
+        if (Build.VERSION.SDK_INT >= 11)
+            return new GeckoMenuInflater(mAppContext);
+        else
+            return super.getMenuInflater();
+    }
+
+    public View getMenuPanel() {
+        return mMenuPanel;
+    }
+
+    // MenuPanel holds the scrollable Menu
+    public static class MenuPanel extends ScrollView {
+        public MenuPanel(Context context, AttributeSet attrs) {
+            super(context, attrs);
+            setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                       ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            if (getChildCount() == 0) {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                return;
+            }
+
+            int restrictedHeightSpec;
+            int childHeight = getChildAt(0).getHeight();
+
+            DisplayMetrics metrics = new DisplayMetrics();
+            ((Activity) GeckoApp.mAppContext).getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+            // heightPixels changes during rotation.
+            int preferredHeight = (int) (0.75 * metrics.heightPixels);
+            restrictedHeightSpec = MeasureSpec.makeMeasureSpec(childHeight <= preferredHeight ? childHeight : preferredHeight, MeasureSpec.EXACTLY);
+
+            super.onMeasure(widthMeasureSpec, restrictedHeightSpec);
+        }
+    }
+
+    @Override
+    public View onCreatePanelView(int featureId) {
+        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+            if (mMenuPanel == null) {
+                mMenuPanel = new MenuPanel(mAppContext, null);
+            } else {
+                // Prepare the panel everytime before showing the menu.
+                onPreparePanel(featureId, mMenuPanel, sMenu);
+            }
+
+            return mMenuPanel; 
+        }
+  
+        return super.onCreatePanelView(featureId);
+    }
+
+    @Override
+    public boolean onCreatePanelMenu(int featureId, Menu menu) {
+        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+            if (mMenuPanel == null) {
+                mMenuPanel = (MenuPanel) onCreatePanelView(featureId);
+            }
+
+            GeckoMenu gMenu = new GeckoMenu(mAppContext, null);
+            menu = gMenu;
+            mMenuPanel.addView(gMenu);
+
+            return onCreateOptionsMenu(menu);
+        }
+
+        return super.onCreatePanelMenu(featureId, menu);
+    }
+
+    @Override
+    public boolean onPreparePanel(int featureId, View view, Menu menu) {
+        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL)
+            return onPrepareOptionsMenu(menu);
+
+        return super.onPreparePanel(featureId, view, menu);
+    }
+
+    @Override
+    public boolean onMenuOpened(int featureId, Menu menu) {
+        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+            if (sMenu == null) {
+                onCreatePanelMenu(featureId, menu);
+                onPreparePanel(featureId, mMenuPanel, sMenu);
+            }
+
+            return true;
+        }
+
+        return super.onMenuOpened(featureId, menu);
     }
 
     @Override
@@ -499,6 +640,9 @@ abstract public class GeckoApp
             case R.id.char_encoding:
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Get", null));
                 return true;
+            case R.id.find_in_page:
+                mFindInPageBar.show();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -513,6 +657,12 @@ abstract public class GeckoApp
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null)
             outState.putString(SAVED_STATE_TITLE, tab.getDisplayTitle());
+    }
+
+    public DisplayMetrics getDisplayMetrics() {
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        return metrics;
     }
 
     void getAndProcessThumbnailForTab(final Tab tab) {
@@ -636,8 +786,7 @@ abstract public class GeckoApp
         }
 
         tab.setContentType(contentType);
-        tab.updateFavicon(null);
-        tab.updateFaviconURL(null);
+        tab.clearFavicon();
         tab.updateIdentityData(null);
         tab.removeTransientDoorHangers();
         tab.setAllowZoom(true);
@@ -652,11 +801,9 @@ abstract public class GeckoApp
         mMainHandler.post(new Runnable() {
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    mBrowserToolbar.setTitle(uri);
-                    mBrowserToolbar.setFavicon(null);
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.refresh();
+                    invalidateOptionsMenu();
                     mDoorHangerPopup.updatePopup();
-                    mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
 
                     if (tab != null)
                         hidePlugins(tab);
@@ -689,10 +836,8 @@ abstract public class GeckoApp
         mMainHandler.post(new Runnable() {
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    mBrowserToolbar.setTitle(tab.getDisplayTitle());
-                    mBrowserToolbar.setFavicon(tab.getFavicon());
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
-                    mBrowserToolbar.setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
+                    mBrowserToolbar.refresh();
+                    invalidateOptionsMenu();
                 }
             }
         });
@@ -837,8 +982,9 @@ abstract public class GeckoApp
                 final int tabId = message.getInt("tabID");
                 final String rel = message.getString("rel");
                 final String href = message.getString("href");
-                Log.i(LOGTAG, "link rel - " + rel + ", href - " + href);
-                handleLinkAdded(tabId, rel, href);
+                final int size = message.getInt("size");
+                Log.i(LOGTAG, "link rel - " + rel + ", href - " + href + ", size - " + size);
+                handleLinkAdded(tabId, rel, href, size);
             } else if (event.equals("DOMWindowClose")) {
                 final int tabId = message.getInt("tabID");
                 handleWindowClose(tabId);
@@ -961,13 +1107,12 @@ abstract public class GeckoApp
             } else if (event.equals("CharEncoding:State")) {
                 final boolean visible = message.getString("visible").equals("true");
                 GeckoPreferences.setCharEncodingState(visible);
-                if (sMenu != null) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
+                mMainHandler.post(new Runnable() {
+                    public void run() {
+                        if (sMenu != null)
                             sMenu.findItem(R.id.char_encoding).setVisible(visible);
-                        }
-                    });
-                }
+                    }
+                });
             } else if (event.equals("Update:Restart")) {
                 doRestart("org.mozilla.gecko.restart_update");
             } else if (event.equals("Tab:ViewportMetadata")) {
@@ -989,23 +1134,21 @@ abstract public class GeckoApp
                 }
             } else if (event.equals("Tab:HasTouchListener")) {
                 int tabId = message.getInt("tabID");
-                Tab tab = Tabs.getInstance().getTab(tabId);
+                final Tab tab = Tabs.getInstance().getTab(tabId);
                 tab.setHasTouchListeners(true);
-                if (Tabs.getInstance().isSelectedTab(tab)) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
+                mMainHandler.post(new Runnable() {
+                    public void run() {
+                        if (Tabs.getInstance().isSelectedTab(tab))
                             mLayerController.getView().getTouchEventHandler().setWaitForTouchListeners(true);
-                        }
-                    });
-                }
+                    }
+                });
             } else if (event.equals("Session:StatePurged")) {
-                if (mAboutHomeContent != null) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
+                mMainHandler.post(new Runnable() {
+                    public void run() {
+                        if (mAboutHomeContent != null)
                             mAboutHomeContent.setLastTabsVisibility(false);
-                        }
-                    });
-                }
+                    }
+                });
             } else if (event.equals("Bookmark:Insert")) {
                 final String url = message.getString("url");
                 final String title = message.getString("title");
@@ -1226,6 +1369,9 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.updateBackButton(tab.canDoBack());
+                    mBrowserToolbar.updateForwardButton(tab.canDoForward());
+                    invalidateOptionsMenu();
                     if (showProgress && tab.getState() == Tab.STATE_LOADING)
                         mBrowserToolbar.setProgressVisibility(true);
                 }
@@ -1243,8 +1389,12 @@ abstract public class GeckoApp
 
         mMainHandler.post(new Runnable() {
             public void run() {
-                if (Tabs.getInstance().isSelectedTab(tab))
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    mBrowserToolbar.updateBackButton(tab.canDoBack());
+                    mBrowserToolbar.updateForwardButton(tab.canDoForward());
+                    invalidateOptionsMenu();
                     mBrowserToolbar.setProgressVisibility(false);
+                }
                 Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.STOP);
             }
         });
@@ -1304,24 +1454,26 @@ abstract public class GeckoApp
         });
     }
 
-    void handleLinkAdded(final int tabId, String rel, final String href) {
-        if (rel.indexOf("[icon]") != -1) {
-            final Tab tab = Tabs.getInstance().getTab(tabId);
-            if (tab != null) {
-                tab.updateFaviconURL(href);
+    void handleLinkAdded(final int tabId, String rel, final String href, int size) {
+        if (rel.indexOf("[icon]") == -1)
+            return; 
 
-                // If tab is not loading and the favicon is updated, we
-                // want to load the image straight away. If tab is still
-                // loading, we only load the favicon once the page's content
-                // is fully loaded (see handleContentLoaded()).
-                if (tab.getState() != Tab.STATE_LOADING) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
-                            loadFavicon(tab);
-                        }
-                    });
+        final Tab tab = Tabs.getInstance().getTab(tabId);
+        if (tab == null)
+            return;
+
+        tab.updateFaviconURL(href, size);
+
+        // If tab is not loading and the favicon is updated, we
+        // want to load the image straight away. If tab is still
+        // loading, we only load the favicon once the page's content
+        // is fully loaded (see handleContentLoaded()).
+        if (tab.getState() != Tab.STATE_LOADING) {
+            mMainHandler.post(new Runnable() {
+                public void run() {
+                    loadFavicon(tab);
                 }
-            }
+            });
         }
     }
 
@@ -1331,11 +1483,37 @@ abstract public class GeckoApp
         tabs.closeTab(tab);
     }
 
-    void addPluginView(final View view, final Rect rect) {
+    private void addFullScreenPluginView(View view, int orientation) {
+        if (mFullScreenPluginView != null) {
+            Log.w(LOGTAG, "Already have a fullscreen plugin view");
+            return;
+        }
+
+        setFullScreen(true);
+        mBrowserToolbar.hide();
+
+        if (orientation != GeckoScreenOrientationListener.eScreenOrientation_None)
+            GeckoScreenOrientationListener.getInstance().lockScreenOrientation(orientation);
+
+        view.setWillNotDraw(false);
+        if (view instanceof SurfaceView) {
+            ((SurfaceView) view).setZOrderOnTop(true);
+        }
+
+        mPluginContainer.addView(view, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        mFullScreenPluginView = view;
+    }
+
+    void addPluginView(final View view, final Rect rect, final boolean isFullScreen, final int orientation) {
         mMainHandler.post(new Runnable() { 
             public void run() {
                 Tabs tabs = Tabs.getInstance();
                 Tab tab = tabs.getSelectedTab();
+
+                if (isFullScreen) {
+                    addFullScreenPluginView(view, orientation);
+                    return;
+                }
 
                 PluginLayer layer = (PluginLayer) tab.getPluginLayer(view);
                 if (layer == null) {
@@ -1351,11 +1529,38 @@ abstract public class GeckoApp
         });
     }
 
-    void removePluginView(final View view) {
+    private void removeFullScreenPluginView(View view) {
+        if (mFullScreenPluginView == null) {
+            Log.w(LOGTAG, "Don't have a fullscreen plugin view");
+            return;
+        }
+
+        if (mFullScreenPluginView != view) {
+            Log.w(LOGTAG, "Passed view is not the current full screen view");
+            return;
+        }
+
+        GeckoAppShell.onFullScreenPluginHidden(view);
+
+        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
+
+        setFullScreen(false);
+        mBrowserToolbar.show();
+        
+        mPluginContainer.removeView(view);
+        mFullScreenPluginView = null;
+    }
+
+    void removePluginView(final View view, final boolean isFullScreen) {
         mMainHandler.post(new Runnable() { 
             public void run() {
                 Tabs tabs = Tabs.getInstance();
                 Tab tab = tabs.getSelectedTab();
+
+                if (isFullScreen) {
+                    removeFullScreenPluginView(view);
+                    return;
+                }
 
                 PluginLayer layer = (PluginLayer) tab.removePluginLayer(view);
                 if (layer != null) {
@@ -1495,13 +1700,26 @@ abstract public class GeckoApp
         });
     }
 
+    public boolean isTablet() {
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+        // Checking for sw600dp for 7" tablet.
+        if (((metrics.widthPixels / metrics.density) >= 600) &&
+            ((metrics.heightPixels / metrics.density) >= 600))
+            return true;
+        else
+            return false;
+    }
+
     // The ActionBar needs to be refreshed on rotation as different orientation uses different resources
     public void refreshActionBar() {
         if (Build.VERSION.SDK_INT >= 11) {
             LinearLayout actionBar = (LinearLayout) getLayoutInflater().inflate(R.layout.browser_toolbar, null);
+            mBrowserToolbar.destroy();
             mBrowserToolbar.from(actionBar);
             mBrowserToolbar.refresh();
-            GeckoActionBar.setBackgroundDrawable(this, getResources().getDrawable(R.drawable.gecko_actionbar_bg));
+            invalidateOptionsMenu();
             GeckoActionBar.setCustomView(this, actionBar);
         }
     }
@@ -1563,6 +1781,10 @@ abstract public class GeckoApp
 
     private void initialize() {
         mInitialized = true;
+
+        mBrowserToolbar.updateBackButton(false);
+        mBrowserToolbar.updateForwardButton(false);
+        invalidateOptionsMenu();
 
         Intent intent = getIntent();
         String action = intent.getAction();
@@ -1672,6 +1894,7 @@ abstract public class GeckoApp
         }
 
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
+        mFindInPageBar = (FindInPageBar) findViewById(R.id.find_in_page);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
@@ -2546,6 +2769,11 @@ abstract public class GeckoApp
             return;
         }
 
+        if (mFullScreenPluginView != null) {
+            removePluginView(mFullScreenPluginView, true);
+            return;
+        }
+
         SiteIdentityPopup identityPopup = SiteIdentityPopup.getInstance();
         if (identityPopup.isShowing()) {
             identityPopup.dismiss();
@@ -2616,7 +2844,7 @@ abstract public class GeckoApp
 
     static abstract class FilePickerResultHandler implements ActivityResultHandler {
         String handleActivityResult(int resultCode, Intent data) {
-            if (data == null && resultCode != RESULT_OK)
+            if (data == null || resultCode != RESULT_OK)
                 return "";
             Uri uri = data.getData();
             if ("file".equals(uri.getScheme())) {

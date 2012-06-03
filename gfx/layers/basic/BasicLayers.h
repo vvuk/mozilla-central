@@ -146,6 +146,7 @@ public:
   virtual bool IsCompositingCheap() { return false; }
   virtual bool HasShadowManagerInternal() const { return false; }
   bool HasShadowManager() const { return HasShadowManagerInternal(); }
+  virtual PRInt32 GetMaxTextureSize() const { return PR_INT32_MAX; }
 
 protected:
 #ifdef DEBUG
@@ -176,6 +177,8 @@ protected:
   nsRefPtr<gfxContext> mDefaultTarget;
   // The context to draw into.
   nsRefPtr<gfxContext> mTarget;
+  // A context we want our shadow to draw into.
+  nsRefPtr<gfxContext> mShadowTarget;
   // Image factory we use.
   nsRefPtr<ImageFactory> mFactory;
 
@@ -206,6 +209,8 @@ public:
   {
     return this;
   }
+
+  virtual PRInt32 GetMaxTextureSize() const;
 
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
   virtual bool EndEmptyTransaction();

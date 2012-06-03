@@ -309,7 +309,7 @@ WinNativeApp.prototype = {
     writer.setString("Webapp", "Profile", this.installDir.leafName);
     writer.setString("Webapp", "Executable", this.appNameAsFilename);
     writer.setString("WebappRT", "InstallDir", this.processFolder.path);
-    writer.writeFile();
+    writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
     // ${UninstallDir}/shortcuts_log.ini
     let shortcutLogsINI = this.uninstallDir.clone().QueryInterface(Ci.nsILocalFile);
@@ -319,7 +319,7 @@ WinNativeApp.prototype = {
     writer.setString("STARTMENU", "Shortcut0", this.appNameAsFilename + ".lnk");
     writer.setString("DESKTOP", "Shortcut0", this.appNameAsFilename + ".lnk");
     writer.setString("TASKBAR", "Migrated", "true");
-    writer.writeFile();
+    writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
     writer = null;
     factory = null;
@@ -575,8 +575,6 @@ MacNativeApp.prototype = {
     <string>' + escapeXML(this.appName) + '</string>\n\
     <key>CFBundlePackageType</key>\n\
     <string>APPL</string>\n\
-    <key>CFBundleSignature</key>\n\
-    <string>MOZB</string>\n\
     <key>CFBundleVersion</key>\n\
     <string>0</string>\n\
     <key>FirefoxBinary</key>\n\

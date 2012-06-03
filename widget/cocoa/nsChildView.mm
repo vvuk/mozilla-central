@@ -835,6 +835,7 @@ NS_IMETHODIMP nsChildView::Move(PRInt32 aX, PRInt32 aY)
   if (mVisible)
     [mView setNeedsDisplay:YES];
 
+  NotifyRollupGeometryChange(gRollupListener);
   ReportMoveEvent();
 
   return NS_OK;
@@ -859,6 +860,7 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
+  NotifyRollupGeometryChange(gRollupListener);
   ReportSizeEvent();
 
   return NS_OK;
@@ -891,6 +893,7 @@ NS_IMETHODIMP nsChildView::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt3
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
+  NotifyRollupGeometryChange(gRollupListener);
   if (isMoving) {
     ReportMoveEvent();
     if (mOnDestroyCalled)
@@ -1902,10 +1905,10 @@ nsChildView::EndSecureKeyboardInput()
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
+already_AddRefed<Accessible>
 nsChildView::GetDocumentAccessible()
 {
-  nsAccessible *docAccessible = nsnull;
+  Accessible *docAccessible = nsnull;
   if (mAccessible) {
     CallQueryReferent(mAccessible.get(), &docAccessible);
     return docAccessible;
@@ -4812,7 +4815,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   nsCOMPtr<nsIWidget> kungFuDeathGrip2(mGeckoChild);
-  nsRefPtr<nsAccessible> accessible = mGeckoChild->GetDocumentAccessible();
+  nsRefPtr<Accessible> accessible = mGeckoChild->GetDocumentAccessible();
   if (!mGeckoChild)
     return nil;
 

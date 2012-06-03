@@ -6,12 +6,12 @@
 #ifndef _nsHTMLLinkAccessible_H_
 #define _nsHTMLLinkAccessible_H_
 
-#include "nsHyperTextAccessibleWrap.h"
+#include "HyperTextAccessibleWrap.h"
 
-class nsHTMLLinkAccessible : public nsHyperTextAccessibleWrap
+class nsHTMLLinkAccessible : public HyperTextAccessibleWrap
 {
 public:
-  nsHTMLLinkAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsHTMLLinkAccessible(nsIContent* aContent, DocAccessible* aDoc);
  
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -19,7 +19,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessible
+  // Accessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
