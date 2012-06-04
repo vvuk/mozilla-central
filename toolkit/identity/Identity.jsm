@@ -639,12 +639,15 @@ IDService.prototype = {
     
     // ? create a visible frame with sandbox and notify UX
     // or notify UX so it can create the visible frame, not sure which one.
-    let authURL = aIDPParams.idpParams.authentication;
-    this._beginAuthenticationFlow(aIdentity, authURL, function(err, authd) {
-                                    
+    // TODO: make the two lines below into a helper to be used for auth and authentication
+    let authPath = aIDPParams.idpParams.authentication;
+    let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
+    this._beginAuthenticationFlow(aIdentity, authURI, function(err, authd) {
+
     });
     // either we bind the AuthID to the sandbox ourselves, or UX does that,
     // in which case we need to tell UX the AuthId.
+    // Currently, the UX creates the UI and gets the AuthId from the window and sets is with setAuthenticationFlow
   },
   
   /**
