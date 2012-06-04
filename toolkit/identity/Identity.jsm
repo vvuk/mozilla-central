@@ -333,12 +333,12 @@ IDService.prototype = {
             } else {
               // soft fail.
               // We will need to authenticate with the idp
-              self.doAuthentication(aIdentity, idpParams, function(err, authd) {
+              self._doAuthentication(aIdentity, idpParams, function(err, authd) {
                 // and try to provision again
                 self._provisionIdentity(aIdentity, idpParams, function (err, identity) {
                   if (! err) {
                     // yay.  we could provision after all.
-                    self.generateAssertion(
+                    self._generateAssertion(
                       aCallerId, aIdentity, 
                       function(err, assertion) {
                         return caller.doLogin(assertion);
@@ -391,7 +391,7 @@ IDService.prototype = {
       {}, {expiresAt: in_2_minutes, audience: aAudience},
       kp.kp.secretKey, function(err, signedAssertion) {
         // bundle with cert
-        aCallback(err, id.cert + "~" + signedAssertion);
+        return aCallback(err, id.cert + "~" + signedAssertion);
       });
   },
 
@@ -629,7 +629,7 @@ IDService.prototype = {
    *        (function) to invoke upon completion, with
    *                   first-positional-param error.
    */
-  doAuthentication: function doAuthentication(aIdentity, aIDPParams, aCallback)
+  _doAuthentication: function _doAuthentication(aIdentity, aIDPParams, aCallback)
   {
     
     // create an authentication caller and its identifier AuthId
@@ -664,17 +664,20 @@ IDService.prototype = {
    */
   beginAuthentication: function beginAuthentication(aCaller)
   {
-    // look up AuthId caller, and the identity we're attempting to authenticate.
+    log("**beginAuthentication", aCaller);
 
-    // get the flow that goes with this caller
-    // sandbox is already attached as .sandbox
+    // look up the authentication flow by the caller
+    let flow = this._authenticationFlows[aCaller.id];
+    if (!flow) {
+      return aCaller.doError("no such authentication flow");
+    }
+    
+    // stash the caller in the flow
+    flow.caller = aCaller;
+    flow.state = "authenticating";
 
-    // XXX we need pointer to the IFRAME/sandbox.
-    // maybe this means we should create it, or maybe UX passes it to us
-    // after it's created it, but we need the direct pointer.
-
-    // tell sandbox to invoke the doBeginAuthentication callback with
-    // the identity we want.
+    // tell the UI to start the authentication process
+    return flow.caller.doBeginAuthenticationCallback(flow.identity);
   },
 
   /**
