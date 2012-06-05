@@ -329,6 +329,7 @@ IDService.prototype = {
           }
 
           self._provisionIdentity(aIdentity, idpParams, function(err, aProvId) {
+            self._provisionFlows[aProvId].rpId = aCallerId;
             log("provision callback", err, aIdentity, aProvId);
             if (! err) {
               delete self._provisionFlows[aProvId]; // TODO: free sandbox?
@@ -730,7 +731,7 @@ IDService.prototype = {
     provFlow.didAuthentication = true;
     // We have authenticated in order to provision an identity.
     // So try again.
-    this.selectIdentity(provId, provFlow.identity);
+    this.selectIdentity(provFlow.rpId, provFlow.identity);
   },
 
   /**
