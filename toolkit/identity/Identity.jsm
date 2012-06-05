@@ -297,6 +297,7 @@ IDService.prototype = {
     var self = this;
 
     let caller = this._rpFlows[aCallerId];
+    log("selectIdentity: aCallerId =", aCallerId, "aIdentity =", aIdentity, "->", caller);
     if (! caller) {
       log("No caller with id", aCallerId);
       return null;
@@ -333,15 +334,15 @@ IDService.prototype = {
                 }
               });
             } else {
-              if (caller.state === "authenticating") {
-                // we've been around this block before.
+              // If we have already done the authentication step, and we 
+              // still can't generate an assertion, then we give up.
+              if (caller.didAuthentication) {
+                delete self._provisionFlows[aCallerId];
                 return caller.doError("Authentication fail.");
-              } else { 
-                // soft fail.
-                // We will need to authenticate with the idp
 
-                // We now transition from a provisioning flow
-                // to an authentication flow.
+              // Need to authenticate with the IdP.  Start an authentication
+              // flow.
+              } else { 
                 return self._doAuthentication(aIdentity, idpParams);
               }
             }
@@ -520,13 +521,19 @@ IDService.prototype = {
     let flow = this._provisionFlows[aProvId];
     let cb = flow.callback;
     log("callback is ", cb);
-    // Clean up the sandbox here?
+
+    // Always delete the sandbox, if there is one.  We are done 
+    // with it whether this is a hard or soft provisioning fail.
     if (flow.sandbox) {
       flow.sandbox.free();
+      delete flow['sandbox'];
     }
 
-    // delete the provisioning context
-    delete this._provisionFlows[aProvId];
+    // This may be either a "soft" or "hard" fail.  If it's a 
+    // soft fail, we'll flow through setAuthenticationFlow, where
+    // the provision flow data will be copied into a new auth
+    // flow.  If it's a hard fail, then the callback will be 
+    // responsible for cleaning up the now defunct provision flow.
 
     // invoke the callback with an error.
     return cb(aReason);
@@ -688,19 +695,23 @@ IDService.prototype = {
    *        (int)  the identifier of the authentication caller tied to that sandbox
    *
    */
-  completeAuthentication: function completeAuthentication(aAuthId)
+  completeAuthentication: function completeAuthentication(aCallerId)
   {
     // look up the AuthId caller, and get its callback.
     let flow = this._authenticationFlows[aCaller.id];
     if (!flow) {
-      return aCaller.doError("no such authentication flow");
+      log("** no flow for caller id:", aCallerId);
+      return null;
     }
-    
+    flow.didAuthentication = true;
+
     // delete caller
     delete flow['caller'];
 
     // invoke callback with success.
     // * what callback? Spec says to invoke the Provisioning Flow -- MN
+    // * I think here we take a second stab at selecting an identity -- JP
+    this.selectIdentity(aCallerId, flow.identity);
   },
 
   /**
@@ -883,7 +894,6 @@ IDService.prototype = {
     delete this._provisionflows[aProvId];
 
     // Now we have morphed into an authentication flow.
-    caller.state = "authenticating";
     this._authenticationFlows[aAuthId] = caller;
   },
 
