@@ -43,6 +43,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "Haptic",
 XPCOMUtils.defineLazyServiceGetter(this, "DOMUtils",
   "@mozilla.org/inspector/dom-utils;1", "inIDOMUtils");
 
+XPCOMUtils.defineLazyServiceGetter(window, "URIFixup",
+  "@mozilla.org/docshell/urifixup;1", "nsIURIFixup");
+
 const kStateActive = 0x00000001; // :active pseudoclass for elements
 
 const kXLinkNamespace = "http://www.w3.org/1999/xlink";
@@ -188,6 +191,7 @@ var BrowserApp = {
 
     NativeWindow.init();
     Downloads.init();
+    FindHelper.init();
     FormAssistant.init();
     OfflineApps.init();
     IndexedDB.init();
@@ -389,6 +393,7 @@ var BrowserApp = {
   shutdown: function shutdown() {
     NativeWindow.uninit();
     FormAssistant.uninit();
+    FindHelper.uninit();
     OfflineApps.uninit();
     IndexedDB.uninit();
     ViewportHandler.uninit();
@@ -1834,7 +1839,9 @@ Tab.prototype = {
     this.userScrollPos.x = win.scrollX;
     this.userScrollPos.y = win.scrollY;
     this.setResolution(aViewport.zoom, false);
-    this.setDisplayPort(aViewport.displayPort);
+
+    if (aViewport.displayPort)
+      this.setDisplayPort(aViewport.displayPort);
   },
 
   setResolution: function(aZoom, aForce) {
@@ -1850,20 +1857,10 @@ Tab.prototype = {
   },
 
   getPageSize: function(aDocument, aDefaultWidth, aDefaultHeight) {
-    if (aDocument instanceof SVGDocument) {
-      let rect = aDocument.rootElement.getBoundingClientRect();
-      // we need to add rect.left and rect.top twice so that the SVG is drawn
-      // centered on the page; if we add it only once then the SVG will be
-      // on the bottom-right of the page and if we don't add it at all then
-      // we end up with a cropped SVG (see bug 712065)
-      return [Math.ceil(rect.left + rect.width + rect.left),
-              Math.ceil(rect.top + rect.height + rect.top)];
-    } else {
-      let body = aDocument.body || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
-      let html = aDocument.documentElement || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
-      return [Math.max(body.scrollWidth, html.scrollWidth),
-              Math.max(body.scrollHeight, html.scrollHeight)];
-    }
+    let body = aDocument.body || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    let html = aDocument.documentElement || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    return [Math.max(body.scrollWidth, html.scrollWidth),
+      Math.max(body.scrollHeight, html.scrollHeight)];
   },
 
   getViewport: function() {
@@ -2012,18 +2009,36 @@ Tab.prototype = {
             list.push("[" + rel + "]");
         }
 
+        // We want to get the largest icon size possible for our UI.
+        let maxSize = 0;
+
+        // We use the sizes attribute if available
+        // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
+        if (target.hasAttribute("sizes")) {
+          let sizes = target.getAttribute("sizes").toLowerCase();
+
+          if (sizes == "any") {
+            // Since Java expects an integer, use -1 to represent icons with sizes="any"
+            maxSize = -1; 
+          } else {
+            let tokens = sizes.split(" ");
+            tokens.forEach(function(token) {
+              // TODO: check for invalid tokens
+              let [w, h] = token.split("x");
+              maxSize = Math.max(maxSize, Math.max(w, h));
+            });
+          }
+        }
+
         let json = {
           type: "DOMLinkAdded",
           tabID: this.id,
           href: resolveGeckoURI(target.href),
           charset: target.ownerDocument.characterSet,
           title: target.title,
-          rel: list.join(" ")
+          rel: list.join(" "),
+          size: maxSize
         };
-
-        // rel=icon can also have a sizes attribute
-        if (target.hasAttribute("sizes"))
-          json.sizes = target.getAttribute("sizes");
 
         sendMessageToJava({ gecko: json });
         break;
@@ -2214,10 +2229,19 @@ Tab.prototype = {
 
     this._hostChanged = true;
 
-    let uri = aLocationURI.spec;
+    let fixedURI = aLocationURI;
+    try {
+      fixedURI = URIFixup.createExposableURI(aLocationURI);
+    } catch (ex) { }
+
     let documentURI = contentWin.document.documentURIObject.spec;
     let contentType = contentWin.document.contentType;
-    let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0;
+    
+    // XXX If fixedURI matches browser.lastURI, we assume this isn't a real location
+    // change but rather a spurious addition like a wyciwyg URI prefix. See Bug 747883.
+    let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0 ||
+                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI));
+    this.browser.lastURI = fixedURI;
 
     // Reset state of click-to-play plugin notifications.
     clearTimeout(this.pluginDoorhangerTimeout);
@@ -2229,7 +2253,7 @@ Tab.prototype = {
       gecko: {
         type: "Content:LocationChange",
         tabID: this.id,
-        uri: uri,
+        uri: fixedURI.spec,
         documentURI: documentURI,
         contentType: contentType,
         sameDocument: sameDocument
@@ -2513,7 +2537,7 @@ Tab.prototype = {
           // call above does so at the end of the updateViewportSize function. As long
           // as that is happening, we don't need to do it again here.
 
-          if (contentDocument instanceof ImageDocument) {
+          if (contentDocument.mozSyntheticDocument) {
             // for images, scale to fit width. this needs to happen *after* the call
             // to updateMetadata above, because that call sets the CSS viewport which
             // will affect the page size (i.e. contentDocument.body.scroll*) that we
@@ -3152,6 +3176,104 @@ var ErrorPageEventHandler = {
         }
         break;
       }
+    }
+  }
+};
+
+var FindHelper = {
+  _find: null,
+  _findInProgress: false,
+  _targetTab: null,
+  _initialViewport: null,
+  _viewportChanged: false,
+
+  init: function() {
+    Services.obs.addObserver(this, "FindInPage:Find", false);
+    Services.obs.addObserver(this, "FindInPage:Prev", false);
+    Services.obs.addObserver(this, "FindInPage:Next", false);
+    Services.obs.addObserver(this, "FindInPage:Closed", false);
+  },
+
+  uninit: function() {
+    Services.obs.removeObserver(this, "FindInPage:Find", false);
+    Services.obs.removeObserver(this, "FindInPage:Prev", false);
+    Services.obs.removeObserver(this, "FindInPage:Next", false);
+    Services.obs.removeObserver(this, "FindInPage:Closed", false);
+  },
+
+  observe: function(aMessage, aTopic, aData) {
+    switch(aTopic) {
+      case "FindInPage:Find":
+        this.doFind(aData);
+        break;
+
+      case "FindInPage:Prev":
+        this.findAgain(aData, true);
+        break;
+
+      case "FindInPage:Next":
+        this.findAgain(aData, false);
+        break;
+
+      case "FindInPage:Closed":
+        this.findClosed();
+        break;
+    }
+  },
+
+  doFind: function(aSearchString) {
+    if (!this._findInProgress) {
+      this._findInProgress = true;
+      this._targetTab = BrowserApp.selectedTab;
+      this._find = Cc["@mozilla.org/typeaheadfind;1"].createInstance(Ci.nsITypeAheadFind);
+      this._find.init(this._targetTab.browser.docShell);
+      this._initialViewport = JSON.stringify(this._targetTab.getViewport());
+      this._viewportChanged = false;
+    }
+
+    let result = this._find.find(aSearchString, false);
+    this.handleResult(result);
+  },
+
+  findAgain: function(aString, aFindBackwards) {
+    // This can happen if the user taps next/previous after re-opening the search bar
+    if (!this._findInProgress) {
+      this.doFind(aString);
+      return;
+    }
+
+    let result = this._find.findAgain(aFindBackwards, false);
+    this.handleResult(result);
+  },
+
+  findClosed: function() {
+    if (!this._findInProgress) {
+      // this should never happen
+      Cu.reportError("Warning: findClosed() called while _findInProgress is false!");
+      // fall through and clean up anyway
+    }
+
+    this._find.collapseSelection();
+    this._find = null;
+    this._findInProgress = false;
+    this._targetTab = null;
+    this._initialViewport = null;
+    this._viewportChanged = false;
+  },
+
+  handleResult: function(aResult) {
+    if (aResult == Ci.nsITypeAheadFind.FIND_NOTFOUND) {
+      if (this._viewportChanged) {
+        if (this._targetTab != BrowserApp.selectedTab) {
+          // this should never happen
+          Cu.reportError("Warning: selected tab changed during find!");
+          // fall through and restore viewport on the initial tab anyway
+        }
+        this._targetTab.setViewport(JSON.parse(this._initialViewport));
+        this._targetTab.sendViewportUpdate();
+      }
+    } else {
+      this._viewportChanged = true;
     }
   }
 };
@@ -5136,6 +5258,30 @@ var RemoteDebugger = {
     return Services.prefs.getBoolPref("remote-debugger.enabled");
   },
 
+  /**
+   * Prompt the user to accept or decline the incoming connection.
+   *
+   * @return true if the connection should be permitted, false otherwise
+   */
+  _allowConnection: function rd_allowConnection() {
+    let title = Strings.browser.GetStringFromName("remoteIncomingPromptTitle");
+    let msg = Strings.browser.GetStringFromName("remoteIncomingPromptMessage");
+    let btn = Strings.browser.GetStringFromName("remoteIncomingPromptDisable");
+    let prompt = Services.prompt;
+    let flags = prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_OK +
+                prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
+                prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING +
+                prompt.BUTTON_POS_1_DEFAULT;
+    let result = prompt.confirmEx(null, title, msg, flags, null, null, btn, null, { value: false });
+    if (result == 0)
+      return true;
+    if (result == 2) {
+      this._stop();
+      Services.prefs.setBoolPref("remote-debugger.enabled", false);
+    }
+    return false;
+  },
+
   _restart: function rd_restart() {
     this._stop();
     this._start();
@@ -5144,7 +5290,7 @@ var RemoteDebugger = {
   _start: function rd_start() {
     try {
       if (!DebuggerServer.initialized) {
-        DebuggerServer.init();
+        DebuggerServer.init(this._allowConnection);
         DebuggerServer.addActors("chrome://browser/content/dbg-browser-actors.js");
       }
 

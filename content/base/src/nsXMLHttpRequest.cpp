@@ -1767,13 +1767,21 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     // No optional arguments were passed in. Default async to true.
     async = true;
   }
-  return Open(method, url, async, user, password);
+  Optional<nsAString> realUser;
+  if (optional_argc > 1) {
+    realUser = &user;
+  }
+  Optional<nsAString> realPassword;
+  if (optional_argc > 2) {
+    realPassword = &password;
+  }
+  return Open(method, url, async, realUser, realPassword);
 }
 
 nsresult
 nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
-                       bool async, const nsAString& user,
-                       const nsAString& password)
+                       bool async, const Optional<nsAString>& user,
+                       const Optional<nsAString>& password)
 {
   NS_ENSURE_ARG(!method.IsEmpty());
 
@@ -1870,12 +1878,14 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     return NS_ERROR_CONTENT_BLOCKED;
   }
 
-  if (!user.IsEmpty()) {
+  // XXXbz this is wrong: we should only be looking at whether
+  // user/password were passed, not at the values!  See bug 759624.
+  if (user.WasPassed() && !user.Value().IsEmpty()) {
     nsCAutoString userpass;
-    CopyUTF16toUTF8(user, userpass);
-    if (!password.IsEmpty()) {
+    CopyUTF16toUTF8(user.Value(), userpass);
+    if (password.WasPassed() && !password.Value().IsEmpty()) {
       userpass.Append(':');
-      AppendUTF16toUTF8(password, userpass);
+      AppendUTF16toUTF8(password.Value(), userpass);
     }
     uri->SetUserPass(userpass);
   }
@@ -2606,7 +2616,7 @@ GetRequestBody(nsIXHRSendable* aSendable, nsIInputStream** aResult,
 }
 
 static nsresult
-GetRequestBody(ArrayBuffer* aArrayBuffer, JSContext *aCx, nsIInputStream** aResult,
+GetRequestBody(ArrayBuffer* aArrayBuffer, nsIInputStream** aResult,
                nsACString& aContentType, nsACString& aCharset)
 {
   aContentType.SetIsVoid(true);
@@ -2679,7 +2689,7 @@ GetRequestBody(nsIVariant* aBody, JSContext *aCx, nsIInputStream** aResult,
         (obj = JSVAL_TO_OBJECT(realVal)) &&
         (JS_IsArrayBufferObject(obj, aCx))) {
       ArrayBuffer buf(aCx, obj);
-      return GetRequestBody(&buf, aCx, aResult, aContentType, aCharset);
+      return GetRequestBody(&buf, aResult, aContentType, aCharset);
     }
   }
   else if (dataType == nsIDataType::VTYPE_VOID ||
@@ -2718,7 +2728,7 @@ nsXMLHttpRequest::GetRequestBody(nsIVariant* aVariant, JSContext *aCx,
   switch (body.GetType()) {
     case nsXMLHttpRequest::RequestBody::ArrayBuffer:
     {
-      return ::GetRequestBody(value.mArrayBuffer, aCx, aResult, aContentType, aCharset);
+      return ::GetRequestBody(value.mArrayBuffer, aResult, aContentType, aCharset);
     }
     case nsXMLHttpRequest::RequestBody::Blob:
     {

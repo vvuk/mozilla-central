@@ -1,41 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2012
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Patrick McManus <mcmanus@ducksong.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsHttp.h"
 #include "SpdySession3.h"
@@ -162,9 +129,9 @@ SpdySession3::ShutdownEnumerator(nsAHttpTransaction *key,
   // local session is greater than that it can safely be restarted because the
   // server guarantees it was not partially processed.
   if (self->mCleanShutdown && (stream->StreamID() > self->mGoAwayID))
-    stream->Close(NS_ERROR_NET_RESET); // can be restarted
+    self->CloseStream(stream, NS_ERROR_NET_RESET); // can be restarted
   else
-    stream->Close(NS_ERROR_ABORT);
+    self->CloseStream(stream, NS_ERROR_ABORT);
 
   return PL_DHASH_NEXT;
 }
@@ -799,6 +766,28 @@ SpdySession3::CleanupStream(SpdyStream3 *aStream, nsresult aResult,
     ProcessPending();
   }
   
+  CloseStream(aStream, aResult);
+
+  // Remove the stream from the ID hash table. (this one isn't short, which is
+  // why it is hashed.)
+  mStreamIDHash.Remove(aStream->StreamID());
+
+  // removing from the stream transaction hash will
+  // delete the SpdyStream3 and drop the reference to
+  // its transaction
+  mStreamTransactionHash.Remove(aStream->Transaction());
+
+  if (mShouldGoAway && !mStreamTransactionHash.Count())
+    Close(NS_OK);
+}
+
+void
+SpdySession3::CloseStream(SpdyStream3 *aStream, nsresult aResult)
+{
+  NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
+  LOG3(("SpdySession3::CloseStream %p %p 0x%x %X\n",
+        this, aStream, aStream->StreamID(), aResult));
+
   // Check if partial frame reader
   if (aStream == mInputFrameDataStream) {
     LOG3(("Stream had active partial read frame on close"));
@@ -824,20 +813,8 @@ SpdySession3::CleanupStream(SpdyStream3 *aStream, nsresult aResult,
       mQueuedStreams.Push(stream);
   }
 
-  // Remove the stream from the ID hash table. (this one isn't short, which is
-  // why it is hashed.)
-  mStreamIDHash.Remove(aStream->StreamID());
-
   // Send the stream the close() indication
   aStream->Close(aResult);
-
-  // removing from the stream transaction hash will
-  // delete the SpdyStream3 and drop the reference to
-  // its transaction
-  mStreamTransactionHash.Remove(aStream->Transaction());
-
-  if (mShouldGoAway && !mStreamTransactionHash.Count())
-    Close(NS_OK);
 }
 
 nsresult
@@ -1915,7 +1892,14 @@ SpdySession3::Close(nsresult aReason)
   LOG3(("SpdySession3::Close %p %X", this, aReason));
 
   mClosed = true;
+
+  NS_ABORT_IF_FALSE(mStreamTransactionHash.Count() ==
+                    mStreamIDHash.Count(),
+                    "index corruption");
   mStreamTransactionHash.Enumerate(ShutdownEnumerator, this);
+  mStreamIDHash.Clear();
+  mStreamTransactionHash.Clear();
+
   if (NS_SUCCEEDED(aReason))
     GenerateGoAway();
   mConnection = nsnull;

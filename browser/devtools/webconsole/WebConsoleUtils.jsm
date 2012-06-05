@@ -11,7 +11,9 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "Services",
+                                  "resource://gre/modules/Services.jsm");
 
 var EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider"];
 
@@ -886,6 +888,9 @@ function JSPropertyProvider(aScope, aInputValue)
     matchProp = properties.pop().trimLeft();
     for (let i = 0; i < properties.length; i++) {
       let prop = properties[i].trim();
+      if (!prop) {
+        return null;
+      }
 
       // If obj is undefined or null, then there is no chance to run completion
       // on it. Exit here.

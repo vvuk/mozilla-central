@@ -5,9 +5,9 @@
 
 #include "TextAttrs.h"
 
+#include "HyperTextAccessibleWrap.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
-#include "nsHyperTextAccessibleWrap.h"
 #include "StyleInfo.h"
 
 #include "gfxFont.h"
@@ -44,7 +44,7 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
   // Embedded objects are combined into own range with empty attributes set.
   if (mOffsetAcc && nsAccUtils::IsEmbeddedObject(mOffsetAcc)) {
     for (PRInt32 childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
-      nsAccessible *currAcc = mHyperTextAcc->GetChildAt(childIdx);
+      Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
       if (!nsAccUtils::IsEmbeddedObject(currAcc))
         break;
 
@@ -54,7 +54,7 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
     PRUint32 childCount = mHyperTextAcc->ChildCount();
     for (PRUint32 childIdx = mOffsetAccIdx + 1; childIdx < childCount;
          childIdx++) {
-      nsAccessible *currAcc = mHyperTextAcc->GetChildAt(childIdx);
+      Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
       if (!nsAccUtils::IsEmbeddedObject(currAcc))
         break;
 
@@ -137,7 +137,7 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
 {
   // Navigate backward from anchor accessible to find start offset.
   for (PRInt32 childIdx = mOffsetAccIdx - 1; childIdx >= 0; childIdx--) {
-    nsAccessible *currAcc = mHyperTextAcc->GetChildAt(childIdx);
+    Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
 
     // Stop on embedded accessible since embedded accessibles are combined into
     // own range.
@@ -166,7 +166,7 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
   // Navigate forward from anchor accessible to find end offset.
   PRUint32 childLen = mHyperTextAcc->ChildCount();
   for (PRUint32 childIdx = mOffsetAccIdx + 1; childIdx < childLen; childIdx++) {
-    nsAccessible *currAcc = mHyperTextAcc->GetChildAt(childIdx);
+    Accessible* currAcc = mHyperTextAcc->GetChildAt(childIdx);
     if (nsAccUtils::IsEmbeddedObject(currAcc))
       break;
 
@@ -199,7 +199,7 @@ TextAttrsMgr::GetRange(TextAttr* aAttrArray[], PRUint32 aAttrArrayLen,
 ////////////////////////////////////////////////////////////////////////////////
 
 TextAttrsMgr::LangTextAttr::
-  LangTextAttr(nsHyperTextAccessible* aRoot,
+  LangTextAttr(HyperTextAccessible* aRoot,
                nsIContent* aRootElm, nsIContent* aElm) :
   TTextAttr<nsString>(!aElm), mRootContent(aRootElm)
 {

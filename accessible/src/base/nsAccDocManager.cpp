@@ -6,6 +6,7 @@
 #include "nsAccDocManager.h"
 
 #include "ApplicationAccessible.h"
+#include "DocAccessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
@@ -53,7 +54,7 @@ nsAccDocManager::GetDocAccessible(nsIDocument *aDocument)
   return CreateDocOrRootAccessible(aDocument);
 }
 
-nsAccessible*
+Accessible*
 nsAccDocManager::FindAccessibleInCache(nsINode* aNode) const
 {
   nsSearchAccessibleInCacheArg arg;
@@ -395,7 +396,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument* aDocument)
 
   // Bind the document to the tree.
   if (isRootDoc) {
-    nsAccessible* appAcc = nsAccessNode::GetApplicationAccessible();
+    Accessible* appAcc = nsAccessNode::GetApplicationAccessible();
     if (!appAcc->AppendChild(docAcc)) {
       docAcc->Shutdown();
       return nsnull;

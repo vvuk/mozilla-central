@@ -6,15 +6,15 @@
 #ifndef _nsXFormsWidgetsAccessible_H_
 #define _nsXFormsWidgetsAccessible_H_
 
+#include "BaseAccessibles.h"
 #include "nsXFormsAccessible.h"
-#include "nsBaseWidgetAccessible.h"
 
 /**
  * Accessible object for dropmarker widget that is used inside xforms elements
  * of combobox representation. For example, these are xforms:select1,
  * xforms:input[type="xsd:date"].
  */
-class nsXFormsDropmarkerWidgetAccessible : public nsLeafAccessible,
+class nsXFormsDropmarkerWidgetAccessible : public mozilla::a11y::LeafAccessible,
                                            public nsXFormsAccessibleBase
 {
 public:
@@ -25,7 +25,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessible
+  // Accessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -37,13 +37,13 @@ public:
 /**
  * Accessible object for calendar widget. It is used by xforms:input[xsd:date].
  */
-class nsXFormsCalendarWidgetAccessible : public nsAccessibleWrap
+class nsXFormsCalendarWidgetAccessible : public AccessibleWrap
 {
 public:
   nsXFormsCalendarWidgetAccessible(nsIContent* aContent,
                                    DocAccessible* aDoc);
 
-  // nsAccessible
+  // Accessible
   virtual mozilla::a11y::role NativeRole();
 };
 
@@ -58,15 +58,16 @@ public:
   nsXFormsComboboxPopupWidgetAccessible(nsIContent* aContent,
                                         DocAccessible* aDoc);
 
-  // nsAccessible
+  // Accessible
   virtual void Description(nsString& aDescription);
   virtual void Value(nsString& aValue);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
+  virtual PRUint64 NativeInteractiveState() const;
 
 protected:
-  // nsAccessible
+  // Accessible
   virtual void CacheChildren();
 };
 

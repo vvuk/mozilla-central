@@ -6,7 +6,7 @@
 #ifndef _nsXFormsAccessible_H_
 #define _nsXFormsAccessible_H_
 
-#include "nsHyperTextAccessibleWrap.h"
+#include "HyperTextAccessibleWrap.h"
 #include "nsIXFormsUtilityService.h"
 
 #define NS_NAMESPACE_XFORMS "http://www.w3.org/2002/xforms"
@@ -33,13 +33,13 @@ protected:
  * XForms hint and XForms label elements should have accessible object. This
  * class is base class for accessible objects for these XForms elements.
  */
-class nsXFormsAccessible : public nsHyperTextAccessibleWrap,
+class nsXFormsAccessible : public HyperTextAccessibleWrap,
                            public nsXFormsAccessibleBase
 {
 public:
   nsXFormsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // nsAccessible
+  // Accessible
   // Returns value of child xforms 'hint' element.
   virtual void Description(nsString& aDescription);
 
@@ -52,6 +52,7 @@ public:
   // Returns state of xforms element taking into account state of instance node
   // that it is bound to.
   virtual PRUint64 NativeState();
+  virtual bool NativelyUnavailable() const;
 
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning false value.
@@ -91,7 +92,7 @@ class nsXFormsContainerAccessible : public nsXFormsAccessible
 public:
   nsXFormsContainerAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // nsAccessible
+  // Accessible
   virtual mozilla::a11y::role NativeRole();
 
   // Allows accessible nodes in anonymous content of xforms element by
@@ -109,10 +110,10 @@ class nsXFormsEditableAccessible : public nsXFormsAccessible
 public:
   nsXFormsEditableAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
-  // nsHyperTextAccessible
+  // HyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
-  // nsAccessible
+  // Accessible
   virtual PRUint64 NativeState();
 };
 
@@ -130,7 +131,7 @@ public:
   virtual bool IsSelect();
   virtual already_AddRefed<nsIArray> SelectedItems();
   virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
+  virtual Accessible* GetSelectedItem(PRUint32 aIndex);
   virtual bool IsItemSelected(PRUint32 aIndex);
   virtual bool AddItemToSelection(PRUint32 aIndex);
   virtual bool RemoveItemFromSelection(PRUint32 aIndex);
@@ -139,7 +140,7 @@ public:
 
 protected:
   nsIContent* GetItemByIndex(PRUint32* aIndex,
-                             nsAccessible* aAccessible = nsnull);
+                             Accessible* aAccessible = nsnull);
 
   bool mIsSelect1Element;
 };
@@ -156,7 +157,7 @@ public:
 
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessible
+  // Accessible
   virtual void Value(nsString& aValue);
 
   // ActionAccessible

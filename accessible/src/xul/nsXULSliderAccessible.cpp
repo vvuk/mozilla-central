@@ -19,17 +19,17 @@ using namespace mozilla::a11y;
 
 nsXULSliderAccessible::
   nsXULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  AccessibleWrap(aContent, aDoc)
 {
 }
 
 // nsISupports
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
-                             nsAccessibleWrap,
+                             AccessibleWrap,
                              nsIAccessibleValue)
 
-// nsAccessible
+// Accessible
 
 role
 nsXULSliderAccessible::NativeRole()
@@ -38,22 +38,26 @@ nsXULSliderAccessible::NativeRole()
 }
 
 PRUint64
-nsXULSliderAccessible::NativeState()
-{
-  PRUint64 state = nsAccessibleWrap::NativeState();
+nsXULSliderAccessible::NativeInteractiveState() const
+ {
+  if (NativelyUnavailable())
+    return states::UNAVAILABLE;
 
   nsIContent* sliderElm = GetSliderElement();
-  if (!sliderElm)
-    return state;
+  if (sliderElm) {
+    nsIFrame* frame = sliderElm->GetPrimaryFrame();
+    if (frame && frame->IsFocusable())
+      return states::FOCUSABLE;
+  }
 
-  nsIFrame *frame = sliderElm->GetPrimaryFrame();
-  if (frame && frame->IsFocusable())
-    state |= states::FOCUSABLE;
+  return 0;
+}
 
-  if (FocusMgr()->IsFocused(this))
-    state |= states::FOCUSED;
-
-  return state;
+bool
+nsXULSliderAccessible::NativelyUnavailable() const
+{
+  return mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
+                               nsGkAtoms::_true, eCaseMatters);
 }
 
 // nsIAccessible
@@ -98,7 +102,7 @@ nsXULSliderAccessible::DoAction(PRUint8 aIndex)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMaximumValue(double *aValue)
 {
-  nsresult rv = nsAccessibleWrap::GetMaximumValue(aValue);
+  nsresult rv = AccessibleWrap::GetMaximumValue(aValue);
 
   // ARIA redefined maximum value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -110,7 +114,7 @@ nsXULSliderAccessible::GetMaximumValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMinimumValue(double *aValue)
 {
-  nsresult rv = nsAccessibleWrap::GetMinimumValue(aValue);
+  nsresult rv = AccessibleWrap::GetMinimumValue(aValue);
 
   // ARIA redefined minmum value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -122,7 +126,7 @@ nsXULSliderAccessible::GetMinimumValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetMinimumIncrement(double *aValue)
 {
-  nsresult rv = nsAccessibleWrap::GetMinimumIncrement(aValue);
+  nsresult rv = AccessibleWrap::GetMinimumIncrement(aValue);
 
   // ARIA redefined minimum increment value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -134,7 +138,7 @@ nsXULSliderAccessible::GetMinimumIncrement(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::GetCurrentValue(double *aValue)
 {
-  nsresult rv = nsAccessibleWrap::GetCurrentValue(aValue);
+  nsresult rv = AccessibleWrap::GetCurrentValue(aValue);
 
   // ARIA redefined current value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -146,7 +150,7 @@ nsXULSliderAccessible::GetCurrentValue(double *aValue)
 NS_IMETHODIMP
 nsXULSliderAccessible::SetCurrentValue(double aValue)
 {
-  nsresult rv = nsAccessibleWrap::SetCurrentValue(aValue);
+  nsresult rv = AccessibleWrap::SetCurrentValue(aValue);
 
   // ARIA redefined current value.
   if (rv != NS_OK_NO_ARIA_VALUE)
@@ -165,7 +169,7 @@ nsXULSliderAccessible::CanHaveAnonChildren()
 // Utils
 
 nsIContent*
-nsXULSliderAccessible::GetSliderElement()
+nsXULSliderAccessible::GetSliderElement() const
 {
   if (!mSliderNode) {
     // XXX: we depend on anonymous content.
@@ -243,12 +247,12 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 
 nsXULThumbAccessible::
   nsXULThumbAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  AccessibleWrap(aContent, aDoc)
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsXULThumbAccessible: nsAccessible
+// nsXULThumbAccessible: Accessible
 
 role
 nsXULThumbAccessible::NativeRole()

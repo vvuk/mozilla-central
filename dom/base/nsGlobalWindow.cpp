@@ -569,10 +569,10 @@ nsPIDOMWindow::~nsPIDOMWindow() {}
 // nsOuterWindowProxy: Outer Window Proxy
 //*****************************************************************************
 
-class nsOuterWindowProxy : public js::Wrapper
+class nsOuterWindowProxy : public js::DirectWrapper
 {
 public:
-  nsOuterWindowProxy() : js::Wrapper(0) {}
+  nsOuterWindowProxy() : js::DirectWrapper(0) {}
 
   virtual bool isOuterWindow() {
     return true;
@@ -1083,6 +1083,7 @@ nsGlobalWindow::FreeInnerObjects()
   mHistory = nsnull;
 
   if (mNavigator) {
+    mNavigator->OnNavigation();
     mNavigator->Invalidate();
     mNavigator = nsnull;
   }
@@ -1616,7 +1617,7 @@ nsGlobalWindow::CreateOuterObject(nsGlobalWindow* aNewInner)
     // need to preserve the <!-- script hiding hack from JS-in-HTML daze
     // (introduced in 1995 for graceful script degradation in Netscape 1,
     // Mosaic, and other pre-JS browsers).
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_XML);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_MOAR_XML);
   }
 
   JSObject* outer = NewOuterWindowProxy(cx, aNewInner->FastGetGlobalJSObject());
@@ -1747,6 +1748,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   mContext->WillInitializeContext();
 
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
+
+  if (currentInner && currentInner->mNavigator) {
+    currentInner->mNavigator->OnNavigation();
+  }
 
   nsRefPtr<nsGlobalWindow> newInnerWindow;
   bool createdInnerWindow = false;
@@ -2217,16 +2222,6 @@ nsGlobalWindow::DetachFromDocShell()
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
   if (currentInner) {
-    JSObject* obj = currentInner->FastGetGlobalJSObject();
-    if (obj) {
-      JSContext* cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
-
-      JSAutoRequest ar(cx);
-
-      js::NukeChromeCrossCompartmentWrappersForGlobal(cx, obj,
-                                                      js::NukeForGlobalObject);
-    }
-
     NS_ASSERTION(mDoc, "Must have doc!");
     
     // Remember the document's principal.
@@ -8200,14 +8195,15 @@ NS_IMETHODIMP
 nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
+    nsresult rv;
+
     if (!IsChromeWindow()) {
       nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
         do_GetService(THIRDPARTYUTIL_CONTRACTID);
       NS_ENSURE_TRUE(thirdPartyUtil, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       bool isThirdParty;
-      nsresult rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull,
-                                                       &isThirdParty);
+      rv = thirdPartyUtil->IsThirdPartyWindow(this, nsnull, &isThirdParty);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
       if (isThirdParty) {
@@ -8217,8 +8213,9 @@ nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
       }
     }
 
-    mIndexedDB = indexedDB::IDBFactory::Create(this);
-    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    // This may be null if being created from a file.
+    rv = indexedDB::IDBFactory::Create(this, getter_AddRefs(mIndexedDB));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsIIDBFactory> request(mIndexedDB);

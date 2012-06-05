@@ -626,8 +626,8 @@ private:
     void jsop_bindname(PropertyName *name);
     void jsop_setglobal(uint32_t index);
     void jsop_getprop_slow(PropertyName *name, bool forPrototype = false);
-    void jsop_getarg(uint32_t slot);
-    void jsop_setarg(uint32_t slot, bool popped);
+    void jsop_aliasedArg(unsigned i, bool get, bool poppedAfter = false);
+    void jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter = false);
     void jsop_this();
     void emitReturn(FrameEntry *fe);
     void emitFinalReturn(Assembler &masm);
@@ -644,9 +644,9 @@ private:
                                    Jump *uncachedCallSlowRejoin, CallPatchInfo *uncachedCallPatch);
     bool inlineCallHelper(uint32_t argc, bool callingNew, FrameSize &callFrameSize);
     void fixPrimitiveReturn(Assembler *masm, FrameEntry *fe);
-    void jsop_getgname(uint32_t index);
+    bool jsop_getgname(uint32_t index);
     void jsop_getgname_slow(uint32_t index);
-    void jsop_setgname(PropertyName *name, bool popGuaranteed);
+    bool jsop_setgname(PropertyName *name, bool popGuaranteed);
     void jsop_setgname_slow(PropertyName *name);
     void jsop_bindgname();
     void jsop_setelem_slow();

@@ -1446,6 +1446,19 @@ nsEditor::SplitNode(nsIDOMNode * aNode,
 }
 
 
+nsresult
+nsEditor::JoinNodes(nsINode* aNodeToKeep, nsIContent* aNodeToMove)
+{
+  // We don't really need aNodeToMove's parent to be non-null -- we could just
+  // skip adjusting any ranges in aNodeToMove's parent if there is none.  But
+  // the current implementation requires it.
+  MOZ_ASSERT(aNodeToKeep && aNodeToMove && aNodeToMove->GetNodeParent());
+  nsresult res = JoinNodes(aNodeToKeep->AsDOMNode(), aNodeToMove->AsDOMNode(),
+                           aNodeToMove->GetNodeParent()->AsDOMNode());
+  NS_ASSERTION(NS_SUCCEEDED(res), "JoinNodes failed");
+  NS_ENSURE_SUCCESS(res, res);
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsEditor::JoinNodes(nsIDOMNode * aLeftNode,
@@ -1679,6 +1692,18 @@ nsEditor::InsertContainerAbove( nsIDOMNode *inNode,
 
 ///////////////////////////////////////////////////////////////////////////
 // MoveNode:  move aNode to {aParent,aOffset}
+nsresult
+nsEditor::MoveNode(nsIContent* aNode, nsINode* aParent, PRInt32 aOffset)
+{
+  MOZ_ASSERT(aNode && aParent);
+  MOZ_ASSERT(aOffset == -1 || (0 <= aOffset &&
+                               aOffset <= (PRInt32)aParent->Length()));
+  nsresult res = MoveNode(aNode->AsDOMNode(), aParent->AsDOMNode(), aOffset);
+  NS_ASSERTION(NS_SUCCEEDED(res), "MoveNode failed");
+  NS_ENSURE_SUCCESS(res, res);
+  return NS_OK;
+}
+
 nsresult
 nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset)
 {
@@ -1925,12 +1950,11 @@ nsEditor::ArePreservingSelection()
   return !(mSavedSel.IsEmpty());
 }
 
-nsresult 
+void
 nsEditor::PreserveSelectionAcrossActions(nsISelection *aSel)
 {
   mSavedSel.SaveSelection(aSel);
   mRangeUpdater.RegisterSelectionState(mSavedSel);
-  return NS_OK;
 }
 
 nsresult 
@@ -4220,10 +4244,10 @@ nsEditor::JoinNodeDeep(nsIDOMNode *aLeftNode,
   return res;
 }
 
-nsresult nsEditor::BeginUpdateViewBatch()
+void
+nsEditor::BeginUpdateViewBatch()
 {
   NS_PRECONDITION(mUpdateCount >= 0, "bad state");
-
 
   if (0 == mUpdateCount)
   {
@@ -4240,8 +4264,6 @@ nsresult nsEditor::BeginUpdateViewBatch()
   }
 
   mUpdateCount++;
-
-  return NS_OK;
 }
 
 
@@ -4372,11 +4394,10 @@ nsEditor::DeleteSelectionAndCreateNode(const nsAString& aTag,
 
 /* Non-interface, protected methods */
 
-nsresult
-nsEditor::GetIMEBufferLength(PRInt32* length)
+PRInt32
+nsEditor::GetIMEBufferLength()
 {
-  *length = mIMEBufferLength;
-  return NS_OK;
+  return mIMEBufferLength;
 }
 
 void

@@ -738,6 +738,7 @@ struct ParseNode {
                                            still valid, but this use no longer
                                            optimizable via an upvar opcode */
 #define PND_CLOSED      0x200           /* variable is closed over */
+#define PND_DEFAULT     0x400           /* definition is an arg with a default */
 
 /* Flags to propagate from uses to definition. */
 #define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_CLOSED)
@@ -1406,7 +1407,7 @@ struct Definition : public ParseNode
 
     enum Kind { VAR, CONST, LET, FUNCTION, ARG, UNKNOWN };
 
-    bool isBindingForm() { return int(kind()) <= int(LET); }
+    bool canHaveInitializer() { return int(kind()) <= int(LET) || kind() == ARG; }
 
     static const char *kindString(Kind kind);
 
@@ -1510,7 +1511,7 @@ struct FunctionBox : public ObjectBox
     FunctionBox     *parent;
     Bindings        bindings;               /* bindings for this function */
     uint32_t        level:JSFB_LEVEL_BITS;
-    bool            queued:1;
+    uint16_t        ndefaults;
     bool            inLoop:1;               /* in a loop in parent function */
     bool            inWith:1;               /* some enclosing scope is a with-statement
                                                or E4X filter-expression */
@@ -1533,43 +1534,6 @@ struct FunctionBox : public ObjectBox
      * filter-expression, or a function that uses direct eval.
      */
     bool inAnyDynamicScope() const;
-};
-
-struct FunctionBoxQueue {
-    FunctionBox         **vector;
-    size_t              head, tail;
-    size_t              lengthMask;
-
-    size_t count()  { return head - tail; }
-    size_t length() { return lengthMask + 1; }
-
-    FunctionBoxQueue()
-      : vector(NULL), head(0), tail(0), lengthMask(0) { }
-
-    bool init(uint32_t count) {
-        lengthMask = JS_BITMASK(JS_CEILING_LOG2W(count));
-        vector = (FunctionBox **) OffTheBooks::malloc_(sizeof(FunctionBox) * length());
-        return !!vector;
-    }
-
-    ~FunctionBoxQueue() { UnwantedForeground::free_(vector); }
-
-    void push(FunctionBox *funbox) {
-        if (!funbox->queued) {
-            JS_ASSERT(count() < length());
-            vector[head++ & lengthMask] = funbox;
-            funbox->queued = true;
-        }
-    }
-
-    FunctionBox *pull() {
-        if (tail == head)
-            return NULL;
-        JS_ASSERT(tail < head);
-        FunctionBox *funbox = vector[tail++ & lengthMask];
-        funbox->queued = false;
-        return funbox;
-    }
 };
 
 } /* namespace js */

@@ -192,6 +192,8 @@ public:
                                 const nsAString &aNodeType,
                                 const nsAString *aAttribute = nsnull,
                                 const nsAString *aValue = nsnull);
+  nsresult JoinNodes(nsINode* aNodeToKeep, nsIContent* aNodeToMove);
+  nsresult MoveNode(nsIContent* aNode, nsINode* aParent, PRInt32 aOffset);
   nsresult MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset);
 
   /* Method to replace certain CreateElementNS() calls. 
@@ -385,7 +387,7 @@ public:
   /** routines for managing the preservation of selection across 
    *  various editor actions */
   bool     ArePreservingSelection();
-  nsresult PreserveSelectionAcrossActions(nsISelection *aSel);
+  void     PreserveSelectionAcrossActions(nsISelection *aSel);
   nsresult RestorePreservedSelection(nsISelection *aSel);
   void     StopPreservingSelection();
 
@@ -567,9 +569,9 @@ public:
   /** Find the deep first and last children. */
   nsINode* GetFirstEditableNode(nsINode* aRoot);
 
-  nsresult GetIMEBufferLength(PRInt32* length);
-  bool     IsIMEComposing();    /* test if IME is in composition state */
-  void     SetIsIMEComposing(); /* call this before |IsIMEComposing()| */
+  PRInt32 GetIMEBufferLength();
+  bool IsIMEComposing();    /* test if IME is in composition state */
+  void SetIsIMEComposing(); /* call this before |IsIMEComposing()| */
 
   /** from html rules code - migration in progress */
   static nsresult GetTagString(nsIDOMNode *aNode, nsAString& outString);
@@ -616,7 +618,7 @@ public:
 
   nsresult GetString(const nsAString& name, nsAString& value);
 
-  nsresult BeginUpdateViewBatch(void);
+  void BeginUpdateViewBatch(void);
   virtual nsresult EndUpdateViewBatch(void);
 
   bool GetShouldTxnSetSelection();

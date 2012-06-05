@@ -20,7 +20,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsXULListboxAccessibleWrap,
 
 IMPL_IUNKNOWN_QUERY_HEAD(nsXULListboxAccessibleWrap)
 IMPL_IUNKNOWN_QUERY_ENTRY_COND(CAccessibleTable, IsMulticolumn());
-IMPL_IUNKNOWN_QUERY_ENTRY(nsAccessibleWrap)
+IMPL_IUNKNOWN_QUERY_ENTRY(AccessibleWrap)
 IMPL_IUNKNOWN_QUERY_TAIL
 
 
@@ -38,5 +38,5 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsXULListCellAccessibleWrap,
                              nsXULListCellAccessible)
 
 IMPL_IUNKNOWN_INHERITED1(nsXULListCellAccessibleWrap,
-                         nsHyperTextAccessibleWrap,
+                         HyperTextAccessibleWrap,
                          CAccessibleTableCell)

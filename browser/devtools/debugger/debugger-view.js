@@ -19,6 +19,17 @@ let DebuggerView = {
   editor: null,
 
   /**
+   * Initializes UI properties for all the displayed panes.
+   */
+  initializePanes: function DV_initializePanes() {
+    let stackframes = document.getElementById("stackframes");
+    stackframes.setAttribute("width", Prefs.stackframesWidth);
+
+    let variables = document.getElementById("variables");
+    variables.setAttribute("width", Prefs.variablesWidth);
+  },
+
+  /**
    * Initializes the SourceEditor instance.
    */
   initializeEditor: function DV_initializeEditor() {
@@ -34,6 +45,17 @@ let DebuggerView = {
 
     this.editor = new SourceEditor();
     this.editor.init(placeholder, config, this._onEditorLoad.bind(this));
+  },
+
+  /**
+   * Removes the displayed panes and saves any necessary state.
+   */
+  destroyPanes: function DV_destroyPanes() {
+    let stackframes = document.getElementById("stackframes");
+    Prefs.stackframesWidth = stackframes.getAttribute("width");
+
+    let variables = document.getElementById("variables");
+    Prefs.variablesWidth = variables.getAttribute("width");
   },
 
   /**
@@ -464,6 +486,7 @@ ScriptsView.prototype = {
  */
 function StackFramesView() {
   this._onFramesScroll = this._onFramesScroll.bind(this);
+  this._onPauseExceptionsClick = this._onPauseExceptionsClick.bind(this);
   this._onCloseButtonClick = this._onCloseButtonClick.bind(this);
   this._onResumeButtonClick = this._onResumeButtonClick.bind(this);
   this._onStepOverClick = this._onStepOverClick.bind(this);
@@ -668,6 +691,14 @@ StackFramesView.prototype = {
   },
 
   /**
+   * Listener handling the pause-on-exceptions click event.
+   */
+  _onPauseExceptionsClick: function DVF__onPauseExceptionsClick() {
+    let option = document.getElementById("pause-exceptions");
+    DebuggerController.StackFrames.updatePauseOnExceptions(option.checked);
+  },
+
+  /**
    * Listener handling the pause/resume button click event.
    */
   _onResumeButtonClick: function DVF__onResumeButtonClick() {
@@ -714,6 +745,7 @@ StackFramesView.prototype = {
    */
   initialize: function DVF_initialize() {
     let close = document.getElementById("close");
+    let pauseOnExceptions = document.getElementById("pause-exceptions");
     let resume = document.getElementById("resume");
     let stepOver = document.getElementById("step-over");
     let stepIn = document.getElementById("step-in");
@@ -721,6 +753,10 @@ StackFramesView.prototype = {
     let frames = document.getElementById("stackframes");
 
     close.addEventListener("click", this._onCloseButtonClick, false);
+    pauseOnExceptions.checked = DebuggerController.StackFrames.pauseOnExceptions;
+    pauseOnExceptions.addEventListener("click",
+                                        this._onPauseExceptionsClick,
+                                        false);
     resume.addEventListener("click", this._onResumeButtonClick, false);
     stepOver.addEventListener("click", this._onStepOverClick, false);
     stepIn.addEventListener("click", this._onStepInClick, false);
@@ -737,6 +773,7 @@ StackFramesView.prototype = {
    */
   destroy: function DVF_destroy() {
     let close = document.getElementById("close");
+    let pauseOnExceptions = document.getElementById("pause-exceptions");
     let resume = document.getElementById("resume");
     let stepOver = document.getElementById("step-over");
     let stepIn = document.getElementById("step-in");
@@ -744,6 +781,9 @@ StackFramesView.prototype = {
     let frames = this._frames;
 
     close.removeEventListener("click", this._onCloseButtonClick, false);
+    pauseOnExceptions.removeEventListener("click",
+                                          this._onPauseExceptionsClick,
+                                          false);
     resume.removeEventListener("click", this._onResumeButtonClick, false);
     stepOver.removeEventListener("click", this._onStepOverClick, false);
     stepIn.removeEventListener("click", this._onStepInClick, false);
@@ -760,12 +800,17 @@ StackFramesView.prototype = {
  * Functions handling the properties view.
  */
 function PropertiesView() {
-  this._addScope = this._addScope.bind(this);
+  this.addScope = this._addScope.bind(this);
   this._addVar = this._addVar.bind(this);
   this._addProperties = this._addProperties.bind(this);
 }
 
 PropertiesView.prototype = {
+  /**
+   * A monotonically-increasing counter, that guarantees the uniqueness of scope
+   * IDs.
+   */
+  _idCount: 1,
 
   /**
    * Adds a scope to contain any inspected variables.
@@ -786,8 +831,8 @@ PropertiesView.prototype = {
       return null;
     }
 
-    // Compute the id of the element if not specified.
-    aId = aId || (aName.toLowerCase().trim().replace(" ", "-") + "-scope");
+    // Generate a unique id for the element, if not specified.
+    aId = aId || aName.toLowerCase().trim().replace(/\s+/g, "-") + this._idCount++;
 
     // Contains generic nodes and functionality.
     let element = this._createPropertyElement(aName, aId, "scope", this._vars);
@@ -796,14 +841,52 @@ PropertiesView.prototype = {
     if (!element) {
       return null;
     }
+    element._identifier = aName;
 
     /**
      * @see DebuggerView.Properties._addVar
      */
     element.addVar = this._addVar.bind(this, element);
 
+    /**
+     * @see DebuggerView.Properties.addScopeToHierarchy
+     */
+    element.addToHierarchy = this.addScopeToHierarchy.bind(this, element);
+
+    // Setup the additional elements specific for a scope node.
+    element.refresh(function() {
+      let title = element.getElementsByClassName("title")[0];
+      title.classList.add("devtools-toolbar");
+    }.bind(this));
+
     // Return the element for later use if necessary.
     return element;
+  },
+
+  /**
+   * Removes all added scopes in the property container tree.
+   */
+  empty: function DVP_empty() {
+    while (this._vars.firstChild) {
+      this._vars.removeChild(this._vars.firstChild);
+    }
+  },
+
+  /**
+   * Removes all elements from the variables container, and adds a child node
+   * with an empty text note attached.
+   */
+  emptyText: function DVP_emptyText() {
+    // Make sure the container is empty first.
+    this.empty();
+
+    let item = document.createElement("label");
+
+    // The empty node should look grayed out to avoid confusion.
+    item.className = "list-item empty";
+    item.setAttribute("value", L10N.getStr("emptyVariablesText"));
+
+    this._vars.appendChild(item);
   },
 
   /**
@@ -815,12 +898,14 @@ PropertiesView.prototype = {
    *        The parent scope element.
    * @param string aName
    *        The variable name.
+   * @param object aFlags
+   *        Optional, contains configurable, enumerable or writable flags.
    * @param string aId
    *        Optional, an id for the variable html node.
    * @return object
    *         The newly created html node representing the added var.
    */
-  _addVar: function DVP__addVar(aScope, aName, aId) {
+  _addVar: function DVP__addVar(aScope, aName, aFlags, aId) {
     // Make sure the scope container exists.
     if (!aScope) {
       return null;
@@ -837,6 +922,7 @@ PropertiesView.prototype = {
     if (!element) {
       return null;
     }
+    element._identifier = aName;
 
     /**
      * @see DebuggerView.Properties._setGrip
@@ -860,6 +946,21 @@ PropertiesView.prototype = {
 
       // The variable information (type, class and/or value).
       valueLabel.className = "value plain";
+
+      if (aFlags) {
+        // Use attribute flags to specify the element type and tooltip text.
+        let tooltip = [];
+
+        !aFlags.configurable ? element.setAttribute("non-configurable", "")
+                             : tooltip.push("configurable");
+        !aFlags.enumerable   ? element.setAttribute("non-enumerable", "")
+                             : tooltip.push("enumerable");
+        !aFlags.writable     ? element.setAttribute("non-writable", "")
+                             : tooltip.push("writable");
+
+        element.setAttribute("tooltiptext", tooltip.join(", "));
+      }
+      if (aName === "this") { element.setAttribute("self", ""); }
 
       // Handle the click event when pressing the element value label.
       valueLabel.addEventListener("click", this._activateElementInputMode.bind({
@@ -997,12 +1098,12 @@ PropertiesView.prototype = {
 
         // Handle data property and accessor property descriptors.
         if (value !== undefined) {
-          this._addProperty(aVar, [i, value]);
+          this._addProperty(aVar, [i, value], desc);
         }
         if (getter !== undefined || setter !== undefined) {
           let prop = this._addProperty(aVar, [i]).expand();
-          prop.getter = this._addProperty(prop, ["get", getter]);
-          prop.setter = this._addProperty(prop, ["set", setter]);
+          prop.getter = this._addProperty(prop, ["get", getter], desc);
+          prop.setter = this._addProperty(prop, ["set", setter], desc);
         }
       }
     }
@@ -1016,7 +1117,7 @@ PropertiesView.prototype = {
    *
    * @param object aVar
    *        The parent variable element.
-   * @param {Array} aProperty
+   * @param array aProperty
    *        An array containing the key and grip properties, specifying
    *        the value and/or type & class of the variable (if the type
    *        is not specified, it will be inferred from the value).
@@ -1026,6 +1127,8 @@ PropertiesView.prototype = {
    *             ["someProp3", { type: "undefined" }]
    *             ["someProp4", { type: "null" }]
    *             ["someProp5", { type: "object", class: "Object" }]
+   * @param object aFlags
+   *        Contains configurable, enumerable or writable flags.
    * @param string aName
    *        Optional, the property name.
    * @paarm string aId
@@ -1033,7 +1136,7 @@ PropertiesView.prototype = {
    * @return object
    *         The newly created html node representing the added prop.
    */
-  _addProperty: function DVP__addProperty(aVar, aProperty, aName, aId) {
+  _addProperty: function DVP__addProperty(aVar, aProperty, aFlags, aName, aId) {
     // Make sure the variable container exists.
     if (!aVar) {
       return null;
@@ -1050,6 +1153,7 @@ PropertiesView.prototype = {
     if (!element) {
       return null;
     }
+    element._identifier = aName;
 
     /**
      * @see DebuggerView.Properties._setGrip
@@ -1086,6 +1190,21 @@ PropertiesView.prototype = {
         title.appendChild(separatorLabel);
         title.appendChild(valueLabel);
       }
+
+      if (aFlags) {
+        // Use attribute flags to specify the element type and tooltip text.
+        let tooltip = [];
+
+        !aFlags.configurable ? element.setAttribute("non-configurable", "")
+                             : tooltip.push("configurable");
+        !aFlags.enumerable   ? element.setAttribute("non-enumerable", "")
+                             : tooltip.push("enumerable");
+        !aFlags.writable     ? element.setAttribute("non-writable", "")
+                             : tooltip.push("writable");
+
+        element.setAttribute("tooltiptext", tooltip.join(", "));
+      }
+      if (pKey === "__proto__ ") { element.setAttribute("proto", ""); }
 
       // Handle the click event when pressing the element value label.
       valueLabel.addEventListener("click", this._activateElementInputMode.bind({
@@ -1382,16 +1501,22 @@ PropertiesView.prototype = {
 
     /**
      * Expands the element, showing all the added details.
+     *
+     * @param boolean aSkipAnimationFlag
+     *        Pass true to not show an opening animation.
      * @return object
      *         The same element.
      */
-    element.expand = function DVP_element_expand() {
+    element.expand = function DVP_element_expand(aSkipAnimationFlag) {
       if (element._preventExpand) {
         return;
       }
       arrow.setAttribute("open", "");
       details.setAttribute("open", "");
 
+      if (!aSkipAnimationFlag) {
+        details.setAttribute("animated", "");
+      }
       if ("function" === typeof element.onexpand) {
         element.onexpand(element);
       }
@@ -1409,6 +1534,7 @@ PropertiesView.prototype = {
       }
       arrow.removeAttribute("open");
       details.removeAttribute("open");
+      details.removeAttribute("animated");
 
       if ("function" === typeof element.oncollapse) {
         element.oncollapse(element);
@@ -1621,7 +1747,7 @@ PropertiesView.prototype = {
       children: {}
     };
 
-    store[element.id] = relation;
+    store[element._identifier] = relation;
     element._root = relation.root;
     element._children = relation.children;
   },
@@ -1633,11 +1759,16 @@ PropertiesView.prototype = {
   createHierarchyStore: function DVP_createHierarchyStore() {
     this._prevHierarchy = this._currHierarchy;
     this._currHierarchy = {};
+  },
 
-    this._saveHierarchy({ element: this._globalScope, store: this._currHierarchy });
-    this._saveHierarchy({ element: this._localScope, store: this._currHierarchy });
-    this._saveHierarchy({ element: this._withScope, store: this._currHierarchy });
-    this._saveHierarchy({ element: this._closureScope, store: this._currHierarchy });
+  /**
+   * Creates a hierarchy holder for a scope.
+   *
+   * @param object aScope
+   *        The designated scope to track.
+   */
+  addScopeToHierarchy: function DVP_addScopeToHierarchy(aScope) {
+    this._saveHierarchy({ element: aScope, store: this._currHierarchy });
   },
 
   /**
@@ -1647,6 +1778,10 @@ PropertiesView.prototype = {
     for (let i in this._currHierarchy) {
       let currScope = this._currHierarchy[i];
       let prevScope = this._prevHierarchy[i];
+
+      if (!prevScope) {
+        continue;
+      }
 
       for (let v in currScope.children) {
         let currVar = currScope.children[v];
@@ -1672,7 +1807,7 @@ PropertiesView.prototype = {
 
           window.setTimeout(function() {
            currVar.element.removeAttribute(action);
-         }, PROPERTY_VIEW_FLASH_DURATION);
+          }, PROPERTY_VIEW_FLASH_DURATION);
         }
       }
     }
@@ -1686,101 +1821,9 @@ PropertiesView.prototype = {
   _prevHierarchy: null,
 
   /**
-   * Returns the global scope container.
-   */
-  get globalScope() {
-    return this._globalScope;
-  },
-
-  /**
-   * Sets the display mode for the global scope container.
-   *
-   * @param boolean aFlag
-   *        False to hide the container, true to show.
-   */
-  set globalScope(aFlag) {
-    if (aFlag) {
-      this._globalScope.show();
-    } else {
-      this._globalScope.hide();
-    }
-  },
-
-  /**
-   * Returns the local scope container.
-   */
-  get localScope() {
-    return this._localScope;
-  },
-
-  /**
-   * Sets the display mode for the local scope container.
-   *
-   * @param boolean aFlag
-   *        False to hide the container, true to show.
-   */
-  set localScope(aFlag) {
-    if (aFlag) {
-      this._localScope.show();
-    } else {
-      this._localScope.hide();
-    }
-  },
-
-  /**
-   * Returns the with block scope container.
-   */
-  get withScope() {
-    return this._withScope;
-  },
-
-  /**
-   * Sets the display mode for the with block scope container.
-   *
-   * @param boolean aFlag
-   *        False to hide the container, true to show.
-   */
-  set withScope(aFlag) {
-    if (aFlag) {
-      this._withScope.show();
-    } else {
-      this._withScope.hide();
-    }
-  },
-
-  /**
-   * Returns the closure scope container.
-   */
-  get closureScope() {
-    return this._closureScope;
-  },
-
-  /**
-   * Sets the display mode for the with block scope container.
-   *
-   * @param boolean aFlag
-   *        False to hide the container, true to show.
-   */
-  set closureScope(aFlag) {
-    if (aFlag) {
-      this._closureScope.show();
-    } else {
-      this._closureScope.hide();
-    }
-  },
-
-  /**
    * The cached variable properties container.
    */
   _vars: null,
-
-  /**
-   * Auto-created global, local, with block and closure scopes containing vars.
-   */
-  _globalScope: null,
-  _localScope: null,
-  _withScope: null,
-  _closureScope: null,
 
   /**
    * Initialization function, called when the debugger is initialized.
@@ -1789,10 +1832,6 @@ PropertiesView.prototype = {
     this.createHierarchyStore();
 
     this._vars = document.getElementById("variables");
-    this._localScope = this._addScope(L10N.getStr("localScope")).expand();
-    this._withScope = this._addScope(L10N.getStr("withScope")).hide();
-    this._closureScope = this._addScope(L10N.getStr("closureScope")).hide();
-    this._globalScope = this._addScope(L10N.getStr("globalScope"));
   },
 
   /**
@@ -1802,10 +1841,6 @@ PropertiesView.prototype = {
     this._currHierarchy = null;
     this._prevHierarchy = null;
     this._vars = null;
-    this._globalScope = null;
-    this._localScope = null;
-    this._withScope = null;
-    this._closureScope = null;
   }
 };
 

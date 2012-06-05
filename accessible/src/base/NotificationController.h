@@ -10,17 +10,13 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsRefreshDriver.h"
 
-class nsAccessible;
+#ifdef DEBUG
+#include "Logging.h"
+#endif
+
+class Accessible;
 class DocAccessible;
 class nsIContent;
-
-// Uncomment to log notifications processing.
-//#define DEBUG_NOTIFICATIONS
-
-#ifdef DEBUG_NOTIFICATIONS
-#define DEBUG_CONTENTMUTATION
-#define DEBUG_TEXTCHANGE
-#endif
 
 /**
  * Notification interface.
@@ -122,7 +118,7 @@ public:
   /**
    * Pend accessible tree update for content insertion.
    */
-  void ScheduleContentInsertion(nsAccessible* aContainer,
+  void ScheduleContentInsertion(Accessible* aContainer,
                                 nsIContent* aStartChildNode,
                                 nsIContent* aEndChildNode);
 
@@ -140,8 +136,9 @@ public:
                                  Arg* aArg)
   {
     if (!IsUpdatePending()) {
-#ifdef DEBUG_NOTIFICATIONS
-      printf("\nsync notification processing\n");
+#ifdef DEBUG
+      if (mozilla::a11y::logging::IsEnabled(mozilla::a11y::logging::eNotifications))
+        mozilla::a11y::logging::Text("sync notification processing");
 #endif
       (aInstance->*aMethod)(aArg);
       return;
@@ -272,7 +269,7 @@ private:
   class ContentInsertion
   {
   public:
-    ContentInsertion(DocAccessible* aDocument, nsAccessible* aContainer);
+    ContentInsertion(DocAccessible* aDocument, Accessible* aContainer);
     virtual ~ContentInsertion() { mDocument = nsnull; }
 
     NS_INLINE_DECL_REFCOUNTING(ContentInsertion)
@@ -292,7 +289,7 @@ private:
     DocAccessible* mDocument;
 
     // The container accessible that content insertion occurs within.
-    nsRefPtr<nsAccessible> mContainer;
+    nsRefPtr<Accessible> mContainer;
 
     // Array of inserted contents.
     nsTArray<nsCOMPtr<nsIContent> > mInsertedContent;
