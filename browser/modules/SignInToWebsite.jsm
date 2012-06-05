@@ -172,11 +172,15 @@ let SignInToWebsiteUX = {
     let win = Services.wm.getMostRecentWindow('navigator:browser');
     let features = "chrome=false,width=640,height=480,centerscreen,location=yes,resizable=yes,scrollbars=yes,status=yes";
     log("aAuthURI: " + aAuthURI);
-    let authWin = Services.ww.openWindow(win, aAuthURI, "", features, null);
+    let authWin = Services.ww.openWindow(win, "about:blank", "", features, null);
     let windowID = authWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
     log("authWin outer id: " + windowID);
 
-    IdentityService.setAuthenticationFlow(windowID, aContext);
+    let provId = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("provId");
+    // TODO!!!: we need to tell the service about the id before loading the url
+    IdentityService.setAuthenticationFlow(windowID, provId);
+
+    authWin.location = aAuthURI;
   },
 
   /**

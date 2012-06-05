@@ -286,7 +286,7 @@ nsDOMIdentity.prototype = {
 
   _callBeginAuthenticationCallback: function(message) {
     let identity = message.identity;
-    this._beginProvisioningCallback(identity);
+    this._beginAuthenticationCallback(identity);
   },
 
   _getRandomId: function() {

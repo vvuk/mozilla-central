@@ -70,6 +70,10 @@ IDPAuthenticationContext.prototype = {
     message.identity = aIdentity;
     ppmm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback", message);
   },
+
+  doError: function(msg) {
+    log("Authentication ERROR: " + msg);
+  },
 };
 
 function RPWatchContext(aID, aOrigin, aLoggedInEmail) {

@@ -321,8 +321,8 @@ IDService.prototype = {
         log("need to get cert");
         // figure out the IdP and try to provision an identity
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
-          self._provisionIdentity(aIdentity, idpParams, function(err, identity) {
-            log("provision callback", err, identity);
+          self._provisionIdentity(aIdentity, idpParams, function(err, aProvId) {
+            log("provision callback", err, aIdentity, aProvId);
             if (! err) {
               self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
                 if (! err) {
@@ -341,13 +341,13 @@ IDService.prototype = {
                 // raiseProvisioningFailure.  And since this is a hard
                 // fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
-                delete self._provisionFlows[aCallerId];
+                delete self._provisionFlows[aProvId];
                 return caller.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
               // flow.
               } else { 
-                return self._doAuthentication(aIdentity, idpParams);
+                return self._doAuthentication(aProvId, idpParams);
               }
             }
           });
@@ -423,7 +423,9 @@ IDService.prototype = {
         idpParams: aIDPParams,
         securityLevel: this.securityLevel,
         provisioningSandbox: aSandbox,
-        callback: aCallback
+        callback: function doCallback(aErr) {
+          aCallback(aErr, aSandbox.id);
+        },
       };
 
       // MAYBE
@@ -699,22 +701,22 @@ IDService.prototype = {
    *        (int)  the identifier of the authentication caller tied to that sandbox
    *
    */
-  completeAuthentication: function completeAuthentication(aCallerId)
+  completeAuthentication: function completeAuthentication(aAuthId)
   {
+    log("completeAuthentication: ", aAuthId);
     // look up the AuthId caller, and get its callback.
-    let flow = this._authenticationFlows[aCaller.id];
+    let flow = this._authenticationFlows[aAuthId];
     if (!flow) {
-      log("** no flow for caller id:", aCallerId);
-      return null;
+      return flow.caller.doError("no such authentication flow");
     }
-    flow.didAuthentication = true;
+    flow.caller.didAuthentication = true;
 
     // delete caller
-    delete flow['caller']; 
+    //delete flow['caller'];
 
     // We have authenticated in order to provision an identity.
     // So try again.
-    this.selectIdentity(aCallerId, flow.identity);
+    this.selectIdentity(aAuthId, flow.identity);
   },
 
   /**
@@ -724,15 +726,22 @@ IDService.prototype = {
    *        (int)  the identifier of the authentication caller
    *
    */
-  cancelAuthentication: function cancelAuthentication(aWindowID)
+  cancelAuthentication: function cancelAuthentication(aAuthId)
   {
+    log("cancelAuthentication: ", aAuthId);
     // look up the AuthId caller, and get its callback.
+    let flow = this._authenticationFlows[aAuthId];
+    if (!flow) {
+      return flow.caller.doError("no such authentication flow");
+    }
+
+    log("state: ", flow.caller.state);
 
     // delete caller
+    //delete flow['caller'];
 
     // invoke callback with ERROR.
-
-    // What callback? Specs says to proceed to Provisioning Hard-Fail. -- MN
+    return flow.callback("authentication cancelled by IDP");
   },
 
   // methods for chrome and add-ons
@@ -893,19 +902,19 @@ IDService.prototype = {
   // says, the auth caller has the same id as the prov flow?
   // how about just aCallerId?
   setAuthenticationFlow: function(aAuthId, aProvId) {
+    log("setAuthenticationFlow: " + aAuthId + " : " + aProvId);
     // this is the transition point between the two flows, 
     // provision and authenticate.  We take the state from 
     // the provision flow and transfer it to the auth flow.
-    let caller = this._provisionFlows[aProvId];
+    let flow = this._provisionFlows[aProvId];
 
-    // Since we're done with the original sandbox, we allow it to 
-    // be GCd.  Also discard the provision flow.
-    caller.sandbox.free();
-    delete caller['sandbox'];
-    delete this._provisionFlows[aProvId];
+    //delete this._provisionFlows[aProvId];
 
     // Now we have morphed into an authentication flow.
-    this._authenticationFlows[aAuthId] = caller;
+    //flow.state = flow.caller.state = "authenticating"; // TODO: on caller so selectIdentity has access but there is already flow.state
+    this._authenticationFlows[aAuthId] = flow;
+    this._authenticationFlows[aAuthId].caller.state = "authenticating";
+    log("saf state: ", this._authenticationFlows[aAuthId].caller.state);
   },
 
   get securityLevel() {
