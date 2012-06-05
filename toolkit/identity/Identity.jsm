@@ -119,7 +119,7 @@ IDServiceStore.prototype = {
     this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
   },
   getLoginState: function getLoginState(aOrigin) {
-    return this._loginStates[aOrigin];
+    return this._loginStates[aOrigin] || {};
   },
   clearLoginState: function clearLoginState(aOrigin) {
     delete this._loginStates[aOrigin];
@@ -321,6 +321,11 @@ IDService.prototype = {
         log("need to get cert");
         // figure out the IdP and try to provision an identity
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
+          if (err) {
+            log("Oh noes:", err);
+            return caller.doError(err);
+          }
+
           self._provisionIdentity(aIdentity, idpParams, function(err, aProvId) {
             log("provision callback", err, aIdentity, aProvId);
             if (! err) {
@@ -458,7 +463,7 @@ IDService.prototype = {
       // XXX TODO will need to update spec for that
 
       // idpParams includes pk, authorization, provisioning.
-      return aCallback(null, idpParams);
+      return aCallback(err, idpParams);
     });
   },
   
@@ -1130,8 +1135,7 @@ IDService.prototype = {
    */
   _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback, aScheme) {
     aScheme = aScheme || "https";
-
-    log("fetch well known", aDomain);
+    let url = aScheme + '://' + aDomain + "/.well-known/browserid";
 
     /*
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
@@ -1143,10 +1147,12 @@ IDService.prototype = {
     // this appears to be a more successful way to get at xmlhttprequest
     let req = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
       .getService(Components.interfaces.nsIXMLHttpRequest);
-    
+
+    // XXX how can we detect whether we are off-line?
+
     // TODO: require HTTPS?
     // TODO: decide on how to handle redirects
-    req.open("GET", aScheme + "://" + aDomain + "/.well-known/browserid", true);
+    req.open("GET", url, true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
     req.onload = function _fetchWellKnownFile_onload() {
@@ -1179,11 +1185,13 @@ IDService.prototype = {
       }
     };
     req.onerror = function _fetchWellKnownFile_onerror() {
-      log("error: " + req.statusText);
-      return aCallback(req.status + " : " + req.statusText);
+      let err = "Failed to fetch well-known file";
+      if (req.status) err += " " + req.status + ":";
+      if (req.statusText) err += " " + req.statusText;
+      return aCallback(err);
     };
     req.send(null);
-    log("fetching " + aScheme + "://" + aDomain + "/.well-known/browserid");
+    log("fetching", url);
   },
 
   /**

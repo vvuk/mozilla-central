@@ -105,6 +105,12 @@ RPWatchContext.prototype = {
     log("doReady: " + this.id);
     let message = new IDDOMMessage(this.id);
     ppmm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
+  },
+
+  doError: function RPWatchContext_onerror() {
+    // XXX handle errors that might be raised in the execution 
+    // of watch().
+    log("Ow!");
   }
 };
 
