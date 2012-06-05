@@ -337,6 +337,10 @@ IDService.prototype = {
               // If we have already done the authentication step, and we 
               // still can't generate an assertion, then we give up.
               if (caller.didAuthentication) {
+                // The sandbox will have been deleted by 
+                // raiseProvisioningFailure.  And since this is a hard
+                // fail, we can't evolve into an authentication flow.
+                // So delete the current provision flow.
                 delete self._provisionFlows[aCallerId];
                 return caller.doError("Authentication fail.");
 
@@ -476,8 +480,8 @@ IDService.prototype = {
    * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
    *
    * @param aCaller
-   *        (object)  the caller with all callbacks and other information
-   *                  callbacks include:
+   *        (object)  the iframe sandbox caller with all callbacks and 
+   *                  other information.  Callbacks include:
    *                  - doBeginProvisioningCallback(id, duration_s)
    *                  - doGenKeyPairCallback(pk)
    */
@@ -665,7 +669,7 @@ IDService.prototype = {
    * an error or something.
    *
    * @param aCaller
-   *        (object)  the authentication caller tied to that sandbox
+   *        (object)  the authentication caller
    *
    */
   beginAuthentication: function beginAuthentication(aCaller)
@@ -706,11 +710,10 @@ IDService.prototype = {
     flow.didAuthentication = true;
 
     // delete caller
-    delete flow['caller'];
+    delete flow['caller']; 
 
-    // invoke callback with success.
-    // * what callback? Spec says to invoke the Provisioning Flow -- MN
-    // * I think here we take a second stab at selecting an identity -- JP
+    // We have authenticated in order to provision an identity.
+    // So try again.
     this.selectIdentity(aCallerId, flow.identity);
   },
 
@@ -718,7 +721,7 @@ IDService.prototype = {
    * The auth frame has called navigator.id.cancelAuthentication
    *
    * @param aAuthId
-   *        (int)  the identifier of the authentication caller tied to that sandbox
+   *        (int)  the identifier of the authentication caller
    *
    */
   cancelAuthentication: function cancelAuthentication(aWindowID)
@@ -791,6 +794,10 @@ IDService.prototype = {
    */
   getAssertion: function getAssertion(aOptions, aCallback)
   {
+    // XXX delete this method?
+    // or use it to refactor _generateAssertion? --JP
+    // but it's not to be called by the dom, in any case - 
+    // should be a private method
     log("@@@@@@ who is using getAssertion??");
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
@@ -882,16 +889,20 @@ IDService.prototype = {
   /**
    * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
    */
+  // XXX why both aAuthId and aProvId if, as beginAuthentication
+  // says, the auth caller has the same id as the prov flow?
+  // how about just aCallerId?
   setAuthenticationFlow: function(aAuthId, aProvId) {
     // this is the transition point between the two flows, 
-    // provision and authenticate.
+    // provision and authenticate.  We take the state from 
+    // the provision flow and transfer it to the auth flow.
     let caller = this._provisionFlows[aProvId];
 
     // Since we're done with the original sandbox, we allow it to 
     // be GCd.  Also discard the provision flow.
     caller.sandbox.free();
     delete caller['sandbox'];
-    delete this._provisionflows[aProvId];
+    delete this._provisionFlows[aProvId];
 
     // Now we have morphed into an authentication flow.
     this._authenticationFlows[aAuthId] = caller;

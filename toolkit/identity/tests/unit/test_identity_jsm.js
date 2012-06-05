@@ -558,7 +558,10 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
       if (doneProvisioningCallback)
         doneProvisioningCallback(err);
     },
-    provisioningSandbox: {}
+    sandbox: {
+	// Emulate the free() method on the iframe sandbox
+	free: function() {}
+    }
   };
 
   var caller = {};
