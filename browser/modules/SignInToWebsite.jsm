@@ -177,7 +177,7 @@ let SignInToWebsiteUX = {
     log("authWin outer id: " + windowID);
 
     let provId = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("provId");
-    // TODO!!!: we need to tell the service about the id before loading the url
+    // Tell the ID service about the id before loading the url
     IdentityService.setAuthenticationFlow(windowID, provId);
 
     authWin.location = aAuthURI;

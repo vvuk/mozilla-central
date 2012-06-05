@@ -329,6 +329,7 @@ IDService.prototype = {
           self._provisionIdentity(aIdentity, idpParams, function(err, aProvId) {
             log("provision callback", err, aIdentity, aProvId);
             if (! err) {
+              delete self._provisionFlows[aProvId]; // TODO: free sandbox?
               self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
@@ -341,12 +342,13 @@ IDService.prototype = {
             } else {
               // If we have already done the authentication step, and we 
               // still can't generate an assertion, then we give up.
-              if (caller.didAuthentication) {
+              log("si didAuth: ", self._provisionFlows[aProvId].didAuthentication);
+              if (self._provisionFlows[aProvId].didAuthentication) {
                 // The sandbox will have been deleted by 
                 // raiseProvisioningFailure.  And since this is a hard
                 // fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
-                delete self._provisionFlows[aProvId];
+                delete self._provisionFlows[aProvId]; // TODO: free sandbox?
                 return caller.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
@@ -635,8 +637,8 @@ IDService.prototype = {
   /**
    * Begin the authentication process with an IdP
    *
-   * @param aIdentity
-   *        (string) the email address we're identifying as to the IdP
+   * @param aProvId
+   *        (int) the identifier of the provisioning flow which failed
    *
    * @param aCallback
    *        (function) to invoke upon completion, with
@@ -681,22 +683,24 @@ IDService.prototype = {
    */
   beginAuthentication: function beginAuthentication(aCaller)
   {
-    log("**beginAuthentication", aCaller);    
+    log("**beginAuthentication", aCaller);
     // Begin the authentication flow after having concluded a provisioning
     // flow.  The aCaller that the DOM gives us will have the same ID as
     // the provisioning flow we just concluded.  (see setAuthenticationFlow)
 
-    let flow = this._authenticationFlows[aCaller.id];
-    if (!flow) {
+    let authFlow = this._authenticationFlows[aCaller.id];
+    if (!authFlow) {
       return aCaller.doError("no such authentication flow");
     }
-    
+
     // stash the caller in the flow
     // XXX do we need to do this?
-    flow.caller = aCaller;
+    authFlow.caller = aCaller;
+
+    let identity = this._provisionFlows[authFlow.provId].identity;
 
     // tell the UI to start the authentication process
-    return flow.caller.doBeginAuthenticationCallback(flow.identity);
+    return authFlow.caller.doBeginAuthenticationCallback(identity);
   },
 
   /**
@@ -710,18 +714,21 @@ IDService.prototype = {
   {
     log("completeAuthentication: ", aAuthId);
     // look up the AuthId caller, and get its callback.
-    let flow = this._authenticationFlows[aAuthId];
-    if (!flow) {
-      return flow.caller.doError("no such authentication flow");
+    let authFlow = this._authenticationFlows[aAuthId];
+    if (!authFlow) {
+      return log("no such authentication flow");
     }
-    flow.caller.didAuthentication = true;
+    let provId = authFlow.provId;
 
     // delete caller
-    //delete flow['caller'];
+    delete authFlow['caller'];
+    delete this._authenticationFlows[aAuthId];
 
+    let provFlow = this._provisionFlows[provId];
+    provFlow.didAuthentication = true;
     // We have authenticated in order to provision an identity.
     // So try again.
-    this.selectIdentity(aAuthId, flow.identity);
+    this.selectIdentity(provId, provFlow.identity);
   },
 
   /**
@@ -735,18 +742,23 @@ IDService.prototype = {
   {
     log("cancelAuthentication: ", aAuthId);
     // look up the AuthId caller, and get its callback.
-    let flow = this._authenticationFlows[aAuthId];
-    if (!flow) {
-      return flow.caller.doError("no such authentication flow");
+    let authFlow = this._authenticationFlows[aAuthId];
+    if (!authFlow) {
+      return log("no such authentication flow");
     }
-
-    log("state: ", flow.caller.state);
+    let provId = authFlow.provId;
 
     // delete caller
-    //delete flow['caller'];
+    delete authFlow['caller'];
+    delete this._authenticationFlows[aAuthId];
+
+    let provFlow = this._provisionFlows[provId];
+    provFlow.didAuthentication = true;
+
+    log("didAuth: ", provFlow.didAuthentication);
 
     // invoke callback with ERROR.
-    return flow.callback("authentication cancelled by IDP");
+    return provFlow.callback("authentication cancelled by IDP");
   },
 
   // methods for chrome and add-ons
@@ -909,17 +921,12 @@ IDService.prototype = {
   setAuthenticationFlow: function(aAuthId, aProvId) {
     log("setAuthenticationFlow: " + aAuthId + " : " + aProvId);
     // this is the transition point between the two flows, 
-    // provision and authenticate.  We take the state from 
-    // the provision flow and transfer it to the auth flow.
-    let flow = this._provisionFlows[aProvId];
+    // provision and authenticate.  We tell the auth flow which
+    // provisioning flow it is started from.
 
-    //delete this._provisionFlows[aProvId];
-
-    // Now we have morphed into an authentication flow.
-    //flow.state = flow.caller.state = "authenticating"; // TODO: on caller so selectIdentity has access but there is already flow.state
-    this._authenticationFlows[aAuthId] = flow;
-    this._authenticationFlows[aAuthId].caller.state = "authenticating";
-    log("saf state: ", this._authenticationFlows[aAuthId].caller.state);
+    this._authenticationFlows[aAuthId] = { provId: aProvId, };
+    this._provisionFlows[aProvId].authId = aProvId;
+    log("saf didAuth: ", this._authenticationFlows[aAuthId].didAuthentication);
   },
 
   get securityLevel() {
