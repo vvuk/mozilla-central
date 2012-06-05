@@ -121,7 +121,7 @@ IDServiceStore.prototype = {
     this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
   },
   getLoginState: function getLoginState(aOrigin) {
-    return this._loginStates[aOrigin] || {};
+    return this._loginStates[aOrigin];
   },
   clearLoginState: function clearLoginState(aOrigin) {
     delete this._loginStates[aOrigin];
