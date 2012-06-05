@@ -302,7 +302,7 @@ IDService.prototype = {
       return null;
     }
 
-    // set the state of logi
+    // set the state of login
     let state = this._store.getLoginState(caller.origin) || {};
     state.isLoggedIn = true;
     state.email = aIdentity;
@@ -328,27 +328,22 @@ IDService.prototype = {
                   // great!  I can't believe it was so easy!
                   caller.doLogin(assertion);
                   return caller.doReady();
+                } else {
+                  return caller.doError(err);
                 }
               });
             } else {
-              // soft fail.
-              // We will need to authenticate with the idp
-              self._doAuthentication(aIdentity, idpParams, function(err, authd) {
-                // and try to provision again
-                self._provisionIdentity(aIdentity, idpParams, function (err, identity) {
-                  if (! err) {
-                    // yay.  we could provision after all.
-                    self._generateAssertion(
-                      aCallerId, aIdentity, 
-                      function(err, assertion) {
-                        return caller.doLogin(assertion);
-                      });
-                  } else {
-                    // hard fail
-                    return caller.doError("Aw, snap.");
-                  }
-                });
-              });
+              if (caller.state === "authenticating") {
+                // we've been around this block before.
+                return caller.doError("Authentication fail.");
+              } else { 
+                // soft fail.
+                // We will need to authenticate with the idp
+
+                // We now transition from a provisioning flow
+                // to an authentication flow.
+                return self._doAuthentication(aIdentity, idpParams);
+              }
             }
           });
         });
@@ -629,9 +624,8 @@ IDService.prototype = {
    *        (function) to invoke upon completion, with
    *                   first-positional-param error.
    */
-  _doAuthentication: function _doAuthentication(aIdentity, aIDPParams, aCallback)
+  _doAuthentication: function _doAuthentication(aProvId, aIDPParams)
   {
-    
     // create an authentication caller and its identifier AuthId
     // stash aIdentity, idpparams, and callback in it.
 
@@ -642,12 +636,17 @@ IDService.prototype = {
     // TODO: make the two lines below into a helper to be used for auth and authentication
     let authPath = aIDPParams.idpParams.authentication;
     let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
-    this._beginAuthenticationFlow(aIdentity, authURI, function(err, authd) {
 
-    });
+    // beginAuthenticationFlow causes the "identity-auth" topic to be 
+    // observed.  Since it's sending a notification to the DOM, there's 
+    // no callback.  We wait for the DOM to trigger the next phase of 
+    // provisioning.
+    this._beginAuthenticationFlow(aProvId, authURI);
+
     // either we bind the AuthID to the sandbox ourselves, or UX does that,
     // in which case we need to tell UX the AuthId.
-    // Currently, the UX creates the UI and gets the AuthId from the window and sets is with setAuthenticationFlow
+    // Currently, the UX creates the UI and gets the AuthId from the window 
+    // and sets is with setAuthenticationFlow
   },
   
   /**
@@ -664,17 +663,19 @@ IDService.prototype = {
    */
   beginAuthentication: function beginAuthentication(aCaller)
   {
-    log("**beginAuthentication", aCaller);
+    log("**beginAuthentication", aCaller);    
+    // Begin the authentication flow after having concluded a provisioning
+    // flow.  The aCaller that the DOM gives us will have the same ID as
+    // the provisioning flow we just concluded.  (see setAuthenticationFlow)
 
-    // look up the authentication flow by the caller
     let flow = this._authenticationFlows[aCaller.id];
     if (!flow) {
       return aCaller.doError("no such authentication flow");
     }
     
     // stash the caller in the flow
+    // XXX do we need to do this?
     flow.caller = aCaller;
-    flow.state = "authenticating";
 
     // tell the UI to start the authentication process
     return flow.caller.doBeginAuthenticationCallback(flow.identity);
@@ -690,8 +691,13 @@ IDService.prototype = {
   completeAuthentication: function completeAuthentication(aAuthId)
   {
     // look up the AuthId caller, and get its callback.
-
+    let flow = this._authenticationFlows[aCaller.id];
+    if (!flow) {
+      return aCaller.doError("no such authentication flow");
+    }
+    
     // delete caller
+    delete flow['caller'];
 
     // invoke callback with success.
     // * what callback? Spec says to invoke the Provisioning Flow -- MN
@@ -774,6 +780,7 @@ IDService.prototype = {
    */
   getAssertion: function getAssertion(aOptions, aCallback)
   {
+    log("@@@@@@ who is using getAssertion??");
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
     // We might not have any identity info for this email
@@ -864,8 +871,20 @@ IDService.prototype = {
   /**
    * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
    */
-  setAuthenticationFlow: function(aAuthID, aCaller) {
-    this._authenticationFlows[aAuthID] = aCaller;
+  setAuthenticationFlow: function(aAuthId, aProvId) {
+    // this is the transition point between the two flows, 
+    // provision and authenticate.
+    let caller = this._provisionFlows[aProvId];
+
+    // Since we're done with the original sandbox, we allow it to 
+    // be GCd.  Also discard the provision flow.
+    caller.sandbox.free();
+    delete caller['sandbox'];
+    delete this._provisionflows[aProvId];
+
+    // Now we have morphed into an authentication flow.
+    caller.state = "authenticating";
+    this._authenticationFlows[aAuthId] = caller;
   },
 
   get securityLevel() {
@@ -1155,11 +1174,11 @@ IDService.prototype = {
   /**
    * Load the authentication UI to start the authentication process.
    */
-  _beginAuthenticationFlow: function _beginAuthenticationFlow(aIdentity, aURL)
+  _beginAuthenticationFlow: function _beginAuthenticationFlow(aProvId, aURL)
   {
     let propBag = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
-    propBag.setProperty("identity", aIdentity);
+    propBag.setProperty("provId", aProvId);
 
     Services.obs.notifyObservers(propBag, "identity-auth", aURL);
   },
