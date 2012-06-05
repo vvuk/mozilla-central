@@ -287,37 +287,38 @@ IDService.prototype = {
   /**
    * The UX comes back and calls selectIdentity once the user has picked an identity
    *
-   * @param aCallerId
+   * @param aRPId
    *        (integer) the id of the doc object obtained in .watch() and
    *                  passed to the UX component.
    *
    * @param aIdentity
    *        (string) the email chosen for login
    */
-  selectIdentity: function selectIdentity(aCallerId, aIdentity)
+  selectIdentity: function selectIdentity(aRPId, aIdentity)
   {
     var self = this;
 
-    let caller = this._rpFlows[aCallerId];
-    log("selectIdentity: aCallerId =", aCallerId, "aIdentity =", aIdentity, "->", caller);
-    if (! caller) {
-      log("No caller with id", aCallerId);
+    let rp = this._rpFlows[aRPId];
+    let provId = rp.provId || null;
+    log("selectIdentity: aRPId =", aRPId, "aIdentity =", aIdentity, "->", rp);
+    if (! rp) {
+      log("No caller with id", aRPId);
       return null;
     }
 
     // set the state of login
-    let state = this._store.getLoginState(caller.origin) || {};
+    let state = this._store.getLoginState(rp.origin) || {};
     state.isLoggedIn = true;
     state.email = aIdentity;
 
     log("selectIdentity with state", state);
     // go generate assertion for this identity and deliver it to this doc
     // XXX duplicates getAssertion
-    self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+    self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (! err) {
         // great!  I can't believe it was so easy!
-        caller.doLogin(assertion);
-        return caller.doReady();
+        rp.doLogin(assertion);
+        return rp.doReady();
         
       } else {
         log("need to get cert");
@@ -325,21 +326,22 @@ IDService.prototype = {
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
           if (err) {
             log("Oh noes:", err);
-            return caller.doError(err);
+            return rp.doError(err);
           }
 
-          self._provisionIdentity(aIdentity, idpParams, function(err, aProvId) {
-            self._provisionFlows[aProvId].rpId = aCallerId;
+          self._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
+            rp.provId = aProvId;
+            self._provisionFlows[aProvId].rpId = aRPId;
             log("provision callback", err, aIdentity, aProvId);
             if (! err) {
               delete self._provisionFlows[aProvId]; // TODO: free sandbox?
-              self._generateAssertion(caller.origin, aIdentity, function(err, assertion) {
+              self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
-                  caller.doLogin(assertion);
-                  return caller.doReady();
+                  rp.doLogin(assertion);
+                  return rp.doReady();
                 } else {
-                  return caller.doError(err);
+                  return rp.doError(err);
                 }
               });
             } else {
@@ -352,7 +354,7 @@ IDService.prototype = {
                 // fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
                 delete self._provisionFlows[aProvId]; // TODO: free sandbox?
-                return caller.doError("Authentication fail.");
+                return rp.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
               // flow.
@@ -418,7 +420,7 @@ IDService.prototype = {
    *        (function) callback to invoke on completion
    *                   with first-positional parameter the error.
    */
-  _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aCallback)
+  _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback)
   {
     log('provision identity', aIdentity, aIDPParams, aCallback);
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
@@ -427,16 +429,20 @@ IDService.prototype = {
       // create a provisioning flow, using the sandbox id, and
       // stash callback associated with this provisioning workflow.
 
-      let flowId = aSandbox.id;
-      this._provisionFlows[flowId] = {
-        identity: aIdentity,
-        idpParams: aIDPParams,
-        securityLevel: this.securityLevel,
-        provisioningSandbox: aSandbox,
-        callback: function doCallback(aErr) {
-          aCallback(aErr, aSandbox.id);
-        },
-      };
+      if (aProvId) {
+        this._provisionFlows[aProvId].provisioningSandbox = aSandbox;
+      } else {
+        let provId = aSandbox.id;
+        this._provisionFlows[provId] = {
+          identity: aIdentity,
+          idpParams: aIDPParams,
+          securityLevel: this.securityLevel,
+          provisioningSandbox: aSandbox,
+          callback: function doCallback(aErr) {
+            aCallback(aErr, aSandbox.id);
+          },
+        };
+      }
 
       // MAYBE
       // set a timeout to clear out this provisioning workflow if it doesn't
