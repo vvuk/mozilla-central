@@ -23,6 +23,7 @@ let SignInToWebsiteUX = {
     Services.obs.addObserver(this, "identity-request", false);
     Services.obs.addObserver(this, "identity-login", false);
     Services.obs.addObserver(this, "identity-auth", false);
+    Services.obs.addObserver(this, "identity-auth-complete", false);
     Services.obs.addObserver(this, "identity-login-state-changed", false);
 
     /* Sample data */
@@ -43,6 +44,7 @@ let SignInToWebsiteUX = {
     Services.obs.removeObserver(this, "identity-request");
     Services.obs.removeObserver(this, "identity-login");
     Services.obs.removeObserver(this, "identity-auth");
+    Services.obs.removeObserver(this, "identity-auth-complete");
     Services.obs.removeObserver(this, "identity-login-state-changed");
   },
 
@@ -53,15 +55,18 @@ let SignInToWebsiteUX = {
         this.requestLogin(aSubject);
         break;
       case "identity-login": // User chose a new or exiting identity after a request() call
-        let requestID = aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+        let rpId = aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
         // aData is the email address chosen (TODO: or null if cancelled?)
         let identity = aData; // String
 
-        log("identity-login: requestID: " + requestID);
-        IdentityService.selectIdentity(requestID, identity);
+        log("identity-login: rpId: " + rpId);
+        IdentityService.selectIdentity(rpId, identity);
         break;
       case "identity-auth":
         this._openAuthenticationUI(aData, aSubject);
+        break;
+      case "identity-auth-complete":
+        this._closeAuthenticationUI(aData);
         break;
       case "identity-login-state-changed":
         if (aData) // if there is en email address
@@ -76,7 +81,7 @@ let SignInToWebsiteUX = {
    * The website is requesting login so the user must choose an identity to use.
    */
   requestLogin: function(aOptions) {
-    let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+    let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("requestLogin for " + windowID);
     let [win, browser, browserEl] = this._getUIForID(windowID);
 
@@ -88,7 +93,7 @@ let SignInToWebsiteUX = {
       callback: function() {
         let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
         // TODO: mostly handled in the binding already
-        log("requestLogin callback fired for " + requestNot.options.identity.requestID);
+        log("requestLogin callback fired for " + requestNot.options.identity.rpId);
       },
     };
     let options = {
@@ -108,7 +113,7 @@ let SignInToWebsiteUX = {
       options.identity[opt.name] = opt.value;
       log("opt: " + opt.name + " : " + opt.value);
     }
-    log("requestLogin: requestID: " + options.identity.requestID);
+    log("requestLogin: rpId: " + options.identity.rpId);
 
     let reqNot = win.PopupNotifications.show(browserEl, "identity-request", message,
                                               "identity-notification-icon", mainAction,
@@ -183,11 +188,17 @@ let SignInToWebsiteUX = {
     authWin.location = aAuthURI;
   },
 
+  _closeAuthenticationUI: function _closeAuthenticationUI(aAuthId) {
+    let [win, browser, browserEl] = this._getUIForID(aAuthId);
+    if (win)
+      win.close();
+  },
+
   /**
    * Show a doorhanger indicating the currently logged-in user.
    */
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
-    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("_showLoggedInUI for " + windowID);
     let [win, browser, browserEl] = this._getUIForID(windowID);
 
@@ -208,14 +219,14 @@ let SignInToWebsiteUX = {
     let loggedInNot = win.PopupNotifications.show(browserEl, "identity-logged-in", message,
                                                   "identity-notification-icon", mainAction,
                                                   secondaryActions, options);
-    loggedInNot.requestID = windowID;
+    loggedInNot.rpId = windowID;
   },
 
   /**
    * Remove the doorhanger indicating the currently logged-in user.
    */
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
-    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("requestID");
+    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("_removeLoggedInUI for " + windowID);
     let [win, browser, browserEl] = this._getUIForID(windowID);
 

@@ -1275,7 +1275,7 @@
               let email = document.getAnonymousElementByAttribute(this, "anonid", "email")
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("requestID", this.notification.options.identity.requestID);
+              propBag.setProperty("rpId", this.notification.options.identity.rpId);
               Services.obs.notifyObservers(propBag, "identity-login", email.value);
               break;
             case "1":
@@ -1283,7 +1283,7 @@
               let selected = identity.selectedItem ? identity.selectedItem.label : null;
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("requestID", this.notification.options.identity.requestID);
+              propBag.setProperty("rpId", this.notification.options.identity.rpId);
 
               Services.obs.notifyObservers(propBag, "identity-login", selected);
               break;

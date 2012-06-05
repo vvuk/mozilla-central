@@ -265,7 +265,7 @@ IDService.prototype = {
 
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("requestID", aCallerId);
+    options.setProperty("rpId", aCallerId);
     for (let optionName of ["requiredEmail", "privacyURL", "tosURL"]) {
       options.setProperty(optionName, aOptions[optionName]);
     }
@@ -747,6 +747,8 @@ IDService.prototype = {
 
     let provFlow = this._provisionFlows[provId];
     provFlow.didAuthentication = true;
+    Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
+
     // We have authenticated in order to provision an identity.
     // So try again.
     this.selectIdentity(provFlow.rpId, provFlow.identity);
@@ -775,8 +777,7 @@ IDService.prototype = {
 
     let provFlow = this._provisionFlows[provId];
     provFlow.didAuthentication = true;
-
-    log("didAuth: ", provFlow.didAuthentication);
+    Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
 
     // invoke callback with ERROR.
     return provFlow.callback("authentication cancelled by IDP");
@@ -947,7 +948,6 @@ IDService.prototype = {
 
     this._authenticationFlows[aAuthId] = { provId: aProvId, };
     this._provisionFlows[aProvId].authId = aAuthId;
-    log("saf didAuth: ", this._authenticationFlows[aAuthId].didAuthentication);
   },
 
   get securityLevel() {

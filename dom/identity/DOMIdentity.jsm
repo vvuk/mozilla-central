@@ -209,7 +209,7 @@ let DOMIdentity = {
   },
 
   _logout: function(message) {
-    IdentityService.logout(message.oid);
+    IdentityService.logout(message.oid, message.origin);
   },
 
   _beginProvisioning: function(message) {

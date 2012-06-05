@@ -68,7 +68,8 @@ nsDOMIdentity.prototype = {
   logout: function(aCallback) {
     cpmm.sendAsyncMessage("Identity:RP:Logout", {
       oid: this._id,
-      from: this._window.location.href
+      from: this._window.location.href,
+      origin: this._origin,
     });
     if (aCallback) {
       // TODO: when is aCallback supposed to be called and what are the arguments?
