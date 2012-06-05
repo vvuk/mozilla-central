@@ -80,6 +80,8 @@ function IDServiceStore()
   this.reset();
 }
 
+// Note: eventually these methods may be async, but we haven no need for this
+// for now, since we're not storing to disk.
 IDServiceStore.prototype = {
   addIdentity: function addIdentity(aEmail, aKeyPair, aCert) {
     this._identities[aEmail] = {keyPair: aKeyPair, cert: aCert};
