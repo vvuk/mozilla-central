@@ -356,7 +356,7 @@ log("Notified identity-login-state-changed");
             self._provisionFlows[aProvId].rpId = aRPId;
 
             if (! err) {
-              self._cleanUpProvisionFlow(aProvId);
+              self._cleanUpProvisionFlow(aRPId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
@@ -374,7 +374,7 @@ log("Notified identity-login-state-changed");
                 // Since this is a hard fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
                 log("Hard fail");
-                self._cleanUpProvisionFlow(aProvId);
+                self._cleanUpProvisionFlow(aRPId);
                 return rp.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
@@ -447,9 +447,11 @@ log("Notified identity-login-state-changed");
   {
     log('provision identity', aIdentity, aIDPParams, aProvId, aCallback);
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
-    // If aProvId is not null, then we have a provisioning flow
+
+    // If aProvId is not null, then we already have a flow 
     // with a sandbox already going on.  Otherwise, get a sandbox
     // and create a provision flow.
+
     if (aProvId === null) {
       log("ok, create provisioning sandbox");
       this._createProvisioningSandbox(url, function(aSandbox) {
@@ -474,7 +476,6 @@ log("Notified identity-login-state-changed");
       
       }.bind(this));
     } else {
-      log("no need to get a sandbox; already have this:", this._provisionFlows[aProvId], this._provisionFlows[aProvId].provisioningSandbox.id);
       this._provisionFlows[aProvId].provisioningSandbox.load();
     }
   },
@@ -494,7 +495,6 @@ log("Notified identity-login-state-changed");
     let domain = aIdentity.split('@')[1];
     // XXX not until we have this mocked in the tests
     this._fetchWellKnownFile(domain, function(err, idpParams) {
-      log("fetch well known returned:", err, idpParams);
       // XXX TODO follow any authority delegations
       // if no well-known at any point in the delegation
       // fall back to browserid.org as IdP
@@ -1298,18 +1298,19 @@ log("Notified identity-login-state-changed");
    * Clean up a provision flow and the authentication flow and sandbox
    * that may be attached to it.
    */
-  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
-    log("cleanUpProvisionFlow", aProvId);
-    let prov = this._provisionFlows[aProvId];
+  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aRPId) {
+    let rp = this._rpFlows[aRPId];
+    let provId = rp.provId;
     log("cleanUpProvisionFlow");
+    let prov = this._provisionFlows[provId];
 
     // Clean up the sandbox
     if (!! prov.provisioningSandbox) {
-      let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
+      let sandbox = this._provisionFlows[provId]['provisioningSandbox'];
       if (!! sandbox.free) {
         sandbox.free();
       }
-      delete this._provisionFlows[aProvId]['provisioningSandbox'];
+      delete this._provisionFlows[provId]['provisioningSandbox'];
     }
 
     // Maybe there's an auth flow.  Clean that up.
@@ -1318,7 +1319,8 @@ log("Notified identity-login-state-changed");
     }
 
     // And remove the provision flow
-    delete this._provisionFlows[aProvId];
+    delete this._provisionFlows[provId];
+    delete rp['provId'];
   }
 
 
