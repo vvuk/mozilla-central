@@ -20,6 +20,7 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 #include "transportlayerdtls.h"
+#include "transportlayerice.h"
 #include "transportlayerlog.h"
 #include "transportlayerprsock.h"
 
@@ -102,6 +103,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     received_(0), flow_(), 
     prsock_(new TransportLayerPrsock()),
     logging_(new TransportLayerLogging()),
+    ice_ctx_(new TransportLayerIceCtx("test", true)),
     lossy_(new TransportLayerLossy()),
     dtls_(new TransportLayerDtls()),
     identity_(DtlsIdentity::Generate(name)) {
@@ -154,6 +156,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
   TransportLayerLogging *logging_;
+  mozilla::RefPtr<TransportLayerIceCtx> ice_ctx_;
   TransportLayerLossy *lossy_;
   TransportLayerDtls *dtls_;
   mozilla::RefPtr<DtlsIdentity> identity_;

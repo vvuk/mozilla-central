@@ -20,6 +20,7 @@
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
 
+#include "m_cpp_utils.h"
 #include "dtlsidentity.h"
 #include "transportflow.h"
 #include "transportlayer.h"
@@ -37,6 +38,8 @@ class NSPRHelper {
   PRInt32 Write(const void *buf, PRInt32 length);
 
  private:
+  DISALLOW_COPY_ASSIGN(NSPRHelper);
+
   TransportLayer *output_;
   std::queue<Packet *> input_;
 };
@@ -81,6 +84,8 @@ public:
   static std::string ID;
   
 private:
+  DISALLOW_COPY_ASSIGN(TransportLayerDtls);
+
   bool Setup();
   void Handshake();
 

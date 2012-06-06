@@ -12,14 +12,64 @@
           'type' : 'static_library',
 
           'include_dirs' : [
-              # EXTERNAL
-              
-
+              ## EXTERNAL
+              # nrappkit
+	      '../nrappkit/src/event',
+	      '../nrappkit/src/log',
+              '../nrappkit/src/plugin',
+	      '../nrappkit/src/registry',
+	      '../nrappkit/src/share',
+	      '../nrappkit/src/stats',
+	      '../nrappkit/src/util',
+	      '../nrappkit/src/util/libekr',
 
               # INTERNAL
+              "./src/crypto",
+              "./src/ice",
+              "./src/net",
+              "./src/stun",
+              "./src/util",
           ],
 
           'sources' : [
+                # Crypto
+                "./src/crypto/nr_crypto.c",
+                "./src/crypto/nr_crypto.h",
+                #"./src/crypto/nr_crypto_openssl.c",
+                #"./src/crypto/nr_crypto_openssl.h",
+
+                # ICE
+                "./src/ice/codewords.h",
+                "./src/ice/ice_candidate.c",
+                "./src/ice/ice_candidate.h",
+                "./src/ice/ice_candidate_pair.c",
+                "./src/ice/ice_candidate_pair.h",
+                "./src/ice/ice_codeword.c",
+                "./src/ice/ice_codeword.h",
+                "./src/ice/ice_component.c",
+                "./src/ice/ice_component.h",
+                "./src/ice/ice_ctx.c",
+                "./src/ice/ice_ctx.h",
+                "./src/ice/ice_handler.h",
+                "./src/ice/ice_media_stream.c",
+                "./src/ice/ice_media_stream.h",
+                "./src/ice/ice_parser.c",
+                "./src/ice/ice_peer_ctx.c",
+                "./src/ice/ice_peer_ctx.h",
+                "./src/ice/ice_reg.h",
+                "./src/ice/ice_socket.c",
+                "./src/ice/ice_socket.h",
+
+                # Net
+                "./src/net/nr_socket.c",
+                "./src/net/nr_socket.h",
+                "./src/net/nr_socket_local.c",
+                "./src/net/nr_socket_local.h",
+                "./src/net/transport_addr.c",
+                "./src/net/transport_addr.h",
+                "./src/net/transport_addr_reg.c",
+                "./src/net/transport_addr_reg.h",
+
                 # STUN
                 "./src/stun/addrs.c",
                 "./src/stun/addrs.h",
@@ -43,6 +93,17 @@
                 "./src/stun/stun_server_ctx.h",
                 "./src/stun/stun_util.c",
                 "./src/stun/stun_util.h",
+                "./src/stun/turn_client_ctx.c",
+                "./src/stun/turn_client_ctx.h",
+
+                # Util
+                "./src/util/cb_args.c",
+                "./src/util/cb_args.h",
+                "./src/util/ice_util.c",
+                "./src/util/ice_util.h",
+                "./src/util/mbslen.c",
+                "./src/util/mbslen.h",
+
 
           ],
           
@@ -80,12 +141,10 @@
                  ],
 
 		 'include_dirs': [
-		     'src/port/darwin/include'
+		     '../nrappkit/src/port/darwin/include'
 		 ],
 		 
 		 'sources': [
-              	      './src/port/darwin/include/csi_platform.h',
-	              './src/port/darwin/include/sys/queue.h',
 		 ],
               }],
               
@@ -106,35 +165,7 @@
 # gcc -g    -c -o ice_candidate.d /Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/ice_candidate.c -MM -MG -DUSE_TURN -DDARWIN -DHAVE_SIN_LEN  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../net/ -DUSE_ICE -DUSE_RFC_3489_BACKWARDS_COMPATIBLE -DUSE_STUND_0_96 -DUSE_STUN_PEDANTIC -DUSE_TURN -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../stun/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../util/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../crypto/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/test/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../net/test/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../stun/test/ -g -Werror -Wall -Wno-parentheses -DHAVE_STRDUP -D__UNUSED__="__attribute__((unused))" -Drestrict=__restrict__ -I../../../../nrappkit/src/make/darwin -I../../../../nrappkit//src/util -I../../../../nrappkit//src/util/libekr -I../../../../nrappkit//src/port/darwin/include -I../../../../nrappkit//src/share -I../../../../nrappkit//src/registry -I../../../../nrappkit//src/stats -DOPENSSL -I../../../../openssl-0.9.8g/include -DSANITY_CHECKS
 
 
-# "./src/crypto/nr_crypto.c",
-# "./src/crypto/nr_crypto.h",
-# "./src/crypto/nr_crypto_openssl.c",
-# "./src/crypto/nr_crypto_openssl.h",
-# "./src/ice/codewords.h",
-# "./src/ice/ice_candidate.c",
-# "./src/ice/ice_candidate.h",
-# "./src/ice/ice_candidate_pair.c",
-# "./src/ice/ice_candidate_pair.h",
-# "./src/ice/ice_codeword.c",
-# "./src/ice/ice_codeword.h",
-# "./src/ice/ice_component.c",
-# "./src/ice/ice_component.h",
-# "./src/ice/ice_ctx.c",
-# "./src/ice/ice_ctx.h",
-# "./src/ice/ice_handler.h",
-# "./src/ice/ice_media_stream.c",
-# "./src/ice/ice_media_stream.h",
-# "./src/ice/ice_parser.c",
-# "./src/ice/ice_peer_ctx.c",
-# "./src/ice/ice_peer_ctx.h",
-# "./src/ice/ice_reg.h",
-# "./src/ice/ice_socket.c",
-# "./src/ice/ice_socket.h",
 # "./src/ice/test/ice_test.c",
-# "./src/net/nr_socket.c",
-# "./src/net/nr_socket.h",
-# "./src/net/nr_socket_local.c",
-# "./src/net/nr_socket_local.h",
 # "./src/net/test/evil_test.c",
 # "./src/net/test/nr_socket_evil.c",
 # "./src/net/test/nr_socket_evil.h",
@@ -163,11 +194,3 @@
 # "./src/stun/test/turn_test_server_util.c",
 # "./src/stun/test/udp.c",
 # "./src/stun/test/udp.h",
-# "./src/stun/turn_client_ctx.c",
-# "./src/stun/turn_client_ctx.h",
-# "./src/util/cb_args.c",
-# "./src/util/cb_args.h",
-# "./src/util/ice_util.c",
-# "./src/util/ice_util.h",
-# "./src/util/mbslen.c",
-# "./src/util/mbslen.h",

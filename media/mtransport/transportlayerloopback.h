@@ -10,11 +10,14 @@
 #include "nspr.h"
 #include "prio.h"
 
+#include "m_cpp_utils.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 
 class TransportLayerLoopback : public TransportLayer {
  public:
+  TransportLayerLoopback() {}
+
   // Connect to the other side
   void Connect(TransportLayerLoopback* peer);
 
@@ -28,6 +31,8 @@ class TransportLayerLoopback : public TransportLayer {
   static std::string ID;
 
  private:
+  DISALLOW_COPY_ASSIGN(TransportLayerLoopback);
+
   TransportLayerLoopback* peer_;
 };
 

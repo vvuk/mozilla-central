@@ -49,10 +49,30 @@ ifeq (WINNT,$(OS_TARGET))
 VISIBILITY_FLAGS =
 endif
 
+DEFINES += -DHAVE_STRDUP \
+	$(NULL)
+
 LOCAL_INCLUDES += \
  -I. \
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
+ -I$(topsrcdir)/media/mtransport/third_party/ \
+ -I$(topsrcdir)/media/mtransport/third_party/ \
+ -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/ice \
+ -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/net \
+ -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/stun \
+ -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/util \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/share \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/util/libekr \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/log \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
+ -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
+
+# TODO: need to expand for other platforms
+ifeq ($(OS_ARCH), Darwin)
+LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
+endif
 
 EXPORTS_NAMESPACES = mtransport
 
@@ -61,6 +81,7 @@ EXPORTS_mtransport = \
   transportflow.h \
   transportlayer.h \
   transportlayerdtls.h \
+  transportlayerice.h \
   transportlayerlog.h \
   transportlayerloopback.h \
   transportlayerprsock.h \
@@ -70,6 +91,7 @@ CPPSRCS = \
   dtlsidentity.cpp \
   transportflow.cpp \
   transportlayer.cpp \
+  transportlayerice.cpp \
   transportlayerdtls.cpp \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
@@ -77,8 +99,8 @@ CPPSRCS = \
   $(NULL)
 
 DIRS = \
-  test \
   third_party \
+  test \
   $(NULL)
 
 #CPP_UNIT_TESTS = \

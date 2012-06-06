@@ -7,11 +7,14 @@
 #ifndef transportlayerlog_h__
 #define transportlayerlog_h__
 
+#include "m_cpp_utils.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 
 class TransportLayerLogging : public TransportLayer {
 public:
+  TransportLayerLogging() {}
+
   // Overrides for TransportLayer
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
   
@@ -28,6 +31,9 @@ public:
 
 protected:
   virtual void WasInserted();
+
+private:
+  DISALLOW_COPY_ASSIGN(TransportLayerLogging);
 };
 
 

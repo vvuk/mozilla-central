@@ -15,6 +15,7 @@
 #include "nsISocketTransportService.h"
 #include "nsXPCOM.h"
 
+#include "m_cpp_utils.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 
@@ -50,6 +51,7 @@ class TransportLayerPrsock : public TransportLayer {
   static std::string ID;
 
  private:
+  DISALLOW_COPY_ASSIGN(TransportLayerPrsock);
 
   // Inner class
   class SocketHandler : public nsASocketHandler {
@@ -84,6 +86,8 @@ class TransportLayerPrsock : public TransportLayer {
       private:
       TransportLayerPrsock *prsock_;
       PRFileDesc *fd_;
+   private:
+    DISALLOW_COPY_ASSIGN(SocketHandler);
   };
 
   // Allow SocketHandler to talk to our APIs
@@ -98,6 +102,7 @@ class TransportLayerPrsock : public TransportLayer {
   PRFileDesc *fd_;
   nsCOMPtr<SocketHandler> handler_;
   nsCOMPtr<nsISocketTransportService> stservice_;
+
 };
 
 

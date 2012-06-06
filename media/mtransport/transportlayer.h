@@ -12,6 +12,8 @@
 // to not use sigslot
 #include <talk/base/sigslot.h>
 
+#include "m_cpp_utils.h"
+
 class TransportFlow;
 
 typedef int TransportResult;
@@ -74,6 +76,8 @@ class TransportLayer : public sigslot::has_slots<> {
   TransportFlow *flow_;  // The flow this is part of
   TransportLayer *downward_; // The next layer in the stack
   
+ private:
+  DISALLOW_COPY_ASSIGN(TransportLayer);
 };
 
 #define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "

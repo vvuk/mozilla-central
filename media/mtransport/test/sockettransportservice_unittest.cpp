@@ -107,6 +107,7 @@ class SocketHandler : public nsASocketHandler {
  public:
   SocketHandler(SocketTransportServiceTest *test) : test_(test) {
   }
+  virtual ~SocketHandler() {}
 
   void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
     unsigned char buf[1600];

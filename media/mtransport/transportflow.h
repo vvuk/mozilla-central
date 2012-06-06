@@ -12,6 +12,8 @@
 
 #include "nscore.h"
 
+#include "m_cpp_utils.h"
+
 class TransportLayer;
 
 // A stack of transport layers acts as a flow.
@@ -28,6 +30,8 @@ class TransportFlow {
   TransportLayer *GetLayer(const std::string& id) const;
   
  private:
+  DISALLOW_COPY_ASSIGN(TransportFlow);
+
   std::string id_;
   std::deque<TransportLayer *> layers_;
 };

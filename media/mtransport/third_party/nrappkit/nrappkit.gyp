@@ -114,7 +114,7 @@
               './src/registry/registry_local.c',
               #'./src/registry/registry_plugin.c',
               './src/registry/registry_vtbl.h',
-              #'./src/registry/registrycb.c',
+              './src/registry/registrycb.c',
               #'./src/registry/registryd.c',
               #'./src/registry/regrpc.h',
               #'./src/registry/regrpc_client.c',
@@ -126,11 +126,11 @@
               #'./src/registry/regrpc_xdr.c',
 
 	      # Statistics
-              './src/stats/nrstats.c',
-              './src/stats/nrstats.h',
-#              './src/stats/nrstats_app.c',
-              './src/stats/nrstats_int.h',
-#              './src/stats/nrstats_memory.c',
+              #'./src/stats/nrstats.c',
+              #'./src/stats/nrstats.h',
+              #'./src/stats/nrstats_app.c',
+              #'./src/stats/nrstats_int.h',
+              #'./src/stats/nrstats_memory.c',
           ],
           
           'defines' : [
