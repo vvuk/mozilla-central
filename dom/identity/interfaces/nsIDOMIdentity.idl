@@ -63,7 +63,7 @@ interface nsIDOMIdentity : nsISupports
   void request([optional] in jsval options);
 
 
-  void logout(/* TODO: in nsIDOMIdentityLogoutCallback aCallback */);
+  void logout();
 
   /**
    *  Identity Provider (IDP) APIs

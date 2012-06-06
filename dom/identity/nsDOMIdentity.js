@@ -65,16 +65,15 @@ nsDOMIdentity.prototype = {
     cpmm.sendAsyncMessage("Identity:RP:Request", message);
   },
 
-  logout: function(aCallback) {
+  logout: function() {
+    if (!this._watcher) {
+      throw new Error("navigator.id.logout called before navigator.id.watch");
+    }
     cpmm.sendAsyncMessage("Identity:RP:Logout", {
       oid: this._id,
       from: this._window.location.href,
       origin: this._origin,
     });
-    if (aCallback) {
-      // TODO: when is aCallback supposed to be called and what are the arguments?
-      aCallback();
-    }
   },
 
   /**
