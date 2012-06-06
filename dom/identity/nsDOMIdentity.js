@@ -36,9 +36,8 @@ nsDOMIdentity.prototype = {
 
     let message = {
       oid: this._id,
-      loggedIn: params.loggedInEmail, // Could be undefined or null
-      from: this._window.location.href,
       origin: this._origin,
+      loggedIn: params.loggedInEmail, // Could be undefined or null
     };
     cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },
@@ -53,7 +52,7 @@ nsDOMIdentity.prototype = {
 
     let message = {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
     };
 
     if (aOptions) {
@@ -71,7 +70,6 @@ nsDOMIdentity.prototype = {
     }
     cpmm.sendAsyncMessage("Identity:RP:Logout", {
       oid: this._id,
-      from: this._window.location.href,
       origin: this._origin,
     });
   },
@@ -85,7 +83,6 @@ nsDOMIdentity.prototype = {
     this._beginProvisioningCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
       oid: this._id,
-      from: this._window.location.href,
       origin: this._origin,
     });
   },
@@ -95,14 +92,14 @@ nsDOMIdentity.prototype = {
     this._genKeyPairCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
     });
   },
 
   registerCertificate: function(aCertificate) {
     cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
       cert: aCertificate,
     });
   },
@@ -111,7 +108,7 @@ nsDOMIdentity.prototype = {
     dump("nsDOMIdentity: raiseProvisioningFailure '" + aReason + "'\n");
     cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
       reason: aReason,
     });
   },
@@ -122,7 +119,6 @@ nsDOMIdentity.prototype = {
     this._beginAuthenticationCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", {
       oid: this._id,
-      from: this._window.location.href,
       origin: this._origin,
     });
   },
@@ -130,14 +126,14 @@ nsDOMIdentity.prototype = {
   completeAuthentication: function() {
     cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication", {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
     });
   },
 
   raiseAuthenticationFailure: function(aReason) {
     cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", {
       oid: this._id,
-      from: this._window.location.href,
+      origin: this._origin,
       reason: aReason,
     });
   },
