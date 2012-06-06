@@ -66,10 +66,12 @@ let SignInToWebsiteUX = {
         this._closeAuthenticationUI(aData);
         break;
       case "identity-login-state-changed":
-        if (aData) // if there is en email address
+        if (aData) { // if there is en email address
+          this._removeRequestUI(aSubject);
           this._showLoggedInUI(aData, aSubject);
-        else
+        } else {
           this._removeLoggedInUI(aSubject);
+        }
         break;
     }
   },
@@ -231,5 +233,19 @@ let SignInToWebsiteUX = {
     if (loggedInNot)
       win.PopupNotifications.remove(loggedInNot);
   },
+
+  /**
+   * Remove the doorhanger indicating the currently logged-in user.
+   */
+  _removeRequestUI: function _removeRequestUI(aContext) {
+    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
+    log("_removeRequestUI for " + windowID);
+    let [win, browser, browserEl] = this._getUIForID(windowID);
+
+    let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
+    if (requestNot)
+      win.PopupNotifications.remove(requestNot);
+  },
+
 };
 
