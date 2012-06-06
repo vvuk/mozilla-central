@@ -275,12 +275,12 @@ nsDOMIdentity.prototype = {
   _callBeginProvisioningCallback: function(message) {
     let identity = message.identity;
     let certValidityDuration = message.certDuration;
-    this._beginProvisioningCallback(identity, certValidityDuration);
+    this._beginProvisioningCallback.onBeginProvisioning(identity, certValidityDuration);
   },
 
   _callBeginAuthenticationCallback: function(message) {
     let identity = message.identity;
-    this._beginAuthenticationCallback(identity);
+    this._beginAuthenticationCallback.onBeginAuthentication(identity);
   },
 
   _getRandomId: function() {
