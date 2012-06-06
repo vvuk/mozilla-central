@@ -148,12 +148,12 @@ nsDOMIdentity.prototype = {
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
-    log("receiveMessage: " + aMessage.name + " : " + msg.oid);
     // Is this message intended for this window?
     if (msg.oid != this._id) {
-      log("ignoring");
+      //log("ignoring");
       return;
     }
+    log("receiveMessage: " + aMessage.name + " : " + msg.oid);
 
     switch (aMessage.name) {
       case "Identity:RP:Watch:OnLogin":
