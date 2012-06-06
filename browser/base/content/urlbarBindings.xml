@@ -1298,12 +1298,6 @@
         }.bind(this);
         let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "newemail")
         newEmail.addEventListener("click", addEmailClick);
-
-        let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "signout")
-        newEmail.addEventListener("click", function signout(evt){
-          // TODO
-          this.SignInToWebsiteUX.signOut(this.notification);
-        }.bind(this));
       ]]></constructor>
 
       <field name="SignInToWebsiteUX" readonly="true">
