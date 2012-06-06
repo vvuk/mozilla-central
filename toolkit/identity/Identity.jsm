@@ -608,7 +608,7 @@ log("request:", aCallerId, aOptions);
       return null;
     }
 
-    if (! flow.didBeginProvisioning) {
+    if (! provFlow.didBeginProvisioning) {
       return provFlow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
