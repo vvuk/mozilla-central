@@ -222,10 +222,8 @@ function setup_test_identity(identity, cert, cb)
   let store = get_idstore();
   
   function keyGenerated(err, key) {
-    log("getting keypair for " + key.userID);
     let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
 
-    log("adding identity " + identity);
     store.addIdentity(identity, kpo, cert);
 
     cb();
@@ -408,7 +406,6 @@ function test_request()
   
   // set up a watch, to be consistent
   var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
-    log("test_request " + action + " " + params);
     // this isn't going to be called for now
     // XXX but it is called - is that bad?
   });
@@ -417,11 +414,11 @@ function test_request()
 
   // be ready for the UX identity-request notification
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
-    log("test_request identity-request " + aSubject);
     do_check_neq(aSubject, null);
+
     var subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
     do_check_eq(subj.getProperty('requiredEmail'), TEST_USER);
-    do_check_eq(subj.getProperty('requestID'), mockedDoc.id);
+    do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
     
     do_test_finished();
     run_next_test();
@@ -455,8 +452,8 @@ function test_select_identity()
     var mockedDoc = mock_doc(null, TEST_URL, call_sequentially(
       function(action, params) {
         // ready emitted from first watch() call
-	      do_check_eq(action, 'ready');
-	      do_check_eq(params, null);
+	do_check_eq(action, 'ready');
+	do_check_eq(params, null);
       },
       // first the login call
       function(action, params) {
@@ -487,7 +484,7 @@ function test_select_identity()
       // do the select identity
       // we expect this to succeed right away because of test_identity
       // so we don't mock network requests or otherwise
-      IDService.selectIdentity(aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty('requestID'), id);
+      IDService.selectIdentity(aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty('rpId'), id);
     });
 
     // do the request
@@ -511,6 +508,12 @@ function test_logout()
 
     var doLogout;
     var mockedDoc = mock_doc(id, TEST_URL, call_sequentially(
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, undefined);
+
+        do_timeout(100, doLogout);
+      },
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
@@ -805,7 +808,6 @@ function test_jwcrypto()
   do_test_pending();
 
   jwcrypto.generateKeypair({algorithm: "DS", keysize: 128}, function(err, kp) {
-    log("KP generated", kp);
     do_check_eq(err, null);
     
 
