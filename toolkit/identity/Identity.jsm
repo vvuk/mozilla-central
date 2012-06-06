@@ -372,9 +372,7 @@ log("request:", aCallerId, aOptions);
               // If we have already done the authentication step, and we 
               // still can't generate an assertion, then we give up.
               if (self._provisionFlows[aProvId].didAuthentication) {
-                // The sandbox will have been deleted by 
-                // raiseProvisioningFailure.  And since this is a hard
-                // fail, we can't evolve into an authentication flow.
+                // Since this is a hard fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
                 log("Hard fail");
                 self._cleanUpProvisionFlow(aProvId);
@@ -475,9 +473,9 @@ log("request:", aCallerId, aOptions);
         // set a timeout to clear out this provisioning workflow if it doesn't
         // complete in X time.
       
-      }.bind(this));      
+      }.bind(this));
     } else {
-      log("no need to get a sandbox; already have this:", this._provisionFlows[aProvId]);
+      log("no need to get a sandbox; already have this:", this._provisionFlows[aProvId], this._provisionFlows[aProvId].provisioningSandbox.id);
       this._provisionFlows[aProvId].provisioningSandbox.load();
     }
   },
@@ -577,12 +575,7 @@ log("request:", aCallerId, aOptions);
     let flow = this._provisionFlows[aProvId];
     let cb = flow.callback;
 
-    // Always delete the sandbox, if there is one.  We are done 
-    // with it whether this is a hard or soft provisioning fail.
-    if (flow.sandbox) {
-      flow.sandbox.free();
-      delete flow['sandbox'];
-    }
+    // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
     // This may be either a "soft" or "hard" fail.  If it's a 
     // soft fail, we'll flow through setAuthenticationFlow, where

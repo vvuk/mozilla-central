@@ -115,8 +115,6 @@ nsDOMIdentity.prototype = {
       from: this._window.location.href,
       reason: aReason,
     });
-    // TODO: close provisioning sandbox/window => let UI handle this
-    this._window.close();
   },
 
   // IDP Authentication

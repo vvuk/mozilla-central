@@ -58,19 +58,15 @@ Sandbox.prototype = {
    * Load or reload the url
    */
   load: function load() {
-    this._frame.webNavigation.loadURI(
-      this._url,
-      this._frame.docShell.LOAD_FLAGS_NONE,
-      null, // referrer
-      null, // postData
-      null  // headers
-    );
+    log("load: ", this.id, this._url);
+    this._createSandbox(function(aSandbox){ log("load sandbox id: ", aSandbox.id); });
   },
 
   /**
    * Frees the sandbox and releases the iframe created to host it.
    */
   free: function free() {
+    log("free: ", this.id);
     delete this._sandbox;
     this._container.removeChild(this._frame);
     this._frame = null;
@@ -120,7 +116,7 @@ Sandbox.prototype = {
     this._container.addEventListener(
       "DOMWindowCreated",
       function _makeSandboxContentLoaded(event) {
-        dump("_makeSandboxContentLoaded  " +event.target+ "\n");
+        dump("_makeSandboxContentLoaded  " +event.target.location.toString()+ "\n");
         if (event.target.location.toString() != self._url) {
           return;
         }
@@ -129,7 +125,7 @@ Sandbox.prototype = {
         );
 /* TODO
         let workerWindow = self._frame.contentWindow;
-        self.sandbox = new Cu.Sandbox(workerWindow, {
+        self._sandbox = new Cu.Sandbox(workerWindow, {
           wantXrays:        false,
           sandboxPrototype: workerWindow
         });
@@ -140,6 +136,13 @@ Sandbox.prototype = {
     );
 
       // Load the iframe.
-    this.load();
+    this._frame.webNavigation.loadURI(
+      this._url,
+      this._frame.docShell.LOAD_FLAGS_BYPASS_CACHE,
+      null, // referrer
+      null, // postData
+      null  // headers
+    );
+
   },
 };
