@@ -223,9 +223,10 @@ IDService.prototype = {
 
       // XXX add tests for state change
       state.isLoggedIn = true;
-      log("setting state");
       state.email = aOptions.loggedInEmail;
-      log("done setting state");      
+
+      this._notifyLoginStateChanged(aCaller.id, state.email);
+
       aCaller.doLogin(assertion);
       return aCaller.doReady();
     }.bind(this));
@@ -238,13 +239,28 @@ IDService.prototype = {
   _doLogout: function _doLogout(aCaller, aOptions) {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
-    // XXX
-    // this._notifyLoginStateChanged();
-
     // XXX add tests for state change
+
+    let email = state.email || null;
+    this._notifyLoginStateChanged(aCaller.id, email);
+
     state.isLoggedIn = false;    
     aCaller.doReady();
     return aCaller.doLogout();
+  },
+
+  /**
+   * For use with login or logout, emit 'identity-login-state-changed'
+   * 
+   * The notification will send the rp caller id in the properties,
+   * and the email of the user in the message.
+   */
+  _notifyLoginStateChanged: function _notifyLoginStateChanged(aCallerId, aIdentity) {
+    let options = Cc["@mozilla.org/hash-property-bag;1"].
+                  createInstance(Ci.nsIWritablePropertyBag);
+    options.setProperty("rpId", aCallerId);
+    Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
+
   },
 
   /**
@@ -342,7 +358,6 @@ IDService.prototype = {
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
-                  self._notifyLoginStateChanged(aRPId, aIdentity);
                   rp.doLogin(assertion);
                   return rp.doReady();
                 } else {
@@ -458,8 +473,8 @@ IDService.prototype = {
       
       }.bind(this));      
     } else {
-      log("no need to get a sandbox; already have this:", this._provisionFlows[provId]);
-      this._provisionFlows[provId].provisioningSandbox.load();
+      log("no need to get a sandbox; already have this:", this._provisionFlows[aProvId]);
+      this._provisionFlows[aProvId].provisioningSandbox.load();
     }
   },
 
@@ -501,15 +516,12 @@ IDService.prototype = {
    */
   logout: function logout(aCallerId)
   {
-    // can get audience from caller
-    // XXX so can call _doLogout
-    this._rpFlows[aCallerId].doLogout();
+    let caller = this._rpFlows[aCallerId];
+    let audience = caller.origin;
+    this._doLogout(caller, {audience: audience});
 
     // no we don't delete, the user might log back in.
     // delete this._rpFlows[aCallerId];
-
-    // XXX notify ui login-state-changed
-    this._notifyLoginStateChanged(aCallerId, null);
   },
 
   /**
@@ -560,7 +572,6 @@ IDService.prototype = {
     // look up the provisioning caller and its callback
     let flow = this._provisionFlows[aProvId];
     let cb = flow.callback;
-    log("callback is ", cb);
 
     // Always delete the sandbox, if there is one.  We are done 
     // with it whether this is a hard or soft provisioning fail.
