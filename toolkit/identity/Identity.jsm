@@ -238,6 +238,9 @@ IDService.prototype = {
   _doLogout: function _doLogout(aCaller, aOptions) {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
+    // XXX
+    // this._notifyLoginStateChanged();
+
     // XXX add tests for state change
     state.isLoggedIn = false;    
     aCaller.doReady();
@@ -300,7 +303,9 @@ IDService.prototype = {
 
     let rp = this._rpFlows[aRPId];
     let provId = rp.provId || null;
-    log("selectIdentity: aRPId =", aRPId, "aIdentity =", aIdentity, "->", rp);
+
+    log("Entering selectIdentity; rpId,provId =", aRPId, provId);
+
     if (! rp) {
       log("No caller with id", aRPId);
       return null;
@@ -311,9 +316,7 @@ IDService.prototype = {
     state.isLoggedIn = true;
     state.email = aIdentity;
 
-    log("selectIdentity with state", state);
     // go generate assertion for this identity and deliver it to this doc
-    // XXX duplicates getAssertion
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (! err) {
         // great!  I can't believe it was so easy!
@@ -328,16 +331,18 @@ IDService.prototype = {
             log("Oh noes:", err);
             return rp.doError(err);
           }
-
+          log("now provision identity with", aIdentity, idpParams, provId);
           self._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
+            log("in provisionIdentity callback with provId and aProvId", provId, aProvId);
             rp.provId = aProvId;
             self._provisionFlows[aProvId].rpId = aRPId;
-            log("provision callback", err, aIdentity, aProvId);
+
             if (! err) {
-              delete self._provisionFlows[aProvId]; // TODO: free sandbox?
+              self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
+                  self._notifyLoginStateChanged(aRPId, aIdentity);
                   rp.doLogin(assertion);
                   return rp.doReady();
                 } else {
@@ -347,18 +352,20 @@ IDService.prototype = {
             } else {
               // If we have already done the authentication step, and we 
               // still can't generate an assertion, then we give up.
-              log("si didAuth: ", self._provisionFlows[aProvId].didAuthentication);
               if (self._provisionFlows[aProvId].didAuthentication) {
                 // The sandbox will have been deleted by 
                 // raiseProvisioningFailure.  And since this is a hard
                 // fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
-                delete self._provisionFlows[aProvId]; // TODO: free sandbox?
+                log("Hard fail");
+                self._cleanUpProvisionFlow(aProvId);
                 return rp.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
               // flow.
               } else { 
+                // Note that we do not clean up the provision flow here.
+                // We are still using it.
                 return self._doAuthentication(aProvId, idpParams);
               }
             }
@@ -422,16 +429,18 @@ IDService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback)
   {
-    log('provision identity', aIdentity, aIDPParams, aCallback);
+    log('provision identity', aIdentity, aIDPParams, aProvId, aCallback);
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
+    // If aProvId is not null, then we have a provisioning flow
+    // with a sandbox already going on.  Otherwise, get a sandbox
+    // and create a provision flow.
+    if (aProvId === null) {
+      log("ok, create provisioning sandbox");
+      this._createProvisioningSandbox(url, function(aSandbox) {
+        // create a provisioning flow, using the sandbox id, and
+        // stash callback associated with this provisioning workflow.
 
-    this._createProvisioningSandbox(url, function(aSandbox) {
-      // create a provisioning flow, using the sandbox id, and
-      // stash callback associated with this provisioning workflow.
-
-      if (aProvId) {
-        this._provisionFlows[aProvId].provisioningSandbox = aSandbox;
-      } else {
+        log("in _provisionIdentity with no provId yet");
         let provId = aSandbox.id;
         this._provisionFlows[provId] = {
           identity: aIdentity,
@@ -442,13 +451,16 @@ IDService.prototype = {
             aCallback(aErr, aSandbox.id);
           },
         };
-      }
 
-      // MAYBE
-      // set a timeout to clear out this provisioning workflow if it doesn't
-      // complete in X time.
+        // MAYBE
+        // set a timeout to clear out this provisioning workflow if it doesn't
+        // complete in X time.
       
-    }.bind(this));      
+      }.bind(this));      
+    } else {
+      log("no need to get a sandbox; already have this:", this._provisionFlows[provId]);
+      this._provisionFlows[provId].provisioningSandbox.load();
+    }
   },
 
   /**
@@ -466,6 +478,7 @@ IDService.prototype = {
     let domain = aIdentity.split('@')[1];
     // XXX not until we have this mocked in the tests
     this._fetchWellKnownFile(domain, function(err, idpParams) {
+      log("fetch well known returned:", err, idpParams);
       // XXX TODO follow any authority delegations
       // if no well-known at any point in the delegation
       // fall back to browserid.org as IdP
@@ -488,10 +501,15 @@ IDService.prototype = {
    */
   logout: function logout(aCallerId)
   {
+    // can get audience from caller
+    // XXX so can call _doLogout
     this._rpFlows[aCallerId].doLogout();
 
     // no we don't delete, the user might log back in.
     // delete this._rpFlows[aCallerId];
+
+    // XXX notify ui login-state-changed
+    this._notifyLoginStateChanged(aCallerId, null);
   },
 
   /**
@@ -509,7 +527,7 @@ IDService.prototype = {
     // look up the provisioning caller and the identity we're trying to provision
     let flow = this._provisionFlows[aCaller.id];
     if (!flow) {
-      return aCaller.doError("no such provisioning flow");
+      return aCaller.doError("beginProvisioning: no flow for caller id:", aCaller.id);
     }
 
     // keep the caller object around
@@ -574,26 +592,26 @@ IDService.prototype = {
   genKeyPair: function genKeyPair(aProvId)
   {
     // look up the provisioning caller, make sure it's valid.
-    let flow = this._provisionFlows[aProvId];
-    log("**genKeyPair", flow);
+    let provFlow = this._provisionFlows[aProvId];
+    log("**genKeyPair", provFlow);
     
-    if (!flow) {
+    if (!provFlow) {
       log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
       return null;
     }
 
-    if (flow.state !== "provisioning") {
-      return flow.callback("Cannot genKeyPair before beginProvisioning");
+    if (provFlow.state !== "provisioning") {
+      return provFlow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
     // generate a keypair
-    this._generateKeyPair("DS160", INTERNAL_ORIGIN, flow.identity, function(err, key) {
+    this._generateKeyPair("DS160", INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
       if (err)
         log("error generating keypair:" + err);
       
-      flow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
-      log("about to genkeypair callback with" , flow.kp.kp.publicKey.serialize());
-      flow.caller.doGenKeyPairCallback(flow.kp.kp.publicKey.serialize());
+      provFlow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
+      //log("about to genkeypair callback with" , provFlow.kp.kp.publicKey.serialize());
+      provFlow.caller.doGenKeyPairCallback(provFlow.kp.kp.publicKey.serialize());
     }.bind(this));
 
     // we have a handle on the sandbox, we need to invoke the genKeyPair callback
@@ -619,25 +637,19 @@ IDService.prototype = {
   {
     log("registerCertificate", aCert);
     // look up provisioning caller, make sure it's valid.
-    let flow = this._provisionFlows[aProvId];
-    if (! flow && flow.caller) {
+    let provFlow = this._provisionFlows[aProvId];
+    if (! provFlow && provFlow.caller) {
       return null;
     }
-    if (! flow.kp)  {
-      return flow.callback("Cannot register a cert without generating a keypair first");
+    if (! provFlow.kp)  {
+      return provFlow.callback("Cannot register a cert without generating a keypair first");
     }
 
     // store the keypair and certificate just provided in IDStore.
-    this._store.addIdentity(flow.identity, flow.kp, aCert);
-
-    // kill the sandbox
-    delete flow.caller;
+    this._store.addIdentity(provFlow.identity, provFlow.kp, aCert);
 
     // pull out the prov caller callback
-    let callback = flow.callback;
-
-    // kill the prov caller
-    delete this._provisionFlows[aProvId];
+    let callback = provFlow.callback;
 
     // invoke callback with success.
     return callback(null);
@@ -699,7 +711,7 @@ IDService.prototype = {
 
     let authFlow = this._authenticationFlows[aCaller.id];
     if (!authFlow) {
-      return aCaller.doError("no such authentication flow");
+      return aCaller.doError("beginAuthentication: no flow for caller id", aCaller.id);
     }
 
     // stash the caller in the flow
@@ -721,7 +733,7 @@ IDService.prototype = {
    */
   completeAuthentication: function completeAuthentication(aAuthId)
   {
-    log("completeAuthentication: ", aAuthId);
+    log("completeAuthentication: aAuthId =", aAuthId);
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -749,7 +761,7 @@ IDService.prototype = {
    */
   cancelAuthentication: function cancelAuthentication(aAuthId)
   {
-    log("cancelAuthentication: ", aAuthId);
+    log("cancelAuthentication: aAuthId =", aAuthId);
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -934,7 +946,7 @@ IDService.prototype = {
     // provisioning flow it is started from.
 
     this._authenticationFlows[aAuthId] = { provId: aProvId, };
-    this._provisionFlows[aProvId].authId = aProvId;
+    this._provisionFlows[aProvId].authId = aAuthId;
     log("saf didAuth: ", this._authenticationFlows[aAuthId].didAuthentication);
   },
 
@@ -1272,6 +1284,31 @@ IDService.prototype = {
     this._authenticationFlows = {};
 
 
+  },
+
+  /**
+   * Clean up a provision flow and the authentication flow and sandbox
+   * that may be attached to it.
+   */
+  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
+    let prov = this._provisionFlows[aProvId];
+
+    // Clean up the sandbox
+    if (!! prov.provisioningSandbox) {
+      let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
+      if (!! sandbox.free) {
+        sandbox.free();
+      }
+      delete this._provisionFlows[aProvId]['provisioningSandbox'];
+    }
+
+    // Maybe there's an auth flow.  Clean that up.
+    if (!! this._authenticationFlows[prov.authId]) {
+      delete this._authenticationFlows[prov.authId];
+    }
+
+    // And remove the provision flow
+    delete this._provisionFlows[aProvId];
   }
 
 };

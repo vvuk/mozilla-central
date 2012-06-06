@@ -55,6 +55,19 @@ Sandbox.prototype = {
   },
 
   /**
+   * Load or reload the url
+   */
+  load: function load() {
+    this._frame.webNavigation.loadURI(
+      this._url,
+      this._frame.docShell.LOAD_FLAGS_NONE,
+      null, // referrer
+      null, // postData
+      null  // headers
+    );
+  },
+
+  /**
    * Frees the sandbox and releases the iframe created to host it.
    */
   free: function free() {
@@ -126,13 +139,7 @@ Sandbox.prototype = {
       true
     );
 
-    // Load the iframe.
-    this._frame.webNavigation.loadURI(
-      this._url,
-      this._frame.docShell.LOAD_FLAGS_NONE,
-      null, // referrer
-      null, // postData
-      null  // headers
-    );
+      // Load the iframe.
+    this.load();
   },
 };
