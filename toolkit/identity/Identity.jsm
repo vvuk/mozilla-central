@@ -208,12 +208,13 @@ IDService.prototype = {
   /**
    * A utility for watch() to set state and notify the dom
    * on login
+   * 
+   * Note that this calls _getAssertion
    */
   _doLogin: function _doLogin(aCaller, aOptions) 
   {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
-    log("doing _doLogin");
     this._getAssertion(aOptions, function(err, assertion) {
       if (err) {
         log("ERROR", err);
@@ -227,7 +228,6 @@ IDService.prototype = {
 
       this._notifyLoginStateChanged(aCaller.id, state.email);
 
-log("now tell caller to doLogin with", assertion);
       aCaller.doLogin(assertion);
       return aCaller.doReady();
     }.bind(this));
@@ -257,7 +257,6 @@ log("now tell caller to doLogin with", assertion);
    * and the email of the user in the message.
    */
   _notifyLoginStateChanged: function _notifyLoginStateChanged(aCallerId, aIdentity) {
-log("notify login state changed");
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
@@ -280,7 +279,6 @@ log("Notified identity-login-state-changed");
     // notify UX to display identity picker
     // pass the doc id to UX so it can pass it back to us later.
     // also pass the options tos and privacy policy, and requiredEmail
-log("request:", aCallerId, aOptions);
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
@@ -340,7 +338,8 @@ log("request:", aCallerId, aOptions);
       if (! err) {
         // great!  I can't believe it was so easy!
         self._notifyLoginStateChanged(aRPId, aIdentity);
-        return self._doLogin(aRPId, assertion);
+        rp.doLogin(assertion);
+        return rp.doReady();
         
       } else {
         log("need to get cert");
@@ -539,26 +538,26 @@ log("request:", aCallerId, aOptions);
   {
     log("**beginProvisioning", aCaller);
     // look up the provisioning caller and the identity we're trying to provision
-    let flow = this._provisionFlows[aCaller.id];
-    if (!flow) {
+    let provFlow = this._provisionFlows[aCaller.id];
+    if (!provFlow) {
       return aCaller.doError("beginProvisioning: no flow for caller id:", aCaller.id);
     }
 
     // keep the caller object around
-    flow.caller = aCaller;
+    provFlow.caller = aCaller;
     
-    let identity = flow.identity;
-    let frame = flow.provisioningFrame;
+    let identity = provFlow.identity;
+    let frame = provFlow.provisioningFrame;
 
     // as part of that caller. determine recommended length of cert.
     let duration = this.certDuration;
 
     // XXX is this where we indicate that the flow is "valid" for keygen?
-    flow.didBeginProvisioning = true;
+    provFlow.didBeginProvisioning = true;
 
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
-    return flow.caller.doBeginProvisioningCallback(identity, duration);
+    return provFlow.caller.doBeginProvisioningCallback(identity, duration);
   },
 
   /**
@@ -572,8 +571,8 @@ log("request:", aCallerId, aOptions);
     log("provisioningFailure: " + aReason);
     
     // look up the provisioning caller and its callback
-    let flow = this._provisionFlows[aProvId];
-    let cb = flow.callback;
+    let provFlow = this._provisionFlows[aProvId];
+    let cb = provFlow.callback;
 
     // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
@@ -601,7 +600,6 @@ log("request:", aCallerId, aOptions);
   {
     // look up the provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
-    log("**genKeyPair", provFlow);
     
     if (!provFlow) {
       log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
@@ -618,7 +616,6 @@ log("request:", aCallerId, aOptions);
         log("error generating keypair:" + err);
       
       provFlow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
-      //log("about to genkeypair callback with" , provFlow.kp.kp.publicKey.serialize());
       provFlow.caller.doGenKeyPairCallback(provFlow.kp.kp.publicKey.serialize());
     }.bind(this));
 
@@ -647,19 +644,21 @@ log("request:", aCallerId, aOptions);
     // look up provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
     if (! provFlow && provFlow.caller) {
+      log("oops returning null");
       return null;
     }
     if (! provFlow.kp)  {
+      log("oops no kp");
       return provFlow.callback("Cannot register a cert without generating a keypair first");
     }
 
     // store the keypair and certificate just provided in IDStore.
     this._store.addIdentity(provFlow.identity, provFlow.kp, aCert);
 
-    // pull out the prov caller callback
+    // Great success!
+    // Clean up the provision flow and callback
     let callback = provFlow.callback;
-
-    // invoke callback with success.
+    this._cleanUpProvisionFlow(aProvId);
     return callback(null);
   },
 
@@ -853,6 +852,8 @@ log("request:", aCallerId, aOptions);
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
 
+    log("_getAssertion for", email, audience);
+
     // We might not have any identity info for this email
     // XXX is this right? 
     // if not, fix generateAssertion, which assumes we can fetchIdentity
@@ -861,6 +862,8 @@ log("request:", aCallerId, aOptions);
     }
 
     let cert = this._store.fetchIdentity(email)['cert'];
+
+    log("have cert?", cert);
 
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
@@ -872,6 +875,7 @@ log("request:", aCallerId, aOptions);
       // We need to get a certificate.  Discover the identity's
       // IdP and provision
       this._discoverIdentityProvider(email, function(err, idpParams) {
+        log("_disco IDP:", email, err, idpParams);
         if (err) return aCallback(err);
 
         // Now begin provisioning from the IdP   
@@ -1297,6 +1301,7 @@ log("request:", aCallerId, aOptions);
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
     log("cleanUpProvisionFlow", aProvId);
     let prov = this._provisionFlows[aProvId];
+    log("cleanUpProvisionFlow");
 
     // Clean up the sandbox
     if (!! prov.provisioningSandbox) {
