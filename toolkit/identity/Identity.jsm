@@ -214,7 +214,7 @@ IDService.prototype = {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
     log("doing _doLogin");
-    this.getAssertion(aOptions, function(err, assertion) {
+    this._getAssertion(aOptions, function(err, assertion) {
       if (err) {
         log("ERROR", err);
         // XXX i think this is right?
@@ -227,6 +227,7 @@ IDService.prototype = {
 
       this._notifyLoginStateChanged(aCaller.id, state.email);
 
+log("now tell caller to doLogin with", assertion);
       aCaller.doLogin(assertion);
       return aCaller.doReady();
     }.bind(this));
@@ -256,11 +257,12 @@ IDService.prototype = {
    * and the email of the user in the message.
    */
   _notifyLoginStateChanged: function _notifyLoginStateChanged(aCallerId, aIdentity) {
+log("notify login state changed");
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
     Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
-
+log("Notified identity-login-state-changed");
   },
 
   /**
@@ -278,10 +280,11 @@ IDService.prototype = {
     // notify UX to display identity picker
     // pass the doc id to UX so it can pass it back to us later.
     // also pass the options tos and privacy policy, and requiredEmail
-
+log("request:", aCallerId, aOptions);
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
+
     for (let optionName of ["requiredEmail", "privacyURL", "tosURL"]) {
       options.setProperty(optionName, aOptions[optionName]);
     }
@@ -336,8 +339,8 @@ IDService.prototype = {
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (! err) {
         // great!  I can't believe it was so easy!
-        rp.doLogin(assertion);
-        return rp.doReady();
+        self._notifyLoginStateChanged(aRPId, aIdentity);
+        return self._doLogin(aRPId, assertion);
         
       } else {
         log("need to get cert");
@@ -358,6 +361,7 @@ IDService.prototype = {
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
+                  self._notifyLoginStateChanged(aRPId, aIdentity);
                   rp.doLogin(assertion);
                   return rp.doReady();
                 } else {
@@ -520,8 +524,8 @@ IDService.prototype = {
     let audience = caller.origin;
     this._doLogout(caller, {audience: audience});
 
-    // no we don't delete, the user might log back in.
-    // delete this._rpFlows[aCallerId];
+    // We don't delete this._rpFlows[aCallerId], because 
+    // the user might log back in again.
   },
 
   /**
@@ -552,7 +556,7 @@ IDService.prototype = {
     let duration = this.certDuration;
 
     // XXX is this where we indicate that the flow is "valid" for keygen?
-    flow.state = "provisioning";
+    flow.didBeginProvisioning = true;
 
     // let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
@@ -611,7 +615,7 @@ IDService.prototype = {
       return null;
     }
 
-    if (provFlow.state !== "provisioning") {
+    if (! flow.didBeginProvisioning) {
       return provFlow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
@@ -851,15 +855,11 @@ IDService.prototype = {
    *
    *        Any properties not listed above will be ignored.
    */
-  getAssertion: function getAssertion(aOptions, aCallback)
+  _getAssertion: function _getAssertion(aOptions, aCallback)
   {
-    // XXX delete this method?
-    // or use it to refactor _generateAssertion? --JP
-    // but it's not to be called by the dom, in any case - 
-    // should be a private method
-    log("@@@@@@ who is using getAssertion??");
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
+
     // We might not have any identity info for this email
     // XXX is this right? 
     // if not, fix generateAssertion, which assumes we can fetchIdentity
@@ -871,6 +871,7 @@ IDService.prototype = {
 
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
+        log("_getAssertion has cert: return", err, assertion);
         return aCallback(err, assertion);
       });
 
@@ -881,7 +882,6 @@ IDService.prototype = {
         if (err) return aCallback(err);
 
         // Now begin provisioning from the IdP   
-        // XXX TODO
         this._generateAssertion(audience, email, function(err, assertion) {
           return aCallback(err, assertion);
         }.bind(this));
@@ -1302,6 +1302,7 @@ IDService.prototype = {
    * that may be attached to it.
    */
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
+    log("cleanUpProvisionFlow", aProvId);
     let prov = this._provisionFlows[aProvId];
 
     // Clean up the sandbox
@@ -1321,6 +1322,7 @@ IDService.prototype = {
     // And remove the provision flow
     delete this._provisionFlows[aProvId];
   }
+
 
 };
 
