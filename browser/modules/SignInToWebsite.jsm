@@ -35,9 +35,6 @@ let SignInToWebsiteUX = {
     ].forEach(function(identity) {
       IdentityService._store.addIdentity(identity, null, null);
     });
-
-    IdentityService._store.setLoginState("http://people.mozilla.org", false, "foo@eyedee.me");
-
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
