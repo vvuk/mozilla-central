@@ -268,23 +268,30 @@ log("Notified identity-login-state-changed");
    * Initiate a login with user interaction as a result of a call to
    * navigator.id.request().
    *
-   * @param aCallerId
+   * @param aRPId
    *        (integer)  the id of the doc object obtained in .watch()
    *
    * @param aOptions
    *        (Object)  options including requiredEmail, privacyURL, tosURL
    */
-  request: function request(aCallerId, aOptions)
+  request: function request(aRPId, aOptions)
   {
     // notify UX to display identity picker
     // pass the doc id to UX so it can pass it back to us later.
     // also pass the options tos and privacy policy, and requiredEmail
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("rpId", aCallerId);
+    options.setProperty("rpId", aRPId);
 
-    for (let optionName of ["requiredEmail", "privacyURL", "tosURL"]) {
+    for (let optionName of ["requiredEmail"]) {
       options.setProperty(optionName, aOptions[optionName]);
+    }
+
+    // append URLs after resolving
+    let rp = this._rpFlows[aRPId];
+    let baseURI = Services.io.newURI(rp.origin, null, null);
+    for (let optionName of ["privacyURL", "tosURL"]) {
+      options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
     }
 
     Services.obs.notifyObservers(options, "identity-request", null);
