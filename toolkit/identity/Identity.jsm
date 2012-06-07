@@ -356,7 +356,9 @@ log("Notified identity-login-state-changed");
             self._provisionFlows[aProvId].rpId = aRPId;
 
             if (! err) {
-              self._cleanUpProvisionFlow(aProvId);
+              // XXX quick hack - cleanup is done by registerCertificate
+              // XXX order of callbacks and signals is a little tricky
+              //self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
@@ -460,6 +462,7 @@ log("Notified identity-login-state-changed");
 
         log("in _provisionIdentity with no provId yet");
         let provId = aSandbox.id;
+        log("my provId is", provId);
         this._provisionFlows[provId] = {
           identity: aIdentity,
           idpParams: aIDPParams,
@@ -470,6 +473,7 @@ log("Notified identity-login-state-changed");
           },
         };
 
+        log("flows are", this._provisionFlows);
         // MAYBE
         // set a timeout to clear out this provisioning workflow if it doesn't
         // complete in X time.
@@ -656,10 +660,9 @@ log("Notified identity-login-state-changed");
     this._store.addIdentity(provFlow.identity, provFlow.kp, aCert);
 
     // Great success!
-    // Clean up the provision flow and callback
-    let callback = provFlow.callback;
+    provFlow.callback(null);
+
     this._cleanUpProvisionFlow(aProvId);
-    return callback(null);
   },
 
   /**
@@ -1299,6 +1302,7 @@ log("Notified identity-login-state-changed");
    * that may be attached to it.
    */
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
+    log("Cleaning up prov flow with id", aProvId);
     let prov = this._provisionFlows[aProvId];
     let rp = this._rpFlows[prov.rpId];
 
