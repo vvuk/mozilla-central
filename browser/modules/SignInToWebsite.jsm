@@ -6,8 +6,9 @@
 
 const EXPORTED_SYMBOLS = ["SignInToWebsiteUX"];
 
-const Cu = Components.utils;
+const Cc = Components.classes;
 const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/ProfileIdentityUtils.jsm");
@@ -21,7 +22,6 @@ let SignInToWebsiteUX = {
 
   init: function SignInToWebsiteUX_init() {
     Services.obs.addObserver(this, "identity-request", false);
-    Services.obs.addObserver(this, "identity-login", false);
     Services.obs.addObserver(this, "identity-auth", false);
     Services.obs.addObserver(this, "identity-auth-complete", false);
     Services.obs.addObserver(this, "identity-login-state-changed", false);
@@ -39,7 +39,6 @@ let SignInToWebsiteUX = {
 
   uninit: function SignInToWebsiteUX_uninit() {
     Services.obs.removeObserver(this, "identity-request");
-    Services.obs.removeObserver(this, "identity-login");
     Services.obs.removeObserver(this, "identity-auth");
     Services.obs.removeObserver(this, "identity-auth-complete");
     Services.obs.removeObserver(this, "identity-login-state-changed");
@@ -50,14 +49,6 @@ let SignInToWebsiteUX = {
     switch(aTopic) {
       case "identity-request":
         this.requestLogin(aSubject);
-        break;
-      case "identity-login": // User chose a new or exiting identity after a request() call
-        let rpId = aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
-        // aData is the email address chosen (TODO: or null if cancelled?)
-        let identity = aData; // String
-
-        log("identity-login: rpId: " + rpId);
-        IdentityService.selectIdentity(rpId, identity);
         break;
       case "identity-auth":
         this._openAuthenticationUI(aData, aSubject);
@@ -79,7 +70,7 @@ let SignInToWebsiteUX = {
   /**
    * The website is requesting login so the user must choose an identity to use.
    */
-  requestLogin: function(aOptions) {
+  requestLogin: function SignInToWebsiteUX_requestLogin(aOptions) {
     let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("requestLogin for " + windowID);
     let [win, browser, browserEl] = this._getUIForID(windowID);
@@ -122,8 +113,16 @@ let SignInToWebsiteUX = {
   /**
    * Get the list of possible identities to login to the given origin.
    */
-  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
+  getIdentitiesForSite: function SignInToWebsiteUX_getIdentitiesForSite(aOrigin) {
     return IdentityService.getIdentitiesForSite(aOrigin);
+  },
+
+  /**
+   * User chose a new or existing identity from the doorhanger after a request() call
+   */
+  selectIdentity: function SignInToWebsiteUX_selectIdentity(aRpId, aIdentity) {
+    log("selectIdentity: rpId: " + aRpId + " identity: " + aIdentity);
+    IdentityService.selectIdentity(aRpId, aIdentity);
   },
 
   /**
