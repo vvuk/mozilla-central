@@ -170,12 +170,13 @@ IDService.prototype = {
     let state = this._store.getLoginState(origin) || {};
 
     // If the user is already logged in, then there are three cases
-    // to deal with
-    // 1. the email is valid and unchanged:  'ready'
-    // 2. the email is null:                 'login'; 'ready'
-    // 3. the email has changed:             'login'; 'ready'
+    // to deal with:
+    // 
+    //   1. the email is valid and unchanged:  'ready'
+    //   2. the email is null:                 'login'; 'ready'
+    //   3. the email has changed:             'login'; 'ready'
+
     if (state.isLoggedIn) {
-      // Logged in; ready
       if (!!state.email && aCaller.loggedInEmail === state.email) {
         return aCaller.doReady();
 
@@ -185,18 +186,19 @@ IDService.prototype = {
         return this._doLogin(aCaller, options);
 
       } else {
-        // A loggedInEmail different from state.email has been specified
-        // Change login identity
+        // A loggedInEmail different from state.email has been specified.
+        // Change login identity.
         let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
         return this._doLogin(aCaller, options);
       }
 
     // If the user is not logged in, there are two cases:
-    // 1. a logged in email was provided: 'ready'; 'logout'
-    // 2. not logged in, no email given:  'ready';
+    // 
+    //   1. a logged in email was provided: 'ready'; 'logout'
+    //   2. not logged in, no email given:  'ready';
+
     } else {
       if (!! aCaller.loggedInEmail) {
-        // not logged in; logout
         return this._doLogout(aCaller, {audience: origin});
 
       } else {
@@ -216,20 +218,21 @@ IDService.prototype = {
     let state = this._store.getLoginState(aOptions.audience) || {};
 
     this._getAssertion(aOptions, function(err, assertion) {
-      if (err) {
+      if (!err) {
+
+        // XXX add tests for state change
+        state.isLoggedIn = true;
+        state.email = aOptions.loggedInEmail;
+
+        this._notifyLoginStateChanged(aCaller.id, state.email);
+        
+        aCaller.doLogin(assertion);
+        return aCaller.doReady();
+      } else {
         log("ERROR", err);
         // XXX i think this is right?
         return this._doLogout(aCaller);
       } 
-
-      // XXX add tests for state change
-      state.isLoggedIn = true;
-      state.email = aOptions.loggedInEmail;
-
-      this._notifyLoginStateChanged(aCaller.id, state.email);
-
-      aCaller.doLogin(assertion);
-      return aCaller.doReady();
     }.bind(this));
   },
 
@@ -247,7 +250,7 @@ IDService.prototype = {
 
     state.isLoggedIn = false;    
     aCaller.doReady();
-    return aCaller.doLogout();
+    aCaller.doLogout();
   },
 
   /**
@@ -261,7 +264,6 @@ IDService.prototype = {
                   createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
     Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
-log("Notified identity-login-state-changed");
   },
 
   /**
@@ -276,18 +278,19 @@ log("Notified identity-login-state-changed");
    */
   request: function request(aRPId, aOptions)
   {
-    // notify UX to display identity picker
-    // pass the doc id to UX so it can pass it back to us later.
-    // also pass the options tos and privacy policy, and requiredEmail
+    // Notify UX to display identity picker.
     let options = Cc["@mozilla.org/hash-property-bag;1"].
                   createInstance(Ci.nsIWritablePropertyBag);
+
+    // Pass the doc id to UX so it can pass it back to us later.
     options.setProperty("rpId", aRPId);
 
+    // Also pass the options tos and privacy policy, and requiredEmail.
     for (let optionName of ["requiredEmail"]) {
       options.setProperty(optionName, aOptions[optionName]);
     }
 
-    // append URLs after resolving
+    // Append URLs after resolving
     let rp = this._rpFlows[aRPId];
     let baseURI = Services.io.newURI(rp.origin, null, null);
     for (let optionName of ["privacyURL", "tosURL"]) {
@@ -312,7 +315,8 @@ log("Notified identity-login-state-changed");
   },
 
   /**
-   * The UX comes back and calls selectIdentity once the user has picked an identity
+   * The UX comes back and calls selectIdentity once the user has picked 
+   * an identity.
    *
    * @param aRPId
    *        (integer) the id of the doc object obtained in .watch() and
@@ -325,50 +329,58 @@ log("Notified identity-login-state-changed");
   {
     var self = this;
 
+    // Get the RP that was stored when watch() was invoked.
     let rp = this._rpFlows[aRPId];
-    let provId = rp.provId || null;
-
-    log("Entering selectIdentity; rpId,provId =", aRPId, provId);
-
     if (! rp) {
       log("No caller with id", aRPId);
       return null;
     }
 
-    // set the state of login
+    // It's possible that we are in the process of provisioning an
+    // identity.  
+    let provId = rp.provId || null;
+
+    // Set the state of login
     let state = this._store.getLoginState(rp.origin) || {};
     state.isLoggedIn = true;
     state.email = aIdentity;
 
-    // go generate assertion for this identity and deliver it to this doc
+    // Once we have a cert, and once the user is authenticated with the
+    // IdP, we can generate an assertion and deliver it to the doc.
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
-      if (! err) {
-        // great!  I can't believe it was so easy!
+      if (! err && assertion) {
+        // Login with this assertion
         self._notifyLoginStateChanged(aRPId, aIdentity);
         rp.doLogin(assertion);
         return rp.doReady();
         
       } else {
-        log("need to get cert");
-        // figure out the IdP and try to provision an identity
+        // Need to provision an identity first.  Begin by discovering
+        // the user's IdP.
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
           if (err) {
-            log("Oh noes:", err);
             return rp.doError(err);
           }
-          log("now provision identity with", aIdentity, idpParams, provId);
+
+          // The idpParams tell us where to go to provision and authenticate
+          // the identity.
           self._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
-            log("in provisionIdentity callback with provId and aProvId", provId, aProvId);
+
+            // Provision identity may have created a new provision flow
+            // for us.  To make it easier to relate provision flows with
+            // RP callers, we cross index the two here.
             rp.provId = aProvId;
             self._provisionFlows[aProvId].rpId = aRPId;
 
+            // At this point, we already have a cert.  If the user is also
+            // already authenticated with the IdP, then we can try again
+            // to generate an assertion and login.
             if (! err) {
               // XXX quick hack - cleanup is done by registerCertificate
               // XXX order of callbacks and signals is a little tricky
               //self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
-                  // great!  I can't believe it was so easy!
                   self._notifyLoginStateChanged(aRPId, aIdentity);
                   rp.doLogin(assertion);
                   return rp.doReady();
@@ -376,21 +388,20 @@ log("Notified identity-login-state-changed");
                   return rp.doError(err);
                 }
               });
+
+            // We are not authenticated.  If we have already tried to 
+            // authenticate and failed, then this is a "hard fail" and
+            // we give up.  Otherwise we try to authenticate with the 
+            // IdP.
             } else {
-              // If we have already done the authentication step, and we 
-              // still can't generate an assertion, then we give up.
               if (self._provisionFlows[aProvId].didAuthentication) {
-                // Since this is a hard fail, we can't evolve into an authentication flow.
-                // So delete the current provision flow.
-                log("Hard fail");
                 self._cleanUpProvisionFlow(aProvId);
                 return rp.doError("Authentication fail.");
 
-              // Need to authenticate with the IdP.  Start an authentication
-              // flow.
               } else { 
-                // Note that we do not clean up the provision flow here.
-                // We are still using it.
+                // Try to authenticate with the IdP.  Note that we do 
+                // not clean up the provision flow here.  We will continue
+                // to use it.
                 return self._doAuthentication(aProvId, idpParams);
               }
             }
@@ -454,22 +465,22 @@ log("Notified identity-login-state-changed");
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback)
   {
-    log('provision identity', aIdentity, aIDPParams, aProvId, aCallback);
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
 
     // If aProvId is not null, then we already have a flow 
-    // with a sandbox already going on.  Otherwise, get a sandbox
-    // and create a provision flow.
+    // with a sandbox.  Otherwise, get a sandbox and create a 
+    // new provision flow.
 
-    if (aProvId === null) {
-      log("ok, create provisioning sandbox");
+    if (aProvId !== null) {
+      // Re-use an existing sandbox
+      this._provisionFlows[aProvId].provisioningSandbox.load();
+
+    } else {
       this._createProvisioningSandbox(url, function(aSandbox) {
         // create a provisioning flow, using the sandbox id, and
         // stash callback associated with this provisioning workflow.
 
-        log("in _provisionIdentity with no provId yet");
         let provId = aSandbox.id;
-        log("my provId is", provId);
         this._provisionFlows[provId] = {
           identity: aIdentity,
           idpParams: aIDPParams,
@@ -480,14 +491,11 @@ log("Notified identity-login-state-changed");
           },
         };
 
-        log("flows are", this._provisionFlows);
-        // MAYBE
+        // XXX MAYBE
         // set a timeout to clear out this provisioning workflow if it doesn't
         // complete in X time.
       
       }.bind(this));
-    } else {
-      this._provisionFlows[aProvId].provisioningSandbox.load();
     }
   },
 
@@ -506,14 +514,15 @@ log("Notified identity-login-state-changed");
     let domain = aIdentity.split('@')[1];
     // XXX not until we have this mocked in the tests
     this._fetchWellKnownFile(domain, function(err, idpParams) {
+      // idpParams includes the pk, authorization url, and 
+      // provisioning url.                        
+
       // XXX TODO follow any authority delegations
       // if no well-known at any point in the delegation
       // fall back to browserid.org as IdP
 
       // XXX TODO use email-specific delegation if IdP supports it
       // XXX TODO will need to update spec for that
-
-      // idpParams includes pk, authorization, provisioning.
       return aCallback(err, idpParams);
     });
   },
@@ -547,11 +556,10 @@ log("Notified identity-login-state-changed");
    */
   beginProvisioning: function beginProvisioning(aCaller)
   {
-    log("**beginProvisioning", aCaller);
-    // look up the provisioning caller and the identity we're trying to provision
+    // Expect a flow for this caller already to be underway.
     let provFlow = this._provisionFlows[aCaller.id];
     if (!provFlow) {
-      return aCaller.doError("beginProvisioning: no flow for caller id:", aCaller.id);
+      return aCaller.doError("No provision flow for caller with your id:", aCaller.id);
     }
 
     // keep the caller object around
@@ -560,30 +568,29 @@ log("Notified identity-login-state-changed");
     let identity = provFlow.identity;
     let frame = provFlow.provisioningFrame;
 
-    // as part of that caller. determine recommended length of cert.
+    // Determine recommended length of cert.
     let duration = this.certDuration;
 
-    // XXX is this where we indicate that the flow is "valid" for keygen?
+    // Make a record that we have begun provisioning.  This is required
+    // for genKeyPair.
     provFlow.didBeginProvisioning = true;
 
-    // let the sandbox know to invoke the callback to beginProvisioning with
+    // Let the sandbox know to invoke the callback to beginProvisioning with
     // the identity and cert length.
-    return provFlow.caller.doBeginProvisioningCallback(identity, duration);
+    return aCaller.doBeginProvisioningCallback(identity, duration);
   },
 
   /**
-   * the provisioning iframe sandbox has called navigator.id.raiseProvisioningFailure()
+   * the provisioning iframe sandbox has called 
+   * navigator.id.raiseProvisioningFailure()
    * 
    * @param aProvId
    *        (int)  the identifier of the provisioning flow tied to that sandbox
    */
   raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason)
   {
-    log("provisioningFailure: " + aReason);
-    
     // look up the provisioning caller and its callback
     let provFlow = this._provisionFlows[aProvId];
-    let cb = provFlow.callback;
 
     // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
@@ -594,7 +601,7 @@ log("Notified identity-login-state-changed");
     // responsible for cleaning up the now defunct provision flow.
 
     // invoke the callback with an error.
-    return cb(aReason);
+    return provFlow.callback(aReason);
   },
 
   /**
@@ -609,11 +616,11 @@ log("Notified identity-login-state-changed");
    */
   genKeyPair: function genKeyPair(aProvId)
   {
-    // look up the provisioning caller, make sure it's valid.
+    // Look up the provisioning caller and make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
     
     if (!provFlow) {
-      log("Cannot genKeyPair on non-existing flow.  Flow could have ended.");
+      log("Cannot genKeyPair on non-existing flow.");
       return null;
     }
 
@@ -621,20 +628,19 @@ log("Notified identity-login-state-changed");
       return provFlow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
-    // generate a keypair
+    // Ok generate a keypair
     this._generateKeyPair("DS160", INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
-      if (err)
+      if (err) {
         log("error generating keypair:" + err);
+        return provFlow.callback(err);
+      }
       
       provFlow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
+
+      // Serialize the publicKey of the keypair and send it back to the
+      // sandbox.
       provFlow.caller.doGenKeyPairCallback(provFlow.kp.kp.publicKey.serialize());
     }.bind(this));
-
-    // we have a handle on the sandbox, we need to invoke the genKeyPair callback
-    // on it with the serialized public key of the keypair.
-
-    // the API into the sandbox is likely in DOMIdentity.jsm,
-    // but we need some guidance here.
   },
 
   /**
@@ -1175,12 +1181,20 @@ log("Notified identity-login-state-changed");
    * Fetch the well-known file from the domain.
    *
    * @param aDomain
-   * @param aCallback
+   * 
    * @param aScheme
-   *        (string) (optional) port to use for testing (since we can't test HTTPS)
+   *        (string) (optional) Protocol to use.  Default is https.
+   *                 This is necessary because we are unable to test
+   *                 https.  
+   * 
+   * @param aCallback
+   * 
    */
-  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback, aScheme) {
-    aScheme = aScheme || "https";
+  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aScheme, aCallback) {
+    if (arguments.length <= 2) {
+      aCallback = aScheme;
+      aScheme = "https";
+    }
     let url = aScheme + '://' + aDomain + "/.well-known/browserid";
 
     /*
