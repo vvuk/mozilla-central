@@ -356,7 +356,7 @@ log("Notified identity-login-state-changed");
             self._provisionFlows[aProvId].rpId = aRPId;
 
             if (! err) {
-              self._cleanUpProvisionFlow(aRPId);
+              self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
                   // great!  I can't believe it was so easy!
@@ -374,7 +374,7 @@ log("Notified identity-login-state-changed");
                 // Since this is a hard fail, we can't evolve into an authentication flow.
                 // So delete the current provision flow.
                 log("Hard fail");
-                self._cleanUpProvisionFlow(aRPId);
+                self._cleanUpProvisionFlow(aProvId);
                 return rp.doError("Authentication fail.");
 
               // Need to authenticate with the IdP.  Start an authentication
@@ -1298,19 +1298,17 @@ log("Notified identity-login-state-changed");
    * Clean up a provision flow and the authentication flow and sandbox
    * that may be attached to it.
    */
-  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aRPId) {
-    let rp = this._rpFlows[aRPId];
-    let provId = rp.provId;
-    log("cleanUpProvisionFlow");
-    let prov = this._provisionFlows[provId];
+  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
+    let prov = this._provisionFlows[aProvId];
+    let rp = this._rpFlows[prov.rpId];
 
     // Clean up the sandbox
     if (!! prov.provisioningSandbox) {
-      let sandbox = this._provisionFlows[provId]['provisioningSandbox'];
+      let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
       if (!! sandbox.free) {
         sandbox.free();
       }
-      delete this._provisionFlows[provId]['provisioningSandbox'];
+      delete this._provisionFlows[aProvId]['provisioningSandbox'];
     }
 
     // Maybe there's an auth flow.  Clean that up.
@@ -1319,8 +1317,10 @@ log("Notified identity-login-state-changed");
     }
 
     // And remove the provision flow
-    delete this._provisionFlows[provId];
-    delete rp['provId'];
+    delete this._provisionFlows[aProvId];
+    if (rp) {
+      delete rp['provId'];
+    }
   }
 
 
