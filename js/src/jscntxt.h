@@ -97,7 +97,7 @@ GetGSNCache(JSContext *cx);
 
 struct PendingProxyOperation {
     PendingProxyOperation   *next;
-    RootedVarObject         object;
+    RootedObject            object;
     PendingProxyOperation(JSContext *cx, JSObject *object) : next(NULL), object(cx, object) {}
 };
 
@@ -906,15 +906,21 @@ namespace js {
 struct AutoResolving;
 
 static inline bool
-OptionsHasXML(uint32_t options)
+OptionsHasAllowXML(uint32_t options)
 {
-    return !!(options & JSOPTION_XML);
+    return !!(options & JSOPTION_ALLOW_XML);
+}
+
+static inline bool
+OptionsHasMoarXML(uint32_t options)
+{
+    return !!(options & JSOPTION_MOAR_XML);
 }
 
 static inline bool
 OptionsSameVersionFlags(uint32_t self, uint32_t other)
 {
-    static const uint32_t mask = JSOPTION_XML;
+    static const uint32_t mask = JSOPTION_MOAR_XML;
     return !((self & mask) ^ (other & mask));
 }
 
@@ -927,9 +933,10 @@ OptionsSameVersionFlags(uint32_t self, uint32_t other)
  * become invalid.
  */
 namespace VersionFlags {
-static const unsigned MASK         = 0x0FFF; /* see JSVersion in jspubtd.h */
-static const unsigned HAS_XML      = 0x1000; /* flag induced by XML option */
-static const unsigned FULL_MASK    = 0x3FFF;
+static const unsigned MASK      = 0x0FFF; /* see JSVersion in jspubtd.h */
+static const unsigned ALLOW_XML = 0x1000; /* flag induced by JSOPTION_ALLOW_XML */
+static const unsigned MOAR_XML  = 0x2000; /* flag induced by JSOPTION_MOAR_XML */
+static const unsigned FULL_MASK = 0x3FFF;
 } /* namespace VersionFlags */
 
 static inline JSVersion
@@ -939,16 +946,22 @@ VersionNumber(JSVersion version)
 }
 
 static inline bool
-VersionHasXML(JSVersion version)
+VersionHasAllowXML(JSVersion version)
 {
-    return !!(version & VersionFlags::HAS_XML);
+    return !!(version & VersionFlags::ALLOW_XML);
+}
+
+static inline bool
+VersionHasMoarXML(JSVersion version)
+{
+    return !!(version & VersionFlags::MOAR_XML);
 }
 
 /* @warning This is a distinct condition from having the XML flag set. */
 static inline bool
 VersionShouldParseXML(JSVersion version)
 {
-    return VersionHasXML(version) || VersionNumber(version) >= JSVERSION_1_6;
+    return VersionHasMoarXML(version) || VersionNumber(version) >= JSVERSION_1_6;
 }
 
 static inline JSVersion
@@ -972,7 +985,8 @@ VersionHasFlags(JSVersion version)
 static inline unsigned
 VersionFlagsToOptions(JSVersion version)
 {
-    unsigned copts = VersionHasXML(version) ? JSOPTION_XML : 0;
+    unsigned copts = (VersionHasAllowXML(version) ? JSOPTION_ALLOW_XML : 0) |
+                     (VersionHasMoarXML(version) ? JSOPTION_MOAR_XML : 0);
     JS_ASSERT((copts & JSCOMPILEOPTION_MASK) == copts);
     return copts;
 }
@@ -980,7 +994,13 @@ VersionFlagsToOptions(JSVersion version)
 static inline JSVersion
 OptionFlagsToVersion(unsigned options, JSVersion version)
 {
-    return VersionSetXML(version, OptionsHasXML(options));
+    uint32_t v = version;
+    v &= ~(VersionFlags::ALLOW_XML | VersionFlags::MOAR_XML);
+    if (OptionsHasAllowXML(options))
+        v |= VersionFlags::ALLOW_XML;
+    if (OptionsHasMoarXML(options))
+        v |= VersionFlags::MOAR_XML;
+    return JSVersion(v);
 }
 
 static inline bool
@@ -1222,29 +1242,12 @@ struct JSContext : js::ContextFriendFields
     JSObject *enumerators;
 
   private:
-    /*
-     * To go from a live generator frame (on the stack) to its generator object
-     * (see comment js_FloatingFrameIfGenerator), we maintain a stack of active
-     * generators, pushing and popping when entering and leaving generator
-     * frames, respectively.
-     */
-    js::Vector<JSGenerator *, 2, js::SystemAllocPolicy> genStack;
-
+    /* Innermost-executing generator or null if no generator are executing. */
+    JSGenerator *innermostGenerator_;
   public:
-    /* Return the generator object for the given generator frame. */
-    JSGenerator *generatorFor(js::StackFrame *fp) const;
-
-    /* Early OOM-check. */
-    inline bool ensureGeneratorStackSpace();
-
-    bool enterGenerator(JSGenerator *gen) {
-        return genStack.append(gen);
-    }
-
-    void leaveGenerator(JSGenerator *gen) {
-        JS_ASSERT(genStack.back() == gen);
-        genStack.popBack();
-    }
+    JSGenerator *innermostGenerator() const { return innermostGenerator_; }
+    void enterGenerator(JSGenerator *gen);
+    void leaveGenerator(JSGenerator *gen);
 
     inline void* malloc_(size_t bytes) {
         return runtime->malloc_(bytes, this);
@@ -1276,9 +1279,6 @@ struct JSContext : js::ContextFriendFields
 
     void purge();
 
-    /* For DEBUG. */
-    inline void assertValidStackDepth(unsigned depth);
-
     bool isExceptionPending() {
         return throwing;
     }
@@ -1301,12 +1301,6 @@ struct JSContext : js::ContextFriendFields
      * stack iteration; defaults to true.
      */
     bool stackIterAssertionEnabled;
-
-    /*
-     * When greather than zero, it is ok to accessed non-aliased fields of
-     * ScopeObjects because the accesses are coming from the DebugScopeProxy.
-     */
-    unsigned okToAccessUnaliasedBindings;
 #endif
 
     /*
@@ -1342,23 +1336,6 @@ struct JSContext : js::ContextFriendFields
 }; /* struct JSContext */
 
 namespace js {
-
-class AutoAllowUnaliasedVarAccess
-{
-    JSContext *cx;
-  public:
-    AutoAllowUnaliasedVarAccess(JSContext *cx) : cx(cx) {
-#ifdef DEBUG
-        cx->okToAccessUnaliasedBindings++;
-#endif
-    }
-    ~AutoAllowUnaliasedVarAccess() {
-#ifdef DEBUG
-        JS_ASSERT(cx->okToAccessUnaliasedBindings);
-        cx->okToAccessUnaliasedBindings--;
-#endif
-    }
-};
 
 struct AutoResolving {
   public:

@@ -7,8 +7,8 @@
 #ifndef mozilla_a11y_HTMLListAccessible_h__
 #define mozilla_a11y_HTMLListAccessible_h__
 
-#include "nsHyperTextAccessibleWrap.h"
-#include "nsBaseWidgetAccessible.h"
+#include "BaseAccessibles.h"
+#include "HyperTextAccessibleWrap.h"
 
 namespace mozilla {
 namespace a11y {
@@ -18,17 +18,17 @@ class HTMLListBulletAccessible;
 /**
  * Used for HTML list (like HTML ul).
  */
-class HTMLListAccessible : public nsHyperTextAccessibleWrap
+class HTMLListAccessible : public HyperTextAccessibleWrap
 {
 public:
-  HTMLListAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsHyperTextAccessibleWrap(aContent, aDoc) { }
+  HTMLListAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+    HyperTextAccessibleWrap(aContent, aDoc) { }
   virtual ~HTMLListAccessible() { }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsAccessible
+  // Accessible
   virtual a11y::role NativeRole();
   virtual PRUint64 NativeState();
 };
@@ -37,10 +37,10 @@ public:
 /**
  * Used for HTML list item (e.g. HTML li).
  */
-class HTMLLIAccessible : public nsHyperTextAccessibleWrap
+class HTMLLIAccessible : public HyperTextAccessibleWrap
 {
 public:
-  HTMLLIAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  HTMLLIAccessible(nsIContent* aContent, DocAccessible* aDoc);
   virtual ~HTMLLIAccessible() { }
 
   // nsISupports
@@ -53,7 +53,7 @@ public:
   NS_IMETHOD GetBounds(PRInt32* aX, PRInt32* aY,
                        PRInt32* aWidth, PRInt32* aHeight);
 
-  // nsAccessible
+  // Accessible
   virtual a11y::role NativeRole();
   virtual PRUint64 NativeState();
 
@@ -61,7 +61,7 @@ public:
   void UpdateBullet(bool aHasBullet);
 
 protected:
-  // nsAccessible
+  // Accessible
   virtual void CacheChildren();
 
 private:
@@ -72,18 +72,18 @@ private:
 /**
  * Used for bullet of HTML list item element (for example, HTML li).
  */
-class HTMLListBulletAccessible : public nsLeafAccessible
+class HTMLListBulletAccessible : public LeafAccessible
 {
 public:
-  HTMLListBulletAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsLeafAccessible(aContent, aDoc) { }
+  HTMLListBulletAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+    LeafAccessible(aContent, aDoc) { }
   virtual ~HTMLListBulletAccessible() { }
 
   // nsAccessNode
   virtual nsIFrame* GetFrame() const;
   virtual bool IsPrimaryForNode() const;
 
-  // nsAccessible
+  // Accessible
   virtual ENameValueFlag Name(nsString& aName);
   virtual a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -103,7 +103,7 @@ public:
 
 
 inline mozilla::a11y::HTMLLIAccessible*
-nsAccessible::AsHTMLListItem()
+Accessible::AsHTMLListItem()
 {
   return mFlags & eHTMLListItemAccessible ?
     static_cast<mozilla::a11y::HTMLLIAccessible*>(this) : nsnull;

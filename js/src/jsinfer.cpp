@@ -138,10 +138,17 @@ static bool InferSpewActive(SpewChannel channel)
 static bool InferSpewColorable()
 {
     /* Only spew colors on xterm-color to not screw up emacs. */
-    const char *env = getenv("TERM");
-    if (!env)
-        return false;
-    return strcmp(env, "xterm-color") == 0;
+    static bool colorable = false;
+    static bool checked = false;
+    if (!checked) {
+        checked = true;
+        const char *env = getenv("TERM");
+        if (!env)
+            return false;
+        if (strcmp(env, "xterm-color") == 0 || strcmp(env, "xterm-256color") == 0)
+            colorable = true;
+    }
+    return colorable;
 }
 
 const char *
@@ -1677,7 +1684,7 @@ TypeSet::isOwnProperty(JSContext *cx, TypeObject *object, bool configurable)
      */
     if (object->flags & OBJECT_FLAG_NEW_SCRIPT_REGENERATE) {
         if (object->newScript) {
-            CheckNewScriptProperties(cx, RootedVarTypeObject(cx, object),
+            CheckNewScriptProperties(cx, RootedTypeObject(cx, object),
                                      object->newScript->fun);
         } else {
             JS_ASSERT(object->flags & OBJECT_FLAG_NEW_SCRIPT_CLEARED);
@@ -1877,9 +1884,9 @@ TypeCompartment::init(JSContext *cx)
 
 TypeObject *
 TypeCompartment::newTypeObject(JSContext *cx, JSScript *script,
-                               JSProtoKey key, JSObject *proto, bool unknown)
+                               JSProtoKey key, JSObject *proto_, bool unknown)
 {
-    RootObject root(cx, &proto);
+    RootedObject proto(cx, proto_);
 
     TypeObject *object = gc::NewGCThing<TypeObject>(cx, gc::FINALIZE_TYPE_OBJECT, sizeof(TypeObject));
     if (!object)
@@ -2130,8 +2137,7 @@ TypeCompartment::nukeTypes(FreeOp *fop)
 
     for (gc::CellIter i(compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        if (script->hasJITCode())
-            mjit::ReleaseScriptCode(fop, script);
+        mjit::ReleaseScriptCode(fop, script);
     }
 #endif /* JS_METHODJIT */
 
@@ -3389,6 +3395,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_RSH:
       case JSOP_LSH:
       case JSOP_URSH:
+      case JSOP_ACTUALSFILLED:
         pushed[0].addType(cx, Type::Int32Type());
         break;
       case JSOP_FALSE:
@@ -3641,6 +3648,21 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         else
             pushed[0].addType(cx, Type::MagicArgType());
         break;
+
+      case JSOP_REST: {
+        TypeSet *types = script->analysis()->bytecodeTypes(pc);
+        types->addSubset(cx, &pushed[0]);
+        if (script->hasGlobal()) {
+            TypeObject *rest = TypeScript::InitObject(cx, script, pc, JSProto_Array);
+            if (!rest)
+                return false;
+            types->addType(cx, Type::ObjectType(rest));
+        } else {
+            types->addType(cx, Type::UnknownType());
+        }
+        break;
+      }
+
 
       case JSOP_SETPROP: {
         jsid id = GetAtomId(cx, script, pc, 0);
@@ -4243,6 +4265,11 @@ public:
 };
 
 static bool
+AnalyzePoppedThis(JSContext *cx, Vector<SSAUseChain *> *pendingPoppedThis,
+                  TypeObject *type, JSFunction *fun, JSObject **pbaseobj,
+                  Vector<TypeNewScript::Initializer> *initializerList);
+
+static bool
 AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSObject **pbaseobj,
                            Vector<TypeNewScript::Initializer> *initializerList)
 {
@@ -4280,14 +4307,23 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
 
     /*
      * Offset of the last bytecode which popped 'this' and which we have
-     * processed. For simplicity, we scan for places where 'this' is pushed
-     * and immediately analyze the place where that pushed value is popped.
-     * This runs the risk of doing things out of order, if the script looks
-     * something like 'this.f  = (this.g = ...)', so we watch and bail out if
-     * a 'this' is pushed before the previous 'this' value was popped.
+     * processed. To support compound inline assignments to properties like
+     * 'this.f = (this.g = ...)'  where multiple 'this' values are pushed
+     * and popped en masse, we keep a stack of 'this' values that have yet to
+     * be processed. If a 'this' is pushed before the previous 'this' value
+     * was popped, we defer processing it until we see a 'this' that is popped
+     * after the previous 'this' was popped, i.e. the end of the compound
+     * inline assignment, or we encounter a return from the script.
+     */
+    Vector<SSAUseChain *> pendingPoppedThis(cx);
+
+    /*
+     * lastThisPopped is the largest use offset of a 'this' value we've
+     * processed so far.
      */
     uint32_t lastThisPopped = 0;
 
+    bool entirelyAnalyzed = true;
     unsigned nextOffset = 0;
     while (nextOffset < script->length) {
         unsigned offset = nextOffset;
@@ -4308,16 +4344,20 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op == JSOP_RETURN || op == JSOP_STOP || op == JSOP_RETRVAL) {
             if (offset < lastThisPopped) {
                 *pbaseobj = NULL;
-                return false;
+                entirelyAnalyzed = false;
+                break;
             }
-            return code->unconditional;
+
+            entirelyAnalyzed = code->unconditional;
+            break;
         }
 
         /* 'this' can escape through a call to eval. */
         if (op == JSOP_EVAL) {
             if (offset < lastThisPopped)
                 *pbaseobj = NULL;
-            return false;
+            entirelyAnalyzed = false;
+            break;
         }
 
         /*
@@ -4327,32 +4367,70 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
-
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
         JS_ASSERT(uses);
         if (uses->next || !uses->popped) {
             /* 'this' value popped in more than one place. */
-            return false;
+            entirelyAnalyzed = false;
+            break;
         }
-
-        lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */
         Bytecode *poppedCode = analysis->maybeCode(uses->offset);
-        if (!poppedCode || !poppedCode->unconditional)
-            return false;
+        if (!poppedCode || !poppedCode->unconditional) {
+            entirelyAnalyzed = false;
+            break;
+        }
 
-        pc = script->code + uses->offset;
-        op = JSOp(*pc);
+        /*
+         * If offset >= the offset at the top of the pending stack, we either
+         * encountered the end of a compound inline assignment or a 'this' was
+         * immediately popped and used. In either case, handle the use.
+         */
+        if (!pendingPoppedThis.empty() &&
+            offset >= pendingPoppedThis.back()->offset) {
+            lastThisPopped = pendingPoppedThis[0]->offset;
+            if (!AnalyzePoppedThis(cx, &pendingPoppedThis, type, fun, pbaseobj,
+                                   initializerList)) {
+                return false;
+            }
+        }
 
-        RootedVarObject obj(cx, *pbaseobj);
+        if (!pendingPoppedThis.append(uses)) {
+            entirelyAnalyzed = false;
+            break;
+        }
+    }
+
+    /* Handle any remaining 'this' uses on the stack. */
+    if (!pendingPoppedThis.empty() &&
+        !AnalyzePoppedThis(cx, &pendingPoppedThis, type, fun, pbaseobj,
+                           initializerList)) {
+        return false;
+    }
+
+    /* Will have hit a STOP or similar, unless the script always throws. */
+    return entirelyAnalyzed;
+}
+
+static bool
+AnalyzePoppedThis(JSContext *cx, Vector<SSAUseChain *> *pendingPoppedThis,
+                  TypeObject *type, JSFunction *fun, JSObject **pbaseobj,
+                  Vector<TypeNewScript::Initializer> *initializerList)
+{
+    JSScript *script = fun->script();
+    ScriptAnalysis *analysis = script->analysis();
+
+    while (!pendingPoppedThis->empty()) {
+        SSAUseChain *uses = pendingPoppedThis->back();
+        pendingPoppedThis->popBack();
+
+        jsbytecode *pc = script->code + uses->offset;
+        JSOp op = JSOp(*pc);
+
+        RootedObject obj(cx, *pbaseobj);
 
         if (op == JSOP_SETPROP && uses->u.which == 1) {
             /*
@@ -4360,7 +4438,7 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
              * integer properties and bail out. We can't mark the aggregate
              * JSID_VOID type property as being in a definite slot.
              */
-            RootedVarId id(cx, NameToId(script->getName(GET_UINT32_INDEX(pc))));
+            RootedId id(cx, NameToId(script->getName(GET_UINT32_INDEX(pc))));
             if (MakeTypeId(cx, id) != id)
                 return false;
             if (id_prototype(cx) == id || id___proto__(cx) == id || id_constructor(cx) == id)
@@ -4492,7 +4570,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         }
     }
 
-    /* Will have hit a STOP or similar, unless the script always throws. */
     return true;
 }
 
@@ -4508,7 +4585,7 @@ CheckNewScriptProperties(JSContext *cx, HandleTypeObject type, JSFunction *fun)
         return;
 
     /* Strawman object to add properties to and watch for duplicates. */
-    RootedVarObject baseobj(cx);
+    RootedObject baseobj(cx);
     baseobj = NewBuiltinClassInstance(cx, &ObjectClass, gc::FINALIZE_OBJECT16);
     if (!baseobj) {
         if (type->newScript)
@@ -4807,7 +4884,10 @@ static inline bool
 IsAboutToBeFinalized(TypeObjectKey *key)
 {
     /* Mask out the low bit indicating whether this is a type or JS object. */
-    return !reinterpret_cast<const gc::Cell *>(uintptr_t(key) & ~1)->isMarked();
+    gc::Cell *tmp = reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1);
+    bool isMarked = IsCellMarked(&tmp);
+    JS_ASSERT(tmp == reinterpret_cast<gc::Cell *>(uintptr_t(key) & ~1));
+    return !isMarked;
 }
 
 void
@@ -4940,12 +5020,12 @@ TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const js::Val
 }
 
 bool
-TypeScript::SetScope(JSContext *cx, JSScript *script, JSObject *scope)
+TypeScript::SetScope(JSContext *cx, JSScript *script_, JSObject *scope_)
 {
-    JS_ASSERT(script->types && !script->types->hasScope());
+    Rooted<JSScript*> script(cx, script_);
+    RootedObject scope(cx, scope_);
 
-    Root<JSScript*> scriptRoot(cx, &script);
-    RootObject scopeRoot(cx, &scope);
+    JS_ASSERT(script->types && !script->types->hasScope());
 
     JSFunction *fun = script->function();
     bool nullClosure = fun && fun->isNullClosure();
@@ -5167,8 +5247,8 @@ NestingPrologue(JSContext *cx, StackFrame *fp)
         }
 
         nesting->activeCall = &fp->callObj();
-        nesting->argArray = fp->formalArgs();
-        nesting->varArray = fp->slots();
+        nesting->argArray = Valueify(nesting->activeCall->argArray());
+        nesting->varArray = Valueify(nesting->activeCall->varArray());
     }
 
     /* Maintain stack frame count for the function. */
@@ -5336,7 +5416,7 @@ JSScript::makeAnalysis(JSContext *cx)
     if (!types->analysis)
         return false;
 
-    RootedVar<JSScript*> self(cx, this);
+    Rooted<JSScript*> self(cx, this);
 
     types->analysis->analyzeBytecode(cx);
 
@@ -5620,14 +5700,14 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun)
         return type;
     }
 
-    RootedVarObject self(cx, this);
+    RootedObject self(cx, this);
 
     if (!setDelegate(cx))
         return NULL;
 
     bool markUnknown = self->lastProperty()->hasObjectFlag(BaseShape::NEW_TYPE_UNKNOWN);
 
-    RootedVarTypeObject type(cx);
+    RootedTypeObject type(cx);
     type = cx->compartment->types.newTypeObject(cx, NULL, JSProto_Object, self, markUnknown);
     if (!type)
         return NULL;
@@ -5910,17 +5990,18 @@ TypeCompartment::sweep(FreeOp *fop)
     if (objectTypeTable) {
         for (ObjectTypeTable::Enum e(*objectTypeTable); !e.empty(); e.popFront()) {
             const ObjectTableKey &key = e.front().key;
-            const ObjectTableEntry &entry = e.front().value;
+            ObjectTableEntry &entry = e.front().value;
             JS_ASSERT(entry.object->proto == key.proto);
 
             bool remove = false;
-            if (!entry.object->isMarked())
+            if (!IsTypeObjectMarked(entry.object.unsafeGet()))
                 remove = true;
             for (unsigned i = 0; !remove && i < key.nslots; i++) {
                 if (JSID_IS_STRING(key.ids[i])) {
                     JSString *str = JSID_TO_STRING(key.ids[i]);
-                    if (!str->isMarked())
+                    if (!IsStringMarked(&str))
                         remove = true;
+                    JS_ASSERT(AtomToId((JSAtom *)str) == key.ids[i]);
                 }
                 JS_ASSERT(!entry.types[i].isSingleObject());
                 if (entry.types[i].isTypeObject() && !entry.types[i].typeObject()->isMarked())
@@ -5937,11 +6018,13 @@ TypeCompartment::sweep(FreeOp *fop)
 
     if (allocationSiteTable) {
         for (AllocationSiteTable::Enum e(*allocationSiteTable); !e.empty(); e.popFront()) {
-            const AllocationSiteKey &key = e.front().key;
-            TypeObject *object = e.front().value;
-
-            if (IsAboutToBeFinalized(key.script) || !object->isMarked())
+            AllocationSiteKey key = e.front().key;
+            bool keyMarked = IsScriptMarked(&key.script);
+            bool valMarked = IsTypeObjectMarked(e.front().value.unsafeGet());
+            if (!keyMarked || !valMarked)
                 e.removeFront();
+            else
+                e.rekeyFront(key);
         }
     }
 
@@ -6002,7 +6085,8 @@ TypeScript::Sweep(FreeOp *fop, JSScript *script)
         Type type = result->type;
 
         if (!type.isUnknown() && !type.isAnyObject() && type.isObject() &&
-            IsAboutToBeFinalized(type.objectKey())) {
+            IsAboutToBeFinalized(type.objectKey()))
+        {
             *presult = result->next;
             fop->delete_(result);
         } else {

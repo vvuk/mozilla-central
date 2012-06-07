@@ -142,21 +142,23 @@ class HashTable : private AllocPolicy
       protected:
         friend class HashTable;
 
-        Range(Entry *c, Entry *e) : cur(c), end(e) {
+        Range(Entry *c, Entry *e) : cur(c), end(e), validEntry(true) {
             while (cur < end && !cur->isLive())
                 ++cur;
         }
 
         Entry *cur, *end;
+        DebugOnly<bool> validEntry;
 
       public:
-        Range() : cur(NULL), end(NULL) {}
+        Range() : cur(NULL), end(NULL), validEntry(false) {}
 
         bool empty() const {
             return cur == end;
         }
 
         T &front() const {
+            JS_ASSERT(validEntry);
             JS_ASSERT(!empty());
             return cur->t;
         }
@@ -165,6 +167,7 @@ class HashTable : private AllocPolicy
             JS_ASSERT(!empty());
             while (++cur < end && !cur->isLive())
                 continue;
+            validEntry = true;
         }
     };
 
@@ -205,6 +208,7 @@ class HashTable : private AllocPolicy
         void removeFront() {
             table.remove(*this->cur);
             removed = true;
+            this->validEntry = false;
         }
 
         /*
@@ -221,6 +225,7 @@ class HashTable : private AllocPolicy
             table.remove(*this->cur);
             table.add(l, e);
             added = true;
+            this->validEntry = false;
         }
 
         void rekeyFront(const Key &k) {
@@ -503,8 +508,9 @@ class HashTable : private AllocPolicy
      */
     Entry &findFreeEntry(HashNumber keyHash)
     {
-        METER(stats.searches++);
         JS_ASSERT(!(keyHash & sCollisionBit));
+        JS_ASSERT(table);
+        METER(stats.searches++);
 
         /* N.B. the |keyHash| has already been distributed. */
 
@@ -572,6 +578,8 @@ class HashTable : private AllocPolicy
 
     void add(const Lookup &l, const Entry &e)
     {
+        JS_ASSERT(table);
+
         HashNumber keyHash = prepareHash(l);
         Entry &entry = lookup(l, keyHash, sCollisionBit);
 
@@ -607,7 +615,9 @@ class HashTable : private AllocPolicy
 
     void remove(Entry &e)
     {
+        JS_ASSERT(table);
         METER(stats.removes++);
+
         if (e.hasCollision()) {
             e.setRemoved();
             removedCount++;
@@ -658,22 +668,27 @@ class HashTable : private AllocPolicy
     }
 
     Range all() const {
+        JS_ASSERT(table);
         return Range(table, table + capacity());
     }
 
     bool empty() const {
+        JS_ASSERT(table);
         return !entryCount;
     }
 
     uint32_t count() const {
+        JS_ASSERT(table);
         return entryCount;
     }
 
     uint32_t capacity() const {
+        JS_ASSERT(table);
         return JS_BIT(sHashBits - hashShift);
     }
 
     uint32_t generation() const {
+        JS_ASSERT(table);
         return gen;
     }
 
@@ -761,6 +776,7 @@ class HashTable : private AllocPolicy
 
     void remove(Ptr p)
     {
+        JS_ASSERT(table);
         ReentrancyGuard g(*this);
         JS_ASSERT(p.found());
         remove(*p.entry);

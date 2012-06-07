@@ -114,12 +114,12 @@ class Bindings
      * These functions map between argument/var indices [0, nargs/nvars) and
      * and Bindings indices [0, nargs + nvars).
      */
-    bool bindingIsArg(uint16_t i) const { return i < nargs; }
-    bool bindingIsLocal(uint16_t i) const { return i >= nargs; }
-    uint16_t argToBinding(uint16_t i) { JS_ASSERT(i < nargs); return i; }
-    uint16_t localToBinding(uint16_t i) { return i + nargs; }
-    uint16_t bindingToArg(uint16_t i) { JS_ASSERT(bindingIsArg(i)); return i; }
-    uint16_t bindingToLocal(uint16_t i) { JS_ASSERT(bindingIsLocal(i)); return i - nargs; }
+    bool slotIsArg(uint16_t i) const { return i < nargs; }
+    bool slotIsLocal(uint16_t i) const { return i >= nargs; }
+    uint16_t argToSlot(uint16_t i) { JS_ASSERT(i < nargs); return i; }
+    uint16_t localToSlot(uint16_t i) { return i + nargs; }
+    uint16_t slotToArg(uint16_t i) { JS_ASSERT(slotIsArg(i)); return i; }
+    uint16_t slotToLocal(uint16_t i) { JS_ASSERT(slotIsLocal(i)); return i - nargs; }
 
     /* Ensure these bindings have a shape lineage. */
     inline bool ensureShape(JSContext *cx);
@@ -175,7 +175,7 @@ class Bindings
     }
     bool addDestructuring(JSContext *cx, uint16_t *slotp) {
         *slotp = nargs;
-        return add(cx, RootedVarAtom(cx), ARGUMENT);
+        return add(cx, RootedAtom(cx), ARGUMENT);
     }
 
     void noteDup() { hasDup_ = true; }
@@ -226,12 +226,23 @@ class Bindings
 
     void trace(JSTracer *trc);
 
-    /* Rooter for stack allocated Bindings. */
-    struct StackRoot {
-        RootShape root;
-        StackRoot(JSContext *cx, Bindings *bindings)
-            : root(cx, (Shape **) &bindings->lastBinding)
-        {}
+    class AutoRooter : private AutoGCRooter
+    {
+      public:
+        explicit AutoRooter(JSContext *cx, Bindings *bindings_
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
+          : AutoGCRooter(cx, BINDINGS), bindings(bindings_), skip(cx, bindings_)
+        {
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
+        }
+
+        friend void AutoGCRooter::trace(JSTracer *trc);
+        void trace(JSTracer *trc);
+
+      private:
+        Bindings *bindings;
+        SkipRoot skip;
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
 };
 
@@ -319,8 +330,6 @@ typedef HashMap<JSScript *,
 
 } /* namespace js */
 
-static const uint32_t JS_SCRIPT_COOKIE = 0xc00cee;
-
 struct JSScript : public js::gc::Cell
 {
   private:
@@ -370,6 +379,26 @@ struct JSScript : public js::gc::Cell
 
         static void staticAsserts();
     };
+
+    // All the possible JITScripts that can simultaneously exist for a script.
+    struct JITScriptSet
+    {
+        JITScriptHandle jitHandleNormal;          // JIT info for normal scripts
+        JITScriptHandle jitHandleNormalBarriered; // barriered JIT info for normal scripts
+        JITScriptHandle jitHandleCtor;            // JIT info for constructors
+        JITScriptHandle jitHandleCtorBarriered;   // barriered JIT info for constructors
+
+        static size_t jitHandleOffset(bool constructing, bool barriers) {
+            return constructing
+                ? (barriers
+                   ? offsetof(JITScriptSet, jitHandleCtorBarriered)
+                   : offsetof(JITScriptSet, jitHandleCtor))
+                : (barriers
+                   ? offsetof(JITScriptSet, jitHandleNormalBarriered)
+                   : offsetof(JITScriptSet, jitHandleNormal));
+        }
+    };
+
 #endif  // JS_METHODJIT
 
     //
@@ -412,15 +441,11 @@ struct JSScript : public js::gc::Cell
     /* Persistent type information retained across GCs. */
     js::types::TypeScript *types;
 
-  public:
+  private:
 #ifdef JS_METHODJIT
-    JITScriptHandle jitHandleNormal;          // JIT info for normal scripts
-    JITScriptHandle jitHandleNormalBarriered; // barriered JIT info for normal scripts
-    JITScriptHandle jitHandleCtor;            // JIT info for constructors
-    JITScriptHandle jitHandleCtorBarriered;   // barriered JIT info for constructors
+    JITScriptSet *jitInfo;
 #endif
 
-  private:
     js::HeapPtrFunction function_;
 
     // 32-bit fields.
@@ -440,7 +465,7 @@ struct JSScript : public js::gc::Cell
                                  * or has had backedges taken. Reset if the
                                  * script's JIT code is forcibly discarded. */
 
-#if !defined(JS_METHODJIT) && JS_BITS_PER_WORD == 32
+#if JS_BITS_PER_WORD == 32
     uint32_t        pad32;
 #endif
 
@@ -468,7 +493,7 @@ struct JSScript : public js::gc::Cell
     uint16_t        staticLevel;/* static level for display maintenance */
 
   private:
-    uint16_t        argsSlot_;  /* slot holding 'arguments' (if argumentsHasLocalBindings) */
+    uint16_t        argsLocal_; /* local holding 'arguments' (if argumentsHasLocalBindings) */
 
     // 8-bit fields.
 
@@ -563,8 +588,8 @@ struct JSScript : public js::gc::Cell
     /* See ContextFlags::funArgumentsHasLocalBinding comment. */
     bool argumentsHasLocalBinding() const { return argsHasLocalBinding_; }
     jsbytecode *argumentsBytecode() const { JS_ASSERT(code[0] == JSOP_ARGUMENTS); return code; }
-    unsigned argumentsLocalSlot() const { JS_ASSERT(argsHasLocalBinding_); return argsSlot_; }
-    void setArgumentsHasLocalBinding(uint16_t slot);
+    unsigned argumentsLocal() const { JS_ASSERT(argsHasLocalBinding_); return argsLocal_; }
+    void setArgumentsHasLocalBinding(uint16_t local);
 
     /*
      * As an optimization, even when argsHasLocalBinding, the function prologue
@@ -657,27 +682,26 @@ struct JSScript : public js::gc::Cell
     // accesses jitHandleNormal/jitHandleCtor, via jitHandleOffset().
     friend class js::mjit::CallCompiler;
 
-    static size_t jitHandleOffset(bool constructing, bool barriers) {
-        return constructing
-            ? (barriers ? offsetof(JSScript, jitHandleCtorBarriered) : offsetof(JSScript, jitHandleCtor))
-            : (barriers ? offsetof(JSScript, jitHandleNormalBarriered) : offsetof(JSScript, jitHandleNormal));
+  public:
+    bool hasJITInfo() {
+        return jitInfo != NULL;
     }
 
-  public:
-    bool hasJITCode() {
-        return jitHandleNormal.isValid()
-            || jitHandleNormalBarriered.isValid()
-            || jitHandleCtor.isValid()
-            || jitHandleCtorBarriered.isValid();
-    }
+    static size_t offsetOfJITInfo() { return offsetof(JSScript, jitInfo); }
+
+    inline bool ensureHasJITInfo(JSContext *cx);
+    inline void destroyJITInfo(js::FreeOp *fop);
 
     JITScriptHandle *jitHandle(bool constructing, bool barriers) {
+        JS_ASSERT(jitInfo);
         return constructing
-               ? (barriers ? &jitHandleCtorBarriered : &jitHandleCtor)
-               : (barriers ? &jitHandleNormalBarriered : &jitHandleNormal);
+               ? (barriers ? &jitInfo->jitHandleCtorBarriered : &jitInfo->jitHandleCtor)
+               : (barriers ? &jitInfo->jitHandleNormalBarriered : &jitInfo->jitHandleNormal);
     }
 
     js::mjit::JITScript *getJIT(bool constructing, bool barriers) {
+        if (!jitInfo)
+            return NULL;
         JITScriptHandle *jith = jitHandle(constructing, barriers);
         return jith->isValid() ? jith->getValid() : NULL;
     }
@@ -837,12 +861,11 @@ struct JSScript : public js::gc::Cell
     }
 
 
-#ifdef DEBUG
     bool varIsAliased(unsigned varSlot);
     bool formalIsAliased(unsigned argSlot);
     bool formalLivesInArgumentsObject(unsigned argSlot);
     bool formalLivesInCallObject(unsigned argSlot);
-#endif
+
   private:
     /*
      * Recompile with or without single-stepping support, as directed
@@ -919,12 +942,6 @@ JS_STATIC_ASSERT(sizeof(JSScript::ArrayBitsT) * 8 >= JSScript::LIMIT);
 
 /* If this fails, add/remove padding within JSScript. */
 JS_STATIC_ASSERT(sizeof(JSScript) % js::gc::Cell::CellSize == 0);
-
-static JS_INLINE unsigned
-StackDepth(JSScript *script)
-{
-    return script->nslots - script->nfixed;
-}
 
 /*
  * New-script-hook calling is factored from NewScriptFromEmitter so that it

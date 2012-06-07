@@ -119,8 +119,6 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
     js_memcpy(&stackObject, &entry->templateObject, nbytes);
 
     JSObject *baseobj = (JSObject *) stackObject;
-    RootShape shapeRoot(cx, (Shape **) baseobj->addressOfShape());
-    RootTypeObject typeRoot(cx, (types::TypeObject **) baseobj->addressOfType());
 
     obj = js_NewGCObject(cx, entry->kind);
     if (obj) {
@@ -409,7 +407,7 @@ JS_ALWAYS_INLINE bool
 CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
 {
 #ifdef DEBUG
-    RootedVarObject callee(cx, &args.callee());
+    RootedObject callee(cx, &args.callee());
 #endif
 
     JS_ASSERT(args.thisv().isMagic());
@@ -470,7 +468,7 @@ CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, un
     if (!(attrs & JSPROP_SHORTID))
         return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
 
-    RootedVarId nid(cx, INT_TO_JSID(shortid));
+    RootedId nid(cx, INT_TO_JSID(shortid));
 
     return CallJSPropertyOpSetter(cx, op, obj, nid, strict, vp);
 }
@@ -543,28 +541,11 @@ JSContext::setCompileOptions(unsigned newcopts)
     maybeOverrideVersion(newVersion);
 }
 
-inline void
-JSContext::assertValidStackDepth(unsigned depth)
-{
-#ifdef DEBUG
-    JS_ASSERT(0 <= regs().sp - fp()->base());
-    JS_ASSERT(depth <= uintptr_t(regs().sp - fp()->base()));
-#endif
-}
 
 inline js::LifoAlloc &
 JSContext::typeLifoAlloc()
 {
     return compartment->typeLifoAlloc;
-}
-
-inline bool
-JSContext::ensureGeneratorStackSpace()
-{
-    bool ok = genStack.reserve(genStack.length() + 1);
-    if (!ok)
-        js_ReportOutOfMemory(this);
-    return ok;
 }
 
 inline void

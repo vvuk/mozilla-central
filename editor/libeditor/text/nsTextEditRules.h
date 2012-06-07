@@ -42,13 +42,14 @@ public:
                         nsIEditor::EDirection aDirection);
   NS_IMETHOD AfterEdit(nsEditor::OperationID action,
                        nsIEditor::EDirection aDirection);
-  NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, bool *aCancel, bool *aHandled);
+  NS_IMETHOD WillDoAction(nsTypedSelection* aSelection, nsRulesInfo* aInfo,
+                          bool* aCancel, bool* aHandled);
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
   NS_IMETHOD DocumentIsEmpty(bool *aDocumentIsEmpty);
   NS_IMETHOD DocumentModified();
 
 public:
-  nsresult ResetIMETextPWBuf();
+  void ResetIMETextPWBuf();
 
   /**
    * Handles the newline characters either according to aNewLineHandling
@@ -84,7 +85,7 @@ public:
    * @param aLength the number of password characters that aOutString should
    *        contain.
    */
-  static nsresult FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength);
+  static void FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength);
 
 protected:
 
@@ -162,7 +163,7 @@ protected:
                                      bool                     *aTruncated);
 
   /** Remove IME composition text from password buffer */
-  nsresult RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString);
+  void RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString);
 
   nsresult CreateMozBR(nsIDOMNode* inParent, PRInt32 inOffset,
                        nsIDOMNode** outBRNode = nsnull);

@@ -471,18 +471,6 @@ public:
   nsCOMPtr<nsIDocument> mTop;
 };
 
-class nsBeforeFirstPaintDispatcher : public nsRunnable
-{
-public:
-  nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
-  : mDocument(aDocument) {}
-
-  NS_IMETHOD Run();
-
-private:
-  nsCOMPtr<nsIDocument> mDocument;
-};
-
 class nsDocumentShownDispatcher : public nsRunnable
 {
 public:
@@ -2025,11 +2013,6 @@ DocumentViewerImpl::Show(void)
     }
   }
 
-  // Notify observers that a new page is about to be drawn. Execute this
-  // as soon as it is safe to run JS, which is guaranteed to be before we
-  // go back to the event loop and actually draw the page.
-  nsContentUtils::AddScriptRunner(new nsBeforeFirstPaintDispatcher(mDocument));
-
   // Notify observers that a new page has been shown. This will get run
   // from the event loop after we actually draw the page.
   NS_DispatchToMainThread(new nsDocumentShownDispatcher(mDocument));
@@ -2536,10 +2519,15 @@ NS_IMETHODIMP DocumentViewerImpl::CopyLinkLocation()
   // make noise if we're not in a link
   NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
 
-  nsAutoString locationText;
-  nsresult rv = mPresShell->GetLinkLocation(node, locationText);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<dom::Element> elm(do_QueryInterface(node));
+  NS_ENSURE_TRUE(elm, NS_ERROR_FAILURE);
 
+  nsAutoString locationText;
+  nsContentUtils::GetLinkLocation(elm, locationText);
+  if (locationText.IsEmpty())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4369,19 +4357,6 @@ DocumentViewerImpl::SetPrintPreviewPresentation(nsIViewManager* aViewManager,
   mViewManager = aViewManager;
   mPresContext = aPresContext;
   mPresShell = aPresShell;
-}
-
-// Fires the "before-first-paint" event so that interested parties (right now, the
-// mobile browser) are aware of it.
-NS_IMETHODIMP
-nsBeforeFirstPaintDispatcher::Run()
-{
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->NotifyObservers(mDocument, "before-first-paint", NULL);
-  }
-  return NS_OK;
 }
 
 // Fires the "document-shown" event so that interested parties are aware of it.

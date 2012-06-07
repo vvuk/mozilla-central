@@ -373,6 +373,10 @@ ifdef MOZ_NATIVE_LIBVPX
 EXTRA_DSO_LDOPTS += $(MOZ_LIBVPX_LIBS)
 endif
 
+ifndef MOZ_TREE_PIXMAN
+EXTRA_DSO_LDOPTS += $(MOZ_PIXMAN_LIBS)
+endif
+
 EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,gkmedias,$(DIST)/lib) 
 
 ifdef MOZ_SYDNEYAUDIO
@@ -478,6 +482,12 @@ endif
 ifneq (,$(filter NetBSD OpenBSD,$(OS_ARCH)))
 ifdef MOZ_SYDNEYAUDIO
 EXTRA_DSO_LDOPTS += -lossaudio
+endif
+endif
+
+ifeq (OpenBSD,$(OS_ARCH))
+ifdef MOZ_CUBEB
+EXTRA_DSO_LDOPTS += -lsndio
 endif
 endif
 
@@ -599,12 +609,6 @@ DEFINES += \
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)
-endif
-
-ifdef MOZ_WEBRTC
-ifeq ($(OS_TARGET),Linux)
-OS_LIBS += -lexpat
-endif
 endif
 
 ifeq ($(OS_ARCH),OpenBSD)

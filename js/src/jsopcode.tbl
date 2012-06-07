@@ -333,6 +333,14 @@ OPDEF(JSOP_FINALLY,     135,"finally",    NULL,       1,  0,  2,  0,  JOF_BYTE)
  * function, function statements that are conditionally executed, 'eval',
  * 'with', 'arguments' and E4X filters. All of these cases require creating a
  * CallObject to own the aliased variable.
+ *
+ * An ALIASEDVAR opcode contains the following immediates:
+ *  uint16 hops:  the number of scope objects to skip to find the ScopeObject
+ *                containing the variable being accessed
+ *  uint16 slot:  the slot containing the variable in the ScopeObject (this
+ *                'slot' does not include RESERVED_SLOTS).
+ *  uint32 block: the index (into the script object table) of the block chain
+ *                at the point of the variable access.
  */
 OPDEF(JSOP_GETALIASEDVAR, 136,"getaliasedvar",NULL,   9,  0,  1, 19,  JOF_SCOPECOORD|JOF_NAME)
 OPDEF(JSOP_CALLALIASEDVAR,137,"callaliasedvar",NULL,  9,  0,  1, 19,  JOF_SCOPECOORD|JOF_NAME)
@@ -506,7 +514,8 @@ OPDEF(JSOP_UNUSED24,      220,"unused24",      NULL,  1,  0,  0,  0,  JOF_BYTE)
 OPDEF(JSOP_UNUSED25,      221,"unused25",      NULL,  1,  0,  0,  0,  JOF_BYTE)
 OPDEF(JSOP_UNUSED29,      222,"unused29",      NULL,  1,  0,  0,  0,  JOF_BYTE)
 OPDEF(JSOP_UNUSED30,      223,"unused30",      NULL,  1,  0,  0,  0,  JOF_BYTE)
-OPDEF(JSOP_UNUSED16,      224,"unused16",      NULL,  1,  0,  0,  0,  JOF_BYTE)
+
+OPDEF(JSOP_REST,          224, "rest",         NULL,  1,  0,  1,  0,  JOF_BYTE|JOF_TYPESET)
 
 /* Pop the stack, convert to a jsid (int or string), and push back. */
 OPDEF(JSOP_TOID,          225, "toid",         NULL,  1,  1,  1,  0,  JOF_BYTE)
@@ -516,3 +525,5 @@ OPDEF(JSOP_IMPLICITTHIS,  226, "implicitthis", "",    5,  0,  1,  0,  JOF_ATOM)
 
 /* This opcode is the target of the entry jump for some loop. */
 OPDEF(JSOP_LOOPENTRY,     227, "loopentry",    NULL,  1,  0,  0,  0,  JOF_BYTE)
+
+OPDEF(JSOP_ACTUALSFILLED, 228, "actualsfilled", NULL,  3,  0,  1,  0,  JOF_UINT16)

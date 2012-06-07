@@ -338,6 +338,7 @@ class EncapsulatedValue
     bool isDouble() const { return value.isDouble(); }
     bool isString() const { return value.isString(); }
     bool isObject() const { return value.isObject(); }
+    bool isMagic() const { return value.isMagic(); }
     bool isMagic(JSWhyMagic why) const { return value.isMagic(why); }
     bool isGCThing() const { return value.isGCThing(); }
     bool isMarkable() const { return value.isMarkable(); }
@@ -463,6 +464,14 @@ Valueify(const EncapsulatedValue *array)
     return (const Value *)array;
 }
 
+static inline HeapValue *
+HeapValueify(Value *v)
+{
+    JS_STATIC_ASSERT(sizeof(HeapValue) == sizeof(Value));
+    JS_STATIC_ASSERT(sizeof(HeapSlot) == sizeof(Value));
+    return (HeapValue *)v;
+}
+
 class HeapSlotArray
 {
     HeapSlot *array;
@@ -562,7 +571,7 @@ class ReadBarriered
     T &operator*() const { return *get(); }
     T *operator->() const { return get(); }
 
-    T *unsafeGet() { return value; }
+    T **unsafeGet() { return &value; }
 
     void set(T *v) { value = v; }
 
@@ -578,6 +587,7 @@ class ReadBarrieredValue
     ReadBarrieredValue(const Value &value) : value(value) {}
 
     inline const Value &get() const;
+    Value *unsafeGet() { return &value; }
     inline operator const Value &() const;
 
     inline JSObject &toObject() const;

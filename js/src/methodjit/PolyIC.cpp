@@ -294,8 +294,6 @@ class SetPropCompiler : public PICStubCompiler
 
         JS_ASSERT_IF(!shape->hasDefaultSetter(), obj->isCall());
 
-        MaybeJump skipOver;
-
         if (adding) {
             JS_ASSERT(shape->hasSlot());
             pic.shapeRegHasBaseShape = false;
@@ -353,29 +351,11 @@ class SetPropCompiler : public PICStubCompiler
             //              then we can rely on fun->nargs remaining invariant.
             JSFunction *fun = obj->asCall().getCalleeFunction();
             uint16_t slot = uint16_t(shape->shortid());
-
-            /* Guard that the call object has a frame. */
-            masm.loadObjPrivate(pic.objReg, pic.shapeReg, obj->numFixedSlots());
-            Jump escapedFrame = masm.branchTestPtr(Assembler::Zero, pic.shapeReg, pic.shapeReg);
-
-            {
-                Address addr(pic.shapeReg, shape->setterOp() == CallObject::setArgOp
-                                           ? StackFrame::offsetOfFormalArg(fun, slot)
-                                           : StackFrame::offsetOfFixed(slot));
-                masm.storeValue(pic.u.vr, addr);
-                skipOver = masm.jump();
-            }
-
-            escapedFrame.linkTo(masm.label(), &masm);
-            {
-                if (shape->setterOp() == CallObject::setVarOp)
-                    slot += fun->nargs;
-
-                slot += CallObject::RESERVED_SLOTS;
-                Address address = masm.objPropAddress(obj, pic.objReg, slot);
-
-                masm.storeValue(pic.u.vr, address);
-            }
+            if (shape->setterOp() == CallObject::setVarOp)
+                slot += fun->nargs;
+            slot += CallObject::RESERVED_SLOTS;
+            Address address = masm.objPropAddress(obj, pic.objReg, slot);
+            masm.storeValue(pic.u.vr, address);
 
             pic.shapeRegHasBaseShape = false;
         }
@@ -410,8 +390,6 @@ class SetPropCompiler : public PICStubCompiler
         for (Jump *pj = slowExits.begin(); pj != slowExits.end(); ++pj)
             buffer.link(*pj, pic.slowPathStart);
         buffer.link(done, pic.fastPathRejoin);
-        if (skipOver.isSet())
-            buffer.link(skipOver.get(), pic.fastPathRejoin);
         CodeLocationLabel cs = buffer.finalize(f);
         JaegerSpew(JSpew_PICs, "generate setprop stub %p %p %d at %p\n",
                    (void*)&pic,
@@ -440,9 +418,13 @@ class SetPropCompiler : public PICStubCompiler
         RecompilationMonitor monitor(cx);
         jsid id = NameToId(name);
 
-        if (!obj->getType(cx)->unknownProperties()) {
+        types::TypeObject *type = obj->getType(cx);
+        if (monitor.recompiled())
+            return false;
+
+        if (!type->unknownProperties()) {
             types::AutoEnterTypeInference enter(cx);
-            types::TypeSet *types = obj->getType(cx)->getProperty(cx, types::MakeTypeId(cx, id), true);
+            types::TypeSet *types = type->getProperty(cx, types::MakeTypeId(cx, id), true);
             if (!types)
                 return false;
             pic.rhsTypes->addSubset(cx, types);
@@ -663,7 +645,7 @@ struct GetPropHelper {
     // These fields are set in the constructor and describe a property lookup.
     JSContext   *cx;
     JSObject    *obj;
-    RootedVarPropertyName name;
+    RootedPropertyName name;
     IC          &ic;
     VMFrame     &f;
 
@@ -683,7 +665,7 @@ struct GetPropHelper {
   public:
     LookupStatus bind() {
         RecompilationMonitor monitor(cx);
-        RootedVarObject scopeChain(cx, cx->stack.currentScriptedScopeChain());
+        RootedObject scopeChain(cx, cx->stack.currentScriptedScopeChain());
         if (js_CodeSpec[*f.pc()].format & JOF_GNAME)
             scopeChain = &scopeChain->global();
         if (!FindProperty(cx, name, scopeChain, &obj, &holder, &prop))
@@ -757,6 +739,9 @@ struct GetPropHelper {
         return testForGet();
     }
 };
+
+namespace js {
+namespace mjit {
 
 class GetPropCompiler : public PICStubCompiler
 {
@@ -1388,13 +1373,16 @@ class GetPropCompiler : public PICStubCompiler
     }
 };
 
+}  // namespace mjit
+}  // namespace js
+
 class ScopeNameCompiler : public PICStubCompiler
 {
   private:
     typedef Vector<Jump, 8> JumpList;
 
-    RootedVarObject scopeChain;
-    RootedVarPropertyName name;
+    RootedObject scopeChain;
+    RootedPropertyName name;
     GetPropHelper<ScopeNameCompiler> getprop;
     ScopeNameCompiler *thisFromCtor() { return this; }
 
@@ -1566,9 +1554,9 @@ class ScopeNameCompiler : public PICStubCompiler
 
         CallObjPropKind kind;
         const Shape *shape = getprop.shape;
-        if (shape->getterOp() == CallObject::getArgOp) {
+        if (shape->setterOp() == CallObject::setArgOp) {
             kind = ARG;
-        } else if (shape->getterOp() == CallObject::getVarOp) {
+        } else if (shape->setterOp() == CallObject::setVarOp) {
             kind = VAR;
         } else {
             return disable("unhandled callobj sprop getter");
@@ -1586,38 +1574,16 @@ class ScopeNameCompiler : public PICStubCompiler
         Jump finalShape = masm.branchPtr(Assembler::NotEqual, pic.shapeReg,
                                          ImmPtr(getprop.holder->lastProperty()));
 
-        /* Get callobj's stack frame. */
-        masm.loadObjPrivate(pic.objReg, pic.shapeReg, getprop.holder->numFixedSlots());
-
         JSFunction *fun = getprop.holder->asCall().getCalleeFunction();
-        uint16_t slot = uint16_t(shape->shortid());
+        unsigned slot = shape->shortid();
+        if (kind == VAR)
+            slot += fun->nargs;
+        slot += CallObject::RESERVED_SLOTS;
+        Address address = masm.objPropAddress(obj, pic.objReg, slot);
 
-        Jump skipOver;
-        Jump escapedFrame = masm.branchTestPtr(Assembler::Zero, pic.shapeReg, pic.shapeReg);
+        /* Safe because type is loaded first. */
+        masm.loadValueAsComponents(address, pic.shapeReg, pic.objReg);
 
-        /* Not-escaped case. */
-        {
-            Address addr(pic.shapeReg, kind == ARG ? StackFrame::offsetOfFormalArg(fun, slot)
-                                                   : StackFrame::offsetOfFixed(slot));
-            masm.loadPayload(addr, pic.objReg);
-            masm.loadTypeTag(addr, pic.shapeReg);
-            skipOver = masm.jump();
-        }
-
-        escapedFrame.linkTo(masm.label(), &masm);
-
-        {
-            if (kind == VAR)
-                slot += fun->nargs;
-
-            slot += CallObject::RESERVED_SLOTS;
-            Address address = masm.objPropAddress(obj, pic.objReg, slot);
-
-            /* Safe because type is loaded first. */
-            masm.loadValueAsComponents(address, pic.shapeReg, pic.objReg);
-        }
-
-        skipOver.linkTo(masm.label(), &masm);
         Jump done = masm.jump();
 
         // All failures flow to here, so there is a common point to patch.
@@ -1734,8 +1700,8 @@ class ScopeNameCompiler : public PICStubCompiler
 
 class BindNameCompiler : public PICStubCompiler
 {
-    RootedVarObject scopeChain;
-    RootedVarPropertyName name;
+    RootedObject scopeChain;
+    RootedPropertyName name;
 
   public:
     BindNameCompiler(VMFrame &f, JSScript *script, JSObject *scopeChain, ic::PICInfo &pic,
@@ -2471,7 +2437,7 @@ GetElementIC::attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid i
     disable(f, "generated typed array stub");
 
     // Fetch the value as expected of Lookup_Cacheable for GetElement.
-    if (!obj->getGeneric(cx, RootedVarId(cx, id), vp))
+    if (!obj->getGeneric(cx, RootedId(cx, id), vp))
         return Lookup_Error;
 
     return Lookup_Cacheable;
@@ -2524,7 +2490,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
 
     RecompilationMonitor monitor(cx);
 
-    RootedVarObject obj(cx, ValueToObject(cx, f.regs.sp[-2]));
+    RootedObject obj(cx, ValueToObject(cx, f.regs.sp[-2]));
     if (!obj)
         THROW();
 
@@ -2561,7 +2527,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
         }
     }
 
-    if (!obj->getGeneric(cx, RootedVarId(cx, id), &f.regs.sp[-2]))
+    if (!obj->getGeneric(cx, RootedId(cx, id), &f.regs.sp[-2]))
         THROW();
 
 #if JS_HAS_NO_SUCH_METHOD

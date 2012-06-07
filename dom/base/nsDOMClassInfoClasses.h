@@ -58,6 +58,8 @@ DOMCI_CLASS(DeviceRotationRate)
 DOMCI_CLASS(HTMLDocument)
 DOMCI_CLASS(HTMLOptionsCollection)
 DOMCI_CLASS(HTMLCollection)
+DOMCI_CLASS(HTMLPropertiesCollection)
+DOMCI_CLASS(PropertyNodeList)
 
 // HTML element classes
 DOMCI_CLASS(HTMLElement)
@@ -487,6 +489,7 @@ DOMCI_CLASS(WebSocket)
 DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)
+DOMCI_CLASS(IDBFileHandle)
 DOMCI_CLASS(IDBRequest)
 DOMCI_CLASS(IDBDatabase)
 DOMCI_CLASS(IDBObjectStore)
@@ -520,8 +523,13 @@ DOMCI_CLASS(CallEvent)
 #endif
 
 #ifdef MOZ_B2G_BT
+DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 #endif
 
 DOMCI_CLASS(DOMError)
 DOMCI_CLASS(DOMRequest)
+
+DOMCI_CLASS(DOMFileHandle)
+DOMCI_CLASS(FileRequest)
+DOMCI_CLASS(LockedFile)

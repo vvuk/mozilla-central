@@ -12,6 +12,7 @@ const Cr = Components.results;
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/ContactService.jsm');
+Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
 Cu.import('resource://gre/modules/Webapps.jsm');
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
@@ -508,7 +509,8 @@ var WebappsHelper = {
 // Start the debugger server.
 function startDebugger() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    // Allow remote connections.
+    DebuggerServer.init(function () { return true; });
     DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
   }
 
@@ -650,9 +652,17 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     });
   });
 
-  ['ril.data.apn', 'ril.data.user', 'ril.data.passwd'].forEach(function(key) {
+  let strPrefs = ['ril.data.apn', 'ril.data.user', 'ril.data.passwd',
+                  'ril.data.mmsc', 'ril.data.mmsproxy'];
+  strPrefs.forEach(function(key) {
     SettingsListener.observe(key, false, function(value) {
       Services.prefs.setCharPref(key, value);
+    });
+  });
+
+  ['ril.data.mmsport'].forEach(function(key) {
+    SettingsListener.observe(key, false, function(value) {
+      Services.prefs.setIntPref(key, value);
     });
   });
 })();

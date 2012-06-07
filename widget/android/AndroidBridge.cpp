@@ -29,6 +29,8 @@
 #include "nsIDocShell.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/dom/ScreenOrientation.h"
+#include "nsIDOMWindowUtils.h"
+#include "nsIDOMClientRect.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -136,7 +138,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jEnableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableBatteryNotifications", "()V");
     jDisableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "disableBatteryNotifications", "()V");
     jGetCurrentBatteryInformation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getCurrentBatteryInformation", "()[D");
-    jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;)V");
     jNotifyPaintedRect = jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyPaintedRect", "(FFFF)V");
 
     jHandleGeckoMessage = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "handleGeckoMessage", "(Ljava/lang/String;)Ljava/lang/String;");
@@ -185,7 +186,9 @@ AndroidBridge::Init(JNIEnv *jEnv,
 #ifdef MOZ_JAVA_COMPOSITOR
     jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()V");
 
-    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIII)V");
+    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIIIZI)V");
+    jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;Z)V");
+
     jCreateSurface = jEnv->GetStaticMethodID(jGeckoAppShellClass, "createSurface", "()Landroid/view/Surface;");
     jShowSurface = jEnv->GetStaticMethodID(jGeckoAppShellClass, "showSurface", "(Landroid/view/Surface;IIIIZZ)V");
     jHideSurface = jEnv->GetStaticMethodID(jGeckoAppShellClass, "hideSurface", "(Landroid/view/Surface;)V");
@@ -196,7 +199,8 @@ AndroidBridge::Init(JNIEnv *jEnv,
     AndroidGLController::Init(jEnv);
     AndroidEGLObject::Init(jEnv);
 #else
-    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;DDDD)V"); 
+    jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;DDDD)V");
+    jRemovePluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "removePluginView", "(Landroid/view/View;)V");
 #endif
 
     InitAndroidJavaWrappers(jEnv);
@@ -1631,14 +1635,6 @@ AndroidBridge::HandleGeckoMessage(const nsAString &aMessage, nsAString &aRet)
     ALOG_BRIDGE("leaving %s", __PRETTY_FUNCTION__);
 }
 
-static nsCOMPtr<nsIAndroidDrawMetadataProvider> gDrawMetadataProvider = NULL;
-
-nsCOMPtr<nsIAndroidDrawMetadataProvider>
-AndroidBridge::GetDrawMetadataProvider()
-{
-    return gDrawMetadataProvider;
-}
-
 void
 AndroidBridge::CheckURIVisited(const nsAString& aURI)
 {
@@ -2040,24 +2036,23 @@ AndroidBridge::IsTablet()
 }
 
 void
-AndroidBridge::SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight,
-                                     float aCssPageWidth, float aCssPageHeight)
+AndroidBridge::SetFirstPaintViewport(const nsIntPoint& aOffset, float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return;
 
-    client->SetFirstPaintViewport(aOffsetX, aOffsetY, aZoom, aPageWidth, aPageHeight, aCssPageWidth, aCssPageHeight);
+    client->SetFirstPaintViewport(aOffset, aZoom, aPageRect, aCssPageRect);
 }
 
 void
-AndroidBridge::SetPageSize(float aZoom, float aPageWidth, float aPageHeight, float aCssPageWidth, float aCssPageHeight)
+AndroidBridge::SetPageRect(float aZoom, const nsIntRect& aPageRect, const gfx::Rect& aCssPageRect)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return;
 
-    client->SetPageSize(aZoom, aPageWidth, aPageHeight, aCssPageWidth, aCssPageHeight);
+    client->SetPageRect(aZoom, aPageRect, aCssPageRect);
 }
 
 void
@@ -2095,13 +2090,6 @@ nsAndroidBridge::~nsAndroidBridge()
 NS_IMETHODIMP nsAndroidBridge::HandleGeckoMessage(const nsAString & message, nsAString &aRet NS_OUTPARAM)
 {
     AndroidBridge::Bridge()->HandleGeckoMessage(message, aRet);
-    return NS_OK;
-}
-
-/* void SetDrawMetadataProvider (in nsIAndroidDrawMetadataProvider message); */
-NS_IMETHODIMP nsAndroidBridge::SetDrawMetadataProvider(nsIAndroidDrawMetadataProvider *aProvider)
-{
-    gDrawMetadataProvider = aProvider;
     return NS_OK;
 }
 
@@ -2326,7 +2314,7 @@ NS_IMETHODIMP nsAndroidBridge::SetBrowserApp(nsIAndroidBrowserApp *aBrowserApp)
 }
 
 void
-AndroidBridge::AddPluginView(jobject view, const gfxRect& rect) {
+AndroidBridge::AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen, int orientation) {
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
@@ -2336,7 +2324,8 @@ AndroidBridge::AddPluginView(jobject view, const gfxRect& rect) {
 #if MOZ_JAVA_COMPOSITOR
     env->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
                               sBridge->jAddPluginView, view,
-                              (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+                              (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height,
+                              isFullScreen, orientation);
 #else
     env->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
                               sBridge->jAddPluginView, view,
@@ -2345,14 +2334,14 @@ AndroidBridge::AddPluginView(jobject view, const gfxRect& rect) {
 }
 
 void
-AndroidBridge::RemovePluginView(jobject view)
+AndroidBridge::RemovePluginView(jobject view, bool isFullScreen)
 {
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
-    env->CallStaticVoidMethod(mGeckoAppShellClass, jRemovePluginView, view);
+    env->CallStaticVoidMethod(mGeckoAppShellClass, jRemovePluginView, view, isFullScreen);
 }
 
 extern "C"
@@ -2367,30 +2356,23 @@ nsresult AndroidBridge::TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt
 
     // take a screenshot, as wide as possible, proportional to the destination size
     if (!srcW && !srcH) {
-        nsCOMPtr<nsIDOMDocument> doc;
-        rv = window->GetDocument(getter_AddRefs(doc));
-        NS_ENSURE_SUCCESS(rv, rv);
-        if (!doc)
+        nsCOMPtr<nsIDOMWindowUtils> utils = do_GetInterface(window);
+        if (!utils)
             return NS_ERROR_FAILURE;
 
-        nsCOMPtr<nsIDOMElement> docElement;
-        rv = doc->GetDocumentElement(getter_AddRefs(docElement));
+        nsCOMPtr<nsIDOMClientRect> rect;
+        rv = utils->GetRootBounds(getter_AddRefs(rect));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (!docElement)
+        if (!rect)
             return NS_ERROR_FAILURE;
 
-        PRInt32 viewportHeight;
-        PRInt32 pageWidth;
-        PRInt32 pageHeight;
-        window->GetInnerHeight(&viewportHeight);
-        docElement->GetScrollWidth(&pageWidth);
-        docElement->GetScrollHeight(&pageHeight);
+        float left, top, width, height;
+        rect->GetLeft(&left);
+        rect->GetTop(&top);
+        rect->GetWidth(&width);
+        rect->GetHeight(&height);
 
-        // use the page or viewport dimensions, whichever is larger
-        PRInt32 width = pageWidth;
-        PRInt32 height = viewportHeight > pageHeight ? viewportHeight : pageHeight;
-
-        if (!width || !height)
+        if (width == 0 || height == 0)
             return NS_ERROR_FAILURE;
 
         float aspectRatio = ((float) dstW) / dstH;
@@ -2401,6 +2383,9 @@ nsresult AndroidBridge::TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt
             srcW = height * aspectRatio;
             srcH = height;
         }
+
+        srcX = left;
+        srcY = top;
     }
 
     JNIEnv* env = GetJNIEnv();

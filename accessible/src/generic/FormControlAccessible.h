@@ -6,7 +6,7 @@
 #ifndef MOZILLA_A11Y_FormControlAccessible_H_
 #define MOZILLA_A11Y_FormControlAccessible_H_
 
-#include "nsBaseWidgetAccessible.h"
+#include "BaseAccessibles.h"
 
 namespace mozilla {
 namespace a11y {
@@ -15,18 +15,18 @@ namespace a11y {
   * Generic class used for progress meters.
   */
 template<int Max>
-class ProgressMeterAccessible : public nsLeafAccessible
+class ProgressMeterAccessible : public LeafAccessible
 {
 public:
-  ProgressMeterAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-    nsLeafAccessible(aContent, aDoc)
+  ProgressMeterAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+    LeafAccessible(aContent, aDoc)
   {
   }
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLEVALUE
 
-  // nsAccessible
+  // Accessible
   virtual void Value(nsString& aValue);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
@@ -38,17 +38,17 @@ public:
 /**
   * Generic class used for radio buttons.
   */
-class RadioButtonAccessible : public nsLeafAccessible
+class RadioButtonAccessible : public LeafAccessible
 {
 
 public:
-  RadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  RadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessible
+  // Accessible
   virtual mozilla::a11y::role NativeRole();
 
   // ActionAccessible

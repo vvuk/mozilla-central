@@ -27,6 +27,8 @@ specialpowers.specialPowersObserver = new specialpowers.SpecialPowersObserver();
 specialpowers.specialPowersObserver.init();
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");  
 
 Services.prefs.setBoolPref("marionette.contentListener", false);
 let appName = Services.appinfo.name;
@@ -122,7 +124,8 @@ function MarionetteDriverActor(aConnection)
   this.command_id = null;
   this.mainFrame = null; //topmost chrome frame
   this.curFrame = null; //subframe that currently has focus
-
+  this.importedScripts = FileUtils.getFile('TmpD', ['marionettescriptchrome']);
+  
   //register all message listeners
   this.messageManager.addMessageListener("Marionette:ok", this);
   this.messageManager.addMessageListener("Marionette:done", this);
@@ -470,6 +473,14 @@ MarionetteDriverActor.prototype = {
         return;
       }
 
+      if (this.importedScripts.exists()) {
+        let stream = Cc["@mozilla.org/network/file-input-stream;1"].  
+                      createInstance(Ci.nsIFileInputStream);
+        stream.init(this.importedScripts, -1, 0, 0);
+        let data = NetUtil.readInputStreamToString(stream, stream.available());
+        script = data + script;
+      }
+
       let res = Cu.evalInSandbox(script, sandbox, "1.8");
 
       if (directInject && !async &&
@@ -499,7 +510,6 @@ MarionetteDriverActor.prototype = {
    *        function body
    */
   execute: function MDA_execute(aRequest, directInject) {
-    logger.info("newSandbox: " + aRequest.newSandbox);
     if (aRequest.newSandbox == undefined) {
       //if client does not send a value in newSandbox, 
       //then they expect the same behaviour as webdriver
@@ -624,6 +634,12 @@ MarionetteDriverActor.prototype = {
     marionette.command_id = this.command_id;
 
     function chromeAsyncReturnFunc(value, status) {
+      if (that._emu_cbs && Object.keys(that._emu_cbs).length) {
+        value = "Emulator callback still pending when finish() called";
+        status = 500;
+        that._emu_cbs = null;
+      }
+
       if (value == undefined)
         value = null;
       if (that.command_id == marionette.command_id) {
@@ -764,7 +780,7 @@ MarionetteDriverActor.prototype = {
     let winEn = this.getWinEnumerator(); 
     while(winEn.hasMoreElements()) {
       let foundWin = winEn.getNext();
-      let winId = foundWin.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils).outerWindowID;
+      let winId = foundWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
       winId = winId + ((appName == "B2G") ? '-b2g' : '');
       res.push(winId)
     }
@@ -782,7 +798,7 @@ MarionetteDriverActor.prototype = {
     let winEn = this.getWinEnumerator(); 
     while(winEn.hasMoreElements()) {
       let foundWin = winEn.getNext();
-      let winId = foundWin.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils).outerWindowID;
+      let winId = foundWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
       winId = winId + ((appName == "B2G") ? '-b2g' : '');
       if (aRequest.value == foundWin.name || aRequest.value == winId) {
         if (this.browsers[winId] == undefined) {
@@ -1190,18 +1206,22 @@ MarionetteDriverActor.prototype = {
     this.messageManager.removeMessageListener("Marionette:goUrl", this);
     this.messageManager.removeMessageListener("Marionette:runEmulatorCmd", this);
     this.curBrowser = null;
+    try {
+      this.importedScripts.remove(false);
+    }
+    catch (e) {
+    }
   },
 
   _emu_cb_id: 0,
   _emu_cbs: null,
   runEmulatorCmd: function runEmulatorCmd(cmd, callback) {
-    if (typeof callback != "function") {
-      throw "Need to provide callback function!";
+    if (callback) {
+      if (!this._emu_cbs) {
+        this._emu_cbs = {};
+      }
+      this._emu_cbs[this._emu_cb_id] = callback;
     }
-    if (!this._emu_cbs) {
-      this._emu_cbs = {};
-    }
-    this._emu_cbs[this._emu_cb_id] = callback;
     this.sendToClient({emulator_cmd: cmd, id: this._emu_cb_id});
     this._emu_cb_id += 1;
   },
@@ -1212,14 +1232,39 @@ MarionetteDriverActor.prototype = {
       return;
     }
 
+    if (!this._emu_cbs) {
+      return;
+    }
+
     let cb = this._emu_cbs[message.id];
     delete this._emu_cbs[message.id];
+    if (!cb) {
+      return;
+    }
     try {
       cb(message.result);
     }
     catch(e) {
       this.sendError(e.message, e.num, e.stack);
       return;
+    }
+  },
+  
+  importScript: function MDA_importScript(aRequest) {
+    if (this.context == "chrome") {
+      let file;
+      if (this.importedScripts.exists()) {
+        file = FileUtils.openFileOutputStream(this.importedScripts, FileUtils.MODE_APPEND);
+      }
+      else {
+        file = FileUtils.openFileOutputStream(this.importedScripts, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);
+      }
+      file.write(aRequest.script, aRequest.script.length);
+      file.close();
+      this.sendOk();
+    }
+    else {
+      this.sendAsync("importScript", {script: aRequest.script});
     }
   },
 
@@ -1257,7 +1302,7 @@ MarionetteDriverActor.prototype = {
         // and either accepts the listener, or ignores it
         let nullPrevious = (this.curBrowser.curFrameId == null);
         let curWin = this.getCurrentWindow();
-        let frameObject = curWin.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils).getOuterWindowWithId(message.json.value);
+        let frameObject = curWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).getOuterWindowWithId(message.json.value);
         let reg = this.curBrowser.register(message.json.value, message.json.href);
         if (reg) {
           this.curBrowser.elementManager.seenItems[reg] = frameObject; //add to seenItems
@@ -1312,7 +1357,8 @@ MarionetteDriverActor.prototype.requestTypes = {
   "switchToFrame": MarionetteDriverActor.prototype.switchToFrame,
   "switchToWindow": MarionetteDriverActor.prototype.switchToWindow,
   "deleteSession": MarionetteDriverActor.prototype.deleteSession,
-  "emulatorCmdResult": MarionetteDriverActor.prototype.emulatorCmdResult
+  "emulatorCmdResult": MarionetteDriverActor.prototype.emulatorCmdResult,
+  "importScript": MarionetteDriverActor.prototype.importScript
 };
 
 /**

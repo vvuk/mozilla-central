@@ -7,8 +7,8 @@
 #include "nsXULTextAccessible.h"
 
 #include "Accessible-inl.h"
+#include "BaseAccessibles.h"
 #include "nsAccUtils.h"
-#include "nsBaseWidgetAccessible.h"
 #include "nsCoreUtils.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
@@ -28,8 +28,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTextAccessible::
-  nsXULTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsXULTextAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -53,18 +53,18 @@ nsXULTextAccessible::NativeState()
 {
   // Labels and description have read only state
   // They are not focusable or selectable
-  return nsHyperTextAccessibleWrap::NativeState() | states::READONLY;
+  return HyperTextAccessibleWrap::NativeState() | states::READONLY;
 }
 
 Relation
 nsXULTextAccessible::RelationByType(PRUint32 aType)
 {
-  Relation rel = nsHyperTextAccessibleWrap::RelationByType(aType);
+  Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
     nsIContent *parent = mContent->GetParent();
     if (parent && parent->Tag() == nsGkAtoms::caption) {
-      nsAccessible* parent = Parent();
+      Accessible* parent = Parent();
       if (parent && parent->Role() == roles::GROUPING)
         rel.AppendTarget(parent);
     }
@@ -79,19 +79,15 @@ nsXULTextAccessible::RelationByType(PRUint32 aType)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTooltipAccessible::
-  nsXULTooltipAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsLeafAccessible(aContent, aDoc)
+  nsXULTooltipAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  LeafAccessible(aContent, aDoc)
 {
 }
 
 PRUint64
 nsXULTooltipAccessible::NativeState()
 {
-  PRUint64 states = nsLeafAccessible::NativeState();
-
-  states &= ~states::FOCUSABLE;
-  states |= states::READONLY;
-  return states;
+  return LeafAccessible::NativeState() | states::READONLY;
 }
 
 role
@@ -106,13 +102,13 @@ nsXULTooltipAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULLinkAccessible::
-  nsXULLinkAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHyperTextAccessibleWrap(aContent, aDoc)
+  nsXULLinkAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
 // Expose nsIAccessibleHyperLink unconditionally
-NS_IMPL_ISUPPORTS_INHERITED1(nsXULLinkAccessible, nsHyperTextAccessibleWrap,
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULLinkAccessible, HyperTextAccessibleWrap,
                              nsIAccessibleHyperLink)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,16 +194,16 @@ nsXULLinkAccessible::StartOffset()
   // a text.
   // XXX: accessible parent of XUL link accessible should be a hypertext
   // accessible.
-  if (nsAccessible::IsLink())
-    return nsAccessible::StartOffset();
+  if (Accessible::IsLink())
+    return Accessible::StartOffset();
   return IndexInParent();
 }
 
 PRUint32
 nsXULLinkAccessible::EndOffset()
 {
-  if (nsAccessible::IsLink())
-    return nsAccessible::EndOffset();
+  if (Accessible::IsLink())
+    return Accessible::EndOffset();
   return IndexInParent() + 1;
 }
 

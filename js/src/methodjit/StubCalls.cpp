@@ -55,7 +55,7 @@ void JS_FASTCALL
 stubs::BindName(VMFrame &f, PropertyName *name)
 {
     JSObject *obj = FindIdentifierBase(f.cx, f.fp()->scopeChain(),
-                                       RootedVarPropertyName(f.cx, name));
+                                       RootedPropertyName(f.cx, name));
     if (!obj)
         THROW();
     f.regs.sp[0].setObject(*obj);
@@ -126,7 +126,7 @@ stubs::SetElem(VMFrame &f)
     Value rval    = regs.sp[-1];
 
     JSObject *obj;
-    RootedVarId id(cx);
+    RootedId id(cx);
 
     obj = ValueToObject(cx, objval);
     if (!obj)
@@ -179,7 +179,7 @@ stubs::ToId(VMFrame &f)
     if (!obj)
         THROW();
 
-    RootedVarId id(f.cx);
+    RootedId id(f.cx);
     if (!FetchElementId(f.cx, obj, idval, id.address(), &idval))
         THROW();
 
@@ -190,8 +190,8 @@ stubs::ToId(VMFrame &f)
 void JS_FASTCALL
 stubs::ImplicitThis(VMFrame &f, PropertyName *name_)
 {
-    RootedVarObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
-    RootedVarPropertyName name(f.cx, name_);
+    RootedObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
+    RootedPropertyName name(f.cx, name_);
 
     JSObject *obj, *obj2;
     JSProperty *prop;
@@ -301,7 +301,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun_)
      */
     JSContext *cx = f.cx;
     StackFrame *fp = f.fp();
-    RootedVarFunction fun(f.cx, fun_);
+    RootedFunction fun(f.cx, fun_);
 
     /*
      * If static link is not current scope, clone fun's object to link to the
@@ -505,7 +505,7 @@ StubEqualityOp(VMFrame &f)
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
             if (JSEqualityOp eq = l->getClass()->ext.equality) {
                 JSBool equal;
-                if (!eq(cx, RootedVarObject(cx, l), &rval, &equal))
+                if (!eq(cx, RootedObject(cx, l), &rval, &equal))
                     return false;
                 cond = !!equal == EQ;
             } else {
@@ -582,7 +582,7 @@ stubs::Add(VMFrame &f)
     /* The string + string case is easily the hottest;  try it first. */
     bool lIsString = lval.isString();
     bool rIsString = rval.isString();
-    RootedVarString lstr(cx), rstr(cx);
+    RootedString lstr(cx), rstr(cx);
     if (lIsString && rIsString) {
         lstr = lval.toString();
         rstr = rval.toString();
@@ -886,7 +886,7 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
     JSObject *obj;
 
     if (baseobj) {
-        obj = CopyInitializerObject(cx, RootedVarObject(cx, baseobj));
+        obj = CopyInitializerObject(cx, RootedObject(cx, baseobj));
     } else {
         gc::AllocKind kind = GuessObjectGCKind(0);
         obj = NewBuiltinClassInstance(cx, &ObjectClass, kind);
@@ -912,7 +912,7 @@ stubs::InitElem(VMFrame &f, uint32_t last)
     FrameRegs &regs = f.regs;
 
     /* Pop the element's value into rval. */
-    JS_ASSERT(regs.sp - f.fp()->base() >= 3);
+    JS_ASSERT(regs.stackDepth() >= 3);
     const Value &rref = regs.sp[-1];
 
     /* Find the object being initialized at top of stack. */
@@ -921,7 +921,7 @@ stubs::InitElem(VMFrame &f, uint32_t last)
     JSObject *obj = &lref.toObject();
 
     /* Fetch id now that we have obj. */
-    RootedVarId id(cx);
+    RootedId id(cx);
     const Value &idval = regs.sp[-2];
     if (!FetchElementId(f.cx, obj, idval, id.address(), &regs.sp[-2]))
         THROW();
@@ -963,7 +963,7 @@ stubs::RegExp(VMFrame &f, JSObject *regex)
 JSObject * JS_FASTCALL
 stubs::Lambda(VMFrame &f, JSFunction *fun_)
 {
-    RootedVarFunction fun(f.cx, fun_);
+    RootedFunction fun(f.cx, fun_);
     fun = CloneFunctionObjectIfNotSingleton(f.cx, fun, f.fp()->scopeChain());
     if (!fun)
         THROWV(NULL);
@@ -1020,16 +1020,16 @@ InitPropOrMethod(VMFrame &f, PropertyName *name, JSOp op)
     FrameRegs &regs = f.regs;
 
     /* Load the property's initial value into rval. */
-    JS_ASSERT(regs.sp - f.fp()->base() >= 2);
+    JS_ASSERT(regs.stackDepth() >= 2);
     Value rval;
     rval = regs.sp[-1];
 
     /* Load the object being initialized into lval/obj. */
-    RootedVarObject obj(cx, &regs.sp[-2].toObject());
+    RootedObject obj(cx, &regs.sp[-2].toObject());
     JS_ASSERT(obj->isNative());
 
     /* Get the immediate property name into id. */
-    RootedVarId id(cx, NameToId(name));
+    RootedId id(cx, NameToId(name));
 
     if (JS_UNLIKELY(name == cx->runtime->atomState.protoAtom)
         ? !baseops::SetPropertyHelper(cx, obj, id, 0, &rval, false)
@@ -1048,7 +1048,7 @@ stubs::InitProp(VMFrame &f, PropertyName *name)
 void JS_FASTCALL
 stubs::IterNext(VMFrame &f, int32_t offset)
 {
-    JS_ASSERT(f.regs.sp - offset >= f.fp()->base());
+    JS_ASSERT(f.regs.stackDepth() >= unsigned(offset));
     JS_ASSERT(f.regs.sp[-offset].isObject());
 
     JSObject *iterobj = &f.regs.sp[-offset].toObject();
@@ -1061,12 +1061,12 @@ stubs::IterNext(VMFrame &f, int32_t offset)
 JSBool JS_FASTCALL
 stubs::IterMore(VMFrame &f)
 {
-    JS_ASSERT(f.regs.sp - 1 >= f.fp()->base());
+    JS_ASSERT(f.regs.stackDepth() >= 1);
     JS_ASSERT(f.regs.sp[-1].isObject());
 
     Value v;
     JSObject *iterobj = &f.regs.sp[-1].toObject();
-    if (!js_IteratorMore(f.cx, RootedVarObject(f.cx, iterobj), &v))
+    if (!js_IteratorMore(f.cx, RootedObject(f.cx, iterobj), &v))
         THROWV(JS_FALSE);
 
     return v.toBoolean();
@@ -1075,7 +1075,7 @@ stubs::IterMore(VMFrame &f)
 void JS_FASTCALL
 stubs::EndIter(VMFrame &f)
 {
-    JS_ASSERT(f.regs.sp - 1 >= f.fp()->base());
+    JS_ASSERT(f.regs.stackDepth() >= 1);
     if (!CloseIterator(f.cx, &f.regs.sp[-1].toObject()))
         THROW();
 }
@@ -1125,7 +1125,7 @@ stubs::Throw(VMFrame &f)
 void JS_FASTCALL
 stubs::Arguments(VMFrame &f)
 {
-    ArgumentsObject *obj = ArgumentsObject::create(f.cx, f.fp());
+    ArgumentsObject *obj = ArgumentsObject::createExpected(f.cx, f.fp());
     if (!obj)
         THROW();
     f.regs.sp[0] = ObjectValue(*obj);
@@ -1143,7 +1143,7 @@ stubs::InstanceOf(VMFrame &f)
                             -1, rref, NULL);
         THROWV(JS_FALSE);
     }
-    RootedVarObject obj(cx, &rref.toObject());
+    RootedObject obj(cx, &rref.toObject());
     const Value &lref = regs.sp[-2];
     JSBool cond = JS_FALSE;
     if (!HasInstance(cx, obj, &lref, &cond))
@@ -1173,27 +1173,21 @@ void JS_FASTCALL
 stubs::EnterBlock(VMFrame &f, JSObject *obj)
 {
     FrameRegs &regs = f.regs;
-    StackFrame *fp = f.fp();
     JS_ASSERT(!f.regs.inlined());
 
     StaticBlockObject &blockObj = obj->asStaticBlock();
-    if (!fp->pushBlock(f.cx, blockObj))
-        THROW();
 
     if (*regs.pc == JSOP_ENTERBLOCK) {
-        JS_ASSERT(fp->base() + blockObj.stackDepth() == regs.sp);
+        JS_ASSERT(regs.stackDepth() == blockObj.stackDepth());
+        JS_ASSERT(regs.stackDepth() + blockObj.slotCount() <= f.fp()->script()->nslots);
         Value *vp = regs.sp + blockObj.slotCount();
-        JS_ASSERT(regs.sp < vp);
-        JS_ASSERT(vp <= fp->slots() + fp->script()->nslots);
         SetValueRangeToUndefined(regs.sp, vp);
         regs.sp = vp;
-    } else if (*regs.pc == JSOP_ENTERLET0) {
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() + blockObj.slotCount()
-                  == regs.sp);
-    } else if (*regs.pc == JSOP_ENTERLET1) {
-        JS_ASSERT(regs.fp()->base() + blockObj.stackDepth() + blockObj.slotCount()
-                  == regs.sp - 1);
     }
+
+    /* Clone block iff there are any closed-over variables. */
+    if (!regs.fp()->pushBlock(f.cx, blockObj))
+        THROW();
 }
 
 void JS_FASTCALL
@@ -1339,8 +1333,8 @@ stubs::Pos(VMFrame &f)
 void JS_FASTCALL
 stubs::DelName(VMFrame &f, PropertyName *name_)
 {
-    RootedVarObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
-    RootedVarPropertyName name(f.cx, name_);
+    RootedObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
+    RootedPropertyName name(f.cx, name_);
 
     JSObject *obj, *obj2;
     JSProperty *prop;
@@ -1364,7 +1358,7 @@ void JS_FASTCALL
 stubs::DelProp(VMFrame &f, PropertyName *name_)
 {
     JSContext *cx = f.cx;
-    RootedVarPropertyName name(cx, name_);
+    RootedPropertyName name(cx, name_);
 
     JSObject *obj = ValueToObject(cx, f.regs.sp[-1]);
     if (!obj)
@@ -1408,7 +1402,7 @@ stubs::DefVarOrConst(VMFrame &f, PropertyName *dn)
 
     JSObject &obj = f.fp()->varObj();
 
-    if (!DefVarOrConstOperation(f.cx, RootedVarObject(f.cx, &obj), dn, attrs))
+    if (!DefVarOrConstOperation(f.cx, RootedObject(f.cx, &obj), dn, attrs))
         THROW();
 }
 
@@ -1439,7 +1433,7 @@ stubs::In(VMFrame &f)
     }
 
     JSObject *obj = &rref.toObject();
-    RootedVarId id(cx);
+    RootedId id(cx);
     if (!FetchElementId(f.cx, obj, f.regs.sp[-2], id.address(), &f.regs.sp[-2]))
         THROWV(JS_FALSE);
 
@@ -1522,7 +1516,7 @@ stubs::CheckArgumentTypes(VMFrame &f)
         if (!f.fp()->isConstructing())
             TypeScript::SetThis(f.cx, script, fp->thisValue());
         for (unsigned i = 0; i < fun->nargs; i++)
-            TypeScript::SetArgument(f.cx, script, i, fp->formalArg(i));
+            TypeScript::SetArgument(f.cx, script, i, fp->unaliasedFormal(i, DONT_CHECK_ALIASING));
     }
 
     if (monitor.recompiled())
@@ -1552,7 +1546,7 @@ stubs::AssertArgumentTypes(VMFrame &f)
     }
 
     for (unsigned i = 0; i < fun->nargs; i++) {
-        Type type = GetValueType(f.cx, fp->formalArg(i));
+        Type type = GetValueType(f.cx, fp->unaliasedFormal(i, DONT_CHECK_ALIASING));
         if (!TypeScript::ArgTypes(script, i)->hasType(type))
             TypeFailure(f.cx, "Missing type for arg %d: %s", i, TypeString(type));
     }
@@ -1609,16 +1603,29 @@ stubs::Exception(VMFrame &f)
 }
 
 void JS_FASTCALL
-stubs::FunctionFramePrologue(VMFrame &f)
+stubs::StrictEvalPrologue(VMFrame &f)
 {
-    if (!f.fp()->functionPrologue(f.cx))
+    if (!f.fp()->jitStrictEvalPrologue(f.cx))
         THROW();
 }
 
 void JS_FASTCALL
-stubs::FunctionFrameEpilogue(VMFrame &f)
+stubs::HeavyweightFunctionPrologue(VMFrame &f)
 {
-    f.fp()->functionEpilogue(f.cx);
+    if (!f.fp()->jitHeavyweightFunctionPrologue(f.cx))
+        THROW();
+}
+
+void JS_FASTCALL
+stubs::TypeNestingPrologue(VMFrame &f)
+{
+    f.fp()->jitTypeNestingPrologue(f.cx);
+}
+
+void JS_FASTCALL
+stubs::Epilogue(VMFrame &f)
+{
+    f.fp()->epilogue(f.cx);
 }
 
 void JS_FASTCALL
@@ -1626,17 +1633,15 @@ stubs::AnyFrameEpilogue(VMFrame &f)
 {
     /*
      * On the normal execution path, emitReturn calls ScriptDebugEpilogue
-     * and inlines ScriptEpilogue. This function implements forced early
+     * and inlines epilogue. This function implements forced early
      * returns, so it must have the same effect.
      */
     bool ok = true;
     if (f.cx->compartment->debugMode())
         ok = js::ScriptDebugEpilogue(f.cx, f.fp(), ok);
-    ok = ScriptEpilogue(f.cx, f.fp(), ok);
+    f.fp()->epilogue(f.cx);
     if (!ok)
         THROW();
-    if (f.fp()->isNonEvalFunctionFrame())
-        f.fp()->functionEpilogue(f.cx);
 }
 
 template <bool Clamped>

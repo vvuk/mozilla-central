@@ -323,7 +323,7 @@ js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
 JS_FRIEND_API(JSBool)
 js_DisassembleAtPC(JSContext *cx, JSScript *script_, JSBool lines, jsbytecode *pc, Sprinter *sp)
 {
-    RootedVar<JSScript*> script(cx, script_);
+    Rooted<JSScript*> script(cx, script_);
 
     jsbytecode *next, *end;
     unsigned len;
@@ -420,10 +420,10 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
                 return false;
 
             Shape::Range r = obj->lastProperty()->all();
-            Shape::Range::Root root(cx, &r);
+            Shape::Range::AutoRooter root(cx, &r);
 
             while (!r.empty()) {
-                RootedVar<const Shape*> shape(cx, &r.front());
+                Rooted<const Shape*> shape(cx, &r.front());
                 JSAtom *atom = JSID_IS_INT(shape->propid())
                                ? cx->runtime->atomState.emptyAtom
                                : JSID_TO_ATOM(shape->propid());
@@ -514,14 +514,15 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       }
 
       case JOF_SCOPECOORD: {
-        unsigned i = GET_UINT16(pc);
-        Sprint(sp, " %u", i);
-        pc += sizeof(uint16_t);
-        i = GET_UINT16(pc);
-        Sprint(sp, " %u", i);
-        pc += sizeof(uint16_t);
-        /* FALL THROUGH */
+        Value v = StringValue(ScopeCoordinateName(cx->runtime, script, pc));
+        JSAutoByteString bytes;
+        if (!ToDisassemblySource(cx, v, &bytes))
+            return 0;
+        ScopeCoordinate sc(pc);
+        Sprint(sp, " %s (hops = %u, slot = %u)", bytes.ptr(), sc.hops, sc.slot);
+        break;
       }
+
       case JOF_ATOM: {
         Value v = StringValue(script->getAtom(GET_UINT32_INDEX(pc)));
         JSAutoByteString bytes;
@@ -1408,6 +1409,12 @@ AddParenSlop(SprintStack *ss)
     ss->sprinter.reserveAndClear(PAREN_SLOP);
 }
 
+static unsigned
+StackDepth(JSScript *script)
+{
+    return script->nslots - script->nfixed;
+}
+
 static JSBool
 PushOff(SprintStack *ss, ptrdiff_t off, JSOp op, jsbytecode *pc = NULL)
 {
@@ -1843,7 +1850,7 @@ static bool
 IsVarSlot(JSPrinter *jp, jsbytecode *pc, JSAtom **varAtom, int *localSlot)
 {
     if (JOF_OPTYPE(*pc) == JOF_SCOPECOORD) {
-        *varAtom = ScopeCoordinateAtom(jp->script, pc);
+        *varAtom = ScopeCoordinateName(jp->sprinter.context->runtime, jp->script, pc);
         LOCAL_ASSERT_RV(*varAtom, NULL);
         return true;
     }
@@ -2543,6 +2550,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
     JSString *str;
     JSBool ok;
     JSBool foreach;
+    JSBool defaultsSwitch = false;
 #if JS_HAS_XML_SUPPORT
     JSBool inXML, quoteAttr;
 #else
@@ -4835,6 +4843,19 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 int32_t j, n, low, high;
                 TableEntry *table, *tmp;
 
+                if (defaultsSwitch) {
+                    defaultsSwitch = false;
+                    len = GET_JUMP_OFFSET(pc);
+                    if (jp->fun->hasRest()) {
+                        // Jump over rest parameter things.
+                        len += GetBytecodeLength(pc + len);
+                        LOCAL_ASSERT(pc[len] == JSOP_POP);
+                        len += GetBytecodeLength(pc + len);
+                    }
+                    todo = -2;
+                    break;
+                }
+
                 sn = js_GetSrcNote(jp->script, pc);
                 LOCAL_ASSERT(sn && SN_TYPE(sn) == SRC_SWITCH);
                 len = js_GetSrcNoteOffset(sn, 0);
@@ -5315,6 +5336,24 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 break;
 #endif /* JS_HAS_XML_SUPPORT */
 
+              case JSOP_ACTUALSFILLED:
+                JS_ASSERT(!defaultsSwitch);
+                defaultsSwitch = true;
+                todo = -2;
+                break;
+
+              case JSOP_REST:
+                // Ignore bytecode related to handling rest.
+                pc += GetBytecodeLength(pc);
+                if (*pc == JSOP_UNDEFINED)
+                    pc += GetBytecodeLength(pc);
+                LOCAL_ASSERT(*pc == JSOP_SETALIASEDVAR || *pc == JSOP_SETARG);
+                pc += GetBytecodeLength(pc);
+                LOCAL_ASSERT(*pc == JSOP_POP);
+                len = GetBytecodeLength(pc);
+                todo = -2;
+                break;
+
               default:
                 todo = -2;
                 break;
@@ -5490,7 +5529,7 @@ js_DecompileFunction(JSPrinter *jp)
 {
     JSContext *cx = jp->sprinter.context;
 
-    RootedVarFunction fun(cx, jp->fun);
+    RootedFunction fun(cx, jp->fun);
     JS_ASSERT(fun);
     JS_ASSERT(!jp->script);
 
@@ -5532,11 +5571,38 @@ js_DecompileFunction(JSPrinter *jp)
         ss.printer = NULL;
         jp->script = script;
 #endif
+        
+        jsbytecode *deftable = NULL;
+        jsbytecode *defbegin = NULL;
+        int32_t deflen = 0;
+        uint16_t defstart = 0;
+        unsigned nformal = fun->nargs - fun->hasRest();
+
+        if (fun->hasDefaults()) {
+            jsbytecode *defpc;
+            for (defpc = pc; defpc < endpc; defpc += GetBytecodeLength(defpc)) {
+                if (*defpc == JSOP_ACTUALSFILLED)
+                    break;
+            }
+            LOCAL_ASSERT_RV(defpc < endpc, JS_FALSE);
+            defpc += GetBytecodeLength(defpc);
+            LOCAL_ASSERT_RV(*defpc == JSOP_TABLESWITCH, JS_FALSE);
+            defbegin = defpc;
+            deflen = GET_JUMP_OFFSET(defpc);
+            defpc += JUMP_OFFSET_LEN;
+            defstart = GET_JUMP_OFFSET(defpc);
+            defpc += JUMP_OFFSET_LEN;
+            defpc += JUMP_OFFSET_LEN; // Skip high
+            deftable = defpc;
+        }
 
         for (unsigned i = 0; i < fun->nargs; i++) {
             if (i > 0)
                 js_puts(jp, ", ");
 
+            bool isRest = fun->hasRest() && i == unsigned(fun->nargs) - 1;
+            if (isRest)
+                js_puts(jp, "...");
             JSAtom *param = GetArgOrVarAtom(jp, i);
 
 #if JS_HAS_DESTRUCTURING
@@ -5570,10 +5636,18 @@ js_DecompileFunction(JSPrinter *jp)
                 continue;
             }
 
-#undef LOCAL_ASSERT
 #endif
+#undef LOCAL_ASSERT
 
-            if (!QuoteString(&jp->sprinter, param, 0)) {
+            if (fun->hasDefaults() && deflen && i >= defstart && !isRest) {
+#define TABLE_OFF(off) GET_JUMP_OFFSET(&deftable[(off)*JUMP_OFFSET_LEN])
+                jsbytecode *casestart = defbegin + TABLE_OFF(i - defstart);
+                jsbytecode *caseend = defbegin + ((i < nformal - 1) ? TABLE_OFF(i - defstart + 1) : deflen);
+#undef TABLE_OFF
+                unsigned exprlength = caseend - casestart - js_CodeSpec[JSOP_POP].length;
+                if (!DecompileCode(jp, script, casestart, exprlength, 0))
+                    return JS_FALSE;
+            } else if (!QuoteString(&jp->sprinter, param, 0)) {
                 ok = JS_FALSE;
                 break;
             }
@@ -5657,7 +5731,7 @@ js_DecompileValueGenerator(JSContext *cx, int spindex, jsval v,
              * calculated value matching v under assumption that it is
              * it that caused exception, see bug 328664.
              */
-            Value *stackBase = fp->base();
+            Value *stackBase = cx->regs().spForStackDepth(0);
             Value *sp = cx->regs().sp;
             do {
                 if (sp == stackBase) {

@@ -40,6 +40,7 @@
 #include "nsDOMMutationObserver.h"
 
 using namespace mozilla::dom;
+using namespace xpc;
 
 NS_IMPL_THREADSAFE_ISUPPORTS7(nsXPConnect,
                               nsIXPConnect,
@@ -1546,6 +1547,19 @@ MoveWrapper(XPCCallContext& ccx, XPCWrappedNative *wrapper,
         return NS_OK;
     }
 
+    // For performance reasons, we wait to fix up orphaned wrappers (wrappers
+    // whose parents have moved to another scope) until right before they
+    // threaten to confuse us.
+    //
+    // If this wrapper is an orphan, reunite it with its parent. If, following
+    // that, the wrapper is no longer in the old scope, then we don't need to
+    // reparent it.
+    MOZ_ASSERT(wrapper->GetScope() == oldScope);
+    nsresult rv = wrapper->RescueOrphans(ccx);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (wrapper->GetScope() != oldScope)
+        return NS_OK;
+
     nsISupports *identity = wrapper->GetIdentityObject();
     nsCOMPtr<nsIClassInfo> info(do_QueryInterface(identity));
 
@@ -1570,9 +1584,9 @@ MoveWrapper(XPCCallContext& ccx, XPCWrappedNative *wrapper,
         return NS_OK;
 
     JSObject *newParent = oldScope->GetGlobalJSObject();
-    nsresult rv = sciWrapper.GetCallback()->PreCreate(identity, ccx,
-                                                      newParent,
-                                                      &newParent);
+    rv = sciWrapper.GetCallback()->PreCreate(identity, ccx,
+                                             newParent,
+                                             &newParent);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2615,11 +2629,7 @@ SetLocationForGlobal(JSObject *global, const nsACString& location)
 {
     MOZ_ASSERT(global);
 
-    JSCompartment *compartment = js::GetObjectCompartment(global);
-    MOZ_ASSERT(compartment, "No compartment for global");
-
-    xpc::CompartmentPrivate *priv =
-        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+    CompartmentPrivate *priv = GetCompartmentPrivate(global);
     MOZ_ASSERT(priv, "No compartment private");
 
     priv->SetLocation(location);
@@ -2630,11 +2640,7 @@ SetLocationForGlobal(JSObject *global, nsIURI *locationURI)
 {
     MOZ_ASSERT(global);
 
-    JSCompartment *compartment = js::GetObjectCompartment(global);
-    MOZ_ASSERT(compartment, "No compartment for global");
-
-    xpc::CompartmentPrivate *priv =
-        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+    CompartmentPrivate *priv = GetCompartmentPrivate(global);
     MOZ_ASSERT(priv, "No compartment private");
 
     priv->SetLocation(locationURI);

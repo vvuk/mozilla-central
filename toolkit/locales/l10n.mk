@@ -74,6 +74,8 @@ endif
 include $(MOZILLA_DIR)/toolkit/mozapps/installer/signing.mk
 include $(MOZILLA_DIR)/toolkit/mozapps/installer/packager.mk
 
+PACKAGE_BASE_DIR = $(_ABS_DIST)/l10n-stage
+
 $(STAGEDIST): AB_CD:=en-US
 $(STAGEDIST): UNPACKAGE=$(call ESCAPE_SPACE,$(ZIP_IN))
 $(STAGEDIST): $(call ESCAPE_SPACE,$(ZIP_IN))
@@ -182,12 +184,12 @@ ifndef WGET
 	$(error Wget not installed)
 endif
 	$(NSINSTALL) -D $(_ABS_DIST)/$(PKG_PATH)
-	(cd $(_ABS_DIST)/$(PKG_PATH) && $(WGET) -nv -N  "$(EN_US_BINARY_URL)/$(PACKAGE)")
+	(cd $(_ABS_DIST)/$(PKG_PATH) && $(WGET) --no-cache -nv -N  "$(EN_US_BINARY_URL)/$(PACKAGE)")
 	@echo "Downloaded $(EN_US_BINARY_URL)/$(PACKAGE) to $(_ABS_DIST)/$(PKG_PATH)/$(PACKAGE)"
 ifdef RETRIEVE_WINDOWS_INSTALLER
 ifeq ($(OS_ARCH), WINNT)
 	$(NSINSTALL) -D $(_ABS_DIST)/$(PKG_INST_PATH)
-	(cd $(_ABS_DIST)/$(PKG_INST_PATH) && $(WGET) -nv -N "$(EN_US_BINARY_URL)/$(PKG_PATH)$(PKG_INST_BASENAME).exe")
+	(cd $(_ABS_DIST)/$(PKG_INST_PATH) && $(WGET) --no-cache -nv -N "$(EN_US_BINARY_URL)/$(PKG_PATH)$(PKG_INST_BASENAME).exe")
 	@echo "Downloaded $(EN_US_BINARY_URL)/$(PKG_PATH)$(PKG_INST_BASENAME).exe to $(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe"
 endif
 endif

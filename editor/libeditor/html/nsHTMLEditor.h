@@ -96,6 +96,8 @@ public:
            nsHTMLEditor();
   virtual  ~nsHTMLEditor();
 
+  bool GetReturnInParagraphCreatesNewParagraph();
+
   /* ------------ nsPlaintextEditor overrides -------------- */
   NS_IMETHOD GetIsDocumentEditable(bool *aIsDocumentEditable);
   NS_IMETHOD BeginningOfDocument();
@@ -228,13 +230,13 @@ public:
   static already_AddRefed<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
 
   static already_AddRefed<nsIDOMNode> NextNodeInBlock(nsIDOMNode *aNode, IterDirection aDir);
-  nsresult IsNextCharWhitespace(nsIDOMNode *aParentNode, 
+  void     IsNextCharWhitespace(nsIDOMNode *aParentNode,
                                 PRInt32 aOffset, 
                                 bool *outIsSpace, 
                                 bool *outIsNBSP,
                                 nsCOMPtr<nsIDOMNode> *outNode = 0,
                                 PRInt32 *outOffset = 0);
-  nsresult IsPrevCharWhitespace(nsIDOMNode *aParentNode, 
+  void     IsPrevCharWhitespace(nsIDOMNode *aParentNode,
                                 PRInt32 aOffset, 
                                 bool *outIsSpace, 
                                 bool *outIsNBSP,
@@ -318,7 +320,7 @@ public:
                               nsresult aStatus);
 
   /* ------------ Utility Routines, not part of public API -------------- */
-  NS_IMETHOD TypedText(const nsAString& aString, PRInt32 aAction);
+  NS_IMETHOD TypedText(const nsAString& aString, ETypingAction aAction);
   nsresult InsertNodeAtPoint( nsIDOMNode *aNode, 
                               nsCOMPtr<nsIDOMNode> *ioParent, 
                               PRInt32 *ioOffset, 
@@ -504,7 +506,15 @@ protected:
     *                   May be null.  Ignored if aAttribute is null.
     * @param aIsSet     [OUT] true if <aProperty aAttribute=aValue> effects aNode.
     * @param outValue   [OUT] the value of the attribute, if aIsSet is true
+    *
+    * The nsIContent variant returns aIsSet instead of using an out parameter.
     */
+  bool IsTextPropertySetByContent(nsIContent*      aContent,
+                                  nsIAtom*         aProperty,
+                                  const nsAString* aAttribute,
+                                  const nsAString* aValue,
+                                  nsAString*       outValue = nsnull);
+
   void IsTextPropertySetByContent(nsIDOMNode*      aNode,
                                   nsIAtom*         aProperty,
                                   const nsAString* aAttribute,
@@ -671,8 +681,6 @@ protected:
 
   bool NodeIsProperty(nsIDOMNode *aNode);
   bool HasAttr(nsIDOMNode *aNode, const nsAString *aAttribute);
-  bool HasAttrVal(const nsIContent* aNode, const nsAString* aAttribute,
-                  const nsAString& aValue);
   bool IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset);
   bool IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset);
   bool IsOnlyAttribute(nsIDOMNode *aElement, const nsAString *aAttribute);
@@ -935,7 +943,11 @@ friend class nsWSRunObject;
 friend class nsHTMLEditorEventListener;
 
 private:
-  // Helper
+  // Helpers
+  bool IsSimpleModifiableNode(nsIContent* aContent,
+                              nsIAtom* aProperty,
+                              const nsAString* aAttribute,
+                              const nsAString* aValue);
   nsresult SetInlinePropertyOnNodeImpl(nsIContent* aNode,
                                        nsIAtom* aProperty,
                                        const nsAString* aAttribute,

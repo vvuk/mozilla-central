@@ -63,6 +63,8 @@ struct JSFunction : public JSObject
     } u;
     js::HeapPtrAtom  atom;        /* name for diagnostics and decompiling */
 
+    bool hasDefaults()       const { return flags & JSFUN_HAS_DEFAULTS; }
+    bool hasRest()           const { return flags & JSFUN_HAS_REST; }
     bool isInterpreted()     const { return kind() >= JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
     bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
@@ -83,6 +85,16 @@ struct JSFunction : public JSObject
     void setArgCount(uint16_t nargs) {
         JS_ASSERT(this->nargs == 0);
         this->nargs = nargs;
+    }
+
+    void setHasRest() {
+        JS_ASSERT(!hasRest());
+        this->flags |= JSFUN_HAS_REST;
+    }
+
+    void setHasDefaults() {
+        JS_ASSERT(!hasDefaults());
+        this->flags |= JSFUN_HAS_DEFAULTS;
     }
 
     /* uint16_t representation bounds number of call object dynamic slots. */
@@ -232,9 +244,6 @@ js_ValueToCallableObject(JSContext *cx, js::Value *vp, unsigned flags);
 extern void
 js_ReportIsNotFunction(JSContext *cx, const js::Value *vp, unsigned flags);
 
-extern void
-js_PutCallObject(js::StackFrame *fp, js::CallObject &callobj);
-
 namespace js {
 
 /*
@@ -265,9 +274,6 @@ JSFunction::toExtended() const
     JS_ASSERT(isExtended());
     return static_cast<const js::FunctionExtended *>(this);
 }
-
-extern void
-js_PutArgsObject(js::StackFrame *fp);
 
 inline bool
 js_IsNamedLambda(JSFunction *fun) { return (fun->flags & JSFUN_LAMBDA) && fun->atom; }

@@ -65,7 +65,6 @@
 
 #include "nsBindingManager.h"
 #include "nsXBLBinding.h"
-#include "nsIXBLService.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIBoxObject.h"
 #include "nsClientRect.h"
@@ -1479,7 +1478,12 @@ nsIContent::IMEState
 nsIContent::GetDesiredIMEState()
 {
   if (!IsEditableInternal()) {
-    return IMEState(IMEState::DISABLED);
+    // Check for the special case where we're dealing with elements which don't
+    // have the editable flag set, but are readwrite (such as text controls).
+    if (!IsElement() ||
+        !AsElement()->State().HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
+      return IMEState(IMEState::DISABLED);
+    }
   }
   // NOTE: The content for independent editors (e.g., input[type=text],
   // textarea) must override this method, so, we don't need to worry about
@@ -4483,9 +4487,16 @@ ContentUnbinder* ContentUnbinder::sContentUnbinder = nsnull;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   nsINode::Unlink(tmp);
 
-  if (tmp->HasProperties() && tmp->IsXUL()) {
-    tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
-    tmp->DeleteProperty(nsGkAtoms::popuplistener);
+  if (tmp->HasProperties()) {
+    if (tmp->IsHTML()) {
+      tmp->DeleteProperty(nsGkAtoms::microdataProperties);
+      tmp->DeleteProperty(nsGkAtoms::itemtype);
+      tmp->DeleteProperty(nsGkAtoms::itemref);
+      tmp->DeleteProperty(nsGkAtoms::itemprop);
+    } else if (tmp->IsXUL()) {
+      tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
+      tmp->DeleteProperty(nsGkAtoms::popuplistener);
+    }
   }
 
   // Unlink child content (and unbind our subtree).
@@ -4983,14 +4994,25 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
 
   tmp->OwnerDoc()->BindingManager()->Traverse(tmp, cb);
 
-  if (tmp->HasProperties() && tmp->IsXUL()) {
-    nsISupports* property =
-      static_cast<nsISupports*>
-                 (tmp->GetProperty(nsGkAtoms::contextmenulistener));
-    cb.NoteXPCOMChild(property);
-    property = static_cast<nsISupports*>
-                          (tmp->GetProperty(nsGkAtoms::popuplistener));
-    cb.NoteXPCOMChild(property);
+  if (tmp->HasProperties()) {
+    if (tmp->IsHTML()) {
+      nsISupports* property = static_cast<nsISupports*>
+                                         (tmp->GetProperty(nsGkAtoms::microdataProperties));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemref));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemprop));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemtype));
+      cb.NoteXPCOMChild(property);
+    } else if (tmp->IsXUL()) {
+      nsISupports* property = static_cast<nsISupports*>
+                                         (tmp->GetProperty(nsGkAtoms::contextmenulistener));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>
+                            (tmp->GetProperty(nsGkAtoms::popuplistener));
+      cb.NoteXPCOMChild(property);
+    }
   }
 
   // Traverse attribute names and child content.
@@ -5162,7 +5184,13 @@ nsGenericElement::MaybeCheckSameAttrVal(PRInt32 aNamespaceID,
       }
       bool valueMatches = aValue.EqualsAsStrings(*info.mValue);
       if (valueMatches && aPrefix == info.mName->GetPrefix()) {
-        return !OwnerDoc()->MayHaveDOMMutationObservers();
+        if (OwnerDoc()->MayHaveDOMMutationObservers()) {
+          // For backward compatibility, don't fire mutation events
+          // when setting an attribute to its old value.
+          *aHasListeners = false;
+        } else {
+          return true;
+        }
       }
       modification = true;
     }
