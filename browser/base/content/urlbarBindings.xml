@@ -1222,70 +1222,65 @@
     </content>
     <implementation>
       <constructor><![CDATA[
-        // NOTE: this.notification should be a reference to the notification object
-        dump("id: " + this.notification.options.identity + "\n");
-
-        // Populate the list of identities to choose from
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.notification.options.identity.origin);
+        // this.notification.options.identity is used to pass identity-specific info to the binding
+        let identityOpts = this.notification.options.identity;
+        // Populate the list of identities to choose from. The origin is used to provide
+        // better suggestions.
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(identityOpts.origin);
 
         // Show the add email pane (0) if there are no existing identities otherwise show the list
         this.step = "result" in identities && identities.result.length ? 1 : 0;
 
-        if (this.notification.options.identity.tosURL) {
-          // Show optional TOS and privacy policy links
+        if (identityOpts.tosURL) {
+          // Show optional TOS link
           let tos = document.getAnonymousElementByAttribute(this, "anonid", "tos");
-          dump("tos\n");
           tos.value = "Terms of Service"; // TODO: l10n
-          tos.href = this.notification.options.identity.tosURL;
+          tos.href = identityOpts.tosURL;
           tos.hidden = false;
         }
 
-        if (this.notification.options.identity.privacyURL) {
+        if (identityOpts.privacyURL) {
+          // Show optional privacy policy link
           let pp = document.getAnonymousElementByAttribute(this, "anonid", "privacypolicy");
-          dump("pp\n");
           pp.value = "Privacy Policy"; // TODO: l10n
-          pp.href = this.notification.options.identity.privacyURL;
+          pp.href = identityOpts.privacyURL;
           pp.hidden = false;
         }
 
-        let identityList = document.getAnonymousElementByAttribute(this, "anonid", "identities")
-        var foundLast = false;
+        var foundLastUsed = false;
         for (let id in identities.result) {
           let label = identities.result[id];
           let opt = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "radio");
           opt.setAttribute("label", label);
-          identityList.appendChild(opt);
+          this.identitylist.appendChild(opt);
           if (label == identities.lastUsed) {
-            identityList.selectedItem = opt;
-            foundLast = true;
+            this.identitylist.selectedItem = opt;
+            foundLastUsed = true;
           }
         }
-        if (!foundLast) {
-          identityList.selectedIndex = -1;
-          dump("not found last: " + foundLast + " : " + identityList.selectedIndex + "\n");
+        if (!foundLastUsed) {
+          this.identitylist.selectedIndex = -1;
         }
 
         // Fire notification with the chosen identity when main button is clicked
-        let button = document.getAnonymousElementByAttribute(this, "anonid", "button")
-        button.addEventListener("command", function(evt) {
+        this.button.addEventListener("command", function(evt) {
           if (evt.target != evt.currentTarget)
             return;
           switch(this.step) {
             case "0":
-              let email = document.getAnonymousElementByAttribute(this, "anonid", "email")
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("rpId", this.notification.options.identity.rpId);
-              Services.obs.notifyObservers(propBag, "identity-login", email.value);
+              propBag.setProperty("rpId", identityOpts.rpId);
+              Services.obs.notifyObservers(propBag, "identity-login", this.emailfield.value);
               break;
             case "1":
-              let identity = document.getAnonymousElementByAttribute(this, "anonid", "identities")
-              let selected = identity.selectedItem ? identity.selectedItem.label : null;
+              let selectedItem = this.identitylist.selectedItem
+              let selectedIdentity = selectedItem ? selectedItem.label : null;
               var propBag = Cc["@mozilla.org/hash-property-bag;1"].
                             createInstance(Ci.nsIWritablePropertyBag);
-              propBag.setProperty("rpId", this.notification.options.identity.rpId);
+              propBag.setProperty("rpId", identityOpts.rpId);
 
-              Services.obs.notifyObservers(propBag, "identity-login", selected);
+              Services.obs.notifyObservers(propBag, "identity-login", selectedIdentity);
               break;
             default:
               dump("Unknown case\n");
@@ -1296,14 +1291,25 @@
         let addEmailClick = function(evt) {
           this.step = 0;
         }.bind(this);
-        let newEmail = document.getAnonymousElementByAttribute(this, "anonid", "newemail")
-        newEmail.addEventListener("click", addEmailClick);
+        this.addemaillink.addEventListener("click", addEmailClick);
       ]]></constructor>
 
       <field name="SignInToWebsiteUX" readonly="true">
         let sitw = {};
         Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
         sitw.SignInToWebsiteUX;
+      </field>
+
+      <field name="identitylist" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "identities")
+      </field>
+
+      <field name="emailfield" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "email")
+      </field>
+
+      <field name="addemaillink" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "newemail")
       </field>
 
       <property name="step">
