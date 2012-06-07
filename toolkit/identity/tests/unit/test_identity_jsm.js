@@ -744,7 +744,9 @@ function test_register_certificate()
       // we should be cool!
       do_check_eq(err, null);
 
-      check_provision_flow_done(_callerId);
+      // XXX this will happen after the callback is called
+      // 
+      //check_provision_flow_done(_callerId);
 
       // check that the cert is there
       var identity = get_idstore().fetchIdentity(TEST_USER);

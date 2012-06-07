@@ -538,9 +538,10 @@ IDService.prototype = {
   logout: function logout(aCallerId)
   {
     let caller = this._rpFlows[aCallerId];
-    let audience = caller.origin;
-    this._doLogout(caller, {audience: audience});
-
+    if (caller && caller.origin) {
+      let audience = caller.origin;
+      this._doLogout(caller, {audience: audience});
+    }
     // We don't delete this._rpFlows[aCallerId], because 
     // the user might log back in again.
   },
@@ -675,7 +676,9 @@ IDService.prototype = {
     // Great success!
     provFlow.callback(null);
 
+    // Clean up the flow.
     this._cleanUpProvisionFlow(aProvId);
+
   },
 
   /**
