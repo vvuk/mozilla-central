@@ -48,14 +48,16 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
-    // TODO: store aOptions.onCancel callback if present
-
     let message = {
       oid: this._id,
       origin: this._origin,
     };
 
     if (aOptions) {
+      if (aOptions.oncancel) {
+        this._onCancelRequestCallback = aOptions.oncancel;
+      }
+
       message.requiredEmail = aOptions.requiredEmail;
       message.privacyURL = aOptions.privacyURL;
       message.tosURL = aOptions.tosURL;
@@ -143,7 +145,6 @@ nsDOMIdentity.prototype = {
     let msg = aMessage.json;
     // Is this message intended for this window?
     if (msg.oid != this._id) {
-      //log("ignoring");
       return;
     }
     log("receiveMessage: " + aMessage.name + " : " + msg.oid);
@@ -179,6 +180,16 @@ nsDOMIdentity.prototype = {
           this._watcher.onready();
         }
         break;
+      case "Identity:RP:Request:OnCancel":
+        // Do we have a watcher?
+        if (!this._watcher) {
+          return;
+        }
+
+        if (this._onCancelRequestCallback) {
+          this._onCancelRequestCallback();
+        }
+        break;
       case "Identity:IDP:CallBeginProvisioningCallback":
         this._callBeginProvisioningCallback(msg);
         break;
@@ -201,6 +212,7 @@ nsDOMIdentity.prototype = {
     Services.obs.removeObserver(this, "inner-window-destroyed");
     this._window = null;
     this._watcher = null;
+    this._onCancelRequestCallback = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
@@ -217,6 +229,7 @@ nsDOMIdentity.prototype = {
 
     // Store window and origin URI.
     this._watcher = null;
+    this._onCancelRequestCallback = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
@@ -234,6 +247,7 @@ nsDOMIdentity.prototype = {
       "Identity:RP:Watch:OnLogin",
       "Identity:RP:Watch:OnLogout",
       "Identity:RP:Watch:OnReady",
+      "Identity:RP:Request:OnCancel",
       "Identity:IDP:CallBeginProvisioningCallback",
       "Identity:IDP:CallGenKeyPairCallback",
       "Identity:IDP:CallBeginAuthenticationCallback",
