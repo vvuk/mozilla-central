@@ -466,7 +466,7 @@ log("Notified identity-login-state-changed");
           securityLevel: this.securityLevel,
           provisioningSandbox: aSandbox,
           callback: function doCallback(aErr) {
-            aCallback(aErr, aSandbox.id);
+            aCallback(aErr, provId);
           },
         };
 
