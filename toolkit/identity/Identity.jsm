@@ -143,8 +143,7 @@ IDService.prototype = {
   /**
    * Reset the state of the IDService object.
    */
-  reset: function reset()
-  {
+  reset: function reset() {
     // Forget all documents that call in.  (These are sometimes 
     // referred to as callers.)
     this._rpFlows = {};
@@ -266,11 +265,9 @@ IDService.prototype = {
     let state = this._store.getLoginState(aOptions.origin) || {};
 
     // XXX add tests for state change
-
-    let email = state.email || null;
+    state.isLoggedIn = false;
     this._notifyLoginStateChanged(aCaller.id, null);
 
-    state.isLoggedIn = false;
     aCaller.doLogout();
     aCaller.doReady();
   },
@@ -282,8 +279,8 @@ IDService.prototype = {
    * and the email of the user in the message.
    */
   _notifyLoginStateChanged: function _notifyLoginStateChanged(aCallerId, aIdentity) {
-    let options = Cc["@mozilla.org/hash-property-bag;1"].
-                  createInstance(Ci.nsIWritablePropertyBag);
+    let options = Cc["@mozilla.org/hash-property-bag;1"]
+                    .createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aCallerId);
     Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
   },
@@ -300,8 +297,8 @@ IDService.prototype = {
    */
   request: function request(aRPId, aOptions) {
     // Notify UX to display identity picker.
-    let options = Cc["@mozilla.org/hash-property-bag;1"].
-                  createInstance(Ci.nsIWritablePropertyBag);
+    let options = Cc["@mozilla.org/hash-property-bag;1"]
+                    .createInstance(Ci.nsIWritablePropertyBag);
 
     // Pass the doc id to UX so it can pass it back to us later.
     options.setProperty("rpId", aRPId);
@@ -350,7 +347,7 @@ IDService.prototype = {
 
     // Get the RP that was stored when watch() was invoked.
     let rp = this._rpFlows[aRPId];
-    if (! rp) {
+    if (!rp) {
       Cu.reportError("selectIdentity called with invalid rp id: " + aRPId);
       return null;
     }
@@ -368,7 +365,7 @@ IDService.prototype = {
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
-      if (! err && assertion) {
+      if (!err && assertion) {
         // Login with this assertion
         self._store.setLoginState(rp.origin, true, aIdentity);
         self._notifyLoginStateChanged(aRPId, aIdentity);
@@ -396,7 +393,7 @@ IDService.prototype = {
             // At this point, we already have a cert.  If the user is also
             // already authenticated with the IdP, then we can try again
             // to generate an assertion and login.
-            if (! err) {
+            if (!err) {
               // XXX quick hack - cleanup is done by registerCertificate
               // XXX order of callbacks and signals is a little tricky
               //self._cleanUpProvisionFlow(aProvId);
@@ -467,16 +464,14 @@ log("** ERROR ** no kp");
 
     signCallback.prototype = {
 
-      QueryInterface: function (aIID)
-      {
+      QueryInterface: function (aIID) {
         if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
           return this;
         }
         throw Cr.NS_ERROR_NO_INTERFACE;
       },
 
-      signFinished: function (rv, signedAssertion)
-      {
+      signFinished: function (rv, signedAssertion) {
         log("signFinished");
         if (!Components.isSuccessCode(rv)) {
 log("sign failed");
@@ -634,6 +629,7 @@ log("sign callback is", typeof cb);
    * 
    * @param aProvId
    *        (int)  the identifier of the provisioning flow tied to that sandbox
+   * @param aReason
    */
   raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason) {
     Cu.reportError("Provisioning failure: " + aReason);
@@ -671,12 +667,12 @@ log("sign callback is", typeof cb);
       return null;
     }
 
-    if (! provFlow.didBeginProvisioning) {
+    if (!provFlow.didBeginProvisioning) {
       return provFlow.callback("Cannot genKeyPair before beginProvisioning");
     }
 
     // Ok generate a keypair
-    this._generateKeyPair("DS160", INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
+    this._generateKeyPair(ALGORITHMS.DS160, INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
       log("generated the keypair, yo! err is", err);
       if (err) {
         log("error generating keypair:" + err);
@@ -708,11 +704,11 @@ log("serialized key", provFlow.kp.serializedPublicKey);
 log("registerCertificate for ", aProvId);
     // look up provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
-    if (! provFlow && provFlow.caller) {
+    if (!provFlow && provFlow.caller) {
       Cu.reportError("Cannot register cert; No provision flow or caller");
       return null;
     }
-    if (! provFlow.kp)  {
+    if (!provFlow.kp)  {
       Cu.reportError("Cannot register cert; No keypair");
       return provFlow.callback("Cannot register a cert without generating a keypair first");
     }
@@ -725,7 +721,6 @@ log("stored a cert!");
 
     // Clean up the flow.
     this._cleanUpProvisionFlow(aProvId);
-
   },
 
   /**
@@ -743,7 +738,7 @@ log("stored a cert!");
     // stash aIdentity, idpparams, and callback in it.
 
     // extract authentication URL from idpParams
-    
+
     // ? create a visible frame with sandbox and notify UX
     // or notify UX so it can create the visible frame, not sure which one.
     // TODO: make the two lines below into a helper to be used for auth and authentication
@@ -884,7 +879,7 @@ log("stored a cert!");
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
 
     // We might not have any identity info for this email
-    if (! this._store.fetchIdentity(email)) {
+    if (!this._store.fetchIdentity(email)) {
       this.addIdentity(email, null, null);
     }
 
@@ -1019,7 +1014,7 @@ log("can login with assertion", assertion);
 
     keyGenCallback.prototype = {
 
-      QueryInterface: function (aIID)
+      QueryInterface: function(aIID)
       {
         if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
           return this;
@@ -1027,7 +1022,7 @@ log("can login with assertion", assertion);
         throw Cr.NS_ERROR_NO_INTERFACE;
       },
 
-      generateKeyPairFinished: function (rv, aKeyPair)
+      generateKeyPairFinished: function(rv, aKeyPair)
       {
         log("generateKeyPairFinished");
         if (!Components.isSuccessCode(rv)) {
@@ -1060,7 +1055,7 @@ log("can login with assertion", assertion);
             break;
 
           default:
-            return aCallback("uknown key type");
+            return aCallback("unknown key type");
         }
 
         let keyWrapper = {
@@ -1149,12 +1144,11 @@ log("can login with assertion", assertion);
 
     // let req  = new XMLHttpRequest();
 
-    // this appears to be a more successful way to get at xmlhttprequest
+    // this appears to be a more successful way to get at xmlhttprequest (which supposedly will close with a window
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-      .getService(Ci.nsIXMLHttpRequest);
+                .getService(Ci.nsIXMLHttpRequest);
 
     // XXX how can we detect whether we are off-line?
-    // TODO: require HTTPS?
     // TODO: decide on how to handle redirects
     req.open("GET", url, true);
     req.responseType = "json";
@@ -1183,7 +1177,7 @@ log("can login with assertion", assertion);
         return aCallback(null, callbackObj);
         
       } catch (err) {
-        Cu.reportError("Bad configuration from " + aDomain + ": " +err);
+        Cu.reportError("Bad configuration from " + aDomain + " : " +err);
         return aCallback(err.toString());
       }
     };
@@ -1207,7 +1201,6 @@ log("can login with assertion", assertion);
   _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback) {
     log("creating provisioning sandbox", aURL);
 
-    // TODO: cleanup sandbox (call free)
     new Sandbox(aURL, aCallback);
   },
 
@@ -1215,8 +1208,8 @@ log("can login with assertion", assertion);
    * Load the authentication UI to start the authentication process.
    */
   _beginAuthenticationFlow: function _beginAuthenticationFlow(aProvId, aURL) {
-    let propBag = Cc["@mozilla.org/hash-property-bag;1"].
-                  createInstance(Ci.nsIWritablePropertyBag);
+    let propBag = Cc["@mozilla.org/hash-property-bag;1"]
+                    .createInstance(Ci.nsIWritablePropertyBag);
     propBag.setProperty("provId", aProvId);
 
     Services.obs.notifyObservers(propBag, "identity-auth", aURL);
