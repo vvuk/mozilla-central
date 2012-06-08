@@ -1095,7 +1095,7 @@ IDService.prototype = {
               y: aKeyPair.hexDSAPublicValue,
               p: aKeyPair.hexDSAPrime,
               q: aKeyPair.hexDSASubPrime,
-              g: aKeyPair.HexDSAGenerator
+              g: aKeyPair.hexDSAGenerator
             };
             break;
 
