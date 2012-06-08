@@ -11,7 +11,6 @@
 #include "nss.h"
 #include "pk11pub.h"
 #include "prlog.h"
-#include "registry.h"
 
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -23,6 +22,7 @@
 // nICEr includes
 extern "C" {
 #include "nr_api.h"
+#include "registry.h"
 #include "ice_util.h"
 #include "transport_addr.h"
 #include "nr_crypto.h"
@@ -118,7 +118,7 @@ TransportLayerIceCtx::TransportLayerIceCtx(const std::string& name, bool offerer
     name_(name), ctx_(NULL) {
   int r;
   
-  if (initialized) {
+  if (!initialized) {
     nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
     NR_reg_init(NR_REG_MODE_LOCAL);
     initialized = 1;
