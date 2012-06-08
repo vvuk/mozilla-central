@@ -515,13 +515,13 @@ function test_logout()
         do_timeout(100, doLogout);
       },
       function(action, params) {
-        do_check_eq(action, 'ready');
+        do_check_eq(action, 'logout');
         do_check_eq(params, undefined);
 
         do_timeout(100, doLogout);
       },
       function(action, params) {
-        do_check_eq(action, 'logout');
+        do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
         
         do_test_finished();
