@@ -544,7 +544,7 @@ SignRunnable::Run()
 
 namespace mozilla {
 
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(IdentityCryptoService, Init);
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(IdentityCryptoService, Init)
 
 } // namespace mozilla
 
