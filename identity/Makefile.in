@@ -1,0 +1,35 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= ..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+relativesrcdir  = identity
+
+include $(DEPTH)/config/autoconf.mk
+
+FAIL_ON_WARNINGS := 1
+
+MODULE = IdentityModule
+XPIDL_MODULE = IdentityModule
+LIBRARY_NAME = IdentityModule
+EXPORT_LIBRARY = 1
+IS_COMPONENT = 1
+MODULE_NAME = IdentityModule
+LIBXUL_LIBRARY = 1
+MOZILLA_INTERNAL_API = 1
+
+XPIDLSRCS = \
+  nsIIdentityService.idl \
+  $(NULL)
+
+CPPSRCS = \
+  IdentityService.cpp \
+  $(NULL)
+
+TEST_PATH = .
+XPCSHELL_TESTS = .
+
+include $(topsrcdir)/config/rules.mk

@@ -20,12 +20,11 @@ var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";
 var INTERNAL_ORIGIN = "browserid://";
 
-const ALGORITHMS = { RS256: 1, DS160: 2 };
+const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
-XPCOMUtils.defineLazyGetter(this, "IDKeyPair", function () {
-  return Cc["@mozilla.org/identityservice-keypair;1"].
-    createInstance(Ci.nsIIdentityServiceKeyPair);
-});
+const IdentityCryptoService
+  = Cc["@mozilla.org/IdentityModule/service;1"]
+      .getService(Components.interfaces.nsIIdentityService);
 
 /*
 XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
@@ -461,21 +460,46 @@ IDService.prototype = {
       return aCallback("Cannot generate assertion without a cert");
     }
     
-    let kp = this._getIdentityServiceKeyPair(aIdentity, INTERNAL_ORIGIN);
+    let kp = this._getIdentityKeyPair(aIdentity, INTERNAL_ORIGIN);
     log("have kp");
 
     if (!kp) {
       return aCallback("no kp");
     }
 
+    function signCallback() { }
+
+    signCallback.prototype = {
+
+      QueryInterface: function (aIID)
+      {
+        if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
+          return this;
+        }
+        throw Cr.NS_ERROR_NO_INTERFACE;
+      },
+
+      signFinished: function (rv, signedAssertion)
+      {
+        log("signFinished");
+        if (!Components.isSuccessCode(rv)) {
+	        return aCallback("Sign Failed");
+	      }
+
+        log("signFinished: calling callback");
+        // bundle with cert
+        try {
+          return aCallback(null, id.cert + "~" + signedAssertion);
+        } catch (e) {
+          log ("exception " + e);
+        }
+      },
+    };
+
     // generate the assertion
     var in_2_minutes = new Date(new Date().valueOf() + (2 * 60 * 1000));
-    var assertion = jwcrypto.assertion.sign(
-      {}, {expiresAt: in_2_minutes, audience: aAudience},
-      kp.kp.secretKey, function(err, signedAssertion) {
-        // bundle with cert
-        return aCallback(err, id.cert + "~" + signedAssertion);
-      });
+    var unsignedAssertion = {expiresAt: in_2_minutes, audience: aAudience};
+    kp.kp.sign(JSON.stringify(unsignedAssertion), new signCallback());
   },
 
   /**
@@ -659,16 +683,17 @@ IDService.prototype = {
 
     // Ok generate a keypair
     this._generateKeyPair("DS160", INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
+      log("generated the keypair, yo!");
       if (err) {
         log("error generating keypair:" + err);
         return provFlow.callback(err);
       }
       
-      provFlow.kp = this._getIdentityServiceKeyPair(key.userID, key.url);
+      provFlow.kp = this._getIdentityKeyPair(key.userID, key.url);
 
       // Serialize the publicKey of the keypair and send it back to the
       // sandbox.
-      provFlow.caller.doGenKeyPairCallback(provFlow.kp.kp.publicKey.serialize());
+      provFlow.caller.doGenKeyPairCallback(provFlow.kp.serializedPublicKey);
     }.bind(this));
   },
 
@@ -1011,7 +1036,7 @@ IDService.prototype = {
   _registry: { },
 
   /**
-   * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
+   * Generates an nsIIdentityKeyPair object that can sign data. It also
    * provides all of the public key properties needed by a JW* formatted object
    *
    * @param string aAlgorithmName
@@ -1023,7 +1048,7 @@ IDService.prototype = {
    * @returns void
    *          An internal callback object will notifyObservers of topic
    *          "id-service-key-gen-finished" when the keypair is ready.
-   *          Access to the keypair is via the getIdentityServiceKeyPair() method
+   *          Access to the keypair is via the getIdentityKeyPair() method
    **/
   _generateKeyPair: function _generateKeyPair(aAlgorithmName, aOrigin, aUserID, aCallback)
   {
@@ -1040,77 +1065,65 @@ IDService.prototype = {
 
       QueryInterface: function (aIID)
       {
-        if (aIID.equals(Ci.nsIIdentityServiceKeyGenCallback)) {
+        if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
           return this;
         }
         throw Cr.NS_ERROR_NO_INTERFACE;
       },
 
-      keyPairGenFinished: function (aKeyPair)
+      generateKeyPairFinished: function (rv, aKeyPair)
       {
+        log("generateKeyPairFinished");
+        if (!Components.isSuccessCode(rv)) {
+          return aCallback("key generation failed");
+        }
+
         let url = aOrigin; // Services.io.newURI(aOrigin, null, null).prePath;
         let id = uuid();
-        var keyWrapper;
         let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
         let key = { userID: aUserID, url: url };
+        var publicKey;
 
-        /*
-          switch (alg) {
-        case ALGORITHMS.RS256:
-          keyWrapper = {
-            algorithm: alg,
-            userID: aUserID,
-            sign:        aKeyPair.sign,
-            url:         url,
-            publicKey:   aKeyPair.encodedPublicKey,
-            exponent:    aKeyPair.encodedRSAPublicKeyExponent,
-            modulus:     aKeyPair.encodedRSAPublicKeyModulus
-          };
+        switch (aKeyPair.keyType) {
+          case ALGORITHMS.RS256:
+            publicKey = {
+              algorithm: "RS",
+              exponent:  aKeyPair.hexRSAPublicKeyExponent, // XXX: name?
+              modulus:   aKeyPair.hexRSAPublicKeyModulus   // XXX: name?
+            };
+            break;
 
-          break;
+          case ALGORITHMS.DS160:
+            publicKey = {
+              algorithm: "DS",
+              y: aKeyPair.hexDSAPublicValue,
+              p: aKeyPair.hexDSAPrime,
+              q: aKeyPair.hexDSASubPrime,
+              g: aKeyPair.HexDSAGenerator
+            };
+            break;
 
-        case ALGORITHMS.DS160:
-          keyWrapper = {
-            algorithm: alg,
-            userID: aUserID,
-            sign:       aKeyPair.sign,
-            url:        url,
-            publicKey:  pubK,
-            generator:  aKeyPair.encodedDSAGenerator,
-            prime:      aKeyPair.encodedDSAPrime,
-            subPrime:   aKeyPair.encodedDSASubPrime
-          };
+          default:
+            return aCallback("uknown key type");
+        }
 
-          break;
-        default:
-          throw new Error("Unsupported algorithm");
-        }*/
-        keyWrapper = {
+        let keyWrapper = {
           userID: aUserID,
           url: url,
+          serializedPublicKey: JSON.stringify(publicKey),
           kp: aKeyPair
         };
 
         let keyID = key.userID + "__" + key.url;
         self._registry[keyID] = keyWrapper;
 
+        log("generateKeyPairFinished2 " + aCallback);
         return  aCallback(null, {url:url, userID: aUserID});
       },
     };
 
-    //IDKeyPair.generateKeyPair(ALGORITHMS[aAlgorithmName], new keyGenCallback());
-    var algorithm = aAlgorithmName.substring(0,2);
-    var keysize = parseInt(aAlgorithmName.substring(2));
-    log("KEYSIZE", keysize);
-
     var cbObj = new keyGenCallback();
-
-    if (keysize == 160)
-      keysize = 128;
-    jwcrypto.generateKeypair({algorithm: algorithm, keysize: keysize}, function(err, kp) {
-      if (!err)
-        cbObj.keyPairGenFinished(kp);
-    });
+    IdentityCryptoService.generateKeyPair(ALGORITHMS[aAlgorithmName], cbObj);
   },
 
   /**
@@ -1131,7 +1144,6 @@ IDService.prototype = {
    *   userID
    *   sign()
    *   url
-   *   publicKey
    *   exponent
    *   modulus
    *
@@ -1140,17 +1152,17 @@ IDService.prototype = {
    *   userID
    *   sign()
    *   url
-   *   publicKey
    *   generator
    *   prime
    *   subPrime
+   *   publicValue
    **/
-  _getIdentityServiceKeyPair: function _getIdentityServiceKeypair(aUserID, aUrl)
+  _getIdentityKeyPair: function _getIdentityKeyPair(aUserID, aUrl)
   {
     let key = aUserID + "__" + aUrl;
     let keyObj =  this._registry[key];
     if (!keyObj) {
-      throw new Error("getIdentityServiceKeyPair: Invalid Key");
+      throw new Error("getIdentityKeyPair: Invalid Key");
     }
     return keyObj;
   },

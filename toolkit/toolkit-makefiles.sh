@@ -59,6 +59,7 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/system/Makefile
   dom/workers/Makefile
+  identity/Makefile
 "
 
 MAKEFILES_editor="

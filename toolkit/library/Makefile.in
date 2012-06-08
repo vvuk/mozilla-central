@@ -322,6 +322,7 @@ DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
 endif
 
+COMPONENT_LIBS += IdentityModule
 COMPONENT_LIBS += services-crypto
 
 ifdef MOZ_DEBUG

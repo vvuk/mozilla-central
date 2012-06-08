@@ -94,7 +94,7 @@ function test_rsa()
   function checkRSA(err, key) {
     var kpo;
     // now we can pluck the keyPair from the store
-    kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+    kpo = IDService._getIdentityKeyPair(key.userID, key.url);
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.RS256);
 
@@ -103,7 +103,6 @@ function test_rsa()
     do_check_neq(kpo.userID, null);
     do_check_neq(kpo.url, null);
     do_check_eq(kpo.url, INTERNAL_ORIGIN);
-    do_check_neq(kpo.publicKey, null);
     do_check_neq(kpo.exponent, null);
     do_check_neq(kpo.modulus, null);
     
@@ -127,7 +126,7 @@ function test_dsa()
   function checkDSA(err, key) {
     var kpo;
     // now we can pluck the keyPair from the store
-    kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+    kpo = IDService._getIdentityKeyPair(key.userID, key.url);
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.DS160);
 
@@ -136,10 +135,10 @@ function test_dsa()
     do_check_neq(kpo.userID, null);
     do_check_neq(kpo.url, null);
     do_check_eq(kpo.url, INTERNAL_ORIGIN);
-    do_check_neq(kpo.publicKey, null);
     do_check_neq(kpo.generator, null);
     do_check_neq(kpo.prime, null);
     do_check_neq(kpo.subPrime, null);
+    do_check_neq(kpo.publicValue, null);
     
     let sig = kpo.sign("This is a message to sign");
     
@@ -222,13 +221,14 @@ function setup_test_identity(identity, cert, cb)
   let store = get_idstore();
   
   function keyGenerated(err, key) {
-    let kpo = IDService._getIdentityServiceKeyPair(key.userID, key.url);
+    log("keyGenerated");
+    let kpo = IDService._getIdentityKeyPair(key.userID, key.url);
 
     store.addIdentity(identity, kpo, cert);
-
     cb();
   };
 
+  log("setup_test_identity");
   IDService._generateKeyPair("DS160", INTERNAL_ORIGIN, identity, keyGenerated);
 }
 
@@ -578,6 +578,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
       callerCallbacks.genKeyPairCallback(pk);
   };
   
+  log("afterSetupCallback(caller); " + caller);
   afterSetupCallback(caller);
 }
 
@@ -673,6 +674,7 @@ function test_genkeypair()
   setup_provisioning(
     TEST_USER,
     function(caller) {
+      log("caller " + _callerId);
       _callerId = caller.id;
       IDService.beginProvisioning(caller);
     },
@@ -685,6 +687,7 @@ function test_genkeypair()
     },
     {
       beginProvisioningCallback: function(email, time_s) {
+        log("whatever " + _callerId);
         IDService.genKeyPair(_callerId);
       },
       genKeyPairCallback: function(kp) {
