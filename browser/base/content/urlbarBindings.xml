@@ -1183,8 +1183,8 @@
 
       <xul:vbox flex="1">
         <xul:deck anonid="identity-deck">
-          <xul:vbox flex="1"> <!-- 1: add an email -->
-            <html:input type="email" anonid="email"/>
+          <xul:vbox flex="1" pack="center"> <!-- 1: add an email -->
+            <html:input type="email" anonid="email" required="required"/>
             <xul:description anonid="newidentitydesc"/>
           </xul:vbox>
           <xul:vbox flex="1"> <!-- 2: choose an email -->
@@ -1281,11 +1281,19 @@
             return;
           switch(this.step) {
             case "0":
+              evt.stopPropagation();
+              if (!this.emailfield.validity.valid) {
+                this.emailfield.focus();
+                return;
+              }
               this.SignInToWebsiteUX.selectIdentity(identityOpts.rpId, this.emailfield.value);
               break;
             case "1":
+              evt.stopPropagation();
               let selectedItem = this.identitylist.selectedItem
               let selectedIdentity = selectedItem ? selectedItem.label : null;
+              if (!selectedIdentity)
+                return;
               this.SignInToWebsiteUX.selectIdentity(identityOpts.rpId, selectedIdentity);
               break;
             default:
@@ -1293,7 +1301,6 @@
               return;
           }
           this.throbber.hidden = false;
-          evt.stopPropagation();
         }.bind(this), true);
 
         // event handlers for add an email case
@@ -1342,6 +1349,11 @@
         <setter>
           let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
           deck.selectedIndex = val % deck.children.length;
+          switch(deck.selectedIndex) {
+            case "0":
+              this.emailfield.focus();
+              break;
+          }
         </setter>
       </property>
 
