@@ -387,11 +387,11 @@ function test_watch_notloggedin_logout()
 
   IDService.watch(mock_doc(TEST_USER, TEST_URL, call_sequentially(
     function(action, params) {
-      do_check_eq(action, 'ready');
+      do_check_eq(action, 'logout');
       do_check_eq(params, undefined);
     },
     function(action, params) {
-      do_check_eq(action, 'logout');
+      do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
       do_test_finished();
       run_next_test();
