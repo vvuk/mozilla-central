@@ -1187,7 +1187,7 @@
             <html:input type="email" anonid="email" required="required" size="30"/>
             <xul:description anonid="newidentitydesc"/>
             <xul:spacer flex="1"/>
-            <xul:label class="text-link custom-link small-margin" anonid="chooseemail"/>
+            <xul:label class="text-link custom-link small-margin" anonid="chooseemail" hidden="true"/>
           </xul:vbox>
           <xul:vbox flex="1" hidden="true"> <!-- 2: choose an email -->
             <xul:description anonid="chooseidentitydesc"/>
@@ -1326,6 +1326,7 @@
         }.bind(this));
 
         this.chooseEmailLink.value = gNavigatorBundle.getString("identity.chooseIdentity.label");
+        this.chooseEmailLink.hidden = !("result" in identities && identities.result.length);
         this.chooseEmailLink.addEventListener("click", function chooseEmailClick(evt) {
           this.step = 1;
         }.bind(this));
