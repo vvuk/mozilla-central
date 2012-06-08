@@ -123,13 +123,23 @@ TransportLayerIceCtx::TransportLayerIceCtx(const std::string& name, bool offerer
     NR_reg_init(NR_REG_MODE_LOCAL);
     initialized = 1;
   }
+}
 
+nsresult TransportLayerIceCtx::Init() {
+  // Create the ICE context
   r = nr_ice_ctx_create(const_cast<char *>(name_.c_str()),
                         offerer ? 
                         NR_ICE_CTX_FLAGS_OFFERER :
                         NR_ICE_CTX_FLAGS_ANSWERER,
                         &ctx_);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+  
+  return NS_OK;
 }
+
 
 
 TransportLayerIceCtx::~TransportLayerIceCtx() {

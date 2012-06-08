@@ -28,6 +28,9 @@ class TransportLayerIceCtx {
   TransportLayerIceCtx(const std::string& name, bool offerer);
   virtual ~TransportLayerIceCtx();
   
+  // Initialize
+  nsresult Init();
+
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIceCtx);
 
