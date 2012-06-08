@@ -3,16 +3,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-let Cu = Components.utils;
-let Cr = Components.results;
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const idService = Cc["@mozilla.org/IdentityModule/service;1"]
-                    .getService(Components.interfaces.nsIIdentityService);
+const idService = Cc["@mozilla.org/identity/crypto-service;1"]
+                    .getService(Ci.nsIIdentityCryptoService);
 
 
 const ALG_DSA = "DS160";
@@ -42,7 +37,7 @@ function test_dsa() {
       //do_check_true(keyPair.keyType == AlG_DSA);
       do_check_eq(keyPair.hexDSAGenerator.length, 1024 / 8 * 2);
       do_check_eq(keyPair.hexDSAPrime.length, 1024 / 8 * 2);
-      do_check_eq(keyPair.hexDSASubprime.length, 160 / 8 * 2);
+      do_check_eq(keyPair.hexDSASubPrime.length, 160 / 8 * 2);
       do_check_eq(keyPair.hexDSAPublicValue.length, 1024 / 8 * 2);
       // XXX: test that RSA parameters throw the correct error
 
@@ -105,4 +100,8 @@ add_test(test_rsa);
 function run_test()
 {
   run_next_test();
+}
+
+function finish_test()
+{
 }

@@ -59,7 +59,6 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/system/Makefile
   dom/workers/Makefile
-  identity/Makefile
 "
 
 MAKEFILES_editor="
@@ -458,6 +457,7 @@ MAKEFILES_xulapp="
   toolkit/components/viewconfig/Makefile
   toolkit/components/viewsource/Makefile
   toolkit/devtools/Makefile
+  toolkit/identity/Makefile
   toolkit/locales/Makefile
   toolkit/mozapps/downloads/Makefile
   toolkit/mozapps/extensions/Makefile

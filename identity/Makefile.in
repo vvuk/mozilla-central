@@ -12,21 +12,21 @@ include $(DEPTH)/config/autoconf.mk
 
 FAIL_ON_WARNINGS := 1
 
-MODULE = IdentityModule
-XPIDL_MODULE = IdentityModule
-LIBRARY_NAME = IdentityModule
+MODULE = IdentityCrypto
+XPIDL_MODULE = IdentityCrypto
+LIBRARY_NAME = IdentityCrypto
 EXPORT_LIBRARY = 1
 IS_COMPONENT = 1
-MODULE_NAME = IdentityModule
+MODULE_NAME = IdentityCrypto
 LIBXUL_LIBRARY = 1
 MOZILLA_INTERNAL_API = 1
 
 XPIDLSRCS = \
-  nsIIdentityService.idl \
+  nsIIdentityCryptoService.idl \
   $(NULL)
 
 CPPSRCS = \
-  IdentityService.cpp \
+  IdentityCryptoService.cpp \
   $(NULL)
 
 TEST_PATH = .

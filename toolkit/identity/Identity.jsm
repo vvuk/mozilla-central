@@ -23,8 +23,8 @@ var INTERNAL_ORIGIN = "browserid://";
 const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
 const IdentityCryptoService
-  = Cc["@mozilla.org/IdentityModule/service;1"]
-      .getService(Components.interfaces.nsIIdentityService);
+  = Cc["@mozilla.org/identity/crypto-service;1"]
+      .getService(Components.interfaces.nsIIdentityCryptoService);
 
 /*
 XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){

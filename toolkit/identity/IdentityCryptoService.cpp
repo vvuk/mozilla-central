@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsIIdentityService.h"
+#include "nsIIdentityCryptoService.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsNSSShutDown.h"
@@ -184,13 +184,13 @@ private:
   nsCString mSignature; // out
 };
 
-class IdentityService : public nsIIdentityService
+class IdentityCryptoService : public nsIIdentityCryptoService
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIIDENTITYSERVICE
+  NS_DECL_NSIIDENTITYCRYPTOSERVICE
 
-  IdentityService() { }
+  IdentityCryptoService() { }
   nsresult Init()
   {
     nsresult rv;
@@ -203,10 +203,10 @@ public:
 private:
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(IdentityService, nsIIdentityService)
+NS_IMPL_THREADSAFE_ISUPPORTS1(IdentityCryptoService, nsIIdentityCryptoService)
 
 NS_IMETHODIMP
-IdentityService::GenerateKeyPair(
+IdentityCryptoService::GenerateKeyPair(
   const nsACString & keyTypeString, nsIIdentityKeyGenCallback * callback)
 {
   KeyType keyType;
@@ -544,25 +544,25 @@ SignRunnable::Run()
 
 namespace mozilla {
 
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(IdentityService, Init);
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(IdentityCryptoService, Init);
 
 } // namespace mozilla
 
 namespace {
 
 
-#define NS_IDENTITYSERVICE_CID \
+#define NS_IDENTITYCRYPTOSERVICE_CID \
   {0xbea13a3a, 0x44e8, 0x4d7f, {0xa0, 0xa2, 0x2c, 0x67, 0xf8, 0x4e, 0x3a, 0x97}}
 
-NS_DEFINE_NAMED_CID(NS_IDENTITYSERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_IDENTITYCRYPTOSERVICE_CID);
 
 const mozilla::Module::CIDEntry kCIDs[] = {
-  { &kNS_IDENTITYSERVICE_CID, false, NULL, IdentityServiceConstructor },
+  { &kNS_IDENTITYCRYPTOSERVICE_CID, false, NULL, IdentityCryptoServiceConstructor },
   { NULL }
 };
 
 const mozilla::Module::ContractIDEntry kContracts[] = {
-  { NS_IDENTITYSERVICE_CONTRACTID, &kNS_IDENTITYSERVICE_CID },
+  { NS_IDENTITYCRYPTOSERVICE_CONTRACTID, &kNS_IDENTITYCRYPTOSERVICE_CID },
   { NULL }
 };
 
@@ -574,4 +574,4 @@ const mozilla::Module kModule = {
 
 } // unnamed namespace
 
-NSMODULE_DEFN(IdentityModule) = &kModule;
+NSMODULE_DEFN(identity) = &kModule;

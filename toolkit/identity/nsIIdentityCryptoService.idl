@@ -10,7 +10,8 @@ interface nsIIdentityKeyPair;
 interface nsIIdentitySignCallback;
 
 %{ C++
-#define NS_IDENTITYSERVICE_CONTRACTID "@mozilla.org/IdentityModule/service;1"
+#define NS_IDENTITYCRYPTOSERVICE_CONTRACTID \
+        "@mozilla.org/identity/crypto-service;1"
 %}
 
 
@@ -37,7 +38,7 @@ interface nsIIdentitySignCallback;
  */
 
 [scriptable, uuid(984f31ba-eaef-4824-b763-9637f87c1956)]
-interface nsIIdentityService : nsISupports
+interface nsIIdentityCryptoService : nsISupports
 {
   void generateKeyPair(in AUTF8String algorithm, 
                        in nsIIdentityKeyGenCallback callback);

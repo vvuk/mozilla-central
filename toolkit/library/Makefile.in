@@ -148,6 +148,7 @@ COMPONENT_LIBS += \
   startupcache \
   pref \
   htmlpars \
+  identity \
   imglib2 \
   gkgfx \
   gklayout \
@@ -322,7 +323,6 @@ DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
 endif
 
-COMPONENT_LIBS += IdentityModule
 COMPONENT_LIBS += services-crypto
 
 ifdef MOZ_DEBUG
