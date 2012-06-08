@@ -145,6 +145,34 @@ IDService.prototype = {
   // DOM Methods.
 
   /**
+   * Reset the state of the IDService object.
+   */
+  reset: function reset()
+  {
+    // Forget all documents that call in.  (These are sometimes 
+    // referred to as callers.)
+    this._rpFlows = {};
+
+    // Forget all identities
+    this._store = new IDServiceStore();
+    
+    // Clear the provisioning flows.  Provision flows contain an
+    // identity, idpParams (how to reach the IdP to provision and
+    // authenticate), a callback (a completion callback for when things
+    // are done), and a provisioningFrame (which is the provisioning
+    // sandbox).  Additionally, two callbacks will be attached: 
+    // beginProvisioningCallback and genKeyPairCallback.
+    this._provisionFlows = {};
+
+    // Clear the authentication flows.  Authentication flows attach
+    // to provision flows.  In the process of provisioning an id, it 
+    // may be necessary to authenticate with an IdP.  The authentication
+    // flow maintains the state of that authentication process.
+    this._authenticationFlows = {};
+  },
+
+
+  /**
    * Register a listener for a given windowID as a result of a call to
    * navigator.id.watch().
    *
@@ -871,19 +899,12 @@ IDService.prototype = {
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
 
-    log("_getAssertion for", email, audience);
-
     // We might not have any identity info for this email
-    // XXX is this right? 
-    // if not, fix generateAssertion, which assumes we can fetchIdentity
     if (! this._store.fetchIdentity(email)) {
       this.addIdentity(email, null, null);
     }
 
     let cert = this._store.fetchIdentity(email)['cert'];
-
-    log("have cert?", cert);
-
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
         log("_getAssertion has cert: return", err, assertion);
@@ -939,7 +960,6 @@ IDService.prototype = {
   shutdown: function shutdown()
   {
     this._registry = null;
-    this._endpoints = null;
   },
 
   getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
@@ -964,16 +984,13 @@ IDService.prototype = {
   /**
    * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
    */
-  // XXX why both aAuthId and aProvId if, as beginAuthentication
-  // says, the auth caller has the same id as the prov flow?
-  // how about just aCallerId?
   setAuthenticationFlow: function(aAuthId, aProvId) {
     log("setAuthenticationFlow: " + aAuthId + " : " + aProvId);
     // this is the transition point between the two flows, 
     // provision and authenticate.  We tell the auth flow which
     // provisioning flow it is started from.
 
-    this._authenticationFlows[aAuthId] = { provId: aProvId, };
+    this._authenticationFlows[aAuthId] = { provId: aProvId };
     this._provisionFlows[aProvId].authId = aAuthId;
   },
 
@@ -992,7 +1009,6 @@ IDService.prototype = {
 
   // Private.
   _registry: { },
-  _endpoints: { },
 
   /**
    * Generates an nsIIdentityServiceKeyPair object that can sign data. It also
@@ -1140,47 +1156,6 @@ IDService.prototype = {
   },
 
   /**
-   * Determine the IdP endpoints for provisioning an authorization for a
-   * given email address. The order of resolution is as follows:
-   *
-   * 1) Attempt to fetch /.well-known/browserid for the domain of the provided
-   * email address. If a delegation was found, follow to the delegated domain
-   * and repeat. If a valid IdP descriptin is found, parse and return values. 
-   *
-   * 2) Attempt to verify that the domain is supported by the ProxyIdP service
-   * by Persona/BrowserID. If the domain is supported, treat persona.org as the
-   * primary IdP and return the endpoint values accordingly.
-   *
-   * 3) Fallback to using persona.org as a secondary verifier. Return endpoints
-   * for secondary authorization and provisioning provided by BrowserID/Persona.
-   */
-  // XXX this looks not great with side-effect instead of just functional.
-  //  -- it's for caching purposes since we shouldn't expect the caller to known how to cache the endpoint
-  _getEndpoints: function _getEndpoints(email, aCallback)
-  {
-    log("_getEndpoints\n");
-    // TODO: validate email
-    let emailDomain = email.substring(email.indexOf("@") + 1);
-    log("_getEndpoints: " + emailDomain + "\n");
-    // TODO: lookup in cache
-    let wellKnownCallback = function(aError, aResult) {
-      log("wellKnownCallback: " + !!aError);
-      if (!!aError) {
-        aCallback(null);
-      } else {
-        // aDomain is the domain that the well-known file was on (not necessarily the email domain for cases 2 & 3)
-        this._endpoints[emailDomain] = {};
-        // TODO: convert to full URI if not already
-        // TODO: require HTTPS?
-        this._endpoints[emailDomain].authentication = "https://" + aResult.domain + aResult.idpParams.authentication;
-        this._endpoints[emailDomain].provisioning = "https://" + aResult.domain + aResult.idpParams.provisioning;
-        aCallback(this._endpoints[emailDomain]);
-      }
-    }.bind(this);
-    this._fetchWellKnownFile(emailDomain, wellKnownCallback);
-  },
-
-  /**
    * Fetch the well-known file from the domain.
    *
    * @param aDomain
@@ -1297,40 +1272,15 @@ IDService.prototype = {
     }
   },
 
-  reset: function reset()
-  {
-    // Forget all documents
-    this._rpFlows = {};
-
-    // Forget all identities
-    this._store = new IDServiceStore();
-    
-    // tracking ongoing flows
-
-    // a provisioning flow contains
-    // identity, idpParams, callback, provisioningFrame
-    // idpParams includes the normal BrowserID IdP Parameters
-    // callback is just a completion callback for when things are done
-    // provisioningSandbox is the provisioning sandbox
-    // with fields beginProvisioningCallback and genKeyPairCallback.
-    this._provisionFlows = {};
-
-    // an authentication flow contains...
-    this._authenticationFlows = {};
-
-
-  },
-
   /**
    * Clean up a provision flow and the authentication flow and sandbox
    * that may be attached to it.
    */
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
-    log("Cleaning up prov flow with id", aProvId);
     let prov = this._provisionFlows[aProvId];
     let rp = this._rpFlows[prov.rpId];
 
-    // Clean up the sandbox
+    // Clean up the sandbox, if there is one.
     if (!! prov.provisioningSandbox) {
       let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
       if (!! sandbox.free) {
@@ -1339,12 +1289,13 @@ IDService.prototype = {
       delete this._provisionFlows[aProvId]['provisioningSandbox'];
     }
 
-    // Maybe there's an auth flow.  Clean that up.
+    // Clean up a related authentication flow, if there is one.
     if (!! this._authenticationFlows[prov.authId]) {
       delete this._authenticationFlows[prov.authId];
     }
 
-    // And remove the provision flow
+    // Finally delete the provision flow and any reference to it
+    // from the rpFlows
     delete this._provisionFlows[aProvId];
     if (rp) {
       delete rp['provId'];
