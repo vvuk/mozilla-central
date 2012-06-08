@@ -30,14 +30,14 @@ nsDOMIdentity.prototype = {
    */
 
   watch: function(params) {
-    dump("Called watch for ID " + this._id + "\n");
+    dump("Called watch for ID " + this._id + " with loggedInEmail " + params.loggedInEmail + "\n");
     // Latest watch call wins in case site makes multiple calls.
     this._watcher = params;
 
     let message = {
       oid: this._id,
       origin: this._origin,
-      loggedIn: params.loggedInEmail, // Could be undefined or null
+      loggedInEmail: params.loggedInEmail, // Could be undefined or null
     };
     cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },

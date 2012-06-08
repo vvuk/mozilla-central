@@ -117,7 +117,8 @@ IDServiceStore.prototype = {
    *                or, if not logged in, the default email for that origin.
    */
   setLoginState: function setLoginState(aOrigin, aState, aEmail) {
-    this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
+    log("_store.setLoginState: ", aOrigin, aState, aEmail);
+    return this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
   },
   getLoginState: function getLoginState(aOrigin) {
     return this._loginStates[aOrigin];
@@ -205,6 +206,7 @@ IDService.prototype = {
 
     if (state.isLoggedIn) {
       if (!!state.email && aCaller.loggedInEmail === state.email) {
+        this._notifyLoginStateChanged(aCaller.id, state.email);
         return aCaller.doReady();
 
       } else if (aCaller.loggedInEmail === null) {
@@ -242,17 +244,14 @@ IDService.prototype = {
    */
   _doLogin: function _doLogin(aCaller, aOptions) 
   {
-    let state = this._store.getLoginState(aOptions.audience) || {};
-
+    log("doLogin: ", aCaller.id, aOptions.loggedInEmail);
     this._getAssertion(aOptions, function(err, assertion) {
       if (!err) {
 
         // XXX add tests for state change
-        state.isLoggedIn = true;
-        state.email = aOptions.loggedInEmail;
+        this._store.setLoginState(aOptions.audience, true, aOptions.loggedInEmail);
+        this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
 
-        this._notifyLoginStateChanged(aCaller.id, state.email);
-        
         aCaller.doLogin(assertion);
         return aCaller.doReady();
       } else {
@@ -273,9 +272,9 @@ IDService.prototype = {
     // XXX add tests for state change
 
     let email = state.email || null;
-    this._notifyLoginStateChanged(aCaller.id, email);
+    this._notifyLoginStateChanged(aCaller.id, null);
 
-    state.isLoggedIn = false;    
+    state.isLoggedIn = false;
     aCaller.doReady();
     aCaller.doLogout();
   },
@@ -364,23 +363,19 @@ IDService.prototype = {
     }
 
     // It's possible that we are in the process of provisioning an
-    // identity.  
+    // identity.
     let provId = rp.provId || null;
-
-    // Set the state of login
-    let state = this._store.getLoginState(rp.origin) || {};
-    state.isLoggedIn = true;
-    state.email = aIdentity;
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (! err && assertion) {
         // Login with this assertion
+        self._store.setLoginState(rp.origin, true, aIdentity);
         self._notifyLoginStateChanged(aRPId, aIdentity);
         rp.doLogin(assertion);
         return rp.doReady();
-        
+
       } else {
         // Need to provision an identity first.  Begin by discovering
         // the user's IdP.
@@ -408,6 +403,7 @@ IDService.prototype = {
               //self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
+                  self._store.setLoginState(rp.origin, true, aIdentity);
                   self._notifyLoginStateChanged(aRPId, aIdentity);
                   rp.doLogin(assertion);
                   return rp.doReady();
@@ -1078,7 +1074,7 @@ IDService.prototype = {
           return aCallback("key generation failed");
         }
 
-        let url = aOrigin; // Services.io.newURI(aOrigin, null, null).prePath;
+        let url = aOrigin;
         let id = uuid();
         let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
         let key = { userID: aUserID, url: url };
