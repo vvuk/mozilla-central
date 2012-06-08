@@ -46,6 +46,7 @@ IDPProvisioningContext.prototype = {
   },
 
   doGenKeyPairCallback: function IDPProvisioningContext_doGenKeyPairCallback(aPublicKey) {
+log("DOMIdentity: doGenKeyPairCallback");
     let message = new IDDOMMessage(this.id);
     message.publicKey = aPublicKey;
     ppmm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);

@@ -99,6 +99,8 @@ nsDOMIdentity.prototype = {
   },
 
   registerCertificate: function(aCertificate) {
+dump("*********** registerCertificate:");
+dump(aCertificate);
     cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", {
       oid: this._id,
       origin: this._origin,
