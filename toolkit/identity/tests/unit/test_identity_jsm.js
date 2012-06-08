@@ -54,7 +54,7 @@ function log()
     } else {
       strings.push(JSON.stringify(arg, null, 2));
     }
-  });                
+  });
   dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
 }
 
@@ -75,7 +75,7 @@ function makeObserver(aObserveTopic, aObserveFunc)
     // nsISupports provides type management in C++
     // nsIObserver is to be an observer
     QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-    
+
     observe: function (aSubject, aTopic, aData)
     {
       if (aTopic == aObserveTopic) {
@@ -105,18 +105,18 @@ function test_rsa()
     do_check_eq(kpo.url, INTERNAL_ORIGIN);
     do_check_neq(kpo.exponent, null);
     do_check_neq(kpo.modulus, null);
-    
+
     // TODO: should sign be async?
     let sig = kpo.sign("This is a message to sign");
-    
+
     do_check_neq(sig, null);
     do_check_eq(typeof sig, "string");
     do_check_true(sig.length > 1);
-    
+
     do_test_finished();
     run_next_test();
   };
-  
+
   IDService._generateKeyPair("RS256", INTERNAL_ORIGIN, TEST_USER, checkRSA);
 }
 
@@ -139,17 +139,17 @@ function test_dsa()
     do_check_neq(kpo.prime, null);
     do_check_neq(kpo.subPrime, null);
     do_check_neq(kpo.publicValue, null);
-    
+
     let sig = kpo.sign("This is a message to sign");
-    
+
     do_check_neq(sig, null);
     do_check_eq(typeof sig, "string");
     do_check_true(sig.length > 1);
-    
+
     do_test_finished();
     run_next_test();
   };
-  
+
   IDService._generateKeyPair("DS160", INTERNAL_ORIGIN, TEST_USER, checkDSA);
 }
 
@@ -183,7 +183,7 @@ function test_id_store()
   store.clearCert(TEST_USER);
   do_check_neq(store.getIdentities()[TEST_USER], null);
   do_check_eq(store.getIdentities()[TEST_USER].cert, null);
-  
+
   // remove it should remove everything
   store.removeIdentity(TEST_USER);
   do_check_eq(store.getIdentities()[TEST_USER], undefined);
@@ -209,7 +209,7 @@ function test_id_store()
   store.clearLoginState(TEST_URL);
   do_check_eq(store.getLoginState(TEST_URL), null);
   do_check_eq(store.getLoginState(TEST_URL2), null);
-  
+
   run_next_test();
 }
 
@@ -219,7 +219,7 @@ function setup_test_identity(identity, cert, cb)
 {
   // set up the store so that we're supposed to be logged in
   let store = get_idstore();
-  
+
   function keyGenerated(err, key) {
     log("keyGenerated");
     let kpo = IDService._getIdentityKeyPair(key.userID, key.url);
@@ -247,7 +247,7 @@ function mock_doc(aIdentity, aOrigin, aDoFunc)
   mockedDoc.doError = partial(aDoFunc, 'error');
   mockedDoc.doCancel = partial(aDoFunc, 'cancel');
   mockedDoc.doCoffee = partial(aDoFunc, 'coffee');
-   
+
   return mockedDoc;
 }
 
@@ -282,17 +282,17 @@ function test_watch_loggedin_ready()
   do_test_pending();
 
   IDService.reset();
-  
+
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
-    
+
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
     IDService.watch(mock_doc(id, TEST_URL, function(action, params) {
       do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
-      
+
       do_test_finished();
       run_next_test();
     }));
@@ -304,11 +304,11 @@ function test_watch_loggedin_login()
   do_test_pending();
 
   IDService.reset();
-  
+
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
-    
+
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
 
@@ -334,13 +334,13 @@ function test_watch_loggedin_logout()
   do_test_pending();
 
   IDService.reset();
-  
+
   var id = TEST_USER;
   var other_id = "otherid@foo.com";
   setup_test_identity(other_id, TEST_CERT, function() {
     setup_test_identity(id, TEST_CERT, function() {
       let store = get_idstore();
-      
+
       // set it up so we're supposed to be logged in to TEST_URL
       // with id, not other_id
       store.setLoginState(TEST_URL, true, id);
@@ -355,9 +355,9 @@ function test_watch_loggedin_logout()
         function(action, params) {
           do_check_eq(action, 'ready');
           do_check_eq(params, null);
-          
+
           do_test_finished();
-          run_next_test();        
+          run_next_test();
         }
       )));
     });
@@ -373,7 +373,7 @@ function test_watch_notloggedin_ready()
   IDService.watch(mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'ready');
     do_check_eq(params, undefined);
-    
+
     do_test_finished();
     run_next_test();
   }));
@@ -403,13 +403,13 @@ function test_watch_notloggedin_logout()
 function test_request()
 {
   do_test_pending();
-  
+
   // set up a watch, to be consistent
   var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
     // this isn't going to be called for now
     // XXX but it is called - is that bad?
   });
-  
+
   IDService.watch(mockedDoc);
 
   // be ready for the UX identity-request notification
@@ -419,7 +419,7 @@ function test_request()
     var subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
     do_check_eq(subj.getProperty('requiredEmail'), TEST_USER);
     do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
-    
+
     do_test_finished();
     run_next_test();
   });
@@ -461,7 +461,7 @@ function test_select_identity()
         do_check_neq(params, null);
 
         // XXX - check that the assertion is for the right email
-        
+
         gotAssertion = true;
       },
       // then the ready call
@@ -478,7 +478,7 @@ function test_select_identity()
 
     // register the callbacks
     IDService.watch(mockedDoc);
-			  
+
     // register the request UX observer
     makeObserver("identity-request", function (aSubject, aTopic, aData) {
       // do the select identity
@@ -498,11 +498,11 @@ function test_logout()
   do_test_pending();
 
   IDService.reset();
-  
+
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
     let store = get_idstore();
-    
+
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
 
@@ -523,7 +523,7 @@ function test_logout()
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
-        
+
         do_test_finished();
         run_next_test();
       }));
@@ -531,16 +531,16 @@ function test_logout()
     doLogout = function() {
       IDService.logout(mockedDoc.id);
     };
-    
+
     IDService.watch(mockedDoc);
-  });  
+  });
 }
 
 /*
  * Setup a provisioning workflow with appropriate callbacks
  *
  * identity is the email we're provisioning.
- * 
+ *
  * afterSetupCallback is required.
  *
  * doneProvisioningCallback is optional, if the caller
@@ -552,7 +552,7 @@ function test_logout()
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks)
 {
   IDService.reset();
-  
+
   var provId = uuid();
   IDService._provisionFlows[provId] = {
     identity : identity,
@@ -577,7 +577,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
     if (callerCallbacks && callerCallbacks.genKeyPairCallback)
       callerCallbacks.genKeyPairCallback(pk);
   };
-  
+
   log("afterSetupCallback(caller); " + caller);
   afterSetupCallback(caller);
 }
@@ -590,7 +590,7 @@ function check_provision_flow_done(provId)
 function test_begin_provisioning()
 {
   do_test_pending();
-  
+
   setup_provisioning(
     TEST_USER,
     function(caller) {
@@ -624,7 +624,7 @@ function test_raise_provisioning_failure()
       // this should be invoked with a populated error
       do_check_neq(err, null);
       do_check_true(err.indexOf("can't authenticate this email") > -1);
-      
+
       do_test_finished();
       run_next_test();
     },
@@ -698,7 +698,7 @@ function test_genkeypair()
         run_next_test();
       }
     }
-  );  
+  );
 }
 
 // we've already ensured that genkeypair can't be called
@@ -727,9 +727,9 @@ function test_register_certificate_before_genkeypair()
       beginProvisioningCallback: function(email, duration_s) {
         // now we try to register cert but no keygen has been done
         IDService.registerCertificate(_callerID, "fake-cert");
-      }      
+      }
     }
-  );  
+  );
 }
 
 function test_register_certificate()
@@ -748,7 +748,7 @@ function test_register_certificate()
       do_check_eq(err, null);
 
       // XXX this will happen after the callback is called
-      // 
+      //
       //check_provision_flow_done(_callerId);
 
       // check that the cert is there
@@ -765,9 +765,9 @@ function test_register_certificate()
       },
       genKeyPairCallback: function(pk) {
         IDService.registerCertificate(_callerId, "fake-cert-42");
-      }      
+      }
     }
-  );  
+  );
 }
 
 function test_get_assertion_after_provision()
@@ -801,10 +801,10 @@ function test_get_assertion_after_provision()
       },
       genKeyPairCallback: function(pk) {
         IDService.registerCertificate(_callerId, "fake-cert-42");
-      }      
+      }
     }
-  );  
-  
+  );
+
 }
 
 
@@ -814,7 +814,6 @@ function test_jwcrypto()
 
   jwcrypto.generateKeypair({algorithm: "DS", keysize: 128}, function(err, kp) {
     do_check_eq(err, null);
-    
 
     do_test_finished();
     run_next_test();

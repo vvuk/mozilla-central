@@ -261,27 +261,27 @@ dump(aCertificate);
     // Setup observers so we can remove message listeners.
     Services.obs.addObserver(this, "inner-window-destroyed", false);
   },
-  
+
   // Private.
   _callGenKeyPairCallback: function (message) {
     // create a pubkey object that works
     var chrome_pubkey = JSON.parse(message.publicKey);
 
     // bunch of stuff to create a proper object in window context
-    function genPropDesc(value) {  
-      return {  
-        enumerable: true, configurable: true, writable: true, value: value  
+    function genPropDesc(value) {
+      return {
+        enumerable: true, configurable: true, writable: true, value: value
       };
     }
-      
+
     var propList = {};
-    
+
     for (var k in chrome_pubkey) {
       propList[k] = genPropDesc(chrome_pubkey[k]);
     }
-    
+
     var pubkey = Cu.createObjectIn(this._window);
-    Object.defineProperties(pubkey, propList);  
+    Object.defineProperties(pubkey, propList);
     Cu.makeObjectPropsNormal(pubkey);
 
     // do the callback
@@ -311,7 +311,7 @@ dump(aCertificate);
   QueryInterface: XPCOMUtils.generateQI(
     [Ci.nsIDOMIdentity, Ci.nsIDOMGlobalPropertyInitializer]
   ),
-  
+
   classInfo: XPCOMUtils.generateCI({
     classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
     contractID: "@mozilla.org/identity;1",

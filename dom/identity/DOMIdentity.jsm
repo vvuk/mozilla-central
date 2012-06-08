@@ -109,7 +109,7 @@ RPWatchContext.prototype = {
   },
 
   doError: function RPWatchContext_onerror() {
-    // XXX handle errors that might be raised in the execution 
+    // XXX handle errors that might be raised in the execution
     // of watch().
     log("Ow!");
   }

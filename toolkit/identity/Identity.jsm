@@ -146,23 +146,23 @@ IDService.prototype = {
    * Reset the state of the IDService object.
    */
   reset: function reset() {
-    // Forget all documents that call in.  (These are sometimes 
+    // Forget all documents that call in.  (These are sometimes
     // referred to as callers.)
     this._rpFlows = {};
 
     // Forget all identities
     this._store = new IDServiceStore();
-    
+
     // Clear the provisioning flows.  Provision flows contain an
     // identity, idpParams (how to reach the IdP to provision and
     // authenticate), a callback (a completion callback for when things
     // are done), and a provisioningFrame (which is the provisioning
-    // sandbox).  Additionally, two callbacks will be attached: 
+    // sandbox).  Additionally, two callbacks will be attached:
     // beginProvisioningCallback and genKeyPairCallback.
     this._provisionFlows = {};
 
     // Clear the authentication flows.  Authentication flows attach
-    // to provision flows.  In the process of provisioning an id, it 
+    // to provision flows.  In the process of provisioning an id, it
     // may be necessary to authenticate with an IdP.  The authentication
     // flow maintains the state of that authentication process.
     this._authenticationFlows = {};
@@ -279,7 +279,7 @@ log("watch state:", state);
 
   /**
    * For use with login or logout, emit 'identity-login-state-changed'
-   * 
+   *
    * The notification will send the rp caller id in the properties,
    * and the email of the user in the message.
    */
@@ -337,7 +337,7 @@ log("watch state:", state);
   },
 
   /**
-   * The UX comes back and calls selectIdentity once the user has picked 
+   * The UX comes back and calls selectIdentity once the user has picked
    * an identity.
    *
    * @param aRPId
@@ -376,7 +376,7 @@ log("watch state:", state);
       } else {
         // Need to provision an identity first.  Begin by discovering
         // the user's IdP.
-        self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
+        self._discoverIdentityProvider(aIdentity, function(err, idpParams) {
           if (err) {
             rp.doError(err);
             return;
@@ -509,8 +509,8 @@ log("watch state:", state);
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback) {
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
 
-    // If aProvId is not null, then we already have a flow 
-    // with a sandbox.  Otherwise, get a sandbox and create a 
+    // If aProvId is not null, then we already have a flow
+    // with a sandbox.  Otherwise, get a sandbox and create a
     // new provision flow.
 
     if (aProvId !== null) {
@@ -536,7 +536,7 @@ log("watch state:", state);
         // XXX MAYBE
         // set a timeout to clear out this provisioning workflow if it doesn't
         // complete in X time.
-      
+
       }.bind(this));
     }
   },
@@ -555,8 +555,8 @@ log("watch state:", state);
     let domain = aIdentity.split('@')[1];
     // XXX not until we have this mocked in the tests
     this._fetchWellKnownFile(domain, function(err, idpParams) {
-      // idpParams includes the pk, authorization url, and 
-      // provisioning url.                        
+      // idpParams includes the pk, authorization url, and
+      // provisioning url.
 
       // XXX TODO follow any authority delegations
       // if no well-known at any point in the delegation
@@ -567,7 +567,7 @@ log("watch state:", state);
       return aCallback(err, idpParams);
     });
   },
-  
+
   /**
    * Invoked when a user wishes to logout of a site (for instance, when clicking
    * on an in-content logout button).
@@ -582,7 +582,7 @@ log("watch state:", state);
       let audience = caller.origin;
       this._doLogout(caller, {audience: audience});
     }
-    // We don't delete this._rpFlows[aCallerId], because 
+    // We don't delete this._rpFlows[aCallerId], because
     // the user might log back in again.
   },
 
@@ -590,7 +590,7 @@ log("watch state:", state);
    * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
    *
    * @param aCaller
-   *        (object)  the iframe sandbox caller with all callbacks and 
+   *        (object)  the iframe sandbox caller with all callbacks and
    *                  other information.  Callbacks include:
    *                  - doBeginProvisioningCallback(id, duration_s)
    *                  - doGenKeyPairCallback(pk)
@@ -604,7 +604,7 @@ log("watch state:", state);
 
     // keep the caller object around
     provFlow.caller = aCaller;
-    
+
     let identity = provFlow.identity;
     let frame = provFlow.provisioningFrame;
 
@@ -621,9 +621,9 @@ log("watch state:", state);
   },
 
   /**
-   * the provisioning iframe sandbox has called 
+   * the provisioning iframe sandbox has called
    * navigator.id.raiseProvisioningFailure()
-   * 
+   *
    * @param aProvId
    *        (int)  the identifier of the provisioning flow tied to that sandbox
    * @param aReason
@@ -635,10 +635,10 @@ log("watch state:", state);
 
     // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
-    // This may be either a "soft" or "hard" fail.  If it's a 
+    // This may be either a "soft" or "hard" fail.  If it's a
     // soft fail, we'll flow through setAuthenticationFlow, where
     // the provision flow data will be copied into a new auth
-    // flow.  If it's a hard fail, then the callback will be 
+    // flow.  If it's a hard fail, then the callback will be
     // responsible for cleaning up the now defunct provision flow.
 
     // invoke the callback with an error.
@@ -740,24 +740,24 @@ log("watch state:", state);
     let authPath = aIDPParams.idpParams.authentication;
     let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
 
-    // beginAuthenticationFlow causes the "identity-auth" topic to be 
-    // observed.  Since it's sending a notification to the DOM, there's 
-    // no callback.  We wait for the DOM to trigger the next phase of 
+    // beginAuthenticationFlow causes the "identity-auth" topic to be
+    // observed.  Since it's sending a notification to the DOM, there's
+    // no callback.  We wait for the DOM to trigger the next phase of
     // provisioning.
     this._beginAuthenticationFlow(aProvId, authURI);
 
     // either we bind the AuthID to the sandbox ourselves, or UX does that,
     // in which case we need to tell UX the AuthId.
-    // Currently, the UX creates the UI and gets the AuthId from the window 
+    // Currently, the UX creates the UI and gets the AuthId from the window
     // and sets is with setAuthenticationFlow
   },
-  
+
   /**
    * The authentication frame has called navigator.id.beginAuthentication
    *
    * IMPORTANT: the aCaller is *always* non-null, even if this is called from
-   * a regular content page. We have to make sure, on every DOM call, that 
-   * aCaller is an expected authentication-flow identifier. If not, we throw 
+   * a regular content page. We have to make sure, on every DOM call, that
+   * aCaller is an expected authentication-flow identifier. If not, we throw
    * an error or something.
    *
    * @param aCaller
@@ -892,7 +892,7 @@ log("watch state:", state);
         log("_disco IDP:", email, err, idpParams);
         if (err) return aCallback(err);
 
-        // Now begin provisioning from the IdP   
+        // Now begin provisioning from the IdP
         this._generateAssertion(audience, email, function(err, assertion) {
           log("can login with assertion", assertion);
           return aCallback(err, assertion);
@@ -929,7 +929,7 @@ log("watch state:", state);
   //
   //
   //
-  
+
   shutdown: function shutdown() {
     this.reset();
   },
@@ -958,7 +958,7 @@ log("watch state:", state);
    */
   setAuthenticationFlow: function(aAuthId, aProvId) {
     log("setAuthenticationFlow: " + aAuthId + " : " + aProvId);
-    // this is the transition point between the two flows, 
+    // this is the transition point between the two flows,
     // provision and authenticate.  We tell the auth flow which
     // provisioning flow it is started from.
 
@@ -1116,14 +1116,14 @@ log("watch state:", state);
    * Fetch the well-known file from the domain.
    *
    * @param aDomain
-   * 
+   *
    * @param aScheme
    *        (string) (optional) Protocol to use.  Default is https.
    *                 This is necessary because we are unable to test
-   *                 https.  
-   * 
+   *                 https.
+   *
    * @param aCallback
-   * 
+   *
    */
   _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aScheme, aCallback) {
     if (arguments.length <= 2) {

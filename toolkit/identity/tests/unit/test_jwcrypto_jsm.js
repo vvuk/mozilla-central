@@ -28,17 +28,17 @@ function log(aMsg)
 function test_get_assertion()
 {
   do_test_pending();
-  
+
   IDService._generateKeyPair(
     "RS256", INTERNAL_ORIGIN, TEST_USER,
     function(err, key) {
       dump("got a keypair\n");
-      var kp = IDService._getIdentityServiceKeyPair(key.userID, key.url);      
+      var kp = IDService._getIdentityServiceKeyPair(key.userID, key.url);
       jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
         do_check_eq(err, null);
 
         log(assertion);
-        
+
         do_test_finished();
         run_next_test();
       });
