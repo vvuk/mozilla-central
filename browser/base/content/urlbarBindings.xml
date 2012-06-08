@@ -1182,24 +1182,24 @@
                  xbl:inherits="popupid,src=icon"/>
 
       <xul:vbox flex="1">
-        <xul:deck anonid="identity-deck">
+        <xul:vbox anonid="identity-deck">
           <xul:vbox flex="1" pack="center"> <!-- 1: add an email -->
             <html:input type="email" anonid="email" required="required"/>
             <xul:description anonid="newidentitydesc"/>
           </xul:vbox>
-          <xul:vbox flex="1"> <!-- 2: choose an email -->
+          <xul:vbox flex="1" hidden="true"> <!-- 2: choose an email -->
             <xul:description anonid="chooseidentitydesc"/>
             <xul:radiogroup anonid="identities">
             </xul:radiogroup>
             <xul:label anonid="newemail"/>
           </xul:vbox>
-        </xul:deck>
+        </xul:vbox>
         <xul:hbox class="popup-notification-button-container"
                   pack="end" align="center">
           <xul:label anonid="tos" class="text-link" hidden="true"/>
           <xul:label anonid="privacypolicy" class="text-link" hidden="true"/>
           <xul:spacer flex="1"/>
-          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png" hidden="true"/>
+          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png" style="visibility:hidden"/>
           <xul:button anonid="button"
                       type="menu-button"
                       class="popup-notification-menubutton"
@@ -1280,7 +1280,7 @@
           if (evt.target != evt.currentTarget)
             return;
           switch(this.step) {
-            case "0":
+            case 0:
               evt.stopPropagation();
               if (!this.emailField.validity.valid) {
                 this.emailField.focus();
@@ -1288,7 +1288,7 @@
               }
               this.SignInToWebsiteUX.selectIdentity(identityOpts.rpId, this.emailField.value);
               break;
-            case "1":
+            case 1:
               evt.stopPropagation();
               let selectedItem = this.identityList.selectedItem
               let selectedIdentity = selectedItem ? selectedItem.label : null;
@@ -1300,7 +1300,8 @@
               throw new Error("Unknown case");
               return;
           }
-          this.throbber.hidden = false;
+          this.throbber.style.visibility = "visible";
+          this.button.disabled = true;
         }.bind(this), true);
 
         // event handlers for add an email case
@@ -1342,18 +1343,24 @@
         document.getAnonymousElementByAttribute(this, "anonid", "throbber");
       </field>
 
+      <field name="_step">0</field>
+
       <property name="step">
         <getter>
-          return document.getAnonymousElementByAttribute(this, "anonid", "identity-deck").selectedIndex;
+          return this._step;
         </getter>
-        <setter>
+        <setter><![CDATA[
           let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
-          deck.selectedIndex = val % deck.children.length;
-          switch(deck.selectedIndex) {
-            case "0":
+          let paneIndex = val % deck.children.length;
+          for (let i = 0; i < deck.children.length; i++) {
+            deck.children[i].hidden = (paneIndex != i);
+          }
+          this._step = paneIndex;
+          switch(paneIndex) {
+            case 0:
               this.emailField.focus();
               break;
-          }
+          }]]>
         </setter>
       </property>
 
