@@ -36,7 +36,7 @@ XPCOMUtils.defineLazyServiceGetter(this,
 /**
  * log() - utility function to print a list of arbitrary things
  * Depends on IdentityService (bottom of this module).
- * 
+ *
  * Enable with about:config pref toolkit.identity.debug
  */
 function log(args) {
@@ -58,7 +58,7 @@ function log(args) {
         strings.push("<<something>>");
       }
     }
-  });                
+  });
   dump("@@ Identity.jsm: " + strings.join(' ') + "\n");
 };
 
@@ -134,6 +134,8 @@ function IDService() {
   // NB, prefs.addObserver and obs.addObserver have different interfaces
   Services.prefs.addObserver(DEBUG_PREF_NAME, this, false);
 
+  this._debugMode = Services.prefs.getBoolPref(DEBUG_PREF_NAME);
+
   this.reset();
 }
 
@@ -179,14 +181,14 @@ IDService.prototype = {
    *                  - id (unique, e.g. uuid)
    *                  - loggedInEmail (string or null)
    *                  - origin (string)
-   * 
+   *
    *                  and a bunch of callbacks
    *                  - doReady()
-   *                  - doLogin() 
+   *                  - doLogin()
    *                  - doLogout()
-   *                  - doError() 
+   *                  - doError()
    *                  - doCancel()
-   * 
+   *
    */
   watch: function watch(aCaller) {
     this._rpFlows[aCaller.id] = aCaller;
@@ -195,11 +197,11 @@ IDService.prototype = {
 
     // If the user is already logged in, then there are three cases
     // to deal with:
-    // 
+    //
     //   1. the email is valid and unchanged:  'ready'
     //   2. the email is null:                 'login'; 'ready'
     //   3. the email has changed:             'login'; 'ready'
-
+log("watch state:", state);
     if (state.isLoggedIn) {
       if (state.email && aCaller.loggedInEmail === state.email) {
         this._notifyLoginStateChanged(aCaller.id, state.email);
@@ -218,7 +220,7 @@ IDService.prototype = {
       }
 
     // If the user is not logged in, there are two cases:
-    // 
+    //
     //   1. a logged in email was provided: 'ready'; 'logout'
     //   2. not logged in, no email given:  'ready';
 
@@ -235,26 +237,29 @@ IDService.prototype = {
   /**
    * A utility for watch() to set state and notify the dom
    * on login
-   * 
+   *
    * Note that this calls _getAssertion
    */
-  _doLogin: function _doLogin(aCaller, aOptions) {
-    log("doLogin: ", aCaller.id, aOptions.loggedInEmail);
-    this._getAssertion(aOptions, function(err, assertion) {
-      if (!err) {
+  _doLogin: function _doLogin(aCaller, aOptions, aAssertion) {
+    let loginWithAssertion = function loginWithAssertion(assertion) {
+      this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
+      this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
+      aCaller.doLogin(assertion);
+      aCaller.doReady();
+    }.bind(this);
 
-        // XXX add tests for state change
-        this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
-        this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
-
-        aCaller.doLogin(assertion);
-        return aCaller.doReady();
-      } else {
-        Cu.reportError("Error on login attempt: " + err);
-        // XXX i think this is right?
-        return this._doLogout(aCaller);
-      } 
-    }.bind(this));
+    if (aAssertion) {
+      loginWithAssertion(aAssertion);
+    } else {
+      this._getAssertion(aOptions, function(err, assertion) {
+        if (err) {
+          Cu.reportError("Error on login attempt: " + err);
+          this._doLogout(aCaller);
+        } else {
+          loginWithAssertion(assertion);
+        }
+      });
+    }
   },
 
   /**
@@ -344,7 +349,6 @@ IDService.prototype = {
    */
   selectIdentity: function selectIdentity(aRPId, aIdentity) {
     var self = this;
-
     // Get the RP that was stored when watch() was invoked.
     let rp = this._rpFlows[aRPId];
     if (!rp) {
@@ -366,18 +370,16 @@ IDService.prototype = {
     // IdP, we can generate an assertion and deliver it to the doc.
     self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (!err && assertion) {
-        // Login with this assertion
-        self._store.setLoginState(rp.origin, true, aIdentity);
-        self._notifyLoginStateChanged(aRPId, aIdentity);
-        rp.doLogin(assertion);
-        return rp.doReady();
+        self._doLogin(rp, rpLoginOptions, assertion);
+        return;
 
       } else {
         // Need to provision an identity first.  Begin by discovering
         // the user's IdP.
         self._discoverIdentityProvider(aIdentity, function(err, idpParams) { 
           if (err) {
-            return rp.doError(err);
+            rp.doError(err);
+            return;
           }
 
           // The idpParams tell us where to go to provision and authenticate
@@ -399,29 +401,30 @@ IDService.prototype = {
               //self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (! err) {
-                  self._store.setLoginState(rp.origin, true, aIdentity);
-                  self._notifyLoginStateChanged(aRPId, aIdentity);
-                  rp.doLogin(assertion);
-                  return rp.doReady();
+                  self._doLogin(rp, rpLoginOptions, assertion);
+                  return;
                 } else {
-                  return rp.doError(err);
+                  rp.doError(err);
+                  return;
                 }
               });
 
-            // We are not authenticated.  If we have already tried to 
+            // We are not authenticated.  If we have already tried to
             // authenticate and failed, then this is a "hard fail" and
-            // we give up.  Otherwise we try to authenticate with the 
+            // we give up.  Otherwise we try to authenticate with the
             // IdP.
             } else {
               if (self._provisionFlows[aProvId].didAuthentication) {
                 self._cleanUpProvisionFlow(aProvId);
-                return rp.doError("Authentication fail.");
+                rp.doError("Authentication fail.");
+                return;
 
-              } else { 
-                // Try to authenticate with the IdP.  Note that we do 
+              } else {
+                // Try to authenticate with the IdP.  Note that we do
                 // not clean up the provision flow here.  We will continue
                 // to use it.
-                return self._doAuthentication(aProvId, idpParams);
+                self._doAuthentication(aProvId, idpParams);
+                return;
               }
             }
           });
@@ -429,7 +432,7 @@ IDService.prototype = {
       }
     });
   },
-    
+
   /**
    * Generate an assertion, including provisioning via IdP if necessary,
    * but no user interaction, so if provisioning fails, aCallback is invoked
@@ -448,15 +451,12 @@ IDService.prototype = {
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback) {
     let id = this._store.fetchIdentity(aIdentity);
     if (! (id && id.cert)) {
-log("** ERROR ** can't generate assertion without cert");
       return aCallback("Cannot generate assertion without a cert");
     }
-    
+
     let kp = this._getIdentityKeyPair(aIdentity, INTERNAL_ORIGIN);
-    log("have kp", kp.serializedPublicKey);
 
     if (!kp) {
-log("** ERROR ** no kp");
       return aCallback("no kp");
     }
 
@@ -474,9 +474,8 @@ log("** ERROR ** no kp");
       signFinished: function (rv, signedAssertion) {
         log("signFinished");
         if (!Components.isSuccessCode(rv)) {
-log("sign failed");
-	        return aCallback("Sign Failed");
-	      }
+	  return aCallback("Sign Failed");
+        }
 
         log("signFinished: calling callback");
         // bundle with cert
@@ -489,11 +488,9 @@ log("sign failed");
     };
 
     // generate the assertion
-let cb = new signCallback();
-log("sign callback is", typeof cb);
     var in_2_minutes = new Date(new Date().valueOf() + (2 * 60 * 1000));
     var unsignedAssertion = {expiresAt: in_2_minutes, audience: aAudience};
-    kp.kp.sign(JSON.stringify(unsignedAssertion), cb);
+    kp.kp.sign(JSON.stringify(unsignedAssertion), new signCallback());
   },
 
   /**
@@ -661,7 +658,7 @@ log("sign callback is", typeof cb);
   genKeyPair: function genKeyPair(aProvId) {
     // Look up the provisioning caller and make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
-    
+
     if (!provFlow) {
       log("Cannot genKeyPair on non-existing flow.");
       return null;
@@ -678,12 +675,11 @@ log("sign callback is", typeof cb);
         log("error generating keypair:" + err);
         return provFlow.callback(err);
       }
-      
+
       provFlow.kp = this._getIdentityKeyPair(key.userID, key.url);
-log("have provFlow.kp");
+
       // Serialize the publicKey of the keypair and send it back to the
       // sandbox.
-log("serialized key", provFlow.kp.serializedPublicKey);
       provFlow.caller.doGenKeyPairCallback(provFlow.kp.serializedPublicKey);
     }.bind(this));
   },
@@ -701,7 +697,6 @@ log("serialized key", provFlow.kp.serializedPublicKey);
    *                  being provisioned, provided by the IdP.
    */
   registerCertificate: function registerCertificate(aProvId, aCert) {
-log("registerCertificate for ", aProvId);
     // look up provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
     if (!provFlow && provFlow.caller) {
@@ -715,7 +710,7 @@ log("registerCertificate for ", aProvId);
 
     // store the keypair and certificate just provided in IDStore.
     this._store.addIdentity(provFlow.identity, provFlow.kp, aCert);
-log("stored a cert!");
+
     // Great success!
     provFlow.callback(null);
 
@@ -899,7 +894,7 @@ log("stored a cert!");
 
         // Now begin provisioning from the IdP   
         this._generateAssertion(audience, email, function(err, assertion) {
-log("can login with assertion", assertion);
+          log("can login with assertion", assertion);
           return aCallback(err, assertion);
         }.bind(this));
       }.bind(this));
@@ -1167,7 +1162,7 @@ log("can login with assertion", assertion);
           log("Invalid well-known file from: " + aDomain);
           return aCallback("Invalid well-known file from: " + aDomain);
         }
-        
+
         let callbackObj = {
           domain: aDomain,
           idpParams: idpParams,
@@ -1175,7 +1170,7 @@ log("can login with assertion", assertion);
         log("valid idp");
         // Yay.  Valid IdP configuration for the domain.
         return aCallback(null, callbackObj);
-        
+
       } catch (err) {
         Cu.reportError("Bad configuration from " + aDomain + " : " +err);
         return aCallback(err.toString());
