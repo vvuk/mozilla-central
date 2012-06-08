@@ -9,6 +9,7 @@ do_load_httpd_js();
 // that use the profile directory work.
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 let XULAppInfo = {
   vendor: "Mozilla",
@@ -46,3 +47,5 @@ function log(aMsg)
   dump("ID Tests: " + aMsg + "\n");
 }
 
+// Switch debug messages on by default
+Services.prefs.setBoolPref("toolkit.identity.debug", true);
