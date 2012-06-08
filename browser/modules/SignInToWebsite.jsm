@@ -73,13 +73,13 @@ let SignInToWebsiteUX = {
   requestLogin: function SignInToWebsiteUX_requestLogin(aOptions) {
     let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("requestLogin for " + windowID);
-    let [win, browser, browserEl] = this._getUIForID(windowID);
+    let [win, browserEl] = this._getUIForID(windowID);
 
     // Message is only used to pass the origin. signOut relies on this atm.
     let message = browserEl.currentURI.prePath;
     let mainAction = {
-      label: "Next",
-      accessKey: "i", // TODO
+      label: win.gNavigatorBundle.getString("identity.next.label"),
+      accessKey: win.gNavigatorBundle.getString("identity.next.accessKey"),
       callback: function() {
         let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
         // TODO: mostly handled in the binding already
@@ -101,7 +101,6 @@ let SignInToWebsiteUX = {
     while (requestOptions.hasMoreElements()) {
       let opt = requestOptions.getNext().QueryInterface(Ci.nsIProperty);
       options.identity[opt.name] = opt.value;
-      log("opt: " + opt.name + " : " + opt.value);
     }
     log("requestLogin: rpId: " + options.identity.rpId);
 
@@ -129,8 +128,7 @@ let SignInToWebsiteUX = {
    * User clicked sign out on the given notification.  Notify the identity service.
    */
   signOut: function signOut(aNotification) {
-    // TODO: handle signing out of other tabs for the same domain or let ID service notify those tabs.
-    let origin = aNotification.message; // XXX: hack
+    let origin = aNotification.options.identity.origin;
     log("signOut for: " + origin);
     IdentityService.logout(origin);
   },
@@ -138,10 +136,9 @@ let SignInToWebsiteUX = {
   // Private
 
   /**
-   * Return the window, browser and <browser> for the given outer window ID.
+   * Return the window and <browser> for the given outer window ID.
    */
   _getUIForID: function(aWindowID) {
-
     // XXX: as a hack just use the most recent window for now
     let someWindow = Services.wm.getMostRecentWindow('navigator:browser');
     let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -153,16 +150,11 @@ let SignInToWebsiteUX = {
                            .getInterface(Ci.nsIWebNavigation)
                            .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
       let win = browser.ownerDocument.defaultView;
-      let browserEl = win.gBrowser.getBrowserForDocument(content.document);
-      if (!win) {
-        log("Could not get a window for _getUIForID");
-        return null;
-      }
-      return [win, browser, browserEl];
+      return [win, browser];
     } else {
       log("no content");
     }
-    return null;
+    return [null, null];
   },
 
   /**
@@ -187,7 +179,7 @@ let SignInToWebsiteUX = {
   },
 
   _closeAuthenticationUI: function _closeAuthenticationUI(aAuthId) {
-    let [win, browser, browserEl] = this._getUIForID(aAuthId);
+    let [win, browserEl] = this._getUIForID(aAuthId);
     if (win)
       win.close();
   },
@@ -198,15 +190,15 @@ let SignInToWebsiteUX = {
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
     let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("_showLoggedInUI for " + windowID);
-    let [win, browser, browserEl] = this._getUIForID(windowID);
+    let [win, browserEl] = this._getUIForID(windowID);
 
-    let message = "Signed in as: " + aIdentity;
+    let message = win.gNavigatorBundle.getFormattedString("identity.loggedIn.description",
+                                                          [aIdentity]);
     let mainAction = {
-      label: "Sign Out",
-      accessKey: "o", // TODO
+      label: win.gNavigatorBundle.getString("identity.loggedIn.signOut.label"),
+      accessKey: win.gNavigatorBundle.getString("identity.loggedIn.signOut.accessKey"),
       callback: function(notification) {
         log("sign out callback fired");
-        // TODO
         IdentityService.logout(windowID);
       },
     };
@@ -226,7 +218,7 @@ let SignInToWebsiteUX = {
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
     let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("_removeLoggedInUI for " + windowID);
-    let [win, browser, browserEl] = this._getUIForID(windowID);
+    let [win, browserEl] = this._getUIForID(windowID);
 
     let loggedInNot = win.PopupNotifications.getNotification("identity-logged-in", browserEl);
     if (loggedInNot)
@@ -239,7 +231,7 @@ let SignInToWebsiteUX = {
   _removeRequestUI: function _removeRequestUI(aContext) {
     let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
     log("_removeRequestUI for " + windowID);
-    let [win, browser, browserEl] = this._getUIForID(windowID);
+    let [win, browserEl] = this._getUIForID(windowID);
 
     let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
     if (requestNot)

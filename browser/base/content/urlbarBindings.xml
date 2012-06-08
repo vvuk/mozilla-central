@@ -1184,11 +1184,11 @@
       <xul:vbox flex="1">
         <xul:deck anonid="identity-deck">
           <xul:vbox flex="1"> <!-- 1: add an email -->
-            <xul:textbox anonid="email" placeholder="Email"/> <!-- TODO: l10n -->
-            <xul:description><!-- TODO: l10n -->Enter your email address to sign in to <xul:label class="small-margin header" xbl:inherits="xbl:text=label"/></xul:description>
+            <xul:textbox anonid="email"/>
+            <xul:description anonid="newidentitydesc"/>
           </xul:vbox>
           <xul:vbox flex="1"> <!-- 2: choose an email -->
-            <xul:description><!-- TODO: l10n -->Sign in to <xul:label class="small-margin header" xbl:inherits="xbl:text=label"/></xul:description>
+            <xul:description anonid="chooseidentitydesc"/>
             <xul:radiogroup anonid="identities">
             </xul:radiogroup>
             <xul:label anonid="newemail"/>
@@ -1224,12 +1224,15 @@
       <constructor><![CDATA[
         // this.notification.options.identity is used to pass identity-specific info to the binding
         let identityOpts = this.notification.options.identity;
-        // Populate the list of identities to choose from. The origin is used to provide
-        // better suggestions.
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(identityOpts.origin);
+        let origin = identityOpts.origin
 
-        // Show the add email pane (0) if there are no existing identities otherwise show the list
-        this.step = "result" in identities && identities.result.length ? 1 : 0;
+        // Populate text
+        this.emailfield.placeholder = gNavigatorBundle.
+                                      getString("identity.newIdentity.email.placeholder");
+        this.newIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
+                                             "identity.newIdentity.description", [origin]);
+        this.chooseIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
+                                                "identity.chooseIdentity.description", [origin]);
 
         if (identityOpts.tosURL) {
           // Show optional TOS link
@@ -1247,10 +1250,18 @@
           pp.hidden = false;
         }
 
-        var foundLastUsed = false;
+        // Populate the list of identities to choose from. The origin is used to provide
+        // better suggestions.
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(identityOpts.origin);
+
+        // Show the add email pane (0) if there are no existing identities otherwise show the list
+        this.step = "result" in identities && identities.result.length ? 1 : 0;
+
+        const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+        let foundLastUsed = false;
         for (let id in identities.result) {
           let label = identities.result[id];
-          let opt = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "radio");
+          let opt = document.createElementNS(kXULNS, "radio");
           opt.setAttribute("label", label);
           this.identitylist.appendChild(opt);
           if (label == identities.lastUsed) {
@@ -1285,8 +1296,8 @@
         let addEmailClick = function(evt) {
           this.step = 0;
         }.bind(this);
-        this.addemaillink.value = gNavigatorBundle.getString("identity.addNewIdentity.label");
-        this.addemaillink.accessKey = gNavigatorBundle.getString("identity.addNewIdentity.accessKey");
+        this.addemaillink.value = gNavigatorBundle.getString("identity.newIdentity.label");
+        this.addemaillink.accessKey = gNavigatorBundle.getString("identity.newIdentity.accessKey");
         this.addemaillink.addEventListener("click", addEmailClick);
       ]]></constructor>
 
@@ -1294,6 +1305,14 @@
         let sitw = {};
         Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
         sitw.SignInToWebsiteUX;
+      </field>
+
+      <field name="newIdentityDesc" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "newidentitydesc");
+      </field>
+
+      <field name="chooseIdentityDesc" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "chooseidentitydesc");
       </field>
 
       <field name="identitylist" readonly="true">
