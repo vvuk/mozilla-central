@@ -25,22 +25,8 @@ const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
 const IdentityCryptoService
   = Cc["@mozilla.org/identity/crypto-service;1"]
-      .getService(Components.interfaces.nsIIdentityCryptoService);
+      .getService(Ci.nsIIdentityCryptoService);
 
-/*
-XPCOMUtils.defineLazyGetter(this, "jwcrypto", function () {
-  let scope = {};
-  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
-  return scope.jwcrypto;
-});
-*/
-
-// delay the loading of the IDService for performance purposes
-XPCOMUtils.defineLazyGetter(this, "jwcrypto", function () {
-  let scope = {};
-  Cu.import("resource:///modules/identity/bidbundle.jsm", scope);
-  return scope.require("./lib/jwcrypto");
-});
 
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
@@ -179,6 +165,8 @@ IDService.prototype = {
     // may be necessary to authenticate with an IdP.  The authentication
     // flow maintains the state of that authentication process.
     this._authenticationFlows = {};
+
+    this._registry = {};
   },
 
 
@@ -868,34 +856,6 @@ log("stored a cert!");
   // methods for chrome and add-ons
 
   /**
-   * Twiddle the login state at an origin
-   * a bit more hackish
-   */
-  getLoginState: function getLoginState(aOrigin, aCallback) {
-    
-  },
-
-  /**
-   * @param aState
-   *        (object) with fields isLoggedIn and identity
-   */
-  setLoginState: function setLoginState(aOrigin, aState, aCallback) {
-    
-  },
-
-  /**
-   * watches for state changes to a particular origin
-   * and invokes callback with a status object
-   *
-   * @param aOrigin
-   * 
-   * @param aCallback
-   */
-  internalWatch: function internalWatch(aOrigin, aCallback) {
-    
-  },
-  
-  /**
    * Obtain a BrowserID assertion with the specified characteristics.
    *
    * @param aCallback
@@ -981,7 +941,7 @@ log("can login with assertion", assertion);
   //
   
   shutdown: function shutdown() {
-    this._registry = null;
+    this.reset();
   },
 
   getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
