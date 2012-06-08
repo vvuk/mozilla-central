@@ -88,7 +88,7 @@ let SignInToWebsiteUX = {
     };
     let options = {
       eventCallback: function(state) {
-        log("requestLogin: doorhanger " + state);
+        //log("requestLogin: doorhanger " + state);
       },
       identity: {
         origin: browserEl.currentURI.prePath,

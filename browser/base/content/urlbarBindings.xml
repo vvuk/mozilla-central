@@ -1184,14 +1184,16 @@
       <xul:vbox flex="1">
         <xul:vbox anonid="identity-deck">
           <xul:vbox flex="1" pack="center"> <!-- 1: add an email -->
-            <html:input type="email" anonid="email" required="required"/>
+            <html:input type="email" anonid="email" required="required" size="30"/>
             <xul:description anonid="newidentitydesc"/>
+            <xul:spacer flex="1"/>
+            <xul:label class="text-link custom-link small-margin" anonid="chooseemail"/>
           </xul:vbox>
           <xul:vbox flex="1" hidden="true"> <!-- 2: choose an email -->
             <xul:description anonid="chooseidentitydesc"/>
             <xul:radiogroup anonid="identities">
             </xul:radiogroup>
-            <xul:label anonid="newemail"/>
+            <xul:label class="text-link custom-link" anonid="newemail"/>
           </xul:vbox>
         </xul:vbox>
         <xul:hbox class="popup-notification-button-container"
@@ -1224,8 +1226,7 @@
     <implementation>
       <constructor><![CDATA[
         // this.notification.options.identity is used to pass identity-specific info to the binding
-        let identityOpts = this.notification.options.identity;
-        let origin = identityOpts.origin
+        let origin = this.identity.origin
 
         // Populate text
         this.emailField.placeholder = gNavigatorBundle.
@@ -1235,28 +1236,29 @@
         this.chooseIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
                                                 "identity.chooseIdentity.description", [origin]);
 
-        if (identityOpts.tosURL) {
+        if (this.identity.tosURL) {
           // Show optional TOS link
           let tos = document.getAnonymousElementByAttribute(this, "anonid", "tos");
           tos.value = gNavigatorBundle.getString("identity.termsOfService");
-          tos.href = identityOpts.tosURL;
+          tos.href = this.identity.tosURL;
           tos.hidden = false;
         }
 
-        if (identityOpts.privacyURL) {
+        if (this.identity.privacyURL) {
           // Show optional privacy policy link
           let pp = document.getAnonymousElementByAttribute(this, "anonid", "privacypolicy");
           pp.value = gNavigatorBundle.getString("identity.privacyPolicy");
-          pp.href = identityOpts.privacyURL;
+          pp.href = this.identity.privacyURL;
           pp.hidden = false;
         }
 
         // Populate the list of identities to choose from. The origin is used to provide
         // better suggestions.
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(identityOpts.origin);
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.identity.origin);
 
         // Show the add email pane (0) if there are no existing identities otherwise show the list
-        this.step = "result" in identities && identities.result.length ? 1 : 0;
+        if (typeof this.step == "undefined")
+          this.step = "result" in identities && identities.result.length ? 1 : 0;
 
         const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
         let foundLastUsed = false;
@@ -1271,7 +1273,6 @@
           }
         }
         if (!foundLastUsed) {
-          // TODO: doesn't work
           this.identityList.selectedIndex = -1;
         }
 
@@ -1286,7 +1287,7 @@
                 this.emailField.focus();
                 return;
               }
-              this.SignInToWebsiteUX.selectIdentity(identityOpts.rpId, this.emailField.value);
+              this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, this.emailField.value);
               break;
             case 1:
               evt.stopPropagation();
@@ -1294,7 +1295,7 @@
               let selectedIdentity = selectedItem ? selectedItem.label : null;
               if (!selectedIdentity)
                 return;
-              this.SignInToWebsiteUX.selectIdentity(identityOpts.rpId, selectedIdentity);
+              this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, selectedIdentity);
               break;
             default:
               throw new Error("Unknown case");
@@ -1305,12 +1306,16 @@
         }.bind(this), true);
 
         // event handlers for add an email case
-        let addEmailClick = function(evt) {
-          this.step = 0;
-        }.bind(this);
         this.addEmailLink.value = gNavigatorBundle.getString("identity.newIdentity.label");
         this.addEmailLink.accessKey = gNavigatorBundle.getString("identity.newIdentity.accessKey");
-        this.addEmailLink.addEventListener("click", addEmailClick);
+        this.addEmailLink.addEventListener("click", function addEmailClick(evt) {
+          this.step = 0;
+        }.bind(this));
+
+        this.chooseEmailLink.value = gNavigatorBundle.getString("identity.chooseIdentity.label");
+        this.chooseEmailLink.addEventListener("click", function chooseEmailClick(evt) {
+          this.step = 1;
+        }.bind(this));
       ]]></constructor>
 
       <field name="SignInToWebsiteUX" readonly="true">
@@ -1339,15 +1344,23 @@
         document.getAnonymousElementByAttribute(this, "anonid", "newemail");
       </field>
 
+      <field name="chooseEmailLink" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "chooseemail");
+      </field>
+
       <field name="throbber" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "throbber");
       </field>
 
-      <field name="_step">0</field>
+      <field name="identity" readonly="true">
+        this.notification.options.identity;
+      </field>
 
+      <!-- persist the state on the identity object so we can re-create the
+           notification state upon re-opening -->
       <property name="step">
         <getter>
-          return this._step;
+          return this.identity.step;
         </getter>
         <setter><![CDATA[
           let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
@@ -1355,7 +1368,7 @@
           for (let i = 0; i < deck.children.length; i++) {
             deck.children[i].hidden = (paneIndex != i);
           }
-          this._step = paneIndex;
+          this.identity.step = paneIndex;
           switch(paneIndex) {
             case 0:
               this.emailField.focus();
