@@ -47,18 +47,14 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-function uuid() {
-  return uuidGenerator.generateUUID();
-}
-
 /**
  * log() - utility function to print a list of arbitrary things
+ * Depends on IdentityService (bottom of this module).
+ * 
+ * Enable with about:config pref toolkit.identity.debug
  */
-function log() {
-  if (! Services.prefs.getPrefType(DEBUG_PREF_NAME, Ci.nsIPrefBranch.PREF_BOOL) &&
-        Services.prefs.getBoolPref(DEBUG_PREF_NAME)) {
-    return;
-  }
+function log(args) {
+  if (! IdentityService._debugMode) return;
 
   let strings = [];
   let args = Array.prototype.slice.call(arguments);
@@ -70,10 +66,19 @@ function log() {
     } else if (arg === null) {
       strings.push('null');
     } else {
-      strings.push(JSON.stringify(arg, null, 2));
+      try {
+        strings.push(JSON.stringify(arg, null, 2));
+      } catch(err) {
+        strings.push("<<something>>");
+      }
     }
   });                
   dump("@@ Identity.jsm: " + strings.join(' ') + "\n");
+};
+
+
+function uuid() {
+  return uuidGenerator.generateUUID();
 }
 
 // the data store for IDService
@@ -140,6 +145,9 @@ IDServiceStore.prototype = {
 function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
+  // NB, prefs.addObserver and obs.addObserver have different interfaces
+  Services.prefs.addObserver(DEBUG_PREF_NAME, this, false);
+
   this.reset();
 }
 
@@ -212,13 +220,13 @@ IDService.prototype = {
 
       } else if (aCaller.loggedInEmail === null) {
         // Generate assertion for existing login
-        let options = {requiredEmail: state.email, audience: origin};
+        let options = {requiredEmail: state.email, origin: origin};
         return this._doLogin(aCaller, options);
 
       } else {
         // A loggedInEmail different from state.email has been specified.
         // Change login identity.
-        let options = {requiredEmail: aCaller.loggedInEmail, audience: origin};
+        let options = {requiredEmail: aCaller.loggedInEmail, origin: origin};
         return this._doLogin(aCaller, options);
       }
 
@@ -229,7 +237,7 @@ IDService.prototype = {
 
     } else {
       if (aCaller.loggedInEmail) {
-        return this._doLogout(aCaller, {audience: origin});
+        return this._doLogout(aCaller, {origin: origin});
 
       } else {
         return aCaller.doReady();
@@ -249,7 +257,7 @@ IDService.prototype = {
       if (!err) {
 
         // XXX add tests for state change
-        this._store.setLoginState(aOptions.audience, true, aOptions.loggedInEmail);
+        this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
         this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
 
         aCaller.doLogin(assertion);
@@ -267,7 +275,7 @@ IDService.prototype = {
    * on logout.
    */
   _doLogout: function _doLogout(aCaller, aOptions) {
-    let state = this._store.getLoginState(aOptions.audience) || {};
+    let state = this._store.getLoginState(aOptions.origin) || {};
 
     // XXX add tests for state change
 
@@ -362,6 +370,12 @@ IDService.prototype = {
     // It's possible that we are in the process of provisioning an
     // identity.
     let provId = rp.provId || null;
+
+    // XXX consolidate rp, flows, etc. ?
+    let rpLoginOptions = {
+      loggedInEmail: aIdentity,
+      origin: rp.origin
+    };
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
@@ -1257,8 +1271,12 @@ log("can login with assertion", assertion);
         Services.obs.removeObserver(this, "identity-login", false);
         this.shutdown();
         break;
+
+      case "nsPref:changed":
+        this._debugMode = Services.prefs.getBoolPref(DEBUG_PREF_NAME);
+        break;
     }
-  },
+  }.bind(this),
 
   /**
    * Clean up a provision flow and the authentication flow and sandbox
@@ -1292,3 +1310,4 @@ log("can login with assertion", assertion);
 };
 
 var IdentityService = new IDService();
+
