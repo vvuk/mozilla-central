@@ -75,7 +75,7 @@ let SignInToWebsiteUX = {
     log("requestLogin for " + windowID);
     let [win, browserEl] = this._getUIForID(windowID);
 
-    // Message is only used to pass the origin. signOut relies on this atm.
+    // message is not shown in the UI but is required
     let message = browserEl.currentURI.prePath;
     let mainAction = {
       label: win.gNavigatorBundle.getString("identity.next.label"),

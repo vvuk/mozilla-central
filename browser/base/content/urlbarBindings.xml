@@ -1201,7 +1201,8 @@
           <xul:label anonid="tos" class="text-link" hidden="true"/>
           <xul:label anonid="privacypolicy" class="text-link" hidden="true"/>
           <xul:spacer flex="1"/>
-          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png" style="visibility:hidden"/>
+          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png"
+                     style="visibility:hidden" width="16" height="16"/>
           <xul:button anonid="button"
                       type="menu-button"
                       class="popup-notification-menubutton"
@@ -1256,18 +1257,12 @@
         // better suggestions.
         let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.identity.origin);
 
-        // Show the add email pane (0) if there are no existing identities otherwise show the list
-        if (typeof this.step == "undefined")
-          this.step = "result" in identities && identities.result.length ? 1 : 0;
-
-        const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
         let foundLastUsed = false;
+        let lastUsed = this.identity.selected || identities.lastUsed;
         for (let id in identities.result) {
           let label = identities.result[id];
-          let opt = document.createElementNS(kXULNS, "radio");
-          opt.setAttribute("label", label);
-          this.identityList.appendChild(opt);
-          if (label == identities.lastUsed) {
+          let opt = this.identityList.appendItem(label);
+          if (label == lastUsed) {
             this.identityList.selectedItem = opt;
             foundLastUsed = true;
           }
@@ -1276,10 +1271,28 @@
           this.identityList.selectedIndex = -1;
         }
 
+        if (typeof this.step == "undefined") {
+          // First opening of this notification
+          // Show the add email pane (0) if there are no existing identities otherwise show the list
+          this.step = "result" in identities && identities.result.length ? 1 : 0;
+        } else {
+          // Already opened so restore previous state
+          if (this.identity.typedEmail) {
+            this.emailField.value = this.identity.typedEmail;
+          }
+          if (this.identity.selected) {
+            // If the user already chose an identity then update the UI to reflect that
+            this.onIdentitySelected();
+          }
+          // Update the view for the step
+          this.step = this.step;
+        }
+
         // Fire notification with the chosen identity when main button is clicked
         this.button.addEventListener("command", function(evt) {
           if (evt.target != evt.currentTarget)
             return;
+          let chosenId;
           switch(this.step) {
             case 0:
               evt.stopPropagation();
@@ -1287,25 +1300,25 @@
                 this.emailField.focus();
                 return;
               }
-              this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, this.emailField.value);
+              chosenId = this.emailField.value;
               break;
             case 1:
               evt.stopPropagation();
               let selectedItem = this.identityList.selectedItem
-              let selectedIdentity = selectedItem ? selectedItem.label : null;
-              if (!selectedIdentity)
+              chosenId = selectedItem ? selectedItem.label : null;
+              if (!chosenId)
                 return;
-              this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, selectedIdentity);
               break;
             default:
               throw new Error("Unknown case");
               return;
           }
-          this.throbber.style.visibility = "visible";
-          this.button.disabled = true;
+          // Actually select the identity
+          this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, chosenId);
+          this.identity.selected = chosenId;
+          this.onIdentitySelected();
         }.bind(this), true);
 
-        // event handlers for add an email case
         this.addEmailLink.value = gNavigatorBundle.getString("identity.newIdentity.label");
         this.addEmailLink.accessKey = gNavigatorBundle.getString("identity.newIdentity.accessKey");
         this.addEmailLink.addEventListener("click", function addEmailClick(evt) {
@@ -1315,6 +1328,11 @@
         this.chooseEmailLink.value = gNavigatorBundle.getString("identity.chooseIdentity.label");
         this.chooseEmailLink.addEventListener("click", function chooseEmailClick(evt) {
           this.step = 1;
+        }.bind(this));
+
+        // TODO: move below to close/dismissal handler
+        this.emailField.addEventListener("input", function onEmailInput() {
+          this.identity.typedEmail = this.emailField.value;
         }.bind(this));
       ]]></constructor>
 
@@ -1376,6 +1394,16 @@
           }]]>
         </setter>
       </property>
+
+      <method name="onIdentitySelected">
+        <body><![CDATA[
+          this.throbber.style.visibility = "visible";
+          this.button.disabled = true;
+          this.emailField.value = this.identity.selected
+          this.emailField.disabled = true;
+          this.identityList.disabled = true;
+        ]]></body>
+      </method>
 
     </implementation>
   </binding>
