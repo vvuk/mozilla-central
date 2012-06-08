@@ -1199,6 +1199,7 @@
           <xul:label anonid="tos" class="text-link" hidden="true"/>
           <xul:label anonid="privacypolicy" class="text-link" hidden="true"/>
           <xul:spacer flex="1"/>
+          <xul:image anonid="throbber" src="chrome://browser/skin/tabbrowser/loading.png" hidden="true"/>
           <xul:button anonid="button"
                       type="menu-button"
                       class="popup-notification-menubutton"
@@ -1270,6 +1271,7 @@
           }
         }
         if (!foundLastUsed) {
+          // TODO: doesn't work
           this.identitylist.selectedIndex = -1;
         }
 
@@ -1290,6 +1292,8 @@
               throw new Error("Unknown case");
               return;
           }
+          this.throbber.hidden = false;
+          evt.stopPropagation();
         }.bind(this), true);
 
         // event handlers for add an email case
@@ -1316,15 +1320,19 @@
       </field>
 
       <field name="identitylist" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "identities")
+        document.getAnonymousElementByAttribute(this, "anonid", "identities");
       </field>
 
       <field name="emailfield" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "email")
+        document.getAnonymousElementByAttribute(this, "anonid", "email");
       </field>
 
       <field name="addemaillink" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "newemail")
+        document.getAnonymousElementByAttribute(this, "anonid", "newemail");
+      </field>
+
+      <field name="throbber" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "throbber");
       </field>
 
       <property name="step">
