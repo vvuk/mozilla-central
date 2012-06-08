@@ -26,7 +26,7 @@ function test_well_known_1() {
   server.start(SERVER_PORT);
   let hostPort = "localhost:" + SERVER_PORT;
 
-  IDService._fetchWellKnownFile(hostPort, function check_well_known(aErr, aCallbackObj) {
+  IDService._fetchWellKnownFile(hostPort, "http", function check_well_known(aErr, aCallbackObj) {
     do_check_eq(null, aErr); // TODO: use do_check_null after m-c update
     do_check_eq(aCallbackObj.domain, hostPort);
     let idpParams = aCallbackObj.idpParams;
@@ -36,7 +36,7 @@ function test_well_known_1() {
 
     do_test_finished();
     server.stop(run_next_test);
-  }, "http");
+  });
 }
 
 // valid domain, non-exixtent browserid file
@@ -49,14 +49,14 @@ function test_well_known_404() {
   SERVER_PORT++;
   server.start(SERVER_PORT);
 
-  let hostPort = "localhost:" /* TODO */ + SERVER_PORT;
+  let hostPort = "localhost:" + SERVER_PORT;
 
-  IDService._fetchWellKnownFile(hostPort, function check_well_known_404(aErr, aCallbackObj) {
+  IDService._fetchWellKnownFile(hostPort, "http", function check_well_known_404(aErr, aCallbackObj) {
     do_check_eq(404, aErr);
     do_check_eq(undefined, aCallbackObj);
     do_test_finished();
     server.stop(run_next_test);
-  }, "http");
+  });
 }
 
 // valid domain, invalid browserid file (no "provisioning" member)
@@ -69,15 +69,15 @@ function test_well_known_invalid_1() {
   SERVER_PORT++;
   server.start(SERVER_PORT);
 
-  let hostPort = "localhost:" /* TODO */ + SERVER_PORT;
+  let hostPort = "localhost:" + SERVER_PORT;
 
-  IDService._fetchWellKnownFile(hostPort, function check_well_known_invalid_1(aErr, aCallbackObj) {
+  IDService._fetchWellKnownFile(hostPort, "http", function check_well_known_invalid_1(aErr, aCallbackObj) {
     // check for an error message
     do_check_true(aErr && aErr.length > 0);
     do_check_eq(undefined, aCallbackObj);
     do_test_finished();
     server.stop(run_next_test);
-  }, "http");
+  });
 }
 
 

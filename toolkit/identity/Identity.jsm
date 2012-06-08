@@ -1195,11 +1195,10 @@ IDService.prototype = {
     // let req  = new XMLHttpRequest();
 
     // this appears to be a more successful way to get at xmlhttprequest
-    let req = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
-      .getService(Components.interfaces.nsIXMLHttpRequest);
+    let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+      .getService(Ci.nsIXMLHttpRequest);
 
     // XXX how can we detect whether we are off-line?
-
     // TODO: require HTTPS?
     // TODO: decide on how to handle redirects
     req.open("GET", url, true);
