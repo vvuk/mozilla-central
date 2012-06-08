@@ -14,11 +14,31 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+const IdentityCryptoService
+  = Cc["@mozilla.org/identity/crypto-service;1"]
+      .getService(Ci.nsIIdentityCryptoService);
+
 var EXPORTED_SYMBOLS = ["jwcrypto"];
 
-function log(aMsg)
+/**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log()
 {
-  dump("jwcrypto: " + aMsg + "\n");
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });
+  dump("@@ jwcrypto.jsm: " + strings.join(' ') + "\n");
 }
 
 var Base64 = {
@@ -176,6 +196,42 @@ function base64urldecode(arg) {
   return Base64.decode(s); // Standard base64 decoder
 }
 
+/*
+ * An XPCOM data structure to invoke signing
+ * and call itself back
+ */
+function signer() {
+}
+
+signer.prototype = {
+  QueryInterface: function (aIID)
+  {
+    if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
+      return this;
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  sign: function(aPayload, aKeypair, aCallback)
+  {
+    this.payload = aPayload;
+    this.callback = aCallback;
+    aKeypair.sign(this.payload, this);
+  },
+  
+  signFinished: function (rv, signature)
+  {
+    log("signFinished");
+    if (!Components.isSuccessCode(rv)) {
+      log("sign failed");
+	    return this.callback("Sign Failed");
+	  }
+
+    this.callback(null, signature);
+    log("signFinished: calling callback");
+  }
+};
+
 function jwcryptoClass()
 {
 }
@@ -187,24 +243,26 @@ jwcryptoClass.prototype = {
   },
   
   generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
-    // var header = {"alg": aKeyPair.algorithm};
     // for now, we hack the algorithm name
-    var header = {"alg": "DS160"};
+    var header = {"alg": "DS128"};
     var headerBytes = base64urlencode(JSON.stringify(header));
-
+    
     var payload = {
       // expires in 2 minutes
       exp: new Date(new Date().valueOf() + (2 * 60 * 1000)).valueOf(),
       aud: aAudience
     };
-    var jsonBytes = base64urlencode(JSON.stringify(payload));
-    
-    var signature = aKeyPair.sign(headerBytes + "." + jsonBytes);
+    var payloadBytes = base64urlencode(JSON.stringify(payload));
 
-    // append to cert
-    var assertion = headerBytes + "." + jsonBytes + "." + signature;
-    var fullAssertion = aCert + "~" + assertion;
-    aCallback(null, fullAssertion);
+    log("payload bytes", payload, payloadBytes);
+    var theSigner = new signer();
+    theSigner.sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
+      if (err)
+        return aCallback(err);
+
+      var signedAssertion = headerBytes + "." + payloadBytes + "." + signature;
+      return aCallback(null, aCert + "~" + signedAssertion);
+    });
   }
   
 };

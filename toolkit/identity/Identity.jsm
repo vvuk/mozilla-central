@@ -27,11 +27,16 @@ const IdentityCryptoService
   = Cc["@mozilla.org/identity/crypto-service;1"]
       .getService(Ci.nsIIdentityCryptoService);
 
-
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
+
+XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
+  let scope = {};
+  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
+  return scope.jwcrypto;
+});
 
 /**
  * log() - utility function to print a list of arbitrary things
@@ -242,6 +247,7 @@ log("watch state:", state);
    */
   _doLogin: function _doLogin(aCaller, aOptions, aAssertion) {
     let loginWithAssertion = function loginWithAssertion(assertion) {
+      log("about to log in with", assertion);
       this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
       this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
       aCaller.doLogin(assertion);
@@ -460,39 +466,9 @@ log("watch state:", state);
       return aCallback("no kp");
     }
 
-    function signCallback() { }
-
-    signCallback.prototype = {
-
-      QueryInterface: function (aIID) {
-        if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
-          return this;
-        }
-        throw Cr.NS_ERROR_NO_INTERFACE;
-      },
-
-      signFinished: function (rv, signedAssertion) {
-        log("signFinished");
-        if (!Components.isSuccessCode(rv)) {
-	  return aCallback("Sign Failed");
-        }
-
-        log("signFinished: calling callback");
-        // bundle with cert
-        try {
-          return aCallback(null, id.cert + "~" + signedAssertion);
-        } catch (e) {
-          log ("exception " + e);
-        }
-      },
-    };
-
-    // generate the assertion
-    var in_2_minutes = new Date(new Date().valueOf() + (2 * 60 * 1000));
-    var unsignedAssertion = {expiresAt: in_2_minutes, audience: aAudience};
-    kp.kp.sign(JSON.stringify(unsignedAssertion), new signCallback());
+    jwcrypto.generateAssertion(id.cert, kp.kp, aAudience, aCallback);
   },
-
+  
   /**
    * Provision an Identity
    *
@@ -1019,7 +995,7 @@ log("watch state:", state);
 
       generateKeyPairFinished: function(rv, aKeyPair)
       {
-        log("generateKeyPairFinished");
+        log("generateKeyPairFinished", aKeyPair.keyType);
         if (!Components.isSuccessCode(rv)) {
           return aCallback("key generation failed");
         }
@@ -1059,6 +1035,8 @@ log("watch state:", state);
           serializedPublicKey: JSON.stringify(publicKey),
           kp: aKeyPair
         };
+
+        log("returning ", keyWrapper.serializedPublicKey);
 
         let keyID = key.userID + "__" + key.url;
         self._registry[keyID] = keyWrapper;
@@ -1109,6 +1087,7 @@ log("watch state:", state);
     if (!keyObj) {
       throw new Error("getIdentityKeyPair: Invalid Key");
     }
+    log("keyObj", keyObj);
     return keyObj;
   },
 

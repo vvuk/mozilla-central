@@ -1,3 +1,4 @@
+"use strict"
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
@@ -20,9 +21,25 @@ const INTERNAL_ORIGIN = "browserid://";
 const TEST_USER = "user@mozilla.com";
 const RP_ORIGIN = "http://123done.org";
 
-function log(aMsg)
+/**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log()
 {
-  dump("jwcrypto-Testing: " + aMsg + "\n");
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });
+  dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
 }
 
 function test_get_assertion()
@@ -30,14 +47,15 @@ function test_get_assertion()
   do_test_pending();
 
   IDService._generateKeyPair(
-    "RS256", INTERNAL_ORIGIN, TEST_USER,
+    "DS160", INTERNAL_ORIGIN, TEST_USER,
     function(err, key) {
-      dump("got a keypair\n");
-      var kp = IDService._getIdentityServiceKeyPair(key.userID, key.url);
-      jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
+      log("key", key);
+      var kp = IDService._getIdentityKeyPair(key.userID, key.url);
+      jwcrypto.generateAssertion("fake-cert", kp.kp, RP_ORIGIN, function(err, assertion) {
         do_check_eq(err, null);
 
-        log(assertion);
+        // more checks on assertion
+        log("assertion", assertion);
 
         do_test_finished();
         run_next_test();
