@@ -18,10 +18,8 @@ Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";
-var INTERNAL_ORIGIN = "browserid://";
 
 const DEBUG_PREF_NAME = "toolkit.identity.debug";
-const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
 const IdentityCryptoService
   = Cc["@mozilla.org/identity/crypto-service;1"]
@@ -460,13 +458,13 @@ log("watch state:", state);
       return aCallback("Cannot generate assertion without a cert");
     }
 
-    let kp = this._getIdentityKeyPair(aIdentity, INTERNAL_ORIGIN);
+    let kp = id.keyPair;
 
     if (!kp) {
       return aCallback("no kp");
     }
 
-    jwcrypto.generateAssertion(id.cert, kp.kp, aAudience, aCallback);
+    jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
   },
   
   /**
@@ -645,14 +643,13 @@ log("watch state:", state);
     }
 
     // Ok generate a keypair
-    this._generateKeyPair(ALGORITHMS.DS160, INTERNAL_ORIGIN, provFlow.identity, function(err, key) {
-      log("generated the keypair, yo! err is", err);
+    jwcrypto.generateKeyPair(jwcrypto.ALGORITHMS.DS160, function(err, kp) {
       if (err) {
         log("error generating keypair:" + err);
         return provFlow.callback(err);
       }
 
-      provFlow.kp = this._getIdentityKeyPair(key.userID, key.url);
+      provFlow.kp = kp;
 
       // Serialize the publicKey of the keypair and send it back to the
       // sandbox.
@@ -858,6 +855,7 @@ log("watch state:", state);
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
         log("_getAssertion has cert: return", err, assertion);
+        log("callback is " , aCallback.toString());
         return aCallback(err, assertion);
       });
 
@@ -954,142 +952,6 @@ log("watch state:", state);
   },
 
   // TODO: need helper to logout of all sites for SITB?
-
-  // Private.
-  _registry: { },
-
-  /**
-   * Generates an nsIIdentityKeyPair object that can sign data. It also
-   * provides all of the public key properties needed by a JW* formatted object
-   *
-   * @param string aAlgorithmName
-   *        Either RS256 or DS160 (keys to constant ALGORITHMS above)
-   * @param string aOrigin
-   *        a 'prepath' url, ex: https://www.mozilla.org:1234/
-   * @param string aUserID
-   *        Most likely, this is an email address
-   * @returns void
-   *          An internal callback object will notifyObservers of topic
-   *          "id-service-key-gen-finished" when the keypair is ready.
-   *          Access to the keypair is via the getIdentityKeyPair() method
-   **/
-  _generateKeyPair: function _generateKeyPair(aAlgorithmName, aOrigin, aUserID, aCallback) {
-    let alg = ALGORITHMS[aAlgorithmName];
-    if (! alg) {
-      throw new Error("IdentityService: Unsupported algorithm: " + aAlgorithmName);
-    }
-
-    var self = this;
-
-    function keyGenCallback() { }
-
-    keyGenCallback.prototype = {
-
-      QueryInterface: function(aIID)
-      {
-        if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
-          return this;
-        }
-        throw Cr.NS_ERROR_NO_INTERFACE;
-      },
-
-      generateKeyPairFinished: function(rv, aKeyPair)
-      {
-        log("generateKeyPairFinished", aKeyPair.keyType);
-        if (!Components.isSuccessCode(rv)) {
-          return aCallback("key generation failed");
-        }
-
-        let url = aOrigin;
-        let id = uuid();
-        let pubK = aKeyPair.encodedPublicKey; // DER encoded, then base64 urlencoded
-        let key = { userID: aUserID, url: url };
-        var publicKey;
-
-        switch (aKeyPair.keyType) {
-          case ALGORITHMS.RS256:
-            publicKey = {
-              algorithm: "RS",
-              exponent:  aKeyPair.hexRSAPublicKeyExponent, // XXX: name?
-              modulus:   aKeyPair.hexRSAPublicKeyModulus   // XXX: name?
-            };
-            break;
-
-          case ALGORITHMS.DS160:
-            publicKey = {
-              algorithm: "DS",
-              y: aKeyPair.hexDSAPublicValue,
-              p: aKeyPair.hexDSAPrime,
-              q: aKeyPair.hexDSASubPrime,
-              g: aKeyPair.hexDSAGenerator
-            };
-            break;
-
-          default:
-            return aCallback("unknown key type");
-        }
-
-        let keyWrapper = {
-          userID: aUserID,
-          url: url,
-          serializedPublicKey: JSON.stringify(publicKey),
-          kp: aKeyPair
-        };
-
-        log("returning ", keyWrapper.serializedPublicKey);
-
-        let keyID = key.userID + "__" + key.url;
-        self._registry[keyID] = keyWrapper;
-
-        log("generateKeyPairFinished2 " + aCallback);
-        return  aCallback(null, {url:url, userID: aUserID});
-      },
-    };
-
-    var cbObj = new keyGenCallback();
-    IdentityCryptoService.generateKeyPair(ALGORITHMS[aAlgorithmName], cbObj);
-  },
-
-  /**
-   * Returns a keypair object from the Identity in-memory storage
-   *
-   * @param string aUserID
-   *        Most likely an email address
-   * @param string aUrl
-   *        a "prepath" url: https://www.mozilla.org:1234/
-   * @returns object
-   *
-   * The returned obejct will have different properties based on which algorithm
-   * was used to generate the keypair. Check the 'algorithm' property before
-   * accessing additional properties.
-   *
-   * RSA keypair properties:
-   *   algorithm
-   *   userID
-   *   sign()
-   *   url
-   *   exponent
-   *   modulus
-   *
-   * DSA keypair properties:
-   *   algorithm
-   *   userID
-   *   sign()
-   *   url
-   *   generator
-   *   prime
-   *   subPrime
-   *   publicValue
-   **/
-  _getIdentityKeyPair: function _getIdentityKeyPair(aUserID, aUrl) {
-    let key = aUserID + "__" + aUrl;
-    let keyObj =  this._registry[key];
-    if (!keyObj) {
-      throw new Error("getIdentityKeyPair: Invalid Key");
-    }
-    log("keyObj", keyObj);
-    return keyObj;
-  },
 
   /**
    * Fetch the well-known file from the domain.

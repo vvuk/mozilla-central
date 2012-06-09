@@ -42,16 +42,26 @@ function log()
   dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
 }
 
+function test_generate()
+{
+  do_test_pending();
+  jwcrypto.generateKeyPair("DS160", function(err, kp) {
+    do_check_eq(err, null);
+    do_check_neq(kp, null);
+    
+    do_test_finished();
+    run_next_test();
+  });
+}
+
 function test_get_assertion()
 {
   do_test_pending();
 
-  IDService._generateKeyPair(
-    "DS160", INTERNAL_ORIGIN, TEST_USER,
-    function(err, key) {
-      log("key", key);
-      var kp = IDService._getIdentityKeyPair(key.userID, key.url);
-      jwcrypto.generateAssertion("fake-cert", kp.kp, RP_ORIGIN, function(err, assertion) {
+  jwcrypto.generateKeyPair(
+    "DS160",
+    function(err, kp) {
+      jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
         do_check_eq(err, null);
 
         // more checks on assertion
@@ -63,7 +73,7 @@ function test_get_assertion()
     });
 }
 
-var TESTS = [test_get_assertion];
+var TESTS = [test_generate, test_get_assertion];
 
 TESTS.forEach(add_test);
 

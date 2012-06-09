@@ -20,6 +20,8 @@ const IdentityCryptoService
 
 var EXPORTED_SYMBOLS = ["jwcrypto"];
 
+const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
+
 /**
  * log() - utility function to print a list of arbitrary things
  */
@@ -197,6 +199,67 @@ function base64urldecode(arg) {
 }
 
 /*
+ * An XPCOM data structure to invoke key generation
+ * and call itself back
+ */
+function keygenerator() {}
+
+keygenerator.prototype = {
+  QueryInterface: function(aIID)
+  {
+    if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
+      return this;
+    }
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  },
+
+  generateKeyPair: function(aAlgorithmName, aCallback)
+  {
+    this.callback = aCallback;
+    IdentityCryptoService.generateKeyPair(aAlgorithmName, this);
+  },
+  
+  generateKeyPairFinished: function(rv, aKeyPair)
+  {
+    if (!Components.isSuccessCode(rv)) {
+      return this.callback("key generation failed");
+    }
+    
+    var publicKey;
+    
+    switch (aKeyPair.keyType) {
+     case ALGORITHMS.RS256:
+      publicKey = {
+        algorithm: "RS",
+        exponent:  aKeyPair.hexRSAPublicKeyExponent,
+        modulus:   aKeyPair.hexRSAPublicKeyModulus
+      };
+      break;
+      
+     case ALGORITHMS.DS160:
+      publicKey = {
+        algorithm: "DS",
+        y: aKeyPair.hexDSAPublicValue,
+        p: aKeyPair.hexDSAPrime,
+        q: aKeyPair.hexDSASubPrime,
+        g: aKeyPair.hexDSAGenerator
+      };
+      break;
+      
+    default:
+      return this.callback("unknown key type");
+    }
+
+    let keyWrapper = {
+      serializedPublicKey: JSON.stringify(publicKey),
+      _kp: aKeyPair
+    };
+    
+    return this.callback(null, keyWrapper);
+  }
+};
+
+/*
  * An XPCOM data structure to invoke signing
  * and call itself back
  */
@@ -216,7 +279,7 @@ signer.prototype = {
   {
     this.payload = aPayload;
     this.callback = aCallback;
-    aKeypair.sign(this.payload, this);
+    aKeypair._kp.sign(this.payload, this);
   },
   
   signFinished: function (rv, signature)
@@ -240,6 +303,12 @@ jwcryptoClass.prototype = {
   isCertValid: function(aCert, aCallback) {
     // XXX check expiration
     aCallback(true);
+  },
+
+  generateKeyPair: function(aAlgorithmName, aCallback) {
+    log("generating");
+    var the_keygenerator = new keygenerator();
+    the_keygenerator.generateKeyPair(aAlgorithmName, aCallback);
   },
   
   generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
@@ -268,3 +337,4 @@ jwcryptoClass.prototype = {
 };
 
 var jwcrypto = new jwcryptoClass();
+jwcrypto.ALGORITHMS = ALGORITHMS;

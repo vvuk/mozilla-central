@@ -11,11 +11,10 @@ XPCOMUtils.defineLazyGetter(this, "IDService", function (){
   return scope.IdentityService;
 });
 
-// delay the loading of the IDService for performance purposes
 XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
   let scope = {};
-  Cu.import("resource:///modules/identity/bidbundle.jsm", scope);
-  return scope.require("./lib/jwcrypto");
+  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
+  return scope.jwcrypto;
 });
 
 XPCOMUtils.defineLazyServiceGetter(this,
@@ -91,10 +90,7 @@ function makeObserver(aObserveTopic, aObserveFunc)
 function test_rsa()
 {
   do_test_pending();
-  function checkRSA(err, key) {
-    var kpo;
-    // now we can pluck the keyPair from the store
-    kpo = IDService._getIdentityKeyPair(key.userID, key.url);
+  function checkRSA(err, kpo) {
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.RS256);
 
@@ -117,16 +113,13 @@ function test_rsa()
     run_next_test();
   };
 
-  IDService._generateKeyPair("RS256", INTERNAL_ORIGIN, TEST_USER, checkRSA);
+  jwcrypto.generateKeyPair("RS256", checkRSA);
 }
 
 function test_dsa()
 {
   do_test_pending();
-  function checkDSA(err, key) {
-    var kpo;
-    // now we can pluck the keyPair from the store
-    kpo = IDService._getIdentityKeyPair(key.userID, key.url);
+  function checkDSA(err, kpo) {
     do_check_neq(kpo, undefined);
     do_check_eq(kpo.algorithm, ALGORITHMS.DS160);
 
@@ -150,7 +143,7 @@ function test_dsa()
     run_next_test();
   };
 
-  IDService._generateKeyPair("DS160", INTERNAL_ORIGIN, TEST_USER, checkDSA);
+  jwcrypto.generateKeyPair("DS160", checkDSA);
 }
 
 function test_overall()
@@ -220,16 +213,13 @@ function setup_test_identity(identity, cert, cb)
   // set up the store so that we're supposed to be logged in
   let store = get_idstore();
 
-  function keyGenerated(err, key) {
-    log("keyGenerated");
-    let kpo = IDService._getIdentityKeyPair(key.userID, key.url);
-
+  function keyGenerated(err, kpo) {
     store.addIdentity(identity, kpo, cert);
     cb();
   };
 
   log("setup_test_identity");
-  IDService._generateKeyPair("DS160", INTERNAL_ORIGIN, identity, keyGenerated);
+  jwcrypto.generateKeyPair("DS160", keyGenerated);
 }
 
 // create a mock "doc" object, which the Identity Service
@@ -812,7 +802,7 @@ function test_jwcrypto()
 {
   do_test_pending();
 
-  jwcrypto.generateKeypair({algorithm: "DS", keysize: 128}, function(err, kp) {
+  jwcrypto.generateKeyPair("DS160", function(err, kp) {
     do_check_eq(err, null);
 
     do_test_finished();
