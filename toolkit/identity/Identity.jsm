@@ -193,9 +193,9 @@ IDService.prototype = {
    *                  - doCancel()
    *
    */
-  watch: function watch(aCaller) {
-    this._rpFlows[aCaller.id] = aCaller;
-    let origin = aCaller.origin;
+  watch: function watch(aRpCaller) {
+    this._rpFlows[aRpCaller.id] = aRpCaller;
+    let origin = aRpCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
     // If the user is already logged in, then there are three cases
@@ -206,20 +206,20 @@ IDService.prototype = {
     //   3. the email has changed:             'login'; 'ready'
 log("watch state:", state);
     if (state.isLoggedIn) {
-      if (state.email && aCaller.loggedInEmail === state.email) {
-        this._notifyLoginStateChanged(aCaller.id, state.email);
-        return aCaller.doReady();
+      if (state.email && aRpCaller.loggedInEmail === state.email) {
+        this._notifyLoginStateChanged(aRpCaller.id, state.email);
+        return aRpCaller.doReady();
 
-      } else if (aCaller.loggedInEmail === null) {
+      } else if (aRpCaller.loggedInEmail === null) {
         // Generate assertion for existing login
         let options = {requiredEmail: state.email, origin: origin};
-        return this._doLogin(aCaller, options);
+        return this._doLogin(aRpCaller, options);
 
       } else {
         // A loggedInEmail different from state.email has been specified.
         // Change login identity.
-        let options = {requiredEmail: aCaller.loggedInEmail, origin: origin};
-        return this._doLogin(aCaller, options);
+        let options = {requiredEmail: aRpCaller.loggedInEmail, origin: origin};
+        return this._doLogin(aRpCaller, options);
       }
 
     // If the user is not logged in, there are two cases:
@@ -228,11 +228,11 @@ log("watch state:", state);
     //   2. not logged in, no email given:  'ready';
 
     } else {
-      if (aCaller.loggedInEmail) {
-        return this._doLogout(aCaller, {origin: origin});
+      if (aRpCaller.loggedInEmail) {
+        return this._doLogout(aRpCaller, {origin: origin});
 
       } else {
-        return aCaller.doReady();
+        return aRpCaller.doReady();
       }
     }
   },
@@ -243,13 +243,13 @@ log("watch state:", state);
    *
    * Note that this calls _getAssertion
    */
-  _doLogin: function _doLogin(aCaller, aOptions, aAssertion) {
+  _doLogin: function _doLogin(aRpCaller, aOptions, aAssertion) {
     let loginWithAssertion = function loginWithAssertion(assertion) {
       log("about to log in with", assertion);
       this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
-      this._notifyLoginStateChanged(aCaller.id, aOptions.loggedInEmail);
-      aCaller.doLogin(assertion);
-      aCaller.doReady();
+      this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInEmail);
+      aRpCaller.doLogin(assertion);
+      aRpCaller.doReady();
     }.bind(this);
 
     if (aAssertion) {
@@ -258,7 +258,7 @@ log("watch state:", state);
       this._getAssertion(aOptions, function(err, assertion) {
         if (err) {
           Cu.reportError("Error on login attempt: " + err);
-          this._doLogout(aCaller);
+          this._doLogout(aRpCaller);
         } else {
           loginWithAssertion(assertion);
         }
@@ -270,15 +270,15 @@ log("watch state:", state);
    * A utility for watch() to set state and notify the dom
    * on logout.
    */
-  _doLogout: function _doLogout(aCaller, aOptions) {
+  _doLogout: function _doLogout(aRpCaller, aOptions) {
     let state = this._store.getLoginState(aOptions.origin) || {};
 
     // XXX add tests for state change
     state.isLoggedIn = false;
-    this._notifyLoginStateChanged(aCaller.id, null);
+    this._notifyLoginStateChanged(aRpCaller.id, null);
 
-    aCaller.doLogout();
-    aCaller.doReady();
+    aRpCaller.doLogout();
+    aRpCaller.doReady();
   },
 
   /**
@@ -286,11 +286,17 @@ log("watch state:", state);
    *
    * The notification will send the rp caller id in the properties,
    * and the email of the user in the message.
+   *
+   * @params aRpCallerId
+   *         (integer) The id of the RP caller
+   *
+   * @params aIdentity
+   *         (string) The email of the user whose login state has changed
    */
-  _notifyLoginStateChanged: function _notifyLoginStateChanged(aCallerId, aIdentity) {
+  _notifyLoginStateChanged: function _notifyLoginStateChanged(aRpCallerId, aIdentity) {
     let options = Cc["@mozilla.org/hash-property-bag;1"]
                     .createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("rpId", aCallerId);
+    options.setProperty("rpId", aRpCallerId);
     Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
   },
 
@@ -546,17 +552,17 @@ log("watch state:", state);
    * Invoked when a user wishes to logout of a site (for instance, when clicking
    * on an in-content logout button).
    *
-   * @param aCallerId
+   * @param aRpCallerId
    *        (integer)  the id of the doc object obtained in .watch()
    *
    */
-  logout: function logout(aCallerId) {
-    let caller = this._rpFlows[aCallerId];
-    if (caller && caller.origin) {
-      let audience = caller.origin;
-      this._doLogout(caller, {audience: audience});
+  logout: function logout(aRpCallerId) {
+    let rp = this._rpFlows[aRpCallerId];
+    if (rp && rp.origin) {
+      let audience = rp.origin;
+      this._doLogout(rp, {audience: audience});
     }
-    // We don't delete this._rpFlows[aCallerId], because
+    // We don't delete this._rpFlows[aRpCallerId], because
     // the user might log back in again.
   },
 
@@ -658,12 +664,15 @@ log("watch state:", state);
   },
 
   /**
-   * When navigator.id.registerCertificate is called from provisioning iframe sandbox.
+   * When navigator.id.registerCertificate is called from provisioning iframe
+   * sandbox.
+   *
    * Sets the certificate for the user for which a certificate was requested
    * via a preceding call to beginProvisioning (and genKeypair).
    *
    * @param aProvId
-   *        (uuid) the identifier of the provisioning caller tied to that sandbox
+   *        (integer) the identifier of the provisioning caller tied to that
+   *                  sandbox
    *
    * @param aCert
    *        (String)  A JWT representing the signed certificate for the user
