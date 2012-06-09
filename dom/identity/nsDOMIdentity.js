@@ -30,7 +30,31 @@ nsDOMIdentity.prototype = {
    */
 
   watch: function(params) {
-    dump("Called watch for ID " + this._id + " with loggedInEmail " + params.loggedInEmail + "\n");
+    log("Called watch for ID " + this._id + " with loggedInEmail " + params.loggedInEmail);
+
+    if (typeof(params) !== "object") {
+      throw "options argument to watch is required";
+    }
+
+    // Check for required callbacks
+    let requiredCallbacks = ["onlogin", "onlogout"];
+    for (let cbName of requiredCallbacks) {
+      if (typeof(params[cbName]) != "function") {
+        throw cbName + " callback is required.";
+      }
+    }
+
+    // Optional callback "onready"
+    if (params["onready"] && typeof(params['onready']) !== "function") {
+      throw "onready must be a function";
+    }
+
+    // loggedInEmail - TODO: check email format?
+    let emailType = typeof(params["loggedInEmail"]);
+    if (params["loggedInEmail"] && emailType !== "string") {
+      throw "loggedInEmail must be a String or null";
+    }
+
     // Latest watch call wins in case site makes multiple calls.
     this._watcher = params;
 
@@ -43,6 +67,9 @@ nsDOMIdentity.prototype = {
   },
 
   request: function(aOptions) {
+    // TODO: "This function must be invoked from within a click handler."
+    // This is doable once nsEventStateManager::IsHandlingUserInput is scriptable.
+
     // Has the caller called watch() before this?
     if (!this._watcher) {
       throw new Error("navigator.id.request called before navigator.id.watch");

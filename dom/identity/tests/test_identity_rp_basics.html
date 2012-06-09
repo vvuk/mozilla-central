@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<!-- Any copyright is dedicated to the Public Domain.
+   - http://creativecommons.org/publicdomain/zero/1.0/ -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for navigator.id relying party (RP) basics</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<a target="_blank">navigator.id</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+
+</div>
+<pre id="test">
+<script type="application/javascript;version=1.8">
+
+"use strict"
+
+var identity = window.navigator.id; // TODO: mozId
+var index = 0;
+
+function expectException(aFunc, msg) {
+  msg = msg || "";
+  let caughtEx;
+  try {
+    aFunc();
+  } catch (ex) {
+    caughtEx = ex;
+    info("caught: " + ex);
+  }
+  ok(caughtEx, "Check for thrown exception: " + msg);
+}
+
+var steps = [
+  function() {
+    ok(!identity.foobarbaz, "Check that foobarbaz does not exist");
+    SimpleTest.executeSoon(next);
+  },
+
+  // watch tests
+  function() {
+    is(typeof(identity.watch), "function", "Check watch is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    expectException(function() {
+      identity.watch();
+    }, "watch with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    expectException(function() {
+      identity.watch({});
+    }, "watch with empty object argument");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    expectException(function() {
+      identity.watch({onlogin: true});
+    }, "watch with invalid onlogin member");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    expectException(function() {
+      identity.watch({onlogin: true, onlogout: false});
+    }, "watch with invalid onlogin and onlogout members");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    function onLoginLogoutCb() {
+      throw "onlogin/onlogout callback shouldn't have been called";
+    }
+    is(identity.watch({onlogin: onLoginLogoutCb, onlogout: onLoginLogoutCb}), undefined,
+       "Check minimum watch argument members");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    function onLoginLogoutCb() {
+      throw "onlogin/onlogout callback shouldn't have been called";
+    }
+    var options = {
+      onlogin: onLoginLogoutCb,
+      onlogout: onLoginLogoutCb,
+      onready: 999
+    }
+    expectException(function() {
+      identity.watch(options)
+    }, "Check onready type");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    function onLoginLogoutCb() {
+      throw "onlogin/onlogout callback shouldn't have been called";
+    }
+    var options = {
+      onlogin: onLoginLogoutCb,
+      onlogout: onLoginLogoutCb,
+      loggedInEmail: 999
+    }
+    expectException(function() {
+      identity.watch(options)
+    }, "Check loggedInEmail type");
+    SimpleTest.executeSoon(next);
+  },
+  function() {
+    var onLogoutCalled = false;
+    var options = {
+      loggedInEmail: "loggedOut@user.com",
+      onlogin: function onLoginCb(assertion) {
+        throw "onlogin/onlogout callback shouldn't have been called";
+      },
+      onlogout: function onLogoutCb() {
+        is(arguments.length, 0, "Check onlogout argument length");
+        onLogoutCalled = true;
+      },
+      onready: function onReady() {
+        is(arguments.length, 0, "Check onready argument length");
+        ok(onLogoutCalled, "onlogout callback should be called before onready");
+        SimpleTest.executeSoon(next);
+      },
+    }
+    is(identity.watch(options), undefined, "Check onready is called");
+  },
+
+  // request tests
+  function() {
+    is(typeof(identity.request), "function", "Check request is a function");
+    SimpleTest.executeSoon(next);
+  },
+
+  // logout tests
+  function() {
+    is(typeof(identity.logout), "function", "Check logout is a function");
+    SimpleTest.executeSoon(next);
+  },
+
+
+  function finish_tests() {
+    info("all done");
+    SimpleTest.finish();
+  },
+];
+
+
+function next() {
+  info("Begin " + index + "!");
+  if (index >= steps.length) {
+    ok(false, "Shouldn't get here!");
+    return;
+  }
+  try {
+    steps[index]();
+  } catch(ex) {
+    ok(false, "Caught exception", ex);
+  }
+  index += 1;
+}
+
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(next);
+
+</script>
+</pre>
+</body>
+</html>
