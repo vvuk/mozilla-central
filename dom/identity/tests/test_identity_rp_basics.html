@@ -35,41 +35,52 @@ function expectException(aFunc, msg) {
 }
 
 var steps = [
-  function() {
-    ok(!identity.foobarbaz, "Check that foobarbaz does not exist");
+  function nonExistentProp() {
+    is(identity.foobarbaz, undefined, "Check that foobarbaz does not exist");
+    expectException(function() {
+      identity.foobarbaz()
+    }, "Check for exception calling non-existent method");
+    SimpleTest.executeSoon(next);
+  },
+
+  // test request before watch throws an exception
+  function requestBeforeWatch() {
+    expectException(function() {
+      identity.request();
+    });
     SimpleTest.executeSoon(next);
   },
 
   // watch tests
-  function() {
+  function watchExists() {
     is(typeof(identity.watch), "function", "Check watch is a function");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchNoArgs() {
     expectException(function() {
       identity.watch();
     }, "watch with no arguments");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchEmptyObj() {
     expectException(function() {
       identity.watch({});
     }, "watch with empty object argument");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchOnLoginBool() {
     expectException(function() {
       identity.watch({onlogin: true});
     }, "watch with invalid onlogin member");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchOnLoginLogoutBool() {
     expectException(function() {
       identity.watch({onlogin: true, onlogout: false});
     }, "watch with invalid onlogin and onlogout members");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchMinumumArgs() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
@@ -77,7 +88,7 @@ var steps = [
        "Check minimum watch argument members");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchOnReadyType() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
@@ -91,7 +102,7 @@ var steps = [
     }, "Check onready type");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchLoggedInEmailType() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
@@ -105,7 +116,7 @@ var steps = [
     }, "Check loggedInEmail type");
     SimpleTest.executeSoon(next);
   },
-  function() {
+  function watchOnReadyCalled() {
     var onLogoutCalled = false;
     var options = {
       loggedInEmail: "loggedOut@user.com",
@@ -126,17 +137,40 @@ var steps = [
   },
 
   // request tests
-  function() {
+  function requestExists() {
     is(typeof(identity.request), "function", "Check request is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function requestNoArgs() { // TODO: ISSUE #10
+    is(identity.request(), undefined, "Check request with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function requestEmptyObj() { // TODO: ISSUE #10
+    is(identity.request({}), undefined, "Check request with empty object argument");
+    SimpleTest.executeSoon(next);
+  },
+  function requestRequiredEmailType() {
+    let options = {
+      requiredEmail: 999,
+    };
+    expectException(function() {
+      identity.request(options)
+    }, "Check onready type");
+    options.requiredEmail = function() {
+      ok(false, "Shouldn't be called");
+    };
+    expectException(function() {
+      identity.request(options)
+    }, "Check onready type 2");
+
     SimpleTest.executeSoon(next);
   },
 
   // logout tests
-  function() {
+  function logoutExists() {
     is(typeof(identity.logout), "function", "Check logout is a function");
     SimpleTest.executeSoon(next);
   },
-
 
   function finish_tests() {
     info("all done");
@@ -146,13 +180,14 @@ var steps = [
 
 
 function next() {
-  info("Begin " + index + "!");
   if (index >= steps.length) {
     ok(false, "Shouldn't get here!");
     return;
   }
   try {
-    steps[index]();
+    let fn = steps[index];
+    info("Begin test " + index + " '" + steps[index].name + "'!");
+    fn();
   } catch(ex) {
     ok(false, "Caught exception", ex);
   }

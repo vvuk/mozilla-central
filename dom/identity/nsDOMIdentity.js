@@ -29,42 +29,42 @@ nsDOMIdentity.prototype = {
    * Relying Party (RP) APIs
    */
 
-  watch: function(params) {
-    log("Called watch for ID " + this._id + " with loggedInEmail " + params.loggedInEmail);
+  watch: function nsDOMIdentity_watch(aOptions) {
+    log("Called watch for ID " + this._id + " with loggedInEmail " + aOptions.loggedInEmail);
 
-    if (typeof(params) !== "object") {
+    if (typeof(aOptions) !== "object") {
       throw "options argument to watch is required";
     }
 
     // Check for required callbacks
     let requiredCallbacks = ["onlogin", "onlogout"];
     for (let cbName of requiredCallbacks) {
-      if (typeof(params[cbName]) != "function") {
+      if (typeof(aOptions[cbName]) !== "function") {
         throw cbName + " callback is required.";
       }
     }
 
     // Optional callback "onready"
-    if (params["onready"] && typeof(params['onready']) !== "function") {
+    if (aOptions["onready"] && typeof(aOptions['onready']) !== "function") {
       throw "onready must be a function";
     }
 
     // loggedInEmail - TODO: check email format?
-    let emailType = typeof(params["loggedInEmail"]);
-    if (params["loggedInEmail"] && emailType !== "string") {
+    let emailType = typeof(aOptions["loggedInEmail"]);
+    if (aOptions["loggedInEmail"] && emailType !== "string") {
       throw "loggedInEmail must be a String or null";
     }
 
     // Latest watch call wins in case site makes multiple calls.
-    this._watcher = params;
+    this._watcher = aOptions;
 
     let message = this.DOMIdentityMessage();
-    message.loggedInEmail = params.loggedInEmail, // Could be undefined or null
+    message.loggedInEmail = aOptions.loggedInEmail, // Could be undefined or null
 
     cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
-  request: function(aOptions) {
+  request: function nsDOMIdentity_request(aOptions) {
     // TODO: "This function must be invoked from within a click handler."
     // This is doable once nsEventStateManager::IsHandlingUserInput is scriptable.
 
@@ -73,12 +73,31 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
+    if (aOptions) {
+      // requiredEmail - TODO: check email format?
+      let emailType = typeof(aOptions["requiredEmail"]);
+      if (aOptions["requiredEmail"] && emailType !== "string") {
+        throw "requiredEmail must be a String or null";
+      }
+
+      // Optional string properties
+      let optionalStringProps = ["privacyURL", "tosURL"];
+      for (let propName of optionalStringProps) {
+        if (aOptions[propName] && typeof(aOptions[propName]) !== "string") {
+          throw propName + " must be a string representing a URL.";
+        }
+      }
+
+      if (aOptions["oncancel"] && typeof(aOptions["oncancel"]) !== "function") {
+        throw "oncancel is not a function";
+      }
+    }
+
     let message = this.DOMIdentityMessage();
 
     if (aOptions) {
-      if (aOptions.oncancel) {
-        this._onCancelRequestCallback = aOptions.oncancel;
-      }
+      // Store optional cancel callback for later.
+      this._onCancelRequestCallback = aOptions.oncancel;
 
       message.requiredEmail = aOptions.requiredEmail;
       message.privacyURL = aOptions.privacyURL;
@@ -88,7 +107,7 @@ nsDOMIdentity.prototype = {
     cpmm.sendAsyncMessage("Identity:RP:Request", message);
   },
 
-  logout: function() {
+  logout: function nsDOMIdentity_logout() {
     if (!this._watcher) {
       throw new Error("navigator.id.logout called before navigator.id.watch");
     }
@@ -101,19 +120,19 @@ nsDOMIdentity.prototype = {
    *  Identity Provider (IDP) APIs
    */
 
-  beginProvisioning: function(aCallback) {
+  beginProvisioning: function nsDOMIdentity_beginProvisioning(aCallback) {
     dump("DOM beginProvisioning: " + this._id + "\n");
     this._beginProvisioningCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
   },
 
-  genKeyPair: function(aCallback) {
+  genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
     dump("DOM genKeyPair\n");
     this._genKeyPairCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
   },
 
-  registerCertificate: function(aCertificate) {
+  registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
 dump("*********** registerCertificate:");
 dump(aCertificate);
     let message = this.DOMIdentityMessage();
@@ -121,7 +140,7 @@ dump(aCertificate);
     cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
-  raiseProvisioningFailure: function(aReason) {
+  raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
     dump("nsDOMIdentity: raiseProvisioningFailure '" + aReason + "'\n");
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
@@ -129,24 +148,26 @@ dump(aCertificate);
   },
 
   // IDP Authentication
-  beginAuthentication: function(aCallback) {
+  beginAuthentication: function nsDOMIdentity_beginAuthentication(aCallback) {
     dump("DOM beginAuthentication: " + this._id + "\n");
     this._beginAuthenticationCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", this.DOMIdentityMessage());
+    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
+                          this.DOMIdentityMessage());
   },
 
-  completeAuthentication: function() {
-    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication", this.DOMIdentityMessage());
+  completeAuthentication: function nsDOMIdentity_completeAuthentication() {
+    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
+                          this.DOMIdentityMessage());
   },
 
-  raiseAuthenticationFailure: function(aReason) {
+  raiseAuthenticationFailure: function nsDOMIdentity_raiseAuthenticationFailure(aReason) {
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
     cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
   },
 
   // nsIFrameMessageListener
-  receiveMessage: function(aMessage) {
+  receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
     // Is this message intended for this window?
     if (msg.oid != this._id) {
@@ -208,7 +229,7 @@ dump(aCertificate);
   },
 
   // nsIObserver
-  observe: function(aSubject, aTopic, aData) {
+  observe: function nsDOMIdentity_observe(aSubject, aTopic, aData) {
     let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
     if (wId != this._innerWindowID) {
       return;
@@ -229,7 +250,7 @@ dump(aCertificate);
   },
 
   // nsIDOMGlobalPropertyInitializer
-  init: function(aWindow) {
+  init: function nsDOMIdentity_init(aWindow) {
     dump("init was called from " + aWindow.document.location + "\n\n");
 
     // Store window and origin URI.
@@ -266,7 +287,7 @@ dump(aCertificate);
   },
 
   // Private.
-  _callGenKeyPairCallback: function (message) {
+  _callGenKeyPairCallback: function nsDOMIdentity__callGenKeyPairCallback(message) {
     // create a pubkey object that works
     var chrome_pubkey = JSON.parse(message.publicKey);
 
@@ -291,27 +312,23 @@ dump(aCertificate);
     this._genKeyPairCallback.onSuccess(pubkey);
   },
 
-  _callBeginProvisioningCallback: function(message) {
+  _callBeginProvisioningCallback:
+      function nsDOMIdentity__callBeginProvisioningCallback(message) {
     let identity = message.identity;
     let certValidityDuration = message.certDuration;
     this._beginProvisioningCallback.onBeginProvisioning(identity, certValidityDuration);
   },
 
-  _callBeginAuthenticationCallback: function(message) {
+  _callBeginAuthenticationCallback:
+      function nsDOMIdentity__callBeginAuthenticationCallback(message) {
     let identity = message.identity;
     this._beginAuthenticationCallback.onBeginAuthentication(identity);
-  },
-
-  _getRandomId: function() {
-    return Cc["@mozilla.org/uuid-generator;1"].
-      getService(Ci.nsIUUIDGenerator).
-      generateUUID().toString();
   },
 
   /**
    * Helper to create messages to send using a message manager
    */
-  DOMIdentityMessage : function DOMIdentityMessage() {
+  DOMIdentityMessage: function DOMIdentityMessage() {
     return {
       oid: this._id,
       origin: this._origin,
