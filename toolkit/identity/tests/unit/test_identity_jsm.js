@@ -5,17 +5,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 // delay the loading of the IDService for performance purposes
-XPCOMUtils.defineLazyGetter(this, "IDService", function (){
-  let scope = {};
-  Cu.import("resource:///modules/identity/Identity.jsm", scope);
-  return scope.IdentityService;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "IDService",
+                                  "resource:///modules/identity/Identity.jsm",
+                                  "IdentityService");
 
-XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
-  let scope = {};
-  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
-  return scope.jwcrypto;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
+                                  "resource:///modules/identity/jwcrypto.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",

@@ -5,27 +5,19 @@
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "IDService", function (){
-  let scope = {};
-  Cu.import("resource:///modules/identity/Identity.jsm", scope);
-  return scope.IdentityService;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "IDService",
+                                  "resource:///modules/identity/Identity.jsm",
+                                  "IdentityService");
 
-XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
-  let scope = {};
-  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
-  return scope.jwcrypto;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
+                                  "resource:///modules/identity/jwcrypto.jsm");
 
-const INTERNAL_ORIGIN = "browserid://";
-const TEST_USER = "user@mozilla.com";
 const RP_ORIGIN = "http://123done.org";
 
 /**
  * log() - utility function to print a list of arbitrary things
  */
-function log()
-{
+function log() {
   let strings = [];
   let args = Array.prototype.slice.call(arguments);
   args.forEach(function(arg) {
@@ -42,20 +34,18 @@ function log()
   dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
 }
 
-function test_generate()
-{
+function test_generate() {
   do_test_pending();
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
     do_check_eq(err, null);
     do_check_neq(kp, null);
-    
+
     do_test_finished();
     run_next_test();
   });
 }
 
-function test_get_assertion()
-{
+function test_get_assertion() {
   do_test_pending();
 
   jwcrypto.generateKeyPair(
@@ -77,7 +67,6 @@ var TESTS = [test_generate, test_get_assertion];
 
 TESTS.forEach(add_test);
 
-function run_test()
-{
+function run_test() {
   run_next_test();
 }
