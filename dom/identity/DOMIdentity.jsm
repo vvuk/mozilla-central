@@ -12,16 +12,18 @@ let EXPORTED_SYMBOLS = ["DOMIdentity"];
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
-  return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(
-    Ci.nsIFrameMessageManager
-  );
-});
+XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
+                                   "@mozilla.org/parentprocessmessagemanager;1",
+                                   "nsIFrameMessageManager");
 
 XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
-function log(msg) { // TODO: debug
+function log(msg) {
+  if (!IdentityService._debugMode) {
+    return;
+  }
+
   dump("DOMIdentity: " + msg + "\n");
 }
 

@@ -11,10 +11,9 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // This is the child process corresponding to nsIDOMIdentity.
 
-XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
-  return Cc["@mozilla.org/childprocessmessagemanager;1"].
-    getService(Ci.nsIFrameMessageManager);
-});
+XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
+                                   "@mozilla.org/childprocessmessagemanager;1",
+                                   "nsIFrameMessageManager");
 
 function log(msg) {
   dump("nsDOMIdentity: " + msg + "\n");

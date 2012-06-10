@@ -21,20 +21,14 @@ var FALLBACK_PROVIDER = "browserid.org";
 
 const DEBUG_PREF_NAME = "toolkit.identity.debug";
 
-const IdentityCryptoService
-  = Cc["@mozilla.org/identity/crypto-service;1"]
-      .getService(Ci.nsIIdentityCryptoService);
-
 XPCOMUtils.defineLazyServiceGetter(this,
-                                   "uuidGenerator",
-                                   "@mozilla.org/uuid-generator;1",
-                                   "nsIUUIDGenerator");
+                                   "IdentityCryptoService",
+                                   "@mozilla.org/identity/crypto-service;1",
+                                   "nsIIdentityCryptoService");
 
-XPCOMUtils.defineLazyGetter(this, "jwcrypto", function (){
-  let scope = {};
-  Cu.import("resource:///modules/identity/jwcrypto.jsm", scope);
-  return scope.jwcrypto;
-});
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "jwcrypto",
+                                  "resource:///modules/identity/jwcrypto.jsm");
 
 /**
  * log() - utility function to print a list of arbitrary things
@@ -64,11 +58,6 @@ function log(args) {
   });
   dump("@@ Identity.jsm: " + strings.join(' ') + "\n");
 };
-
-
-function uuid() {
-  return uuidGenerator.generateUUID();
-}
 
 // the data store for IDService
 // written as a separate thing so it can easily be mocked
