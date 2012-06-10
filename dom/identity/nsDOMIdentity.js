@@ -55,7 +55,7 @@ nsDOMIdentity.prototype = {
     }
 
     // Latest watch call wins in case site makes multiple calls.
-    this._watcher = aOptions;
+    this._rpWatcher = aOptions;
 
     let message = this.DOMIdentityMessage();
     message.loggedInEmail = aOptions.loggedInEmail, // Could be undefined or null
@@ -68,7 +68,7 @@ nsDOMIdentity.prototype = {
     // This is doable once nsEventStateManager::IsHandlingUserInput is scriptable.
 
     // Has the caller called watch() before this?
-    if (!this._watcher) {
+    if (!this._rpWatcher) {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
@@ -107,7 +107,7 @@ nsDOMIdentity.prototype = {
   },
 
   logout: function nsDOMIdentity_logout() {
-    if (!this._watcher) {
+    if (!this._rpWatcher) {
       throw new Error("navigator.id.logout called before navigator.id.watch");
     }
 
@@ -120,27 +120,27 @@ nsDOMIdentity.prototype = {
    */
 
   beginProvisioning: function nsDOMIdentity_beginProvisioning(aCallback) {
-    dump("DOM beginProvisioning: " + this._id + "\n");
+    log("beginProvisioning: " + this._id);
     this._beginProvisioningCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
   },
 
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
-    dump("DOM genKeyPair\n");
+    log("genKeyPair");
     this._genKeyPairCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
-dump("*********** registerCertificate:");
-dump(aCertificate);
+    log("*********** registerCertificate:");
+    log(aCertificate);
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
     cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
   raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
-    dump("nsDOMIdentity: raiseProvisioningFailure '" + aReason + "'\n");
+    log("raiseProvisioningFailure '" + aReason + "'");
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
     cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
@@ -148,7 +148,7 @@ dump(aCertificate);
 
   // IDP Authentication
   beginAuthentication: function nsDOMIdentity_beginAuthentication(aCallback) {
-    dump("DOM beginAuthentication: " + this._id + "\n");
+    log("beginAuthentication: " + this._id);
     this._beginAuthenticationCallback = aCallback;
     cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
                           this.DOMIdentityMessage());
@@ -177,37 +177,37 @@ dump(aCertificate);
     switch (aMessage.name) {
       case "Identity:RP:Watch:OnLogin":
         // Do we have a watcher?
-        if (!this._watcher) {
+        if (!this._rpWatcher) {
           return;
         }
 
-        if (this._watcher.onlogin) {
-          this._watcher.onlogin(msg.assertion);
+        if (this._rpWatcher.onlogin) {
+          this._rpWatcher.onlogin(msg.assertion);
         }
         break;
       case "Identity:RP:Watch:OnLogout":
         // Do we have a watcher?
-        if (!this._watcher) {
+        if (!this._rpWatcher) {
           return;
         }
 
-        if (this._watcher.onlogout) {
-          this._watcher.onlogout();
+        if (this._rpWatcher.onlogout) {
+          this._rpWatcher.onlogout();
         }
         break;
       case "Identity:RP:Watch:OnReady":
         // Do we have a watcher?
-        if (!this._watcher) {
+        if (!this._rpWatcher) {
           return;
         }
 
-        if (this._watcher.onready) {
-          this._watcher.onready();
+        if (this._rpWatcher.onready) {
+          this._rpWatcher.onready();
         }
         break;
       case "Identity:RP:Request:OnCancel":
         // Do we have a watcher?
-        if (!this._watcher) {
+        if (!this._rpWatcher) {
           return;
         }
 
@@ -236,7 +236,7 @@ dump(aCertificate);
 
     Services.obs.removeObserver(this, "inner-window-destroyed");
     this._window = null;
-    this._watcher = null;
+    this._rpWatcher = null;
     this._onCancelRequestCallback = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
@@ -250,20 +250,23 @@ dump(aCertificate);
 
   // nsIDOMGlobalPropertyInitializer
   init: function nsDOMIdentity_init(aWindow) {
-    dump("init was called from " + aWindow.document.location + "\n\n");
+    log("init was called from " + aWindow.document.location);
+    if (!Services.prefs.getBoolPref("dom.identity.enabled"))
+      return null;
 
-    // Store window and origin URI.
-    this._watcher = null;
+    this._rpWatcher = null;
     this._onCancelRequestCallback = null;
     this._beginProvisioningCallback = null;
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
+
+    // Store window and origin URI.
     this._window = aWindow;
     this._origin = aWindow.document.nodePrincipal.origin;
 
     // Setup identifiers for current window.
-    let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-      getInterface(Ci.nsIDOMWindowUtils);
+    let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
 
@@ -298,7 +301,6 @@ dump(aCertificate);
     }
 
     var propList = {};
-
     for (var k in chrome_pubkey) {
       propList[k] = genPropDesc(chrome_pubkey[k]);
     }
