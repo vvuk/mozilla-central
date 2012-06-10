@@ -1,3 +1,4 @@
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -20,6 +21,28 @@ interface nsIDOMIdentityBeginProvisioningCallback : nsISupports
 interface nsIDOMIdentityBeginAuthenticationCallback : nsISupports
 {
   void onBeginAuthentication(in DOMString email);
+};
+
+[scriptable, uuid(fd2b29a0-b2b3-11e1-afa6-0800200c9a66)]
+interface nsIDOMIdentityRPWatchOptions : nsISupports
+{
+  // TODO: move comments from below
+  readonly attribute jsval onlogin;
+  readonly attribute jsval onlogout;
+  readonly attribute jsval onready;
+
+  readonly attribute DOMString loggedInEmail;
+};
+
+[scriptable, uuid(a5df9c40-b2b7-11e1-afa6-0800200c9a66)]
+interface nsIDOMIdentityRPRequestOptions : nsISupports
+{
+  // TODO: move comments from below
+  readonly attribute jsval oncancel;
+
+  readonly attribute DOMString requiredEmail;
+  readonly attribute DOMString privacyURL;
+  readonly attribute DOMString tosURL;
 };
 
 [scriptable, uuid(2f744abf-e017-4801-b1cb-5d28d0ae3a3e)]
@@ -57,7 +80,7 @@ interface nsIDOMIdentity : nsISupports
    *
    * All properties not in the list above will be ignored.
    */
-  void watch(in jsval params);
+  void watch(in nsIDOMIdentityRPWatchOptions options);
 
   /**
    * Request the user to sign in to the calling site. This will result in
@@ -72,7 +95,7 @@ interface nsIDOMIdentity : nsISupports
    *   oncancel
    *
    */
-  void request([optional] in jsval options);
+  void request([optional] in nsIDOMIdentityRPRequestOptions options);
 
 
   void logout();
