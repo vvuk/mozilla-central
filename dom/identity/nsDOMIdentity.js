@@ -58,11 +58,9 @@ nsDOMIdentity.prototype = {
     // Latest watch call wins in case site makes multiple calls.
     this._watcher = params;
 
-    let message = {
-      oid: this._id,
-      origin: this._origin,
-      loggedInEmail: params.loggedInEmail, // Could be undefined or null
-    };
+    let message = this.DOMIdentityMessage();
+    message.loggedInEmail = params.loggedInEmail, // Could be undefined or null
+
     cpmm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
@@ -75,10 +73,7 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
-    let message = {
-      oid: this._id,
-      origin: this._origin,
-    };
+    let message = this.DOMIdentityMessage();
 
     if (aOptions) {
       if (aOptions.oncancel) {
@@ -97,10 +92,9 @@ nsDOMIdentity.prototype = {
     if (!this._watcher) {
       throw new Error("navigator.id.logout called before navigator.id.watch");
     }
-    cpmm.sendAsyncMessage("Identity:RP:Logout", {
-      oid: this._id,
-      origin: this._origin,
-    });
+
+    let message = this.DOMIdentityMessage();
+    cpmm.sendAsyncMessage("Identity:RP:Logout", message);
   },
 
   /**
@@ -110,63 +104,45 @@ nsDOMIdentity.prototype = {
   beginProvisioning: function(aCallback) {
     dump("DOM beginProvisioning: " + this._id + "\n");
     this._beginProvisioningCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", {
-      oid: this._id,
-      origin: this._origin,
-    });
+    cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
   },
 
   genKeyPair: function(aCallback) {
     dump("DOM genKeyPair\n");
     this._genKeyPairCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", {
-      oid: this._id,
-      origin: this._origin,
-    });
+    cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
   },
 
   registerCertificate: function(aCertificate) {
 dump("*********** registerCertificate:");
 dump(aCertificate);
-    cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", {
-      oid: this._id,
-      origin: this._origin,
-      cert: aCertificate,
-    });
+    let message = this.DOMIdentityMessage();
+    message.cert = aCertificate;
+    cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
   raiseProvisioningFailure: function(aReason) {
     dump("nsDOMIdentity: raiseProvisioningFailure '" + aReason + "'\n");
-    cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", {
-      oid: this._id,
-      origin: this._origin,
-      reason: aReason,
-    });
+    let message = this.DOMIdentityMessage();
+    message.reason = aReason;
+    cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
   },
 
   // IDP Authentication
   beginAuthentication: function(aCallback) {
     dump("DOM beginAuthentication: " + this._id + "\n");
     this._beginAuthenticationCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", {
-      oid: this._id,
-      origin: this._origin,
-    });
+    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication", this.DOMIdentityMessage());
   },
 
   completeAuthentication: function() {
-    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication", {
-      oid: this._id,
-      origin: this._origin,
-    });
+    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication", this.DOMIdentityMessage());
   },
 
   raiseAuthenticationFailure: function(aReason) {
-    cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", {
-      oid: this._id,
-      origin: this._origin,
-      reason: aReason,
-    });
+    let message = this.DOMIdentityMessage();
+    message.reason = aReason;
+    cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
   },
 
   // nsIFrameMessageListener
@@ -330,6 +306,16 @@ dump(aCertificate);
     return Cc["@mozilla.org/uuid-generator;1"].
       getService(Ci.nsIUUIDGenerator).
       generateUUID().toString();
+  },
+
+  /**
+   * Helper to create messages to send using a message manager
+   */
+  DOMIdentityMessage : function DOMIdentityMessage() {
+    return {
+      oid: this._id,
+      origin: this._origin,
+    };
   },
 
   // Component setup.
