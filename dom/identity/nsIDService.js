@@ -20,9 +20,7 @@ IDService.prototype = {
   observe: function observe(subject, topic, data) {
     switch (topic) {
       case "app-startup":
-        let os = Cc["@mozilla.org/observer-service;1"].
-                 getService(Ci.nsIObserverService);
-        os.addObserver(this, "final-ui-startup", true);
+        Services.obs.addObserver(this, "final-ui-startup", true);
         break;
       case "final-ui-startup":
         // Startup DOMIdentity.jsm
