@@ -103,7 +103,6 @@ IDServiceStore.prototype = {
    *                or, if not logged in, the default email for that origin.
    */
   setLoginState: function setLoginState(aOrigin, aState, aEmail) {
-    log("_store.setLoginState: ", aOrigin, aState, aEmail);
     return this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
   },
   getLoginState: function getLoginState(aOrigin) {
@@ -193,7 +192,6 @@ IDService.prototype = {
     //   1. the email is valid and unchanged:  'ready'
     //   2. the email is null:                 'login'; 'ready'
     //   3. the email has changed:             'login'; 'ready'
-log("watch state:", state);
     if (state.isLoggedIn) {
       if (state.email && aRpCaller.loggedInEmail === state.email) {
         this._notifyLoginStateChanged(aRpCaller.id, state.email);
@@ -234,7 +232,6 @@ log("watch state:", state);
    */
   _doLogin: function _doLogin(aRpCaller, aOptions, aAssertion) {
     let loginWithAssertion = function loginWithAssertion(assertion) {
-      log("about to log in with", assertion);
       this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
       this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInEmail);
       aRpCaller.doLogin(assertion);
@@ -461,7 +458,7 @@ log("watch state:", state);
 
     jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
   },
-  
+
   /**
    * Provision an Identity
    *
@@ -736,11 +733,9 @@ log("watch state:", state);
    *
    */
   beginAuthentication: function beginAuthentication(aCaller) {
-    log("**beginAuthentication", aCaller);
     // Begin the authentication flow after having concluded a provisioning
     // flow.  The aCaller that the DOM gives us will have the same ID as
     // the provisioning flow we just concluded.  (see setAuthenticationFlow)
-
     let authFlow = this._authenticationFlows[aCaller.id];
     if (!authFlow) {
       return aCaller.doError("beginAuthentication: no flow for caller id", aCaller.id);
@@ -764,7 +759,6 @@ log("watch state:", state);
    *
    */
   completeAuthentication: function completeAuthentication(aAuthId) {
-    log("completeAuthentication: aAuthId =", aAuthId);
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -794,7 +788,6 @@ log("watch state:", state);
    *
    */
   cancelAuthentication: function cancelAuthentication(aAuthId) {
-    log("cancelAuthentication: aAuthId =", aAuthId);
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -852,8 +845,6 @@ log("watch state:", state);
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
-        log("_getAssertion has cert: return", err, assertion);
-        log("callback is " , aCallback.toString());
         return aCallback(err, assertion);
       });
 
@@ -861,12 +852,10 @@ log("watch state:", state);
       // We need to get a certificate.  Discover the identity's
       // IdP and provision
       this._discoverIdentityProvider(email, function(err, idpParams) {
-        log("_disco IDP:", email, err, idpParams);
         if (err) return aCallback(err);
 
         // Now begin provisioning from the IdP
         this._generateAssertion(audience, email, function(err, assertion) {
-          log("can login with assertion", assertion);
           return aCallback(err, assertion);
         }.bind(this));
       }.bind(this));
@@ -929,7 +918,6 @@ log("watch state:", state);
    * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
    */
   setAuthenticationFlow: function(aAuthId, aProvId) {
-    log("setAuthenticationFlow: " + aAuthId + " : " + aProvId);
     // this is the transition point between the two flows,
     // provision and authenticate.  We tell the auth flow which
     // provisioning flow it is started from.
@@ -991,7 +979,6 @@ log("watch state:", state);
       if (req.status < 200 || req.status >= 400)
         return aCallback(req.status);
       try {
-        log("_fetchWellKnownFile onload: " + req.status);
         let idpParams = req.response;
 
         // Verify that the IdP returned a valid configuration
@@ -1006,7 +993,6 @@ log("watch state:", state);
           domain: aDomain,
           idpParams: idpParams,
         };
-        log("valid idp");
         // Yay.  Valid IdP configuration for the domain.
         return aCallback(null, callbackObj);
 
@@ -1022,7 +1008,6 @@ log("watch state:", state);
       return aCallback(err);
     };
     req.send(null);
-    log("fetching", url);
   },
 
   /**
@@ -1033,8 +1018,6 @@ log("watch state:", state);
    * context.
    */
   _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback) {
-    log("creating provisioning sandbox", aURL);
-
     new Sandbox(aURL, aCallback);
   },
 
@@ -1097,4 +1080,3 @@ log("watch state:", state);
 };
 
 var IdentityService = new IDService();
-

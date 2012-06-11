@@ -55,7 +55,11 @@ const TEST_URL2 = "https://myfavoritebaconinacan.com";
 const TEST_USER = "user@mozilla.com";
 const TEST_PRIVKEY = "fake-privkey";
 const TEST_CERT = "fake-cert";
-
+const TEST_IDPPARAMS = {
+  domain: "myfavoriteflan.com",
+  authentication: "/foo/authenticate.html",
+  provisioning: "/foo/provision.html"
+};
 const ALGORITHMS = { RS256: 1, DS160: 2, };
 
 // mimicking callback funtionality for ease of testing
@@ -204,7 +208,6 @@ function setup_test_identity(identity, cert, cb) {
     cb();
   };
 
-  log("setup_test_identity");
   jwcrypto.generateKeyPair("DS160", keyGenerated);
 }
 
@@ -519,7 +522,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   var provId = uuid();
   IDService._provisionFlows[provId] = {
     identity : identity,
-    idpParams: {},
+    idpParams: TEST_IDPPARAMS,
     callback: function(err) {
       if (doneProvisioningCallback)
         doneProvisioningCallback(err);
@@ -541,7 +544,6 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
       callerCallbacks.genKeyPairCallback(pk);
   };
 
-  log("afterSetupCallback(caller); " + caller);
   afterSetupCallback(caller);
 }
 
@@ -632,7 +634,6 @@ function test_genkeypair() {
   setup_provisioning(
     TEST_USER,
     function(caller) {
-      log("caller " + _callerId);
       _callerId = caller.id;
       IDService.beginProvisioning(caller);
     },
@@ -645,7 +646,6 @@ function test_genkeypair() {
     },
     {
       beginProvisioningCallback: function(email, time_s) {
-        log("whatever " + _callerId);
         IDService.genKeyPair(_callerId);
       },
       genKeyPairCallback: function(kp) {
@@ -774,6 +774,133 @@ function test_jwcrypto() {
   });
 }
 
+function test_begin_authentication_flow() {
+  do_test_pending();
+  let _provId = null;
+
+  // set up a watch, to be consistent
+  var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {});
+  IDService.watch(mockedDoc);
+
+  // The identity-auth notification is sent up to the UX from the
+  // _doAuthentication function.  Be ready to receive it and call
+  // beginAuthentication
+  makeObserver("identity-auth", function (aSubject, aTopic, aData) {
+    do_check_neq(aSubject, null);
+
+    var subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
+    do_check_eq(subj.getProperty('provId'), _provId);
+
+    do_test_finished();
+    run_next_test();
+  });
+
+  setup_provisioning(
+    TEST_USER,
+    function(caller) {
+      _provId = caller.id;
+      IDService.beginProvisioning(caller);
+    }, function() {},
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+	// let's say this user needs to authenticate
+	IDService._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+      }
+    });
+}
+
+function test_complete_authentication_flow() {
+  do_test_pending();
+  let _provId = null;
+  let _authId = null;
+  let id = TEST_USER;
+
+  let callbacksFired = false;
+  let topicObserved = false;
+
+  // The result of authentication should be a successful login
+  IDService.reset();
+
+  setup_test_identity(id, TEST_CERT, function() {
+    // set it up so we're supposed to be logged in to TEST_URL
+    get_idstore().setLoginState(TEST_URL, true, id);
+
+    // When we authenticate, our ready callback will be fired.
+    // At the same time, a separate topic will be sent up to the
+    // the observer in the UI.  The test is complete when both
+    // events have occurred.
+    var mockedDoc = mock_doc(id, TEST_URL, call_sequentially(
+      function(action, params) {
+        do_check_eq(action, 'ready');
+        do_check_eq(params, undefined);
+
+	// if notification already received by observer, test is done
+	callbacksFired = true;
+	if (topicObserved) {
+	  do_test_finished();
+          run_next_test();
+	}
+      }
+    ));
+
+    makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
+      do_check_neq(aSubject, null);
+
+      let subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
+      do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
+      do_check_eq(aData, id);
+
+      // if callbacks in caller doc already fired, test is done.
+      topicObserved = true;
+      if (callbacksFired) {
+	do_test_finished();
+	run_next_test();
+      }
+     });
+
+    IDService.watch(mockedDoc);
+  });
+
+  // A mock calling contxt
+  let authCaller = {
+    doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity) {
+      do_check_eq(identity, TEST_USER);
+
+      IDService.completeAuthentication(_authId);
+    },
+
+    doError: function(err) {
+      log("OW! My doError callback hurts!", err);
+    },
+  };
+
+  // Create a provisioning flow for our auth flow to attach to
+  setup_provisioning(
+    TEST_USER,
+    function(provFlow) {
+      _provId = provFlow.id;
+
+      IDService.beginProvisioning(provFlow);
+    }, function() {},
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+	// let's say this user needs to authenticate
+	IDService._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+
+	// test_begin_authentication_flow verifies that the right
+	// message is sent to the UI.  So that works.  Moving on,
+	// the UI calls setAuthenticationFlow ...
+	_authId = uuid();
+	IDService.setAuthenticationFlow(_authId, _provId);
+
+	// ... then the UI calls beginAuthentication ...
+	authCaller.id = _authId;
+	IDService._provisionFlows[_provId].caller = authCaller;
+	IDService.beginAuthentication(authCaller);
+      }
+    });
+}
+
 var TESTS = [test_overall, test_id_store, test_mock_doc];
 
 // no test_rsa, test_dsa for now
@@ -797,6 +924,10 @@ TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
 TESTS.push(test_register_certificate_before_genkeypair);
 TESTS.push(test_register_certificate);
+
+// authentication tests
+TESTS.push(test_begin_authentication_flow);
+TESTS.push(test_complete_authentication_flow);
 
 TESTS.forEach(add_test);
 
