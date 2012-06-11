@@ -19,7 +19,7 @@ Cu.import("resource://gre/modules/DOMIdentity.jsm");
 var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";
 
-const DEBUG_PREF_NAME = "toolkit.identity.debug";
+const PREF_DEBUG = "toolkit.identity.debug";
 
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "IdentityCryptoService",
@@ -123,9 +123,9 @@ function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-login", false);
   // NB, prefs.addObserver and obs.addObserver have different interfaces
-  Services.prefs.addObserver(DEBUG_PREF_NAME, this, false);
+  Services.prefs.addObserver(PREF_DEBUG, this, false);
 
-  this._debugMode = Services.prefs.getBoolPref(DEBUG_PREF_NAME);
+  this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
 
   this.reset();
 }
@@ -1043,7 +1043,7 @@ IDService.prototype = {
         break;
 
       case "nsPref:changed":
-        this._debugMode = Services.prefs.getBoolPref(DEBUG_PREF_NAME);
+        this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
         break;
     }
   }.bind(this),
