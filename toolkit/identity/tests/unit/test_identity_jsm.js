@@ -26,16 +26,14 @@ function partial(fn) {
   };
 }
 
-function uuid()
-{
+function uuid() {
   return uuidGenerator.generateUUID();
 }
 
 /**
  * log() - utility function to print a list of arbitrary things
  */
-function log()
-{
+function log() {
   let strings = [];
   let args = Array.prototype.slice.call(arguments);
   args.forEach(function(arg) {
@@ -63,8 +61,7 @@ const ALGORITHMS = { RS256: 1, DS160: 2, };
 // mimicking callback funtionality for ease of testing
 // this observer auto-removes itself after the observe function
 // is called, so this is meant to observe only ONE event.
-function makeObserver(aObserveTopic, aObserveFunc)
-{
+function makeObserver(aObserveTopic, aObserveFunc) {
   let observer = {
     // nsISupports provides type management in C++
     // nsIObserver is to be an observer
@@ -82,8 +79,7 @@ function makeObserver(aObserveTopic, aObserveFunc)
   Services.obs.addObserver(observer, aObserveTopic, false);
 }
 
-function test_rsa()
-{
+function test_rsa() {
   do_test_pending();
   function checkRSA(err, kpo) {
     do_check_neq(kpo, undefined);
@@ -111,8 +107,7 @@ function test_rsa()
   jwcrypto.generateKeyPair("RS256", checkRSA);
 }
 
-function test_dsa()
-{
+function test_dsa() {
   do_test_pending();
   function checkDSA(err, kpo) {
     do_check_neq(kpo, undefined);
@@ -141,19 +136,16 @@ function test_dsa()
   jwcrypto.generateKeyPair("DS160", checkDSA);
 }
 
-function test_overall()
-{
+function test_overall() {
   do_check_neq(IDService, null);
   run_next_test();
 }
 
-function get_idstore()
-{
+function get_idstore() {
   return IDService._store;
 }
 
-function test_id_store()
-{
+function test_id_store() {
   // XXX - this is ugly, peaking in like this into IDService
   // probably should instantiate our own.
   var store = get_idstore();
@@ -203,8 +195,7 @@ function test_id_store()
 
 // set up the ID service with an identity with keypair and all
 // when ready, invoke callback with the identity
-function setup_test_identity(identity, cert, cb)
-{
+function setup_test_identity(identity, cert, cb) {
   // set up the store so that we're supposed to be logged in
   let store = get_idstore();
 
@@ -219,8 +210,7 @@ function setup_test_identity(identity, cert, cb)
 
 // create a mock "doc" object, which the Identity Service
 // uses as a pointer back into the doc object
-function mock_doc(aIdentity, aOrigin, aDoFunc)
-{
+function mock_doc(aIdentity, aOrigin, aDoFunc) {
   var mockedDoc = {};
   mockedDoc.id = uuid();
   mockedDoc.loggedInEmail = aIdentity;
@@ -239,8 +229,7 @@ function mock_doc(aIdentity, aOrigin, aDoFunc)
 // takes a list of functions and returns a function that
 // when called the first time, calls the first func,
 // then the next time the second, etc.
-function call_sequentially()
-{
+function call_sequentially() {
   var numCalls = 0;
   var funcs = arguments;
 
@@ -250,8 +239,7 @@ function call_sequentially()
   };
 }
 
-function test_mock_doc()
-{
+function test_mock_doc() {
   do_test_pending();
   var mockedDoc = mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'coffee');
@@ -262,8 +250,7 @@ function test_mock_doc()
   mockedDoc.doCoffee();
 }
 
-function test_watch_loggedin_ready()
-{
+function test_watch_loggedin_ready() {
   do_test_pending();
 
   IDService.reset();
@@ -284,8 +271,7 @@ function test_watch_loggedin_ready()
   });
 }
 
-function test_watch_loggedin_login()
-{
+function test_watch_loggedin_login() {
   do_test_pending();
 
   IDService.reset();
@@ -314,8 +300,7 @@ function test_watch_loggedin_login()
   });
 }
 
-function test_watch_loggedin_logout()
-{
+function test_watch_loggedin_logout() {
   do_test_pending();
 
   IDService.reset();
@@ -349,8 +334,7 @@ function test_watch_loggedin_logout()
   });
 }
 
-function test_watch_notloggedin_ready()
-{
+function test_watch_notloggedin_ready() {
   do_test_pending();
 
   IDService.reset();
@@ -364,8 +348,7 @@ function test_watch_notloggedin_ready()
   }));
 }
 
-function test_watch_notloggedin_logout()
-{
+function test_watch_notloggedin_logout() {
   do_test_pending();
 
   IDService.reset();
@@ -385,8 +368,7 @@ function test_watch_notloggedin_logout()
 }
 
 
-function test_request()
-{
+function test_request() {
   do_test_pending();
 
   // set up a watch, to be consistent
@@ -412,8 +394,7 @@ function test_request()
   IDService.request(mockedDoc.id, {requiredEmail: TEST_USER});
 }
 
-function test_add_identity()
-{
+function test_add_identity() {
   IDService.reset();
 
   IDService.addIdentity(TEST_USER);
@@ -425,8 +406,7 @@ function test_add_identity()
   run_next_test();
 }
 
-function test_select_identity()
-{
+function test_select_identity() {
   do_test_pending();
 
   IDService.reset();
@@ -478,8 +458,7 @@ function test_select_identity()
 }
 
 
-function test_logout()
-{
+function test_logout() {
   do_test_pending();
 
   IDService.reset();
@@ -534,8 +513,7 @@ function test_logout()
  * frameCallbacks is optional, contains the callbacks that the sandbox
  * frame would provide in response to DOM calls.
  */
-function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks)
-{
+function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
   IDService.reset();
 
   var provId = uuid();
@@ -567,13 +545,11 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   afterSetupCallback(caller);
 }
 
-function check_provision_flow_done(provId)
-{
+function check_provision_flow_done(provId) {
   do_check_eq(IDService._provisionFlows[provId], null);
 }
 
-function test_begin_provisioning()
-{
+function test_begin_provisioning() {
   do_test_pending();
 
   setup_provisioning(
@@ -594,8 +570,7 @@ function test_begin_provisioning()
     });
 }
 
-function test_raise_provisioning_failure()
-{
+function test_raise_provisioning_failure() {
   do_test_pending();
   let _callerId = null;
 
@@ -621,8 +596,7 @@ function test_raise_provisioning_failure()
     });
 }
 
-function test_genkeypair_before_begin_provisioning()
-{
+function test_genkeypair_before_begin_provisioning() {
   do_test_pending();
 
   setup_provisioning(
@@ -651,8 +625,7 @@ function test_genkeypair_before_begin_provisioning()
   );
 }
 
-function test_genkeypair()
-{
+function test_genkeypair() {
   do_test_pending();
   let _callerId = null;
 
@@ -689,8 +662,7 @@ function test_genkeypair()
 // we've already ensured that genkeypair can't be called
 // before beginProvisioning, so this test should be enough
 // to ensure full sequential call of the 3 APIs.
-function test_register_certificate_before_genkeypair()
-{
+function test_register_certificate_before_genkeypair() {
   do_test_pending();
   let _callerID = null;
 
@@ -717,8 +689,7 @@ function test_register_certificate_before_genkeypair()
   );
 }
 
-function test_register_certificate()
-{
+function test_register_certificate() {
   do_test_pending();
   let _callerId = null;
 
@@ -755,8 +726,7 @@ function test_register_certificate()
   );
 }
 
-function test_get_assertion_after_provision()
-{
+function test_get_assertion_after_provision() {
   do_test_pending();
   let _callerId = null;
 
@@ -793,8 +763,7 @@ function test_get_assertion_after_provision()
 }
 
 
-function test_jwcrypto()
-{
+function test_jwcrypto() {
   do_test_pending();
 
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
@@ -831,7 +800,6 @@ TESTS.push(test_register_certificate);
 
 TESTS.forEach(add_test);
 
-function run_test()
-{
+function run_test() {
   run_next_test();
 }
