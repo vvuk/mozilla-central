@@ -12,6 +12,7 @@
 // Need this for XMLHttpRequestResponseType.
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
 
 BEGIN_WORKERS_NAMESPACE
@@ -70,8 +71,8 @@ public:
   _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
 
   static XMLHttpRequest*
-  Constructor(JSContext* aCx, JSObject* aGlobal, ErrorResult& aRv);
-
+  Constructor(JSContext* aCx, JSObject* aGlobal,
+              const Optional<jsval>& aParams, ErrorResult& aRv);
   void
   Unpin();
 
@@ -94,6 +95,18 @@ public:
   IMPL_GETTER_AND_SETTER(readystatechange)
 
 #undef IMPL_GETTER_AND_SETTER
+
+  JSObject*
+  GetOnuploadprogress(JSContext* /* unused */, ErrorResult& aRv)
+  {
+    aRv = NS_ERROR_NOT_IMPLEMENTED;
+    return NULL;
+  }
+  void
+  SetOnuploadprogress(JSContext* /* unused */, JSObject* aListener, ErrorResult& aRv)
+  {
+    aRv = NS_ERROR_NOT_IMPLEMENTED;
+  }
 
   uint16_t
   GetReadyState() const
@@ -243,6 +256,16 @@ public:
   {
     mStateData.mResponseText.SetIsVoid(true);
     mStateData.mResponse = JSVAL_NULL;
+  }
+
+  bool GetMozAnon() {
+    // TODO: bug 761227
+    return false;
+  }
+
+  bool GetMozSystem() {
+    // TODO: bug 761227
+    return false;
   }
 
 private:

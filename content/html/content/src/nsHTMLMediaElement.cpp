@@ -56,8 +56,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
 #include "nsWidgetsCID.h"
-
-#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsMediaFragmentURIParser.h"
 #include "nsURIHashKey.h"
@@ -454,7 +452,7 @@ nsHTMLMediaElement::GetSrc(JSContext* aCtx, jsval *aParams)
 NS_IMETHODIMP
 nsHTMLMediaElement::SetSrc(JSContext* aCtx, const jsval & aParams)
 {
-  if (aParams.isObject()) { // not JSVAL_IS_OBJECT() because a null object is still an object
+  if (aParams.isObject()) {
     nsCOMPtr<nsIDOMMediaStream> stream;
     stream = do_QueryInterface(nsContentUtils::XPConnect()->
         GetNativeOfWrapper(aCtx, JSVAL_TO_OBJECT(aParams)));
@@ -1274,7 +1272,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) starting seek", this, aCurrentTime));
   nsresult rv = mDecoder->Seek(clampedTime);
   // Start a new range at position we seeked to.
-  mCurrentPlayRangeStart = clampedTime;
+  mCurrentPlayRangeStart = mDecoder->GetCurrentTime();
 
   // We changed whether we're seeking so we need to AddRemoveSelfReference.
   AddRemoveSelfReference();

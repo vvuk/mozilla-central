@@ -23,7 +23,6 @@
 #include "nsPlaceholderFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsGUIEvent.h"
 #include "nsDisplayList.h"
@@ -668,12 +667,12 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
 }
 
 static nsIFrame* FillAncestors(nsIFrame* aFrame,
-                               nsIFrame* aStopAtAncestor, nsFrameManager* aFrameManager,
+                               nsIFrame* aStopAtAncestor,
                                nsTArray<nsIFrame*>* aAncestors)
 {
   while (aFrame && aFrame != aStopAtAncestor) {
     aAncestors->AppendElement(aFrame);
-    aFrame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrameManager, aFrame);
+    aFrame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrame);
   }
   return aFrame;
 }
@@ -706,17 +705,16 @@ nsLayoutUtils::DoCompareTreePosition(nsIFrame* aFrame1,
     NS_ERROR("no common ancestor at all, different documents");
     return 0;
   }
-  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
 
   nsAutoTArray<nsIFrame*,20> frame1Ancestors;
-  if (!FillAncestors(aFrame1, aCommonAncestor, frameManager, &frame1Ancestors)) {
+  if (!FillAncestors(aFrame1, aCommonAncestor, &frame1Ancestors)) {
     // We reached the root of the frame tree ... if aCommonAncestor was set,
     // it is wrong
     aCommonAncestor = nsnull;
   }
 
   nsAutoTArray<nsIFrame*,20> frame2Ancestors;
-  if (!FillAncestors(aFrame2, aCommonAncestor, frameManager, &frame2Ancestors) &&
+  if (!FillAncestors(aFrame2, aCommonAncestor, &frame2Ancestors) &&
       aCommonAncestor) {
     // We reached the root of the frame tree ... aCommonAncestor was wrong.
     // Try again with no hint.
@@ -939,11 +937,9 @@ nsLayoutUtils::HasPseudoStyle(nsIContent* aContent,
 nsPoint
 nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(nsIDOMEvent* aDOMEvent, nsIFrame* aFrame)
 {
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDOMEvent));
-  NS_ASSERTION(privateEvent, "bad implementation");
-  if (!privateEvent)
+  if (!aDOMEvent)
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  nsEvent *event = privateEvent->GetInternalNSEvent();
+  nsEvent *event = aDOMEvent->GetInternalNSEvent();
   if (!event)
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   return GetEventCoordinatesRelativeTo(event, aFrame);
@@ -2098,23 +2094,31 @@ nsLayoutUtils::GetNonGeneratedAncestor(nsIFrame* aFrame)
   if (!(aFrame->GetStateBits() & NS_FRAME_GENERATED_CONTENT))
     return aFrame;
 
-  nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
   nsIFrame* f = aFrame;
   do {
-    f = GetParentOrPlaceholderFor(frameManager, f);
+    f = GetParentOrPlaceholderFor(f);
   } while (f->GetStateBits() & NS_FRAME_GENERATED_CONTENT);
   return f;
 }
 
 nsIFrame*
-nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
-                                         nsIFrame* aFrame)
+nsLayoutUtils::GetParentOrPlaceholderFor(nsIFrame* aFrame)
 {
   if ((aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
       && !aFrame->GetPrevInFlow()) {
-    return aFrameManager->GetPlaceholderFrameFor(aFrame);
+    return aFrame->PresContext()->PresShell()->FrameManager()->
+      GetPlaceholderFrameFor(aFrame);
   }
   return aFrame->GetParent();
+}
+
+nsIFrame*
+nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(nsIFrame* aFrame)
+{
+  nsIFrame* f = GetParentOrPlaceholderFor(aFrame);
+  if (f)
+    return f;
+  return GetCrossDocParentFrame(aFrame);
 }
 
 nsIFrame*
@@ -4707,8 +4711,10 @@ nsReflowFrameRunnable::Run()
 static nscoord
 MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
 {
-  PRUint32 emPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
-  PRUint32 minTwips = nsLayoutUtils::FontSizeInflationMinTwips();
+  nsIPresShell* presShell = aPresContext->PresShell();
+
+  PRUint32 emPerLine = presShell->FontSizeInflationEmPerLine();
+  PRUint32 minTwips = presShell->FontSizeInflationMinTwips();
   if (emPerLine == 0 && minTwips == 0) {
     return 0;
   }
@@ -4758,10 +4764,15 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
        f && !IsContainerForFontSizeInflation(f);
        f = f->GetParent()) {
     nsIContent* content = f->GetContent();
+    nsIAtom* fType = f->GetType();
     // Also, if there is more than one frame corresponding to a single
     // content node, we want the outermost one.
     if (!(f->GetParent() && f->GetParent()->GetContent() == content) &&
-        f->GetType() != nsGkAtoms::inlineFrame) {
+        // ignore width/height on inlines since they don't apply
+        fType != nsGkAtoms::inlineFrame &&
+        // ignore width on radios and checkboxes since we enlarge them and
+        // they have width/height in ua.css
+        fType != nsGkAtoms::formControlFrame) {
       nsStyleCoord stylePosWidth = f->GetStylePosition()->mWidth;
       nsStyleCoord stylePosHeight = f->GetStylePosition()->mHeight;
       if (stylePosWidth.GetUnit() != eStyleUnit_Auto ||
@@ -4854,8 +4865,11 @@ nsLayoutUtils::FontSizeInflationFor(const nsIFrame *aFrame)
 /* static */ bool
 nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
 {
-  if ((sFontSizeInflationEmPerLine == 0 &&
-       sFontSizeInflationMinTwips == 0) ||
+  nsIPresShell* presShell = aPresContext->GetPresShell();
+
+  if (!presShell ||
+      (presShell->FontSizeInflationEmPerLine() == 0 &&
+       presShell->FontSizeInflationMinTwips() == 0) ||
        aPresContext->IsChrome()) {
     return false;
   }

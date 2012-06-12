@@ -237,6 +237,7 @@ pref("gfx.textures.poweroftwo.force-enabled", false);
 #endif
 
 pref("gfx.work-around-driver-bugs", true);
+pref("gfx.prefer-mesa-llvmpipe", false);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -320,6 +321,9 @@ pref("toolkit.identity.debug", false);
 
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
+// Disable remote debugging connections
+pref("devtools.debugger.remote-enabled", false);
+pref("devtools.debugger.remote-port", 6000);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -661,6 +665,8 @@ pref("javascript.options.methodjit.chrome",  true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
+pref("javascript.options.xml.content", true);
+pref("javascript.options.xml.chrome", true);
 pref("javascript.options.jit_hardening", true);
 pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
@@ -849,7 +855,7 @@ pref("network.http.fast-fallback-to-IPv4", true);
 // Try and use SPDY when using SSL
 pref("network.http.spdy.enabled", true);
 pref("network.http.spdy.enabled.v2", true);
-pref("network.http.spdy.enabled.v3", false);
+pref("network.http.spdy.enabled.v3", true);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);

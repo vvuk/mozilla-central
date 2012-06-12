@@ -34,6 +34,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
 XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
                                   "resource:///modules/SignInToWebsite.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PdfJs",
+                                  "resource://pdf.js/PdfJs.jsm");
+
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -334,6 +337,8 @@ BrowserGlue.prototype = {
     PageThumbs.init();
 
     SignInToWebsiteUX.init();
+
+    PdfJs.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },

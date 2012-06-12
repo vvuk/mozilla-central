@@ -8,13 +8,12 @@
 #include "nsRect.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "BasicLayers.h"
-#include "nsIRollupListener.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -215,7 +214,7 @@ protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
                                           const nsAString &aIconSuffix,
-                                          nsILocalFile **aResult);
+                                          nsIFile **aResult);
   virtual void            OnDestroy();
   virtual void            BaseCreate(nsIWidget *aParent,
                                      const nsIntRect &aRect,
@@ -265,13 +264,6 @@ protected:
   }
 
   BasicLayerManager* CreateBasicLayerManager();
-
-  void NotifyRollupGeometryChange(nsIRollupListener* aRollupListener)
-  {
-    if (aRollupListener) {
-      aRollupListener->NotifyGeometryChange();
-    }
-  }
 
 protected:
   /**

@@ -37,6 +37,7 @@ MAKEFILES_dom="
   dom/interfaces/xul/Makefile
   dom/base/Makefile
   dom/battery/Makefile
+  dom/file/Makefile
   dom/indexedDB/Makefile
   dom/ipc/Makefile
   dom/locales/Makefile
@@ -201,7 +202,6 @@ MAKEFILES_content="
   content/xul/document/public/Makefile
   content/xul/document/src/Makefile
   content/xbl/Makefile
-  content/xbl/public/Makefile
   content/xbl/src/Makefile
   content/xbl/builtin/Makefile
   content/xslt/Makefile

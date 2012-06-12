@@ -77,6 +77,7 @@ let DebuggerController = {
     DebuggerView.StackFrames.destroy();
     DebuggerView.Properties.destroy();
 
+    DebuggerController.Breakpoints.destroy();
     DebuggerController.SourceScripts.disconnect();
     DebuggerController.StackFrames.disconnect();
     DebuggerController.ThreadState.disconnect();
@@ -122,11 +123,20 @@ let DebuggerController = {
     this._remoteConnectionTimeout = window.setTimeout(function() {
       // If we couldn't connect to any server yet, try again...
       if (!DebuggerController.activeThread) {
+        DebuggerController._onRemoteConnectionTimeout();
         DebuggerController._connect();
       }
     }, Prefs.remoteTimeout);
 
     return true;
+  },
+
+  /**
+   * Called when a remote connection timeout occurs.
+   */
+  _onRemoteConnectionTimeout: function DC__onRemoteConnectionTimeout() {
+    Cu.reportError("Couldn't connect to " +
+      Prefs.remoteHost + ":" + Prefs.remotePort);
   },
 
   /**
@@ -363,6 +373,12 @@ StackFrames.prototype = {
   selectedFrame: null,
 
   /**
+   * A flag that defines whether the debuggee will pause whenever an exception
+   * is thrown.
+   */
+  pauseOnExceptions: false,
+
+  /**
    * Gets the current thread the client has connected to.
    */
   get activeThread() {
@@ -378,12 +394,14 @@ StackFrames.prototype = {
   connect: function SF_connect(aCallback) {
     window.addEventListener("Debugger:FetchedVariables", this._onFetchedVars, false);
 
+    this._onFramesCleared();
+
     this.activeThread.addListener("paused", this._onPaused);
     this.activeThread.addListener("resumed", this._onResume);
     this.activeThread.addListener("framesadded", this._onFrames);
     this.activeThread.addListener("framescleared", this._onFramesCleared);
 
-    this._onFramesCleared();
+    this.updatePauseOnExceptions(this.pauseOnExceptions);
 
     aCallback && aCallback();
   },
@@ -405,8 +423,17 @@ StackFrames.prototype = {
 
   /**
    * Handler for the thread client's paused notification.
+   *
+   * @param string aEvent
+   *        The name of the notification ("paused" in this case).
+   * @param object aPacket
+   *        The response packet.
    */
-  _onPaused: function SF__onPaused() {
+  _onPaused: function SF__onPaused(aEvent, aPacket) {
+    // In case the pause was caused by an exception, store the exception value.
+    if (aPacket.why.type == "exception") {
+      this.exception = aPacket.why.exception;
+    }
     this.activeThread.fillFrames(this.pageSize);
   },
 
@@ -444,12 +471,13 @@ StackFrames.prototype = {
    * Handler for the thread client's framescleared notification.
    */
   _onFramesCleared: function SF__onFramesCleared() {
+    this.selectedFrame = null;
+    this.exception = null;
     // After each frame step (in, over, out), framescleared is fired, which
     // forces the UI to be emptied and rebuilt on framesadded. Most of the times
     // this is not necessary, and will result in a brief redraw flicker.
     // To avoid it, invalidate the UI only after a short time if necessary.
     window.setTimeout(this._afterFramesCleared, FRAME_STEP_CACHE_DURATION);
-    this.selectedFrame = null;
   },
 
   /**
@@ -483,6 +511,18 @@ StackFrames.prototype = {
     } else {
       editor.setDebugLocation(-1);
     }
+  },
+
+  /**
+   * Inform the debugger client whether the debuggee should be paused whenever
+   * an exception is thrown.
+   *
+   * @param boolean aFlag
+   *        The new value of the flag: true for pausing, false otherwise.
+   */
+  updatePauseOnExceptions: function SF_updatePauseOnExceptions(aFlag) {
+    this.pauseOnExceptions = aFlag;
+    this.activeThread.pauseOnExceptions(this.pauseOnExceptions);
   },
 
   /**
@@ -556,14 +596,32 @@ StackFrames.prototype = {
 
         let scope = DebuggerView.Properties.addScope(label);
 
-        // Add "this" to the innermost scope.
-        if (frame.this && env == frame.environment) {
-          let thisVar = scope.addVar("this");
-          thisVar.setGrip({
-            type: frame.this.type,
-            class: frame.this.class
-          });
-          this._addExpander(thisVar, frame.this);
+        // Special additions to the innermost scope.
+        if (env == frame.environment) {
+          // Add any thrown exception.
+          if (aDepth == 0 && this.exception) {
+            let excVar = scope.addVar("<exception>");
+            if (typeof this.exception == "object") {
+              excVar.setGrip({
+                type: this.exception.type,
+                class: this.exception.class
+              });
+              this._addExpander(excVar, this.exception);
+            } else {
+              excVar.setGrip(this.exception);
+            }
+          }
+
+          // Add "this".
+          if (frame.this) {
+            let thisVar = scope.addVar("this");
+            thisVar.setGrip({
+              type: frame.this.type,
+              class: frame.this.class
+            });
+            this._addExpander(thisVar, frame.this);
+          }
+
           // Expand the innermost scope by default.
           scope.expand(true);
           scope.addToHierarchy();
@@ -823,6 +881,12 @@ SourceScripts.prototype = {
     }
 
     this._addScript({ url: aPacket.url, startLine: aPacket.startLine }, true);
+    // If there are any stored breakpoints for this script, display them again.
+    for each (let bp in DebuggerController.Breakpoints.store) {
+      if (bp.location.url == aPacket.url) {
+        DebuggerController.Breakpoints.displayBreakpoint(bp.location);
+      }
+    }
   },
 
   /**
@@ -862,7 +926,7 @@ SourceScripts.prototype = {
     }
 
     // Use JS mode for files with .js and .jsm extensions.
-    if (/\.jsm?$/.test(this._trimUrlQuery(aUrl))) {
+    if (/\.jsm?$/.test(this.trimUrlQuery(aUrl))) {
       DebuggerView.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
     } else {
       DebuggerView.editor.setMode(SourceEditor.MODES.HTML);
@@ -870,50 +934,121 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Trims the id selector or query part of a url string, if necessary.
+   * Trims the query part or reference identifier of a url string, if necessary.
    *
    * @param string aUrl
    *        The script url.
    * @return string
+   *         The url with the trimmed query.
    */
-  _trimUrlQuery: function SS__trimUrlQuery(aUrl) {
-    let q = aUrl.indexOf('#');
-    if (q === -1) q = aUrl.indexOf('?');
-    if (q === -1) q = aUrl.indexOf('&');
+  trimUrlQuery: function SS_trimUrlQuery(aUrl) {
+    let length = aUrl.length;
+    let q1 = aUrl.indexOf('?');
+    let q2 = aUrl.indexOf('&');
+    let q3 = aUrl.indexOf('#');
+    let q = Math.min(q1 !== -1 ? q1 : length,
+                     q2 !== -1 ? q2 : length,
+                     q3 !== -1 ? q3 : length);
 
-    if (q > -1) {
-      return aUrl.slice(0, q);
-    }
-    return aUrl;
+    return aUrl.slice(0, q);
   },
 
   /**
-   * Gets the prePath for a script URL.
+   * Trims as much as possible from a URL, while keeping the result unique
+   * in the Debugger View scripts container.
    *
-   * @param string aUrl
-   *        The script url.
+   * @param string | nsIURL aUrl
+   *        The script URL.
+   * @param string aLabel [optional]
+   *        The resulting label at each step.
+   * @param number aSeq [optional]
+   *        The current iteration step.
    * @return string
-   *         The script prePath if the url is valid, null otherwise.
+   *         The resulting label at the final step.
    */
-  _getScriptPrePath: function SS__getScriptDomain(aUrl) {
-    try {
-      return Services.io.newURI(aUrl, null, null).prePath + "/";
-    } catch (e) {
+  _trimURL: function SS__trimURL(aUrl, aLabel, aSeq) {
+    if (!(aUrl instanceof Ci.nsIURL)) {
+      try {
+        // Use an nsIURL to parse all the url path parts.
+        aUrl = Services.io.newURI(aUrl, null, null).QueryInterface(Ci.nsIURL);
+      } catch (e) {
+        // This doesn't look like a url, or nsIURL can't handle it.
+        return aUrl;
+      }
     }
-    return null;
+    if (!aSeq) {
+      let name = aUrl.fileName;
+      if (name) {
+        // This is a regular file url, get only the file name (contains the
+        // base name and extension if available).
+
+        // If this url contains an invalid query, unfortunately nsIURL thinks
+        // it's part of the file extension. It must be removed.
+        aLabel = aUrl.fileName.replace(/\&.*/, "");
+      } else {
+        // This is not a file url, hence there is no base name, nor extension.
+        // Proceed using other available information.
+        aLabel = "";
+      }
+      aSeq = 1;
+    }
+
+    // If we have a label and it doesn't start with a query...
+    if (aLabel && aLabel.indexOf("?") !== 0) {
+
+      if (DebuggerView.Scripts.containsIgnoringQuery(aUrl.spec)) {
+        // A page may contain multiple requests to the same url but with different
+        // queries. It would be redundant to show each one.
+        return aLabel;
+      }
+      if (!DebuggerView.Scripts.containsLabel(aLabel)) {
+        // We found the shortest unique label for the url.
+        return aLabel;
+      }
+    }
+
+    // Append the url query.
+    if (aSeq === 1) {
+      let query = aUrl.query;
+      if (query) {
+        return this._trimURL(aUrl, aLabel + "?" + query, aSeq + 1);
+      }
+      aSeq++;
+    }
+    // Append the url reference.
+    if (aSeq === 2) {
+      let ref = aUrl.ref;
+      if (ref) {
+        return this._trimURL(aUrl, aLabel + "#" + aUrl.ref, aSeq + 1);
+      }
+      aSeq++;
+    }
+    // Prepend the url directory.
+    if (aSeq === 3) {
+      let dir = aUrl.directory;
+      if (dir) {
+        return this._trimURL(aUrl, dir.replace(/^\//, "") + aLabel, aSeq + 1);
+      }
+      aSeq++;
+    }
+    // Prepend the hostname and port number.
+    if (aSeq === 4) {
+      let host = aUrl.hostPort;
+      if (host) {
+        return this._trimURL(aUrl, host + "/" + aLabel, aSeq + 1);
+      }
+      aSeq++;
+    }
+    // Use the whole url spec but ignoring the reference.
+    if (aSeq === 5) {
+      return this._trimURL(aUrl, aUrl.specIgnoringRef, aSeq + 1);
+    }
+    // Give up.
+    return aUrl.spec;
   },
 
   /**
    * Gets a unique, simplified label from a script url.
-   * ex: a). ici://some.address.com/random/subrandom/
-   *     b). ni://another.address.org/random/subrandom/page.html
-   *     c). san://interesting.address.gro/random/script.js
-   *     d). si://interesting.address.moc/random/another/script.js
-   * =>
-   *     a). subrandom/
-   *     b). page.html
-   *     c). script.js
-   *     d). another/script.js
    *
    * @param string aUrl
    *        The script url.
@@ -924,30 +1059,7 @@ SourceScripts.prototype = {
    *         The simplified label.
    */
   _getScriptLabel: function SS__getScriptLabel(aUrl, aHref) {
-    let url = this._trimUrlQuery(aUrl);
-
-    if (this._labelsCache[url]) {
-      return this._labelsCache[url];
-    }
-
-    let content = window.parent.content;
-    let domain = content ? content.location.href : this._getScriptPrePath(aUrl);
-
-    let href = aHref || domain;
-    let pathElements = url.split("/");
-    let label = pathElements.pop() || (pathElements.pop() + "/");
-
-    // If the label as a leaf name is already present in the scripts list.
-    if (DebuggerView.Scripts.containsLabel(label)) {
-      label = url.replace(href.substring(0, href.lastIndexOf("/") + 1), "");
-
-      // If the path/to/script is exactly the same, we're in different domains.
-      if (DebuggerView.Scripts.containsLabel(label)) {
-        label = url;
-      }
-    }
-
-    return this._labelsCache[url] = label;
+    return this._labelsCache[aUrl] || (this._labelsCache[aUrl] = this._trimURL(aUrl));
   },
 
   /**
@@ -1166,7 +1278,7 @@ Breakpoints.prototype = {
 
   /**
    * The list of breakpoints in the debugger as tracked by the current
-   * debugger instance. This an object where the values are BreakpointActor
+   * debugger instance. This is an object where the values are BreakpointActor
    * objects received from the client, while the keys are actor names, for
    * example "conn0.breakpoint3".
    *
@@ -1238,14 +1350,7 @@ Breakpoints.prototype = {
 
     let line = aBreakpoint.line + 1;
 
-    let callback = function(aClient, aError) {
-      if (aError) {
-        this._skipEditorBreakpointChange = true;
-        let result = this.editor.removeBreakpoint(aBreakpoint.line);
-        this._skipEditorBreakpointChange = false;
-      }
-    }.bind(this);
-    this.addBreakpoint({ url: url, line: line }, callback, true);
+    this.addBreakpoint({ url: url, line: line }, null, true);
   },
 
   /**
@@ -1316,21 +1421,33 @@ Breakpoints.prototype = {
     }
 
     this.activeThread.setBreakpoint(aLocation, function(aResponse, aBpClient) {
-      if (!aResponse.error) {
-        this.store[aBpClient.actor] = aBpClient;
-
-        if (!aNoEditorUpdate) {
-          let url = DebuggerView.Scripts.selected;
-          if (url == aLocation.url) {
-            this._skipEditorBreakpointChange = true;
-            this.editor.addBreakpoint(aLocation.line - 1);
-            this._skipEditorBreakpointChange = false;
-          }
-        }
-      }
-
+      this.store[aBpClient.actor] = aBpClient;
+      this.displayBreakpoint(aLocation, aNoEditorUpdate);
       aCallback && aCallback(aBpClient, aResponse.error);
     }.bind(this));
+  },
+
+  /**
+   * Update the editor to display the specified breakpoint in the gutter.
+   *
+   * @param object aLocation
+   *        The location where you want the breakpoint. This object must have
+   *        two properties:
+   *          - url - the URL of the script.
+   *          - line - the line number (starting from 1).
+   * @param boolean [aNoEditorUpdate=false]
+   *        Tells if you want to skip editor updates. Typically the editor is
+   *        updated to visually indicate that a breakpoint has been added.
+   */
+  displayBreakpoint: function BP_displayBreakpoint(aLocation, aNoEditorUpdate) {
+    if (!aNoEditorUpdate) {
+      let url = DebuggerView.Scripts.selected;
+      if (url == aLocation.url) {
+        this._skipEditorBreakpointChange = true;
+        this.editor.addBreakpoint(aLocation.line - 1);
+        this._skipEditorBreakpointChange = false;
+      }
+    }
   },
 
   /**

@@ -159,6 +159,31 @@ ScriptsView.prototype = {
 
   /**
    * Checks whether the script with the specified URL is among the scripts
+   * known to the debugger (ignoring the query & reference).
+   *
+   * @param string aUrl
+   *        The script URL.
+   * @return boolean
+   */
+  containsIgnoringQuery: function DVS_containsIgnoringQuery(aUrl) {
+    let sourceScripts = DebuggerController.SourceScripts;
+    aUrl = sourceScripts.trimUrlQuery(aUrl);
+
+    if (this._tmpScripts.some(function(element) {
+      return sourceScripts.trimUrlQuery(element.script.url) == aUrl;
+    })) {
+      return true;
+    }
+    if (this.scriptLocations.some(function(url) {
+      return sourceScripts.trimUrlQuery(url) == aUrl;
+    })) {
+      return true;
+    }
+    return false;
+  },
+
+  /**
+   * Checks whether the script with the specified URL is among the scripts
    * known to the debugger and shown in the list.
    *
    * @param string aUrl
@@ -346,7 +371,7 @@ ScriptsView.prototype = {
     aLabel, aScript, aIndex, aSelectIfEmptyFlag)
   {
     // Make sure we don't duplicate anything.
-    if (aLabel == "null" || this.containsLabel(aLabel)) {
+    if (aLabel == "null" || this.containsLabel(aLabel) || this.contains(aScript.url)) {
       return;
     }
 
@@ -381,7 +406,7 @@ ScriptsView.prototype = {
 
     let rawLength = rawValue.length;
     let lastColon = rawValue.lastIndexOf(":");
-    let lastAt = rawValue.lastIndexOf("@");
+    let lastAt = rawValue.lastIndexOf("#");
 
     let fileEnd = lastColon != -1 ? lastColon : lastAt != -1 ? lastAt : rawLength;
     let lineEnd = lastAt != -1 ? lastAt : rawLength;
@@ -486,6 +511,7 @@ ScriptsView.prototype = {
  */
 function StackFramesView() {
   this._onFramesScroll = this._onFramesScroll.bind(this);
+  this._onPauseExceptionsClick = this._onPauseExceptionsClick.bind(this);
   this._onCloseButtonClick = this._onCloseButtonClick.bind(this);
   this._onResumeButtonClick = this._onResumeButtonClick.bind(this);
   this._onStepOverClick = this._onStepOverClick.bind(this);
@@ -690,6 +716,14 @@ StackFramesView.prototype = {
   },
 
   /**
+   * Listener handling the pause-on-exceptions click event.
+   */
+  _onPauseExceptionsClick: function DVF__onPauseExceptionsClick() {
+    let option = document.getElementById("pause-exceptions");
+    DebuggerController.StackFrames.updatePauseOnExceptions(option.checked);
+  },
+
+  /**
    * Listener handling the pause/resume button click event.
    */
   _onResumeButtonClick: function DVF__onResumeButtonClick() {
@@ -736,6 +770,7 @@ StackFramesView.prototype = {
    */
   initialize: function DVF_initialize() {
     let close = document.getElementById("close");
+    let pauseOnExceptions = document.getElementById("pause-exceptions");
     let resume = document.getElementById("resume");
     let stepOver = document.getElementById("step-over");
     let stepIn = document.getElementById("step-in");
@@ -743,6 +778,10 @@ StackFramesView.prototype = {
     let frames = document.getElementById("stackframes");
 
     close.addEventListener("click", this._onCloseButtonClick, false);
+    pauseOnExceptions.checked = DebuggerController.StackFrames.pauseOnExceptions;
+    pauseOnExceptions.addEventListener("click",
+                                        this._onPauseExceptionsClick,
+                                        false);
     resume.addEventListener("click", this._onResumeButtonClick, false);
     stepOver.addEventListener("click", this._onStepOverClick, false);
     stepIn.addEventListener("click", this._onStepInClick, false);
@@ -759,6 +798,7 @@ StackFramesView.prototype = {
    */
   destroy: function DVF_destroy() {
     let close = document.getElementById("close");
+    let pauseOnExceptions = document.getElementById("pause-exceptions");
     let resume = document.getElementById("resume");
     let stepOver = document.getElementById("step-over");
     let stepIn = document.getElementById("step-in");
@@ -766,6 +806,9 @@ StackFramesView.prototype = {
     let frames = this._frames;
 
     close.removeEventListener("click", this._onCloseButtonClick, false);
+    pauseOnExceptions.removeEventListener("click",
+                                          this._onPauseExceptionsClick,
+                                          false);
     resume.removeEventListener("click", this._onResumeButtonClick, false);
     stepOver.removeEventListener("click", this._onStepOverClick, false);
     stepIn.removeEventListener("click", this._onStepInClick, false);

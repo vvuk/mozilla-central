@@ -117,7 +117,7 @@ DOMJSClass Class = {
     JSCLASS_NO_INTERNAL_MEMBERS
   },
   { %s },
-  -1, %s, DOM_OBJECT_SLOT,
+  -1, %s,
   %s
 };
 """ % (self.descriptor.interface.identifier.name,
@@ -464,8 +464,7 @@ class CGAbstractClassHook(CGAbstractStaticMethod):
 
     def definition_body_prologue(self):
         return """
-  MOZ_ASSERT(js::GetObjectJSClass(obj) == Class.ToJSClass());
-  %s* self = UnwrapDOMObject<%s>(obj, Class.ToJSClass());
+  %s* self = UnwrapDOMObject<%s>(obj);
 """ % (self.descriptor.nativeType, self.descriptor.nativeType)
 
     def definition_body(self):
@@ -3462,7 +3461,7 @@ class CGBindingRoot(CGThing):
                          ['mozilla/dom/BindingUtils.h',
                           'mozilla/dom/DOMJSClass.h'],
                          ['mozilla/dom/Nullable.h',
-                          'mozilla/dom/PrimitiveConversions.h',
+                          'PrimitiveConversions.h',
                           'XPCQuickStubs.h',
                           'nsDOMQS.h',
                           'AccessCheck.h',

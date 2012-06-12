@@ -47,7 +47,9 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:GetAvailableNetworks",
   "RIL:GetCardLock",
   "RIL:UnlockCardLock",
-  "RIL:SetCardLock"
+  "RIL:SetCardLock",
+  "RIL:SendUSSD",
+  "RIL:CancelUSSD"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
@@ -69,6 +71,12 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
 XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
+
+XPCOMUtils.defineLazyGetter(this, "WAP", function () {
+  let WAP = {};
+  Cu.import("resource://gre/modules/WapPushManager.js", WAP);
+  return WAP;
+});
 
 function convertRILCallState(state) {
   switch (state) {
@@ -173,7 +181,9 @@ function RadioInterfaceLayer() {
   Services.obs.addObserver(this, kMozSettingsChangedObserverTopic, false);
 
   this._sentSmsEnvelopes = {};
+
   this.portAddressedSmsApps = {};
+  this.portAddressedSmsApps[WAP.WDP_PORT_PUSH] = this.handleSmsWdpPortPush.bind(this);
 }
 RadioInterfaceLayer.prototype = {
 
@@ -247,6 +257,12 @@ RadioInterfaceLayer.prototype = {
         break;
       case "RIL:SetCardLock":
         this.setCardLock(msg.json);
+        break;
+      case "RIL:SendUSSD":
+        this.sendUSSD(msg.json);
+        break;
+      case "RIL:CancelUSSD":
+        this.cancelUSSD(msg.json);
         break;
     }
   },
@@ -366,6 +382,16 @@ RadioInterfaceLayer.prototype = {
         break;
       case "celllocationchanged":
         this.radioState.cell = message;
+        break;
+      case "ussdreceived":
+        debug("ussdreceived " + JSON.stringify(message));
+        this.handleUSSDReceived(message);
+        break;
+      case "sendussd":
+        this.handleSendUSSD(message);
+        break;
+      case "cancelussd":
+        this.handleCancelUSSD(message);
         break;
       default:
         throw new Error("Don't know about this message type: " + message.type);
@@ -583,9 +609,38 @@ RadioInterfaceLayer.prototype = {
     ppmm.sendAsyncMessage("RIL:CallError", message);   
   },
 
+  /**
+   * Handle WDP port push PDU. Constructor WDP bearer information and deliver
+   * to WapPushManager.
+   *
+   * @param message
+   *        A SMS message.
+   */
+  handleSmsWdpPortPush: function handleSmsWdpPortPush(message) {
+    if (message.encoding != RIL.PDU_DCS_MSG_CODING_8BITS_ALPHABET) {
+      debug("Got port addressed SMS but not encoded in 8-bit alphabet. Drop!");
+      return;
+    }
+
+    let options = {
+      bearer: WAP.WDP_BEARER_GSM_SMS_GSM_MSISDN,
+      sourceAddress: message.sender,
+      sourcePort: message.header.originatorPort,
+      destinationAddress: this.radioState.icc.MSISDN,
+      destinationPort: message.header.destinationPort,
+    };
+    WAP.WapPushManager.receiveWdpPDU(message.fullData, message.fullData.length,
+                                     0, options);
+  },
+
   portAddressedSmsApps: null,
   handleSmsReceived: function handleSmsReceived(message) {
     debug("handleSmsReceived: " + JSON.stringify(message));
+
+    // FIXME: Bug 737202 - Typed arrays become normal arrays when sent to/from workers
+    if (message.encoding == RIL.PDU_DCS_MSG_CODING_8BITS_ALPHABET) {
+      message.fullData = new Uint8Array(message.fullData);
+    }
 
     // Dispatch to registered handler if application port addressing is
     // available. Note that the destination port can possibly be zero when
@@ -753,6 +808,25 @@ RadioInterfaceLayer.prototype = {
     ppmm.sendAsyncMessage("RIL:UnlockCardLock:Return:OK", message);
   },
 
+  handleUSSDReceived: function handleUSSDReceived(ussd) {
+    debug("handleUSSDReceived " + JSON.stringify(ussd));
+    ppmm.sendAsyncMessage("RIL:UssdReceived", ussd);
+  },
+
+  handleSendUSSD: function handleSendUSSD(message) {
+    debug("handleSendUSSD " + JSON.stringify(message));
+    let messageType = message.success ? "RIL:SendUssd:Return:OK" :
+                                        "RIL:SendUssd:Return:KO";
+    ppmm.sendAsyncMessage(messageType, message);
+  },
+
+  handleCancelUSSD: function handleCancelUSSD(message) {
+    debug("handleCancelUSSD " + JSON.stringify(message));
+    let messageType = message.success ? "RIL:CancelUssd:Return:OK" :
+                                        "RIL:CancelUssd:Return:KO";
+    ppmm.sendAsyncMessage(messageType, message);
+  },
+
   // nsIObserver
 
   observe: function observe(subject, topic, data) {
@@ -852,6 +926,18 @@ RadioInterfaceLayer.prototype = {
 
   getAvailableNetworks: function getAvailableNetworks(requestId) {
     this.worker.postMessage({type: "getAvailableNetworks", requestId: requestId});
+  },
+
+  sendUSSD: function sendUSSD(message) {
+    debug("SendUSSD " + JSON.stringify(message));
+    message.type = "sendUSSD";
+    this.worker.postMessage(message);
+  },
+
+  cancelUSSD: function cancelUSSD(message) {
+    debug("Cancel pending USSD");
+    message.type = "cancelUSSD";
+    this.worker.postMessage(message);
   },
 
   get microphoneMuted() {

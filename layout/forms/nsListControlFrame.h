@@ -130,6 +130,7 @@ public:
   virtual void CaptureMouseEvents(bool aGrabMouseEvents);
   virtual nscoord GetHeightOfARow();
   virtual PRInt32 GetNumberOfOptions();  
+  virtual void SyncViewWithFrame();
   virtual void AboutToDropDown();
 
   /**
@@ -232,17 +233,6 @@ public:
   bool IsInDropDownMode() const;
 
   /**
-   * Return the number of displayed rows in the list.
-   */
-  PRUint32 GetNumDisplayRows() const { return mNumDisplayRows; }
-
-  /**
-   * Return true if the drop-down list can display more rows.
-   * (always false if not in drop-down mode)
-   */
-  bool GetDropdownCanGrow() const { return mDropdownCanGrow; }
-
-  /**
    * Dropdowns need views
    */
   virtual bool NeedsView() { return IsInDropDownMode(); }
@@ -316,7 +306,7 @@ protected:
   virtual ~nsListControlFrame();
 
   // Utility methods
-  nsresult GetSizeAttribute(PRInt32 *aSize);
+  nsresult GetSizeAttribute(PRUint32 *aSize);
   nsIContent* GetOptionFromContent(nsIContent *aContent);
 
   /**
@@ -398,7 +388,7 @@ protected:
   PRInt32      mEndSelectionIndex;
 
   nsIComboboxControlFrame *mComboboxFrame;
-  PRInt32      mNumDisplayRows;
+  PRUint32     mNumDisplayRows;
   bool mChangesSinceDragStart:1;
   bool mButtonDown:1;
   // Has the user selected a visible item since we showed the
@@ -424,10 +414,6 @@ protected:
    */
   bool mHasPendingInterruptAtStartOfReflow:1;
 
-  // True if the drop-down can show more rows.  Always false if this list
-  // is not in drop-down mode.
-  bool mDropdownCanGrow:1;
-  
   // The last computed height we reflowed at if we're a combobox dropdown.
   // XXXbz should we be using a subclass here?  Or just not worry
   // about the extra member on listboxes?

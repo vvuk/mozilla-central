@@ -86,7 +86,6 @@
 #include "nsIClipboard.h"
 #include "nsIMM32Handler.h"
 #include "WinMouseScrollHandler.h"
-#include "nsILocalFile.h"
 #include "nsFontMetrics.h"
 #include "nsIFontEnumerator.h"
 #include "nsGUIEvent.h"
@@ -850,32 +849,41 @@ DWORD nsWindow::WindowExStyle()
 // Subclass (or remove the subclass from) this component's nsWindow
 void nsWindow::SubclassWindow(BOOL bState)
 {
-  if (NULL != mWnd) {
-    //NS_PRECONDITION(::IsWindow(mWnd), "Invalid window handle");
-    if (!::IsWindow(mWnd)) {
+  if (bState) {
+    if (!mWnd || !IsWindow(mWnd)) {
       NS_ERROR("Invalid window handle");
     }
 
-    if (bState) {
-      // change the nsWindow proc
-      if (mUnicodeWidget)
-        mPrevWndProc = (WNDPROC)::SetWindowLongPtrW(mWnd, GWLP_WNDPROC,
-                                                (LONG_PTR)nsWindow::WindowProc);
-      else
-        mPrevWndProc = (WNDPROC)::SetWindowLongPtrA(mWnd, GWLP_WNDPROC,
-                                                (LONG_PTR)nsWindow::WindowProc);
-      NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
-      // connect the this pointer to the nsWindow handle
-      WinUtils::SetNSWindowPtr(mWnd, this);
+    if (mUnicodeWidget) {
+      mPrevWndProc =
+        reinterpret_cast<WNDPROC>(
+          SetWindowLongPtrW(mWnd,
+                            GWLP_WNDPROC,
+                            reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
+    } else {
+      mPrevWndProc =
+        reinterpret_cast<WNDPROC>(
+          SetWindowLongPtrA(mWnd,
+                            GWLP_WNDPROC,
+                            reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
     }
-    else {
-      if (mUnicodeWidget)
-        ::SetWindowLongPtrW(mWnd, GWLP_WNDPROC, (LONG_PTR)mPrevWndProc);
-      else
-        ::SetWindowLongPtrA(mWnd, GWLP_WNDPROC, (LONG_PTR)mPrevWndProc);
-      WinUtils::SetNSWindowPtr(mWnd, NULL);
-      mPrevWndProc = NULL;
+    NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
+    // connect the this pointer to the nsWindow handle
+    WinUtils::SetNSWindowPtr(mWnd, this);
+  } else {
+    if (IsWindow(mWnd)) {
+      if (mUnicodeWidget) {
+        SetWindowLongPtrW(mWnd,
+                          GWLP_WNDPROC,
+                          reinterpret_cast<LONG_PTR>(mPrevWndProc));
+      } else {
+        SetWindowLongPtrA(mWnd,
+                          GWLP_WNDPROC,
+                          reinterpret_cast<LONG_PTR>(mPrevWndProc));
+      }
     }
+    WinUtils::SetNSWindowPtr(mWnd, NULL);
+    mPrevWndProc = NULL;
   }
 }
 
@@ -1328,7 +1336,6 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
 
     SetThemeRegion();
   }
-  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -1366,7 +1373,6 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint)
   if (aRepaint)
     Invalidate();
 
-  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -1406,7 +1412,6 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
   if (aRepaint)
     Invalidate();
 
-  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -1872,7 +1877,7 @@ nsWindow::GetNonClientMargins(nsIntMargin &margins)
   margins.top = GetSystemMetrics(SM_CYCAPTION);
   margins.bottom = GetSystemMetrics(SM_CYFRAME);
   margins.top += margins.bottom;
-  margins.left = margins.right = GetSystemMetrics(SM_CYFRAME);
+  margins.left = margins.right = GetSystemMetrics(SM_CXFRAME);
 
   return NS_OK;
 }
@@ -2788,7 +2793,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
 {
   // Assume the given string is a local identifier for an icon file.
 
-  nsCOMPtr<nsILocalFile> iconFile;
+  nsCOMPtr<nsIFile> iconFile;
   ResolveIconName(aIconSpec, NS_LITERAL_STRING(".ico"),
                   getter_AddRefs(iconFile));
   if (!iconFile)

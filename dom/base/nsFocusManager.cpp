@@ -44,16 +44,19 @@
 #include "nsIBaseWindow.h"
 #include "nsIViewManager.h"
 #include "nsFrameSelection.h"
-#include "nsTypedSelection.h"
+#include "mozilla/Selection.h"
 #include "nsXULPopupManager.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
-#include "mozilla/dom/Element.h"
 #include "mozAutoDocUpdate.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsFrameLoader.h"
+#include "nsIObserverService.h"
 #include "nsIScriptError.h"
+
+#include "mozilla/dom/Element.h"
+#include "mozilla/LookAndFeel.h"
+#include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
@@ -927,20 +930,15 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   nsIContent* oldFocusedContent = mFocusedContent;
   mFocusedContent = nsnull;
 
-  nsCOMPtr<nsIDocShell> focusedDocShell = mFocusedWindow->GetDocShell();
-  nsCOMPtr<nsIPresShell> presShell;
-  focusedDocShell->GetPresShell(getter_AddRefs(presShell));
-
   if (oldFocusedContent && oldFocusedContent->IsInDoc()) {
     NotifyFocusStateChange(oldFocusedContent,
                            mFocusedWindow->ShouldShowFocusRing(),
                            false);
-    window->UpdateCommands(NS_LITERAL_STRING("focus"));
-
-    SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell,
-                         oldFocusedContent->GetCurrentDoc(),
-                         oldFocusedContent, 1, false);
   }
+
+  nsCOMPtr<nsIDocShell> focusedDocShell = mFocusedWindow->GetDocShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  focusedDocShell->GetPresShell(getter_AddRefs(presShell));
 
   nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
   if (presShell) {
