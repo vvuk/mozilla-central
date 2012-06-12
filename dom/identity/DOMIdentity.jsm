@@ -170,18 +170,6 @@ let DOMIdentity = {
     ppmm = null;
   },
 
-  // Methods for IdentityService to call
-  /**
-   * Call the onlogout RP callback
-   */
-  onLogout: function(oid) {
-    // TODO: check rv above and then fire onlogout?
-    let message = {
-      oid: oid,
-    };
-    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
-  },
-
   // Private.
   _init: function() {
     this.messages = ["Identity:RP:Watch", "Identity:RP:Request", "Identity:RP:Logout",
