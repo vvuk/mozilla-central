@@ -98,6 +98,7 @@ CPPSRCS = \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
+  nr_socket_prsock.cpp \
   $(NULL)
 
 DIRS = \

@@ -38,6 +38,7 @@ class TransportLayerIceCtx {
   DISALLOW_COPY_ASSIGN(TransportLayerIceCtx);
   
   const std::string name_;
+  bool offerer_;
   nr_ice_ctx *ctx_;
 };
 

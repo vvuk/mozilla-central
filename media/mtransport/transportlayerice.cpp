@@ -115,9 +115,7 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 
 
 TransportLayerIceCtx::TransportLayerIceCtx(const std::string& name, bool offerer) :
-    name_(name), ctx_(NULL) {
-  int r;
-  
+  name_(name), offerer_(offerer), ctx_(NULL) {
   if (!initialized) {
     nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
     NR_reg_init(NR_REG_MODE_LOCAL);
@@ -127,8 +125,10 @@ TransportLayerIceCtx::TransportLayerIceCtx(const std::string& name, bool offerer
 
 nsresult TransportLayerIceCtx::Init() {
   // Create the ICE context
+  int r;
+  
   r = nr_ice_ctx_create(const_cast<char *>(name_.c_str()),
-                        offerer ? 
+                        offerer_ ? 
                         NR_ICE_CTX_FLAGS_OFFERER :
                         NR_ICE_CTX_FLAGS_ANSWERER,
                         &ctx_);
