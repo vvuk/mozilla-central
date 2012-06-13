@@ -12,10 +12,6 @@ let EXPORTED_SYMBOLS = ["DOMIdentity"];
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
-                                   "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIFrameMessageManager");
-
 XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
@@ -27,31 +23,37 @@ function log(msg) {
   dump("DOMIdentity: " + msg + "\n");
 }
 
+// Maps the callback objects to the message manager
+// to be used to send the message back to the child.
+let mmMap = new WeakMap();
+
 function IDDOMMessage(aID) {
   this.id = this.oid = aID; // TODO: decide on id or oid
 }
 
-function IDPProvisioningContext(aID, aOrigin) {
+function IDPProvisioningContext(aID, aOrigin, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
+  mmMap.set(this, aTargetMM);
 }
 
 IDPProvisioningContext.prototype = {
   get id() this._id,
   get origin() this._origin,
+  get mm() mmMap.get(this),
 
   doBeginProvisioningCallback: function IDPProvisioningContext_doBeginProvisioningCallback(aID, aCertDuration) {
     let message = new IDDOMMessage(this.id);
     message.identity = aID;
     message.certDuration = aCertDuration;
-    ppmm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", message);
+    this.mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", message);
   },
 
   doGenKeyPairCallback: function IDPProvisioningContext_doGenKeyPairCallback(aPublicKey) {
 log("DOMIdentity: doGenKeyPairCallback");
     let message = new IDDOMMessage(this.id);
     message.publicKey = aPublicKey;
-    ppmm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
+    this.mm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
   },
 
   doError: function(msg) {
@@ -59,19 +61,21 @@ log("DOMIdentity: doGenKeyPairCallback");
   },
 };
 
-function IDPAuthenticationContext(aID, aOrigin) {
+function IDPAuthenticationContext(aID, aOrigin, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
+  mmMap.set(this, aTargetMM);
 }
 
 IDPAuthenticationContext.prototype = {
   get id() this._id,
   get origin() this._origin,
+  get mm() mmMap.get(this),
 
   doBeginAuthenticationCallback: function(aIdentity) {
     let message = new IDDOMMessage(this.id);
     message.identity = aIdentity;
-    ppmm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback", message);
+    this.mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback", message);
   },
 
   doError: function(msg) {
@@ -79,35 +83,37 @@ IDPAuthenticationContext.prototype = {
   },
 };
 
-function RPWatchContext(aID, aOrigin, aLoggedInEmail) {
+function RPWatchContext(aID, aOrigin, aLoggedInEmail, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
   this._loggedInEmail = aLoggedInEmail;
+  mmMap.set(this, aTargetMM);
 }
 
 RPWatchContext.prototype = {
   get id() this._id,
   get origin() this._origin,
   get loggedInEmail() this._loggedInEmail,
+  get mm() mmMap.get(this),
 
   doLogin: function RPWatchContext_onlogin(aAssertion) {
     log("doLogin: " + this.id + " : " + aAssertion);
     let message = new IDDOMMessage(this.id);
     message.assertion = aAssertion;
     log(message.id + " : " + message.oid);
-    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
+    this.mm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 
   doLogout: function RPWatchContext_onlogout() {
     log("doLogout :" + this.id);
     let message = new IDDOMMessage(this.id);
-    ppmm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
+    this.mm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
   },
 
   doReady: function RPWatchContext_onready() {
     log("doReady: " + this.id);
     let message = new IDDOMMessage(this.id);
-    ppmm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
+    this.mm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
   },
 
   doError: function RPWatchContext_onerror() {
@@ -121,10 +127,17 @@ let DOMIdentity = {
   // nsIFrameMessageListener
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
+
+    // Target is the frame message manager that called us and is
+    // used to send replies back to the proper window.
+    let targetMM = aMessage.target
+                           .QueryInterface(Ci.nsIFrameLoaderOwner)
+                           .frameLoader.messageManager;
+
     switch (aMessage.name) {
       // RP
       case "Identity:RP:Watch":
-        this._watch(msg);
+        this._watch(msg, targetMM);
         break;
       case "Identity:RP:Request":
         this._request(msg);
@@ -134,7 +147,7 @@ let DOMIdentity = {
         break;
       // IDP
       case "Identity:IDP:BeginProvisioning":
-        this._beginProvisioning(msg);
+        this._beginProvisioning(msg, targetMM);
         break;
       case "Identity:IDP:GenKeyPair":
         this._genKeyPair(msg);
@@ -146,7 +159,7 @@ let DOMIdentity = {
         this._provisioningFailure(msg);
         break;
       case "Identity:IDP:BeginAuthentication":
-        this._beginAuthentication(msg);
+        this._beginAuthentication(msg, targetMM);
         break;
       case "Identity:IDP:CompleteAuthentication":
         this._completeAuthentication(msg);
@@ -159,39 +172,52 @@ let DOMIdentity = {
 
   // nsIObserver
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic != "xpcom-shutdown") {
-      return;
-    }
+    switch (aTopic) {
+      case "domwindowopened":
+      case "domwindowclosed":
+        let win = aSubject.QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIDOMWindow);
+        this._configureMessages(win, aTopic == "domwindowopened");
+        break;
 
-    this.messages.forEach((function(msgName) {
-      ppmm.removeMessageListener(msgName, this);
-    }).bind(this));
-    Services.obs.removeObserver(this, "xpcom-shutdown");
-    ppmm = null;
+      case "xpcom-shutdown":
+        Services.ww.unregisterNotification(this);
+        Services.obs.removeObserver(this, "xpcom-shutdown");
+        break;
+    }
   },
+
+  messages: ["Identity:RP:Watch", "Identity:RP:Request", "Identity:RP:Logout",
+             "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
+             "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate",
+             "Identity:IDP:BeginAuthentication", "Identity:IDP:CompleteAuthentication",
+             "Identity:IDP:AuthenticationFailure"],
 
   // Private.
   _init: function() {
-    this.messages = ["Identity:RP:Watch", "Identity:RP:Request", "Identity:RP:Logout",
-                     "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
-                     "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate",
-                     "Identity:IDP:BeginAuthentication", "Identity:IDP:CompleteAuthentication",
-                     "Identity:IDP:AuthenticationFailure"];
-
-    this.messages.forEach((function(msgName) {
-      ppmm.addMessageListener(msgName, this);
-    }).bind(this));
-
+    Services.ww.registerNotification(this);
     Services.obs.addObserver(this, "xpcom-shutdown", false);
 
     this._pending = {};
   },
 
-  _watch: function(message) {
+  _configureMessages: function(aWindow, aRegister) {
+    if (!aWindow.messageManager)
+      return;
+ 
+    let func = aRegister ? "addMessageListener" : "removeMessageListener";
+
+    for (let message of this.messages) {
+      aWindow.messageManager[func](message, this);
+    }
+  },
+
+  _watch: function(message, targetMM) {
     // Forward to Identity.jsm and stash the oid somewhere so we can make
     // callback after sending a message to parent process.
     this._pending[message.oid] = true; // TODO?
-    let context = new RPWatchContext(message.oid, message.origin, message.loggedInEmail);
+    let context = new RPWatchContext(message.oid, message.origin,
+                                     message.loggedInEmail, targetMM);
     IdentityService.watch(context);
   },
 
@@ -203,8 +229,8 @@ let DOMIdentity = {
     IdentityService.logout(message.oid, message.origin);
   },
 
-  _beginProvisioning: function(message) {
-    let context = new IDPProvisioningContext(message.oid, message.origin);
+  _beginProvisioning: function(message, targetMM) {
+    let context = new IDPProvisioningContext(message.oid, message.origin, targetMM);
     IdentityService.beginProvisioning(context);
   },
 
@@ -220,8 +246,8 @@ let DOMIdentity = {
     IdentityService.raiseProvisioningFailure(message.oid, message.reason);
   },
 
-  _beginAuthentication: function(message) {
-    let context = new IDPAuthenticationContext(message.oid, message.origin);
+  _beginAuthentication: function(message, targetMM) {
+    let context = new IDPAuthenticationContext(message.oid, message.origin, targetMM);
     IdentityService.beginAuthentication(context);
   },
 

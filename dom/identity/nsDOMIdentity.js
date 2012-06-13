@@ -11,10 +11,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // This is the child process corresponding to nsIDOMIdentity.
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIFrameMessageManager");
-
 function log(msg) {
   dump("nsDOMIdentity: " + msg + "\n");
 }
@@ -60,7 +56,7 @@ nsDOMIdentity.prototype = {
     let message = this.DOMIdentityMessage();
     message.loggedInEmail = aOptions.loggedInEmail, // Could be undefined or null
 
-    cpmm.sendAsyncMessage("Identity:RP:Watch", message);
+    this._mm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
   request: function nsDOMIdentity_request(aOptions) {
@@ -103,7 +99,7 @@ nsDOMIdentity.prototype = {
       message.tosURL = aOptions.tosURL;
     }
 
-    cpmm.sendAsyncMessage("Identity:RP:Request", message);
+    this._mm.sendAsyncMessage("Identity:RP:Request", message);
   },
 
   logout: function nsDOMIdentity_logout() {
@@ -112,7 +108,7 @@ nsDOMIdentity.prototype = {
     }
 
     let message = this.DOMIdentityMessage();
-    cpmm.sendAsyncMessage("Identity:RP:Logout", message);
+    this._mm.sendAsyncMessage("Identity:RP:Logout", message);
   },
 
   /**
@@ -122,13 +118,13 @@ nsDOMIdentity.prototype = {
   beginProvisioning: function nsDOMIdentity_beginProvisioning(aCallback) {
     log("beginProvisioning: " + this._id);
     this._beginProvisioningCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
+    this._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
   },
 
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
     log("genKeyPair");
     this._genKeyPairCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
+    this._mm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
@@ -136,33 +132,33 @@ nsDOMIdentity.prototype = {
     log(aCertificate);
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
-    cpmm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
+    this._mm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
   raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
     log("raiseProvisioningFailure '" + aReason + "'");
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
-    cpmm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
+    this._mm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
   },
 
   // IDP Authentication
   beginAuthentication: function nsDOMIdentity_beginAuthentication(aCallback) {
     log("beginAuthentication: " + this._id);
     this._beginAuthenticationCallback = aCallback;
-    cpmm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
+    this._mm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
                           this.DOMIdentityMessage());
   },
 
   completeAuthentication: function nsDOMIdentity_completeAuthentication() {
-    cpmm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
+    this._mm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
                           this.DOMIdentityMessage());
   },
 
   raiseAuthenticationFailure: function nsDOMIdentity_raiseAuthenticationFailure(aReason) {
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
-    cpmm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
+    this._mm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
   },
 
   // nsIFrameMessageListener
@@ -244,10 +240,7 @@ nsDOMIdentity.prototype = {
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
 
-    // Also send message to DOMIdentity.jsm notifiying window is no longer valid
-    this._messages.forEach((function(msgName) {
-      cpmm.removeMessageListener(msgName, this);
-    }).bind(this));
+    this._mm = null;
   },
 
   // nsIDOMGlobalPropertyInitializer
@@ -272,6 +265,11 @@ nsDOMIdentity.prototype = {
     this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
 
+    this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIWebNavigation)
+                 .QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIContentFrameMessageManager);
+
     // Setup listeners for messages from parent process.
     this._messages = [
       "Identity:RP:Watch:OnLogin",
@@ -283,7 +281,7 @@ nsDOMIdentity.prototype = {
       "Identity:IDP:CallBeginAuthenticationCallback",
     ];
     this._messages.forEach((function(msgName) {
-      cpmm.addMessageListener(msgName, this);
+      this._mm.addMessageListener(msgName, this);
     }).bind(this));
 
     // Setup observers so we can remove message listeners.
