@@ -38,13 +38,13 @@ nsDOMIdentity.prototype = {
     // Check for required callbacks
     let requiredCallbacks = ["onlogin", "onlogout"];
     for (let cbName of requiredCallbacks) {
-      if (typeof(aOptions[cbName]) !== "function") {
+      if (typeof(aOptions[cbName].handleEvent) !== "function") {
         throw cbName + " callback is required.";
       }
     }
 
     // Optional callback "onready"
-    if (aOptions["onready"] && typeof(aOptions['onready']) !== "function") {
+    if (aOptions["onready"] && typeof(aOptions['onready'].handleEvent) !== "function") {
       throw "onready must be a function";
     }
 
@@ -87,7 +87,7 @@ nsDOMIdentity.prototype = {
         }
       }
 
-      if (aOptions["oncancel"] && typeof(aOptions["oncancel"]) !== "function") {
+      if (aOptions["oncancel"] && typeof(aOptions["oncancel"].handleEvent) !== "function") {
         throw "oncancel is not a function";
       }
     }
@@ -132,7 +132,7 @@ nsDOMIdentity.prototype = {
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
-    log("*********** registerCertificate:");
+    log("registerCertificate:");
     log(aCertificate);
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
@@ -180,9 +180,11 @@ nsDOMIdentity.prototype = {
         if (!this._rpWatcher) {
           return;
         }
-
+        log("have watcher");
         if (this._rpWatcher.onlogin) {
-          this._rpWatcher.onlogin(msg.assertion);
+          log("have onlogin: " + typeof(this._rpWatcher.onlogin.handleEvent));
+          log("assertion: " + typeof(msg.assertion) + " : " + msg.assertion);
+          this._rpWatcher.onlogin.handleEvent(msg.assertion);
         }
         break;
       case "Identity:RP:Watch:OnLogout":
@@ -192,7 +194,7 @@ nsDOMIdentity.prototype = {
         }
 
         if (this._rpWatcher.onlogout) {
-          this._rpWatcher.onlogout();
+          this._rpWatcher.onlogout.handleEvent();
         }
         break;
       case "Identity:RP:Watch:OnReady":
@@ -202,7 +204,7 @@ nsDOMIdentity.prototype = {
         }
 
         if (this._rpWatcher.onready) {
-          this._rpWatcher.onready();
+          this._rpWatcher.onready.handleEvent();
         }
         break;
       case "Identity:RP:Request:OnCancel":
@@ -212,7 +214,7 @@ nsDOMIdentity.prototype = {
         }
 
         if (this._onCancelRequestCallback) {
-          this._onCancelRequestCallback();
+          this._onCancelRequestCallback.handleEvent();
         }
         break;
       case "Identity:IDP:CallBeginProvisioningCallback":
