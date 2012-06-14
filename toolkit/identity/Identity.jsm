@@ -56,14 +56,26 @@ function log(args) {
       }
     }
   });
-  dump("@@ Identity.jsm: " + strings.join(' ') + "\n");
+  let output = 'Identity: ' + strings.join(' ') + '\n';
+  dump(output);
+
+  // Additionally, make the output visible in the Error Console
+  Services.console.logStringMessage(output);
 };
 
 // the data store for IDService
 // written as a separate thing so it can easily be mocked
 function IDServiceStore() {
-  this.reset();
+  this.init();
 }
+
+// _identities will associate emails with keypairs and certificates
+IDServiceStore.prototype._identities = null;
+
+// _loginStates will associate remote origins with a login status and
+// the email the user has chosen as his or her identity when logging
+// into that origin.
+IDServiceStore.prototype._loginStates = null;
 
 // Note: eventually these methods may be async, but we haven no need for this
 // for now, since we're not storing to disk.
@@ -112,7 +124,7 @@ IDServiceStore.prototype = {
     delete this._loginStates[aOrigin];
   },
 
-  reset: function reset() {
+  init: function init() {
     this._identities = {};
     this._loginStates = {};
   }
@@ -127,7 +139,7 @@ function IDService() {
 
   this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
 
-  this.reset();
+  this.init();
 }
 
 IDService.prototype = {
@@ -136,7 +148,7 @@ IDService.prototype = {
   /**
    * Reset the state of the IDService object.
    */
-  reset: function reset() {
+  init: function init() {
     // Forget all documents that call in.  (These are sometimes
     // referred to as callers.)
     this._rpFlows = {};
@@ -186,6 +198,12 @@ IDService.prototype = {
     let origin = aRpCaller.origin;
     let state = this._store.getLoginState(origin) || {};
 
+    log("watch: rpId:", aRpCaller.id,
+        "origin:", origin,
+        "loggedInEmail:", aRpCaller.loggedInEmail,
+        "loggedIn:", state.isLoggedIn,
+        "email:", state.email);
+
     // If the user is already logged in, then there are three cases
     // to deal with:
     //
@@ -231,6 +249,8 @@ IDService.prototype = {
    * Note that this calls _getAssertion
    */
   _doLogin: function _doLogin(aRpCaller, aOptions, aAssertion) {
+    log("_doLogin: rpId:", aRpCaller.id, "origin:", aOptions.origin);
+
     let loginWithAssertion = function loginWithAssertion(assertion) {
       this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
       this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInEmail);
@@ -243,7 +263,9 @@ IDService.prototype = {
     } else {
       this._getAssertion(aOptions, function(err, assertion) {
         if (err) {
-          Cu.reportError("Error on login attempt: " + err);
+          let errStr = "Failed to get assertion on login attempt: " + err;
+          log("ERROR: _doLogin:", errStr);
+          Cu.reportError(errStr);
           this._doLogout(aRpCaller);
         } else {
           loginWithAssertion(assertion);
@@ -257,6 +279,8 @@ IDService.prototype = {
    * on logout.
    */
   _doLogout: function _doLogout(aRpCaller, aOptions) {
+    log("_doLogout: rpId:", aRpCaller.id, "origin:", aOptions.origin);
+
     let state = this._store.getLoginState(aOptions.origin) || {};
 
     // XXX add tests for state change
@@ -280,6 +304,8 @@ IDService.prototype = {
    *         (string) The email of the user whose login state has changed
    */
   _notifyLoginStateChanged: function _notifyLoginStateChanged(aRpCallerId, aIdentity) {
+    log("_notifyLoginStateChanged: rpId:", aRpCallerId, "identity:", aIdentity);
+
     let options = Cc["@mozilla.org/hash-property-bag;1"]
                     .createInstance(Ci.nsIWritablePropertyBag);
     options.setProperty("rpId", aRpCallerId);
@@ -297,6 +323,8 @@ IDService.prototype = {
    *        (Object)  options including requiredEmail, privacyURL, tosURL
    */
   request: function request(aRPId, aOptions) {
+    log("request: rpId:", aRPId, "requiredEmail:", aOptions.requiredEmail);
+
     // Notify UX to display identity picker.
     let options = Cc["@mozilla.org/hash-property-bag;1"]
                     .createInstance(Ci.nsIWritablePropertyBag);
@@ -344,11 +372,15 @@ IDService.prototype = {
    *        (string) the email chosen for login
    */
   selectIdentity: function selectIdentity(aRPId, aIdentity) {
+    log("selectIdentity: RP id:", aRPId, "identity:", aIdentity);
+
     var self = this;
     // Get the RP that was stored when watch() was invoked.
     let rp = this._rpFlows[aRPId];
     if (!rp) {
-      Cu.reportError("selectIdentity called with invalid rp id: " + aRPId);
+      let errStr = "Cannot select identity for invalid RP with id: " + aRPId;
+      log("ERROR: selectIdentity:", errStr);
+      Cu.reportError(errStr);
       return null;
     }
 
@@ -361,6 +393,7 @@ IDService.prototype = {
       loggedInEmail: aIdentity,
       origin: rp.origin
     };
+    log("selectIdentity: provId:", provId, "origin:", rp.origin);
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
@@ -412,6 +445,7 @@ IDService.prototype = {
             } else {
               if (self._provisionFlows[aProvId].didAuthentication) {
                 self._cleanUpProvisionFlow(aProvId);
+                log("ERROR: selectIdentity: authentication hard fail");
                 rp.doError("Authentication fail.");
                 return;
 
@@ -445,15 +479,21 @@ IDService.prototype = {
    *                   with first-positional parameter the error.
    */
   _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback) {
+    log("_generateAssertion: audience:", aAudience, "identity:", aIdentity);
+
     let id = this._store.fetchIdentity(aIdentity);
     if (! (id && id.cert)) {
-      return aCallback("Cannot generate assertion without a cert");
+      let errStr = "Cannot generate an assertion without a certificate";
+      log("ERROR: _generateAssertion:", errStr);
+      return aCallback(errStr);
     }
 
     let kp = id.keyPair;
 
     if (!kp) {
-      return aCallback("no kp");
+      let errStr = "Cannot generate an assertion without a keypair";
+      log("ERROR: _generateAssertion:", errStr);
+      return aCallback(errStr);
     }
 
     jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
@@ -474,6 +514,7 @@ IDService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback) {
     let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
+    log("_provisionIdentity: identity:", aIdentity, "url:", url);
 
     // If aProvId is not null, then we already have a flow
     // with a sandbox.  Otherwise, get a sandbox and create a
@@ -481,6 +522,7 @@ IDService.prototype = {
 
     if (aProvId !== null) {
       // Re-use an existing sandbox
+      log("_provisionIdentity: re-using sandbox in provisioning flow with id:", aProvId);
       this._provisionFlows[aProvId].provisioningSandbox.load();
 
     } else {
@@ -498,6 +540,8 @@ IDService.prototype = {
             aCallback(aErr, provId);
           },
         };
+
+        log("_provisionIdentity: Created sandbox and provisioning flow with id:", aProvId);
 
         // XXX MAYBE
         // set a timeout to clear out this provisioning workflow if it doesn't
@@ -519,7 +563,8 @@ IDService.prototype = {
    */
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback) {
     let domain = aIdentity.split('@')[1];
-    // XXX not until we have this mocked in the tests
+    log("_discoverIdentityProvider: identity:", aIdentity, "domain:", domain);
+
     this._fetchWellKnownFile(domain, function(err, idpParams) {
       // idpParams includes the pk, authorization url, and
       // provisioning url.
@@ -543,10 +588,14 @@ IDService.prototype = {
    *
    */
   logout: function logout(aRpCallerId) {
+    log("logout: RP caller id:", aRpCallerId);
     let rp = this._rpFlows[aRpCallerId];
     if (rp && rp.origin) {
       let audience = rp.origin;
+      log("logout: origin:", audience);
       this._doLogout(rp, {audience: audience});
+    } else {
+      log("logout: no RP found with id:", aRpCallerIde);
     }
     // We don't delete this._rpFlows[aRpCallerId], because
     // the user might log back in again.
@@ -562,10 +611,14 @@ IDService.prototype = {
    *                  - doGenKeyPairCallback(pk)
    */
   beginProvisioning: function beginProvisioning(aCaller) {
+    log("beginProvisioning:", aCaller.id);
+
     // Expect a flow for this caller already to be underway.
     let provFlow = this._provisionFlows[aCaller.id];
     if (!provFlow) {
-      return aCaller.doError("No provision flow for caller with your id:", aCaller.id);
+      let errStr = "No provisioning flow found with id:" + aCaller.id;
+      log("ERROR: beginProvisioning:", errStr);
+      return aCaller.doError(errStr);
     }
 
     // keep the caller object around
@@ -595,11 +648,15 @@ IDService.prototype = {
    * @param aReason
    */
   raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason) {
+    log("ERROR: Provisioning failure:", aReason);
     Cu.reportError("Provisioning failure: " + aReason);
+
     // look up the provisioning caller and its callback
     let provFlow = this._provisionFlows[aProvId];
     if (!provFlow) {
-      Cu.reportError("No provision flow for caller with your id: " + aProvId);
+      let errStr = "No provisioning flow found with id:" + aProvId;
+      log("ERROR: raiseProvisioningFailure:", errStr);
+      Cu.reportError(errStr);
       return;
     }
 
@@ -630,18 +687,20 @@ IDService.prototype = {
     let provFlow = this._provisionFlows[aProvId];
 
     if (!provFlow) {
-      log("Cannot genKeyPair on non-existing flow.");
+      log("ERROR: genKeyPair: no provisioning flow found with id:", aProvId);
       return null;
     }
 
     if (!provFlow.didBeginProvisioning) {
-      return provFlow.callback("Cannot genKeyPair before beginProvisioning");
+      let errStr = "ERROR: genKeyPair called before beginProvisioning";
+      log(errStr);
+      return provFlow.callback(errStr);
     }
 
     // Ok generate a keypair
     jwcrypto.generateKeyPair(jwcrypto.ALGORITHMS.DS160, function(err, kp) {
       if (err) {
-        log("error generating keypair:" + err);
+        log("ERROR: genKeyPair:" + err);
         return provFlow.callback(err);
       }
 
@@ -649,6 +708,7 @@ IDService.prototype = {
 
       // Serialize the publicKey of the keypair and send it back to the
       // sandbox.
+      log("genKeyPair: generated keypair for provisioning flow with id:", aProvId);
       provFlow.caller.doGenKeyPairCallback(provFlow.kp.serializedPublicKey);
     }.bind(this));
   },
@@ -669,15 +729,23 @@ IDService.prototype = {
    *                  being provisioned, provided by the IdP.
    */
   registerCertificate: function registerCertificate(aProvId, aCert) {
+    log("registerCertificate:", aProvId, aCert);
+
     // look up provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
     if (!provFlow && provFlow.caller) {
-      Cu.reportError("Cannot register cert; No provision flow or caller");
+      let errStr = "Cannot register cert; No provision flow or caller";
+      log("ERROR: registerCertificate:", errStr);
+      Cu.reportError(errStr);
+
+      // there is nobody to call back to
       return null;
     }
     if (!provFlow.kp)  {
-      Cu.reportError("Cannot register cert; No keypair");
-      return provFlow.callback("Cannot register a cert without generating a keypair first");
+      let errStr = "Cannot register a certificate without a keypair";
+      log("ERROR: registerCertificate:", errStr);
+      Cu.reportError(errStr);
+      return provFlow.callback(errStr);
     }
 
     // store the keypair and certificate just provided in IDStore.
@@ -712,6 +780,7 @@ IDService.prototype = {
     let authPath = aIDPParams.idpParams.authentication;
     let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
 
+    log("_doAuthentication: provId:", aProvId, "authURI:", authURI);
     // beginAuthenticationFlow causes the "identity-auth" topic to be
     // observed.  Since it's sending a notification to the DOM, there's
     // no callback.  We wait for the DOM to trigger the next phase of
@@ -737,6 +806,8 @@ IDService.prototype = {
    *
    */
   beginAuthentication: function beginAuthentication(aCaller) {
+    log("beginAuthentication: caller id:", aCaller.id);
+
     // Begin the authentication flow after having concluded a provisioning
     // flow.  The aCaller that the DOM gives us will have the same ID as
     // the provisioning flow we just concluded.  (see setAuthenticationFlow)
@@ -752,6 +823,7 @@ IDService.prototype = {
     let identity = this._provisionFlows[authFlow.provId].identity;
 
     // tell the UI to start the authentication process
+    log("beginAuthentication: authFlow:", authFlow.id, "identity:", identity);
     return authFlow.caller.doBeginAuthenticationCallback(identity);
   },
 
@@ -763,6 +835,8 @@ IDService.prototype = {
    *
    */
   completeAuthentication: function completeAuthentication(aAuthId) {
+    log("completeAuthentication:", aAuthId);
+
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -792,6 +866,8 @@ IDService.prototype = {
    *
    */
   cancelAuthentication: function cancelAuthentication(aAuthId) {
+    log("cancelAuthentication:", aAuthId);
+
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
@@ -808,7 +884,9 @@ IDService.prototype = {
     Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
 
     // invoke callback with ERROR.
-    return provFlow.callback("authentication cancelled by IDP");
+    let errStr = "Authentication canceled by IDP";
+    log("ERROR: cancelAuthentication:", errStr);
+    return provFlow.callback(errStr);
   },
 
   // methods for chrome and add-ons
@@ -840,6 +918,7 @@ IDService.prototype = {
   _getAssertion: function _getAssertion(aOptions, aCallback) {
     let audience = aOptions.audience;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
+    log("_getAssertion: audience:", audience, "email:", email);
 
     // We might not have any identity info for this email
     if (!this._store.fetchIdentity(email)) {
@@ -849,6 +928,8 @@ IDService.prototype = {
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
+        if (err) log("ERROR: _getAssertion:", err);
+        log("_getAssertion: generated assertion:", assertion);
         return aCallback(err, assertion);
       });
 
@@ -860,48 +941,23 @@ IDService.prototype = {
 
         // Now begin provisioning from the IdP
         this._generateAssertion(audience, email, function(err, assertion) {
+          if (err) log("ERROR: _getAssertion:", err);
+          log("_getAssertion: generated assertion:", assertion);
           return aCallback(err, assertion);
         }.bind(this));
       }.bind(this));
     }
   },
 
-  /**
-   * Obtain a BrowserID assertion by asking the user to login and select an
-   * email address.
-   *
-   * @param aCallback
-   *        (Function) Callback to be called with (err, assertion) where 'err'
-   *        can be an Error or NULL, and 'assertion' can be NULL or a valid
-   *        BrowserID assertion. If no callback is provided, an exception is
-   *        thrown.
-   *
-   * @param aOptions
-   *        (Object) An object that may contain the following properties:
-   *
-   *          "audience"      : The audience for which the assertion is to be
-   *                            issued. If this property is not set an exception
-   *                            will be thrown.
-   *
-   * @param aFrame
-   *        (iframe) A XUL iframe element where the login dialog will be
-   *        rendered.
-   */
-  getAssertionWithLogin: function getAssertionWithLogin(aCallback, aOptions, aFrame) {
-    // XXX - do we need this call?
-  },
-
-  //
-  //
-  //
-
   shutdown: function shutdown() {
-    this.reset();
+    this.init();
   },
 
   getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
     let identities = this.getIdentitiesForSite(aOrigin);
-    return identities.lastUsed || null;
+    let result = identities.lastUsed || null;
+    log("getDefaultEmailForOrigin:", aOrigin, "->", result);
+    return result;
   },
 
   /**
@@ -925,7 +981,7 @@ IDService.prototype = {
     // this is the transition point between the two flows,
     // provision and authenticate.  We tell the auth flow which
     // provisioning flow it is started from.
-
+    log("setAuthenticationFlow: authId:", aAuthId, "provId:", aProvId);
     this._authenticationFlows[aAuthId] = { provId: aProvId };
     this._provisionFlows[aProvId].authId = aAuthId;
   },
@@ -962,6 +1018,7 @@ IDService.prototype = {
       aScheme = "https";
     }
     let url = aScheme + '://' + aDomain + "/.well-known/browserid";
+    log("_fetchWellKnownFile:", url);
 
     /*
     let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
@@ -989,8 +1046,9 @@ IDService.prototype = {
         if (! (idpParams.provisioning &&
             idpParams.authentication &&
             idpParams['public-key'])) {
-          log("Invalid well-known file from: " + aDomain);
-          return aCallback("Invalid well-known file from: " + aDomain);
+          let errStr= "Invalid well-known file from: " + aDomain;
+          log("_fetchWellKnownFile:", errStr);
+          return aCallback(errStr);
         }
 
         let callbackObj = {
@@ -1001,7 +1059,9 @@ IDService.prototype = {
         return aCallback(null, callbackObj);
 
       } catch (err) {
-        Cu.reportError("Bad configuration from " + aDomain + " : " +err);
+        let errStr = "Bad configuration from " + aDomain + ": " + err;
+        Cu.reportError(errStr);
+        log("ERROR: _fetchWellKnownFile:", errStr);
         return aCallback(err.toString());
       }
     };
@@ -1009,6 +1069,7 @@ IDService.prototype = {
       let err = "Failed to fetch well-known file";
       if (req.status) err += " " + req.status + ":";
       if (req.statusText) err += " " + req.statusText;
+      log("ERROR: _fetchWellKnownFile:", err);
       return aCallback(err);
     };
     req.send(null);
@@ -1022,6 +1083,7 @@ IDService.prototype = {
    * context.
    */
   _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback) {
+    log("_createProvisioningSandbox:", aURL);
     new Sandbox(aURL, aCallback);
   },
 
@@ -1029,6 +1091,7 @@ IDService.prototype = {
    * Load the authentication UI to start the authentication process.
    */
   _beginAuthenticationFlow: function _beginAuthenticationFlow(aProvId, aURL) {
+    log("_beginAuthenticationFlow:", aProvId, aURL);
     let propBag = Cc["@mozilla.org/hash-property-bag;1"]
                     .createInstance(Ci.nsIWritablePropertyBag);
     propBag.setProperty("provId", aProvId);
@@ -1050,13 +1113,14 @@ IDService.prototype = {
         this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
         break;
     }
-  }.bind(this),
+  },
 
   /**
    * Clean up a provision flow and the authentication flow and sandbox
    * that may be attached to it.
    */
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
+    log('_cleanUpProvisionFlow:', provId);
     let prov = this._provisionFlows[aProvId];
     let rp = this._rpFlows[prov.rpId];
 
@@ -1064,6 +1128,7 @@ IDService.prototype = {
     if (prov.provisioningSandbox) {
       let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
       if (sandbox.free) {
+        log('_cleanUpProvisionFlow: freeing sandbox');
         sandbox.free();
       }
       delete this._provisionFlows[aProvId]['provisioningSandbox'];

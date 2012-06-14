@@ -256,7 +256,7 @@ function test_mock_doc() {
 function test_watch_loggedin_ready() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -277,7 +277,7 @@ function test_watch_loggedin_ready() {
 function test_watch_loggedin_login() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -306,7 +306,7 @@ function test_watch_loggedin_login() {
 function test_watch_loggedin_logout() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   var id = TEST_USER;
   var other_id = "otherid@foo.com";
@@ -340,7 +340,7 @@ function test_watch_loggedin_logout() {
 function test_watch_notloggedin_ready() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   IDService.watch(mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'ready');
@@ -354,7 +354,7 @@ function test_watch_notloggedin_ready() {
 function test_watch_notloggedin_logout() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   IDService.watch(mock_doc(TEST_USER, TEST_URL, call_sequentially(
     function(action, params) {
@@ -398,7 +398,7 @@ function test_request() {
 }
 
 function test_add_identity() {
-  IDService.reset();
+  IDService.init();
 
   IDService.addIdentity(TEST_USER);
 
@@ -412,7 +412,7 @@ function test_add_identity() {
 function test_select_identity() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   var id = "ishtar@mockmyid.com";
   setup_test_identity(id, TEST_CERT, function() {
@@ -464,7 +464,7 @@ function test_select_identity() {
 function test_logout() {
   do_test_pending();
 
-  IDService.reset();
+  IDService.init();
 
   var id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -517,7 +517,7 @@ function test_logout() {
  * frame would provide in response to DOM calls.
  */
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
-  IDService.reset();
+  IDService.init();
 
   var provId = uuid();
   IDService._provisionFlows[provId] = {
@@ -819,7 +819,7 @@ function test_complete_authentication_flow() {
   let topicObserved = false;
 
   // The result of authentication should be a successful login
-  IDService.reset();
+  IDService.init();
 
   setup_test_identity(id, TEST_CERT, function() {
     // set it up so we're supposed to be logged in to TEST_URL
