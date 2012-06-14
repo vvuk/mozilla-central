@@ -118,7 +118,7 @@ IDServiceStore.prototype = {
     return this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
   },
   getLoginState: function getLoginState(aOrigin) {
-    return this._loginStates[aOrigin];
+    return aOrigin in this._loginStates ? this._loginStates[aOrigin] : null;
   },
   clearLoginState: function clearLoginState(aOrigin) {
     delete this._loginStates[aOrigin];
@@ -591,11 +591,11 @@ IDService.prototype = {
     log("logout: RP caller id:", aRpCallerId);
     let rp = this._rpFlows[aRpCallerId];
     if (rp && rp.origin) {
-      let audience = rp.origin;
-      log("logout: origin:", audience);
-      this._doLogout(rp, {audience: audience});
+      let origin = rp.origin;
+      log("logout: origin:", origin);
+      this._doLogout(rp, {origin: origin});
     } else {
-      log("logout: no RP found with id:", aRpCallerIde);
+      log("logout: no RP found with id:", aRpCallerId);
     }
     // We don't delete this._rpFlows[aRpCallerId], because
     // the user might log back in again.
@@ -916,9 +916,12 @@ IDService.prototype = {
    *        Any properties not listed above will be ignored.
    */
   _getAssertion: function _getAssertion(aOptions, aCallback) {
-    let audience = aOptions.audience;
+    let audience = aOptions.origin;
     let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
     log("_getAssertion: audience:", audience, "email:", email);
+    if (!audience) {
+      throw "audience required for _getAssertion";
+    }
 
     // We might not have any identity info for this email
     if (!this._store.fetchIdentity(email)) {

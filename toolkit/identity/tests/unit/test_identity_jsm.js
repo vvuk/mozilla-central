@@ -360,6 +360,9 @@ function test_watch_notloggedin_logout() {
     function(action, params) {
       do_check_eq(action, 'logout');
       do_check_eq(params, undefined);
+
+      let store = get_idstore();
+      do_check_null(store.getLoginState(TEST_URL));
     },
     function(action, params) {
       do_check_eq(action, 'ready');
@@ -497,6 +500,8 @@ function test_logout() {
 
     doLogout = function() {
       IDService.logout(mockedDoc.id);
+      do_check_false(store.getLoginState(TEST_URL).isLoggedIn);
+      do_check_eq(store.getLoginState(TEST_URL).email, TEST_USER);
     };
 
     IDService.watch(mockedDoc);
