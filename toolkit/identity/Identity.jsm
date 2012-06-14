@@ -598,6 +598,10 @@ IDService.prototype = {
     Cu.reportError("Provisioning failure: " + aReason);
     // look up the provisioning caller and its callback
     let provFlow = this._provisionFlows[aProvId];
+    if (!provFlow) {
+      Cu.reportError("No provision flow for caller with your id: " + aProvId);
+      return;
+    }
 
     // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
@@ -608,7 +612,7 @@ IDService.prototype = {
     // responsible for cleaning up the now defunct provision flow.
 
     // invoke the callback with an error.
-    return provFlow.callback(aReason);
+    provFlow.callback(aReason);
   },
 
   /**

@@ -117,12 +117,26 @@ nsDOMIdentity.prototype = {
 
   beginProvisioning: function nsDOMIdentity_beginProvisioning(aCallback) {
     log("beginProvisioning: " + this._id);
+    // TODO: below is always true through XPConnect because of wrappers?
+    if (typeof(aCallback.onBeginProvisioning) !== "function") {
+      throw "beginProvisioning callback is required.";
+    }
+
     this._beginProvisioningCallback = aCallback;
     this._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
   },
 
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
-    log("genKeyPair");
+    log("genKeyPair: " + this._id);
+    if (!this._beginProvisioningCallback) {
+      throw "navigator.id.genKeyPair called outside of provisioning";
+    }
+
+    // TODO: below is always true through XPConnect because of wrappers?
+    if (typeof(aCallback.onSuccess) !== "function") {
+      throw "genKeyPair callback is required.";
+    }
+
     this._genKeyPairCallback = aCallback;
     this._mm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
   },
@@ -130,6 +144,10 @@ nsDOMIdentity.prototype = {
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
     log("registerCertificate:");
     log(aCertificate);
+    if (!this._genKeyPairCallback) {
+      throw "navigator.id.registerCertificate called outside of provisioning";
+    }
+
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
     this._mm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
@@ -137,6 +155,12 @@ nsDOMIdentity.prototype = {
 
   raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
     log("raiseProvisioningFailure '" + aReason + "'");
+    /*
+    if (!this._beginProvisioningCallback) {
+      // TODO: what if this is called in a prov. flow but before beginProv. is called?
+      throw "navigator.id.raiseProvisioningFailure called outside of provisioning";
+    }
+     */
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
     this._mm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
@@ -350,6 +374,6 @@ nsDOMIdentity.prototype = {
     flags: Ci.nsIClassInfo.DOM_OBJECT,
     classDescription: "Identity DOM Implementation"
   })
-}
+};
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentity]);

@@ -19,8 +19,8 @@
 
 "use strict"
 
-var identity = window.navigator.mozId;
-var index = 0;
+let identity = window.navigator.mozId;
+let index = 0;
 
 function expectException(aFunc, msg) {
   msg = msg || "";
@@ -34,7 +34,7 @@ function expectException(aFunc, msg) {
   ok(caughtEx, "Check for thrown exception: " + msg);
 }
 
-var steps = [
+let steps = [
   function nonExistentProp() {
     is(identity.foobarbaz, undefined, "Check that foobarbaz does not exist");
     expectException(function() {
@@ -92,7 +92,7 @@ var steps = [
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
-    var options = {
+    let options = {
       onlogin: onLoginLogoutCb,
       onlogout: onLoginLogoutCb,
       onready: 999
@@ -107,7 +107,7 @@ var steps = [
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
-    var options = {
+    let options = {
       onlogin: onLoginLogoutCb,
       onlogout: onLoginLogoutCb,
       loggedInEmail: 999,
@@ -119,8 +119,8 @@ var steps = [
   },
 */
   function watchOnReadyCalled() {
-    var onLogoutCalled = false;
-    var options = {
+    let onLogoutCalled = false;
+    let options = {
       loggedInEmail: "loggedOut@user.com",
       onlogin: function onLoginCb(assertion) {
         throw "onlogin/onlogout callback shouldn't have been called";

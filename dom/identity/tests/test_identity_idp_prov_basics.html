@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<!-- Any copyright is dedicated to the Public Domain.
+   - http://creativecommons.org/publicdomain/zero/1.0/ -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for navigator.id identity provider (IDP) provisioning basics</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<a target="_blank">navigator.id identity provider (IDP) provisioning basics</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+
+</div>
+<pre id="test">
+<script type="application/javascript;version=1.8">
+
+"use strict"
+
+let identity = window.navigator.mozId;
+let index = 0;
+
+function expectException(aFunc, msg) {
+  msg = msg || "";
+  let caughtEx;
+  try {
+    aFunc();
+  } catch (ex) {
+    caughtEx = ex;
+    info("caught: " + ex);
+  }
+  ok(caughtEx, "Check for thrown exception: " + msg);
+}
+
+let steps = [
+  // genKeyPair tests
+  function genKeyPairExists() {
+    is(typeof(identity.genKeyPair), "function",
+       "Check genKeyPair is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function genKeyPairNoArgs() {
+    expectException(function() {
+      identity.genKeyPair();
+    }, "genKeyPair with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function genKeyPairInvalidArg() {
+    expectException(function() {
+      identity.genKeyPair(990);
+    }, "Check genKeyPair with non-function object argument");
+    SimpleTest.executeSoon(next);
+  },
+  function genKeyPairOutsideProv() {
+    expectException(function(){
+      identity.genKeyPair(function(){});
+    }, "Check genKeyPair outside of a prov. flow");
+    SimpleTest.executeSoon(next);
+  },
+
+  // registerCertificate tests
+  function registerCertificateExists() {
+    is(typeof(identity.registerCertificate), "function",
+       "Check registerCertificate is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function registerCertificateNoArgs() {
+    expectException(identity.registerCertificate,
+                    "Check registerCertificate with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function registerCertificateOutsideProv() {
+    expectException(function(){
+      identity.registerCertificate("foo");
+    }, "Check registerCertificate outside of a prov. flow");
+    SimpleTest.executeSoon(next);
+  },
+
+  // raiseProvisioningFailure tests
+  function raiseProvisioningFailureExists() {
+    is(typeof(identity.raiseProvisioningFailure), "function",
+       "Check raiseProvisioningFailure is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function raiseProvisioningFailureNoArgs() {
+    expectException(identity.raiseProvisioningFailure,
+                    "raiseProvisioningFailure with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+/*
+  function raiseProvisioningFailureValidArgs() {
+    expectException(function() {
+      identity.raiseProvisioningFailure("my prov. failure message");
+    }, "raiseProvisioningFailure outside of a prov. flow");
+  },
+*/
+
+  // beginProvisioning tests
+  function beginProvisioningExists() {
+    is(typeof(identity.beginProvisioning), "function",
+       "Check beginProvisioning is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function beginProvisioningNoArgs() {
+    expectException(function() {
+      identity.beginProvisioning();
+    }, "beginProvisioning with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function beginProvisioningInvalidArg() {
+    expectException(function() {
+      identity.beginProvisioning(999);
+    }, "beginProvisioning with a non-function argument");
+    SimpleTest.executeSoon(next);
+  },
+  function beginProvisioningArgs() {
+    function beginProvisioningCb() {
+      throw "beginProvisioning callback shouldn't have been called outside of a"
+              + "provisioning flow";
+    }
+    is(identity.beginProvisioning(beginProvisioningCb), undefined,
+       "Check minimum beginProvisioning arguments");
+    SimpleTest.executeSoon(next);
+  },
+
+  function finish_tests() {
+    info("all done");
+    SimpleTest.finish();
+  },
+];
+
+
+function next() {
+  if (index >= steps.length) {
+    ok(false, "Shouldn't get here!");
+    return;
+  }
+  try {
+    let fn = steps[index];
+    info("Begin test " + index + " '" + steps[index].name + "'!");
+    fn();
+  } catch(ex) {
+    ok(false, "Caught exception", ex);
+  }
+  index += 1;
+}
+
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(next);
+
+</script>
+</pre>
+</body>
+</html>
