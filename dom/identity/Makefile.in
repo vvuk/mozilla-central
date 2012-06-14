@@ -11,8 +11,6 @@ relativesrcdir   = dom/identity
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = interfaces
-
 EXTRA_COMPONENTS = \
     nsDOMIdentity.js \
     nsIDService.js \

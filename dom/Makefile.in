@@ -41,6 +41,7 @@ DIRS = \
 
 DIRS += \
   interfaces/apps \
+  interfaces/identity \
   $(NULL)
 
 DIRS += \
