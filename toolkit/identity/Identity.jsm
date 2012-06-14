@@ -37,7 +37,9 @@ XPCOMUtils.defineLazyModuleGetter(this,
  * Enable with about:config pref toolkit.identity.debug
  */
 function log(args) {
-  if (! IdentityService._debugMode) return;
+  if (!IdentityService._debugMode) {
+    return;
+  }
 
   let strings = [];
   let args = Array.prototype.slice.call(arguments);
@@ -429,7 +431,7 @@ IDService.prototype = {
               // XXX order of callbacks and signals is a little tricky
               //self._cleanUpProvisionFlow(aProvId);
               self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
-                if (! err) {
+                if (!err) {
                   self._doLogin(rp, rpLoginOptions, assertion);
                   return;
                 } else {
@@ -931,7 +933,9 @@ IDService.prototype = {
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
       this._generateAssertion(audience, email, function(err, assertion) {
-        if (err) log("ERROR: _getAssertion:", err);
+        if (err) {
+          log("ERROR: _getAssertion:", err);
+        }
         log("_getAssertion: generated assertion:", assertion);
         return aCallback(err, assertion);
       });
@@ -940,11 +944,15 @@ IDService.prototype = {
       // We need to get a certificate.  Discover the identity's
       // IdP and provision
       this._discoverIdentityProvider(email, function(err, idpParams) {
-        if (err) return aCallback(err);
+        if (err) {
+          return aCallback(err);
+        }
 
         // Now begin provisioning from the IdP
         this._generateAssertion(audience, email, function(err, assertion) {
-          if (err) log("ERROR: _getAssertion:", err);
+          if (err) {
+            log("ERROR: _getAssertion:", err);
+          }
           log("_getAssertion: generated assertion:", assertion);
           return aCallback(err, assertion);
         }.bind(this));
@@ -1070,8 +1078,12 @@ IDService.prototype = {
     };
     req.onerror = function _fetchWellKnownFile_onerror() {
       let err = "Failed to fetch well-known file";
-      if (req.status) err += " " + req.status + ":";
-      if (req.statusText) err += " " + req.statusText;
+      if (req.status) {
+        err += " " + req.status + ":";
+      }
+      if (req.statusText) {
+        err += " " + req.statusText;
+      }
       log("ERROR: _fetchWellKnownFile:", err);
       return aCallback(err);
     };
@@ -1123,7 +1135,7 @@ IDService.prototype = {
    * that may be attached to it.
    */
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
-    log('_cleanUpProvisionFlow:', provId);
+    log('_cleanUpProvisionFlow:', aProvId);
     let prov = this._provisionFlows[aProvId];
     let rp = this._rpFlows[prov.rpId];
 
