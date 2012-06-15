@@ -57,6 +57,8 @@ Base64urlEncode(const SECItem * it, nsACString & result)
       out[i] = '_';
     }
   }
+
+  return NS_OK;
 }
 
 nsresult
