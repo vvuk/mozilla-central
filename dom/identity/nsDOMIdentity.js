@@ -46,7 +46,8 @@ nsDOMIdentity.prototype = {
 
     // loggedInEmail - TODO: check email format?
     let emailType = typeof(aOptions["loggedInEmail"]);
-    if (aOptions["loggedInEmail"] && emailType !== "string") {
+    if (aOptions["loggedInEmail"] && aOptions["loggedInEmail"] !== "undefined"
+        && emailType !== "string") {
       throw "loggedInEmail must be a String or null";
     }
 
@@ -68,35 +69,28 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called before navigator.id.watch");
     }
 
-    if (aOptions) {
-      // requiredEmail - TODO: check email format?
-      let emailType = typeof(aOptions["requiredEmail"]);
-      if (aOptions["requiredEmail"] && emailType !== "string") {
-        throw "requiredEmail must be a String or null";
-      }
+    let message = this.DOMIdentityMessage();
 
+    if (aOptions) {
       // Optional string properties
-      let optionalStringProps = ["privacyURL", "tosURL"];
+      let optionalStringProps = ["privacyURL", "tosURL", "requiredEmail"];
       for (let propName of optionalStringProps) {
-        if (aOptions[propName] && typeof(aOptions[propName]) !== "string") {
+        log(propName + " : " + typeof(aOptions[propName]) + " : " + aOptions[propName]);
+        if (!aOptions[propName] || aOptions[propName] === "undefined")
+          continue;
+        if (typeof(aOptions[propName]) !== "string") {
           throw propName + " must be a string representing a URL.";
+        } else {
+          message[propName] = aOptions[propName];
         }
       }
 
       if (aOptions["oncancel"] && typeof(aOptions["oncancel"].handleEvent) !== "function") {
         throw "oncancel is not a function";
+      } else {
+        // Store optional cancel callback for later.
+        this._onCancelRequestCallback = aOptions.oncancel;
       }
-    }
-
-    let message = this.DOMIdentityMessage();
-
-    if (aOptions) {
-      // Store optional cancel callback for later.
-      this._onCancelRequestCallback = aOptions.oncancel;
-
-      message.requiredEmail = aOptions.requiredEmail;
-      message.privacyURL = aOptions.privacyURL;
-      message.tosURL = aOptions.tosURL;
     }
 
     this._mm.sendAsyncMessage("Identity:RP:Request", message);
