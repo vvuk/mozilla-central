@@ -343,7 +343,9 @@ IDService.prototype = {
     let rp = this._rpFlows[aRPId];
     let baseURI = Services.io.newURI(rp.origin, null, null);
     for (let optionName of ["privacyURL", "tosURL"]) {
-      options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
+      if (aOptions[optionName]) {
+        options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
+      }
     }
 
     Services.obs.notifyObservers(options, "identity-request", null);
