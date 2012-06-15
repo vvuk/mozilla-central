@@ -9,12 +9,6 @@ interface nsIIdentityKeyGenCallback;
 interface nsIIdentityKeyPair;
 interface nsIIdentitySignCallback;
 
-%{ C++
-#define NS_IDENTITYCRYPTOSERVICE_CONTRACTID \
-        "@mozilla.org/identity/crypto-service;1"
-%}
-
-
 /* Naming and calling conventions:
  *
  * A"hex" prefix means "hex-encoded string representation of a byte sequence"
@@ -37,7 +31,8 @@ interface nsIIdentitySignCallback;
  * "DS160": DSA with SHA-1. A 1024-bit prime and a 160-bit subprime with SHA-1.
  */
 
-[scriptable, uuid(984f31ba-eaef-4824-b763-9637f87c1956)]
+// "@mozilla.org/identity/crypto-service;1"
+[scriptable, builtinclass, uuid(661ebac0-c05a-44d7-98f6-514cc2191b52)]
 interface nsIIdentityCryptoService : nsISupports
 {
   void generateKeyPair(in AUTF8String algorithm, 
@@ -74,7 +69,7 @@ interface nsIIdentityKeyPair : nsISupports
  * This interface provides a JavaScript callback object used to collect the 
  * nsIIdentityServeKeyPair when the keygen operation is complete 
  */
-[scriptable, uuid(f38100a5-94f1-415c-ac05-7e8351345dec)]
+[scriptable, function, uuid(90f24ca2-2b05-4ca9-8aec-89d38e2f905a)]
 interface nsIIdentityKeyGenCallback : nsISupports
 {
   void generateKeyPairFinished(in nsresult rv,
@@ -85,7 +80,7 @@ interface nsIIdentityKeyGenCallback : nsISupports
  * This interface provides a JavaScript callback object used to collect the 
  * AUTF8String signature 
  */
-[scriptable, uuid(52992987-2725-4f71-94f4-ec40a141388b)]
+[scriptable, function, uuid(2d3e5036-374b-4b47-a430-1196b67b890f)]
 interface nsIIdentitySignCallback : nsISupports
 {
   /** On success, base64urlSignature is the base-64-URL-encoded signature

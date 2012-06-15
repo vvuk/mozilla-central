@@ -15,83 +15,52 @@ const ALG_RSA = "RS256";
 
 function log(aMsg){ dump("ID Tests: " + aMsg+ "\n"); };
 
-var CallbackPrototype = {
-  QueryInterface: function(iid) {
-    if (iid.equals(Components.interfaces.nsIIdentityKeyGenCallback) ||
-        iid.equals(Components.interfaces.nsIIdentitySignCallback) ||
-        iid.equals(Components.interfaces.nsISupports))
-      return this;
-
-    throw Components.results.NS_ERROR_NO_INTERFACE;
-  },
-};
+// When the output of an operation is a 
+function do_check_eq_or_slightly_less(x, y) {
+  do_check_true(x >= y - (3 * 8));
+}
 
 function test_dsa() {
-  var dsaCallback = {
-    generateKeyPairFinished: function dsa_GenerateKeyPairFinished(rv, keyPair)
-    {
-      log("DSA generateKeyPairFinished");
-      do_check_true(Components.isSuccessCode(rv));
-      do_check_eq(typeof keyPair.sign, "function");
-      log("DSA generateKeyPairFinished " + rv);
-      //do_check_true(keyPair.keyType == AlG_DSA);
-      do_check_eq(keyPair.hexDSAGenerator.length, 1024 / 8 * 2);
-      do_check_eq(keyPair.hexDSAPrime.length, 1024 / 8 * 2);
-      do_check_eq(keyPair.hexDSASubPrime.length, 160 / 8 * 2);
-      do_check_eq(keyPair.hexDSAPublicValue.length, 1024 / 8 * 2);
-      // XXX: test that RSA parameters throw the correct error
+  idService.generateKeyPair(ALG_DSA, function (rv, keyPair) {
+    log("DSA generateKeyPair finished " + rv);
+    do_check_true(Components.isSuccessCode(rv));
+    do_check_eq(typeof keyPair.sign, "function");
+    do_check_eq(keyPair.keyType, ALG_DSA);
+    do_check_eq_or_slightly_less(keyPair.hexDSAGenerator.length, 1024 / 8 * 2);
+    do_check_eq_or_slightly_less(keyPair.hexDSAPrime.length, 1024 / 8 * 2);
+    do_check_eq_or_slightly_less(keyPair.hexDSASubPrime.length, 160 / 8 * 2);
+    do_check_eq_or_slightly_less(keyPair.hexDSAPublicValue.length, 1024 / 8 * 2);
+    // XXX: test that RSA parameters throw the correct error
 
-      this.keyPair = keyPair;
-
-      log("about to sign with DSA key");
-      keyPair.sign("foo", this);
-    },
-
-    signFinished: function dsa_SignFinished(rv, signature)
-    {
-      log("DSA signFinished");
-      log(signature);
+    log("about to sign with DSA key");
+    keyPair.sign("foo", function (rv, signature) {
+      log("DSA sign finished " + rv + " " + signature);
       do_check_true(Components.isSuccessCode(rv));
       do_check_true(signature.length > 1);
       // TODO: verify the signature with the public key
       run_next_test();
-    }
-  };
-
-  dsaCallback.prototype = CallbackPrototype;
-  idService.generateKeyPair(ALG_DSA, dsaCallback);
+    });
+  });
 }
 
 function test_rsa() {
-  // RSA Signature
-  var rsaCallback = {
-    generateKeyPairFinished: function rsa_GenerateKeyPairFinished(rv, keyPair)
-    {
-      log("RSA generateKeyPairFinished");
-      do_check_true(Components.isSuccessCode(rv));
-      do_check_true(typeof keyPair.sign == "function");
-      do_check_true(keyPair.keyType == ALG_RSA);
-      do_check_true(keyPair.hexRSAPublicKeyModulus.length > 1);
-      do_check_true(keyPair.hexRSAPublicKeyExponent.length > 1);
+  idService.generateKeyPair(ALG_RSA, function (rv, keyPair) {
+    log("RSA generateKeyPair finished " + rv);
+    do_check_true(Components.isSuccessCode(rv));
+    do_check_eq(typeof keyPair.sign, "function");
+    do_check_eq(keyPair.keyType, ALG_RSA);
+    do_check_eq_or_slightly_less(keyPair.hexRSAPublicKeyModulus.length,
+                                 2048 / 8);
+    do_check_true(keyPair.hexRSAPublicKeyExponent.length > 1);
 
-      this.keyPair = keyPair;
-
-      log("about to sign with RSA key");
-      keyPair.sign("foo", this);
-    },
-    
-    signFinished: function rsa_GenerateKeyPairFinished(rv, signature)
-    {
-      log("RSA signFinished");
-      log(signature);
+    log("about to sign with RSA key");
+    keyPair.sign("foo", function (rv, signature) {
+      log("RSA sign finished " + rv + " " + signature);
       do_check_true(Components.isSuccessCode(rv));
       do_check_true(signature.length > 1);
       run_next_test();
-    }
-  };
-  rsaCallback.prototype = CallbackPrototype;
-
-  idService.generateKeyPair(ALG_RSA, rsaCallback);
+    });
+  });
 }
 
 add_test(test_dsa);
