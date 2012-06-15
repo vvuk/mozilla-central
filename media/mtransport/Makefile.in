@@ -49,7 +49,7 @@ ifeq (WINNT,$(OS_TARGET))
 VISIBILITY_FLAGS =
 endif
 
-DEFINES += -DHAVE_STRDUP \
+DEFINES += -DHAVE_STRDUP -DNR_SOCKET='void *' \
 	$(NULL)
 
 LOCAL_INCLUDES += \
@@ -99,6 +99,7 @@ CPPSRCS = \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
   nr_socket_prsock.cpp \
+  nr_timer.cpp \
   $(NULL)
 
 DIRS = \

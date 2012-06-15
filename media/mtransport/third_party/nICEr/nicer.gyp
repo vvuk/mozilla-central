@@ -63,7 +63,7 @@
                 # Net
                 "./src/net/nr_socket.c",
                 "./src/net/nr_socket.h",
-                "./src/net/nr_socket_local.c",
+                #"./src/net/nr_socket_local.c",
                 "./src/net/nr_socket_local.h",
                 "./src/net/transport_addr.c",
                 "./src/net/transport_addr.h",
@@ -114,7 +114,8 @@
               'USE_RFC_3489_BACKWARDS_COMPATIBLE',
               'USE_STUND_0_96',
               'USE_STUN_PEDANTIC',
-              'USE_TURN'
+              'USE_TURN',
+              'NR_SOCKET="void *"',
           ],
           
           'conditions' : [

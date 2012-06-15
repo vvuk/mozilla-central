@@ -4,6 +4,41 @@
 
 // Original author: ekr@rtfm.com
 
+// Some of this code is cut-and-pasted from nICEr. Copyright is:
+
+/*
+Copyright (c) 2007, Adobe Systems, Incorporated
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+* Neither the name of Adobe Systems, Network Resonance nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+
 #include <string>
 #include <queue>
 
@@ -14,6 +49,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
+#include "nsError.h"
 #include "nsIEventTarget.h"
 #include "nsNetCID.h"
 #include "nsComponentManagerUtils.h"
@@ -23,6 +59,7 @@
 extern "C" {
 #include "nr_api.h"
 #include "registry.h"
+#include "async_timer.h"
 #include "ice_util.h"
 #include "transport_addr.h"
 #include "nr_crypto.h"
@@ -44,7 +81,7 @@ extern "C" {
 MLOG_INIT("mtransport");
 
 std::string TransportLayerIce::ID("mt_ice");
-static int initialized = 0;
+static bool initialized = false;
 
 
 // Implement NSPR-based crypto algorithms
@@ -114,36 +151,141 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 
 
 
-TransportLayerIceCtx::TransportLayerIceCtx(const std::string& name, bool offerer) :
-  name_(name), offerer_(offerer), ctx_(NULL) {
-  if (!initialized) {
-    nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
-    NR_reg_init(NR_REG_MODE_LOCAL);
-    initialized = 1;
-  }
+// NrIceCtx
+// Handler callbacks
+static int select_pair(void *obj,nr_ice_media_stream *stream, 
+                   int component_id, nr_ice_cand_pair **potentials,
+                   int potential_ct) {
+  return 0;
 }
 
-nsresult TransportLayerIceCtx::Init() {
+static int stream_ready(void *obj, nr_ice_media_stream *stream) {
+  return 0;
+}
+
+static int stream_failed(void *obj, nr_ice_media_stream *stream) {
+  return 0;
+}
+
+static int ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
+  return 0;
+}
+ 
+static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, int component_id, UCHAR *msg, int len) {
+  return 0;
+}
+
+static nr_ice_handler_vtbl handler_vtbl = {
+  select_pair,
+  stream_ready,
+  stream_failed,
+  ice_completed,
+  msg_recvd
+};
+
+
+mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
+                                           bool offerer) {
+  mozilla::RefPtr<NrIceCtx> ctx = new NrIceCtx(name, offerer);
+
+  // Initialize the crypto callbacks
+  if (!initialized) {
+    NR_reg_init(NR_REG_MODE_LOCAL);
+    nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
+    initialized = true;
+  }
+
   // Create the ICE context
   int r;
   
-  r = nr_ice_ctx_create(const_cast<char *>(name_.c_str()),
-                        offerer_ ? 
+  r = nr_ice_ctx_create(const_cast<char *>(name.c_str()),
+                        offerer ? 
                         NR_ICE_CTX_FLAGS_OFFERER :
                         NR_ICE_CTX_FLAGS_ANSWERER,
-                        &ctx_);
+                        &ctx->ctx_);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name_ << "'");
-    return NS_ERROR_FAILURE;
+    MLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name << "'");
+    return NULL;
   }
-  
-  return NS_OK;
+
+  return ctx;
 }
 
 
-
-TransportLayerIceCtx::~TransportLayerIceCtx() {
+NrIceCtx::~NrIceCtx() {
   // TODO(ekr@rtfm.com): Implement this
 }
+
+mozilla::RefPtr<NrIceMediaStream>
+NrIceCtx::CreateStream(const std::string& name, int components) {
+  mozilla::RefPtr<NrIceMediaStream> stream =
+    NrIceMediaStream::Create(this, name, components);
+  
+  streams_.push_back(stream);
+
+  return stream;
+}
+
+
+void NrIceCtx::StartGathering(nsresult *result) {
+  int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
+                                this);
+  
+  if (r) {
+    if (r == R_WOULDBLOCK) {
+      // More candidates coming. AddRef() so we don't get destroyed
+      // while waiting for the callback
+      this->AddRef();
+    } else {
+      MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
+           << name_ << "'");
+      *result = NS_ERROR_FAILURE;
+      return;
+    }
+  } else {
+    // All candidates are available
+    ReportAllCandidates();
+  }
+
+  *result = NS_OK;
+}
+
+void NrIceCtx::ReportAllCandidates() {
+  MLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
+       << name_ << "'");
+
+}
+
+void NrIceCtx::initialized_cb(int s, int h, void *arg) {
+  NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
+  
+  
+  ctx->Release();
+}
+
+// NrIceMediaStream
+mozilla::RefPtr<NrIceMediaStream>
+NrIceMediaStream::Create(mozilla::RefPtr<NrIceCtx> ctx,
+                         const std::string& name,
+                         int components) {
+  mozilla::RefPtr<NrIceMediaStream> stream =
+    new NrIceMediaStream(ctx, name, components);
+  
+  int r = nr_ice_add_media_stream(ctx->ctx(),
+                                  const_cast<char *>(name.c_str()),
+                                  components, &stream->stream_);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't create ICE media stream for '"
+         << name << "'");
+    return NULL;
+  }
+
+  return stream;
+}
+
+NrIceMediaStream::~NrIceMediaStream() {
+  // TODO(ekr@rtfm.com): Implement this
+}
+                                           
 
 

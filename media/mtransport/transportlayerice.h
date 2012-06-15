@@ -8,6 +8,8 @@
 #ifndef transportlayerice_h__
 #define transportlayerice_h__
 
+#include <vector>
+
 #include <talk/base/sigslot.h>
 
 #include "mozilla/RefPtr.h"
@@ -23,46 +25,106 @@ typedef struct nr_ice_ctx_ nr_ice_ctx;
 typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
 
-class TransportLayerIceCtx {
- public:
-  TransportLayerIceCtx(const std::string& name, bool offerer);
-  virtual ~TransportLayerIceCtx();
-  
-  // Initialize
-  nsresult Init();
+class NrIceMediaStream;
 
+class NrIceCtx {
+ public:
+  static mozilla::RefPtr<NrIceCtx> Create(const std::string& name,
+                                          bool offerer);
+  virtual ~NrIceCtx();
+  
+  nr_ice_ctx *ctx() { return ctx_; }
+
+  // Create a media stream
+  mozilla::RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
+                                                 int components);
+
+  // Start ICE gathering
+  void StartGathering(nsresult *res);
+
+  // Signals to indicate events. API users can (and should)
+  // register for these.
+  
+  
   // Allow this to be refcountable
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIceCtx);
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
 
  private:
-  DISALLOW_COPY_ASSIGN(TransportLayerIceCtx);
-  
+  NrIceCtx(const std::string& name, bool offerer)
+      : name_(name), offerer_(offerer), streams_(), ctx_(NULL) {}
+  DISALLOW_COPY_ASSIGN(NrIceCtx);
+
+  static void initialized_cb(int s, int h, void *arg);
+  void ReportAllCandidates();
+
   const std::string name_;
   bool offerer_;
+  std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
   nr_ice_ctx *ctx_;
 };
 
 
+class NrIceMediaStream {
+ public:
+  static mozilla::RefPtr<NrIceMediaStream> Create(mozilla::RefPtr<NrIceCtx> ctx,
+                                           const std::string& name,
+                                           int components);
+  
+  // Allow this to be refcountable
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
+  
+ private:
+  NrIceMediaStream(mozilla::RefPtr<NrIceCtx> ctx,  const std::string& name,
+                   int components)
+      : ctx_(ctx), name_(name), components_(components), stream_(NULL)  {}
+  ~NrIceMediaStream();
+
+
+  // Signals to indicate events. API users can (and should)
+  // register for these.
+  
+                   
+  DISALLOW_COPY_ASSIGN(NrIceMediaStream);
+
+  mozilla::RefPtr<NrIceCtx> ctx_;
+  const std::string name_;
+  const int components_;
+  nr_ice_media_stream *stream_;
+};
+
+
+
+
+
+
+
+
+
+
+
+class TransportLayerIce;
+
+// An ICE transport layer -- corresponds to a single ICE
 class TransportLayerIce {
  public:
   TransportLayerIce(const std::string& name,
-                    TransportLayerIceCtx *ctx);
+                    NrIceCtx *ctx);
   virtual ~TransportLayerIce();
 
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIce);
 
-
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
- 
+
   // A static version of the layer ID
   static std::string ID;
 
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerIce);
 
-  TransportLayerIceCtx *ctx_;
+  NrIceCtx *ctx_;  // The parent context
+  nr_ice_media_stream *media_stream;  // The media stream for this
   const std::string name_;
   nr_ice_media_stream *stream_;
 };

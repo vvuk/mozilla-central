@@ -8,7 +8,9 @@ Modified version of nr_socket_local, adapted for NSPR
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
-Original code from nICEr:
+Original code from nICEr and nrappkit.
+
+nICEr copyright:
 
 Copyright (c) 2007, Adobe Systems, Incorporated
 All rights reserved.
@@ -39,51 +41,146 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+nrappkit copyright:
+   
+   Copyright (C) 2001-2003, Network Resonance, Inc.
+   Copyright (C) 2006, Network Resonance, Inc.
+   All Rights Reserved
+   
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
+   
+   1. Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+   2. Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+   3. Neither the name of Network Resonance, Inc. nor the name of any
+      contributors to this software may be used to endorse or promote 
+      products derived from this software without specific prior written
+      permission.
+   
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS''
+   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+   ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
+   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGE.
+   
+
+   ekr@rtfm.com  Thu Dec 20 20:14:49 2001
 */
 
 #include <csi_platform.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-
 #include <assert.h>
 #include <errno.h>
-#include "nr_api.h"
-#include "nr_socket.h"
 
 #include "nspr.h"
 #include "prerror.h"
 #include "prio.h"
 #include "prnetdb.h"
 
+#include "nsCOMPtr.h"
+#include "nsASocketHandler.h"
+#include "nsISocketTransportService.h"
+#include "nsNetCID.h"
+#include "nsISupportsImpl.h"
+#include "nsServiceManagerUtils.h"
+#include "nsXPCOM.h"
+
+extern "C" {
+#include "nr_api.h"
+#include "async_wait.h"
+#include "nr_socket.h"
 #include "nr_socket_local.h"
+}
 
-typedef struct nr_socket_local_ {
-  nr_transport_addr my_addr;
-  PRFileDesc *sock;
-} nr_socket_local;
+#include "nr_socket_prsock.h"
+
+// Implement the nsISupports ref counting
+NS_IMPL_THREADSAFE_ISUPPORTS0(NrSocket);
 
 
-static int nr_socket_local_destroy(void **objp);
-static int nr_socket_local_sendto(void *obj,const void *msg, size_t len,
-  int flags, nr_transport_addr *to);
-static int nr_socket_local_recvfrom(void *obj,void * restrict buf,
-  size_t maxlen, size_t *len, int flags, nr_transport_addr *from);
-static int nr_socket_local_getfd(void *obj, NR_SOCKET *fd);
-static int nr_socket_local_getaddr(void *obj, nr_transport_addr *addrp);
-static int nr_socket_local_close(void *obj);
+// The nsASocket callbacks
+void NrSocket::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+  if (outflags & PR_POLL_READ)
+    fire_callback(NR_ASYNC_WAIT_READ);
+  if (outflags & PR_POLL_WRITE)
+    fire_callback(NR_ASYNC_WAIT_WRITE);
+}
 
-static nr_socket_vtbl nr_socket_local_vtbl={
-  nr_socket_local_destroy,
-  nr_socket_local_sendto,
-  nr_socket_local_recvfrom,
-  nr_socket_local_getfd,
-  nr_socket_local_getaddr,
-  nr_socket_local_close
-};
+void NrSocket::OnSocketDetached(PRFileDesc *fd) {
+  ;  // TODO(ekr@rtfm.com): Log?
+}
 
+// async_event APIs
+int NrSocket::async_wait(int how, NR_async_cb cb, void *cb_arg,
+                         char *function, int line) {
+  PRUint16 flag;
+
+  switch (how) {
+    case NR_ASYNC_WAIT_READ:
+      flag = PR_POLL_READ;
+      break;
+    case NR_ASYNC_WAIT_WRITE:
+      flag = PR_POLL_WRITE;
+      break;
+    default:
+      return R_BAD_ARGS;
+  }
+
+  cbs_[how] = cb;
+  cb_args_[how] = cb_arg;
+  mPollFlags |= flag;
+
+  return 0;
+}
+ 
+int NrSocket::cancel(int how) {
+  PRUint16 flag;
+  
+  switch (how) {
+    case NR_ASYNC_WAIT_READ:
+      flag = PR_POLL_READ;
+      break;
+    case NR_ASYNC_WAIT_WRITE:
+      flag = PR_POLL_WRITE;
+      break;
+    default:
+      return R_BAD_ARGS;
+  }
+  
+  mPollFlags &= ~flag;
+  
+  return 0;
+}
+
+void NrSocket::fire_callback(int how) {
+  // This can't happen unless we are armed because we only set
+  // the flags if we are armed
+  PR_ASSERT(cbs_[how]);
+  // TODO(ekr@rtfm.com): need to make the resource valid, but
+  // nICEr does not rely on the resource being valid
+  cbs_[how](0, how, cb_args_[how]);
+
+  // Now cancel so that we need to be re-armed
+  cancel(how);
+}
+
+// Helper functions for addresses
 static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
-  PRNetAddr *naddr)
+  PRNetAddr *naddr) 
   {
     int _status;
     
@@ -144,164 +241,230 @@ static int nr_praddr_to_transport_addr(PRNetAddr *praddr,
     return(_status);
   }
 
-int nr_socket_local_create(nr_transport_addr *addr, nr_socket **sockp)
-  {
-    int r,_status;
-    nr_socket_local *lcl=0;
-    PRStatus status;
-    PRNetAddr naddr;
 
-    if((r=nr_transport_addr_to_praddr(addr, &naddr)))
-      ABORT(r);
+// nr_socket APIs (as member functions)
+int NrSocket::create(nr_transport_addr *addr) {
+  int r,_status;
+  
+  PRStatus status;
+  PRNetAddr naddr;
 
-    if (!(lcl=(nr_socket_local *)RCALLOC(sizeof(nr_socket_local))))
-      ABORT(R_NO_MEMORY);
-    lcl->sock=0;
-    
-    if (!(lcl->sock = PR_NewUDPSocket())) {
-      r_log(LOG_GENERIC,LOG_CRIT,"Couldn't create socket");
-      ABORT(R_INTERNAL);
-    }
+  nsresult rv;
+  stservice_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
 
-    status = PR_Bind(lcl->sock, &naddr);
-    if (status != PR_SUCCESS) {
-      r_log(LOG_GENERIC,LOG_CRIT,"Couldn't bind socket to address %s",
-            addr->as_string);
-      ABORT(R_INTERNAL);
-    }
+  if (!NS_SUCCEEDED(rv)) {
+    ABORT(R_INTERNAL);
+  }
+  
+  if((r=nr_transport_addr_to_praddr(addr, &naddr)))
+    ABORT(r);
 
-    r_log(LOG_GENERIC,LOG_DEBUG,"Creating socket %d with addr %s",
-          lcl->sock,addr->as_string);
-    nr_transport_addr_copy(&lcl->my_addr,addr);
-
-    /* If we have a wildcard port, patch up the addr */
-    if(nr_transport_addr_is_wildcard(addr)){
-      status = PR_GetSockName(lcl->sock, &naddr);
-      if (status != PR_SUCCESS)
-        ABORT(R_INTERNAL);
-      
-      if((r=nr_praddr_to_transport_addr(&naddr,&lcl->my_addr,1)))
-         ABORT(r);
-    }
-    
-    if((r=nr_socket_create_int(lcl, &nr_socket_local_vtbl, sockp)))
-      ABORT(r);
-
-    _status=0;
-  abort:
-    if(_status){
-      nr_socket_local_destroy((void **)&lcl);
-    }
-    return(_status);
+  if (!(fd_ = PR_NewUDPSocket())) {
+    r_log(LOG_GENERIC,LOG_CRIT,"Couldn't create socket");
+    ABORT(R_INTERNAL);
   }
 
-
-static int nr_socket_local_destroy(void **objp)
-  {
-    nr_socket_local *lcl;
-
-    if(!objp || !*objp)
-      return(0);
-
-    lcl=(nr_socket_local *)*objp;
-    *objp=0;
-
-    if(lcl->sock)
-      PR_Close(lcl->sock);
-
-    RFREE(lcl);
-    
-    return(0);
+  status = PR_Bind(fd_, &naddr);
+  if (status != PR_SUCCESS) {
+    r_log(LOG_GENERIC,LOG_CRIT,"Couldn't bind socket to address %s",
+          addr->as_string);
+    ABORT(R_INTERNAL);
   }
+
+  r_log(LOG_GENERIC,LOG_DEBUG,"Creating socket %d with addr %s",
+        fd_, addr->as_string);
+  nr_transport_addr_copy(&my_addr_,addr);
+
+  /* If we have a wildcard port, patch up the addr */
+  if(nr_transport_addr_is_wildcard(addr)){
+    status = PR_GetSockName(fd_, &naddr);
+    if (status != PR_SUCCESS)
+      ABORT(R_INTERNAL);
+    
+    if((r=nr_praddr_to_transport_addr(&naddr,&my_addr_,1)))
+      ABORT(r);
+  }
+
+  // Finally, register with the STS
+  rv = stservice_->AttachSocket(fd_, this);
+  if (!NS_SUCCEEDED(rv)) {
+    ABORT(R_INTERNAL);
+  }
+  
+  _status = 0;
+
+abort:
+  return(_status);
+}
+
+int NrSocket::sendto(const void *msg, size_t len,
+                     int flags, nr_transport_addr *to) {
+  int r,_status;
+  PRNetAddr naddr;
+  PRInt32 status;
+
+  if ((r=nr_transport_addr_to_praddr(to, &naddr)))
+    ABORT(r);
+
+  if(fd_==NULL)
+    ABORT(R_EOD);
+
+  // TODO(ekr@rtfm.com): Convert flags?
+  status = PR_SendTo(fd_, msg, len, flags, &naddr, PR_INTERVAL_NO_WAIT);
+  if (status != len) {
+    r_log_e(LOG_GENERIC, LOG_INFO, "Error in sendto %s", to->as_string);
+
+    ABORT(R_IO_ERROR);
+  }
+
+  _status=0;
+abort:
+  return(_status);
+}
+
+int NrSocket::recvfrom(void * buf, size_t maxlen,
+                                       size_t *len, int flags,
+                                       nr_transport_addr *from) {
+  int r,_status;
+  PRNetAddr nfrom;
+  PRInt32 status;
+
+  status = PR_RecvFrom(fd_, buf, maxlen, flags, &nfrom, PR_INTERVAL_NO_WAIT);
+  if (status <= 0) {
+    r_log_e(LOG_GENERIC,LOG_ERR,"Error in recvfrom");
+    ABORT(R_IO_ERROR);
+  }
+  *len=status;
+
+  if((r=nr_praddr_to_transport_addr(&nfrom,from,0)))
+    ABORT(r);
+    
+  //r_log(LOG_GENERIC,LOG_DEBUG,"Read %d bytes from %s",*len,addr->as_string);
+
+  _status=0;
+abort:
+  return(_status);
+}
+
+int NrSocket::getaddr(nr_transport_addr *addrp) {
+  return nr_transport_addr_copy(addrp, &my_addr_);
+}
+
+// Close the socket so that the STS will detach and then kill it
+void NrSocket::close() {
+  mCondition = NS_BASE_STREAM_CLOSED;
+}
+
+
+// Bridge to the nr_socket interface
+static int nr_socket_local_destroy(void **objp);
+static int nr_socket_local_sendto(void *obj,const void *msg, size_t len,
+                                  int flags, nr_transport_addr *to);
+static int nr_socket_local_recvfrom(void *obj,void * restrict buf,
+  size_t maxlen, size_t *len, int flags, nr_transport_addr *from);
+static int nr_socket_local_getfd(void *obj, NR_SOCKET *fd);
+static int nr_socket_local_getaddr(void *obj, nr_transport_addr *addrp);
+static int nr_socket_local_close(void *obj);
+
+static nr_socket_vtbl nr_socket_local_vtbl={
+  nr_socket_local_destroy,
+  nr_socket_local_sendto,
+  nr_socket_local_recvfrom,
+  nr_socket_local_getfd,
+  nr_socket_local_getaddr,
+  nr_socket_local_close
+};
+
+
+int nr_socket_local_create(nr_transport_addr *addr, nr_socket **sockp) {
+  NrSocket *sock = new NrSocket();
+  int r, _status;
+    
+  r = sock->create(addr);
+  if (r)
+    ABORT(r);
+  
+  r = nr_socket_create_int(static_cast<void *>(sock), &nr_socket_local_vtbl, sockp);
+  if (r)
+    ABORT(r);
+
+  // TODO : register with STS
+  // Add a reference so that we can delete it in destroy()
+  sock->AddRef();
+
+  _status =0;
+
+abort:
+  if (_status) {
+    delete sock;
+  }
+  return _status;
+}
+
+
+static int nr_socket_local_destroy(void **objp) {
+  if(!objp || !*objp)
+    return 0;
+
+  NrSocket *sock = static_cast<NrSocket *>(*objp);
+  *objp=0;
+
+  sock->close();  // Signal STS that we want not to listen
+  sock->Release();  // Decrement the ref count
+    
+  return 0;
+}
 
 static int nr_socket_local_sendto(void *obj,const void *msg, size_t len,
-  int flags, nr_transport_addr *addr)
-  {
-    int r,_status;
-    nr_socket_local *lcl=(nr_socket_local *)obj;
-    PRNetAddr naddr;
-    PRInt32 status;
+                                  int flags, nr_transport_addr *addr) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
 
-    if ((r=nr_transport_addr_to_praddr(addr, &naddr)))
-      ABORT(r);
-
-    if(lcl->sock==NULL)
-      ABORT(R_EOD);
-
-    // TODO(ekr@rtfm.com): Convert flags?
-    status = PR_SendTo(lcl->sock, msg, len, flags, &naddr, PR_INTERVAL_NO_WAIT);
-    if (status != len) {
-      r_log_e(LOG_GENERIC, LOG_INFO, "Error in sendto %s", addr->as_string);
-
-      ABORT(R_IO_ERROR);
-    }
-
-    _status=0;
-  abort:
-    return(_status);
-  }
+  return sock->sendto(msg, len, flags, addr);
+}
 
 static int nr_socket_local_recvfrom(void *obj,void * restrict buf,
-  size_t maxlen, size_t *len, int flags, nr_transport_addr *addr)
-  {
-    int r,_status;
-    nr_socket_local *lcl=(nr_socket_local *)(obj);
-    PRNetAddr from;
-    PRInt32 status;
-    PRNetAddr addr_in;
+                                    size_t maxlen, size_t *len, int flags,
+                                    nr_transport_addr *addr) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
 
-    status = PR_RecvFrom(lcl->sock, buf, maxlen, flags, &from, PR_INTERVAL_NO_WAIT);
-    if (status <= 0) {
-      r_log_e(LOG_GENERIC,LOG_ERR,"Error in recvfrom");
-      ABORT(R_IO_ERROR);
-    }
-    *len=status;
+  return sock->recvfrom(buf, maxlen, len, flags, addr);
+}
 
-    if((r=nr_praddr_to_transport_addr(&from,addr,0)))
-      ABORT(r);
-    
-    //r_log(LOG_GENERIC,LOG_DEBUG,"Read %d bytes from %s",*len,addr->as_string);
+static int nr_socket_local_getfd(void *obj, NR_SOCKET *fd) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
 
-    _status=0;
-  abort:
-    return(_status);
-  }
+  *fd = sock;
 
-static int nr_socket_local_getfd(void *obj, NR_SOCKET *fd)
-  {
-    nr_socket_local *lcl=(nr_socket_local *)(obj);
+  return 0;
+}
 
-    if(lcl->sock==NULL)
-      return(R_BAD_ARGS);
-
-    // TODO: implement
-    abort();
-    *fd=0;
-
-    return(0);
-  }
-
-static int nr_socket_local_getaddr(void *obj, nr_transport_addr *addrp)
-  {
-    nr_socket_local *lcl=(nr_socket_local *)obj;
+static int nr_socket_local_getaddr(void *obj, nr_transport_addr *addrp) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
       
-    nr_transport_addr_copy(addrp,&lcl->my_addr);
+  return sock->getaddr(addrp);
+}
 
-    return(0);
-  }
 
-static int nr_socket_local_close(void *obj)
-  {
-    nr_socket_local *lcl=(nr_socket_local *)obj;
+static int nr_socket_local_close(void *obj) {
+  NrSocket *sock = static_cast<NrSocket *>(obj);
 
-    //r_log(LOG_GENERIC,LOG_DEBUG,"Closing sock (%x:%d)",lcl,lcl->sock);
+  sock->close();
 
-    if(lcl->sock != NULL){
-      // NR_ASYNC_CANCEL(lcl->sock,NR_ASYNC_WAIT_READ);
-      // NR_ASYNC_CANCEL(lcl->sock,NR_ASYNC_WAIT_WRITE);
-      // TODO(ekr@rtfm.com): Need to close... PR_Close(lcl->sock);
-    }
-    lcl->sock=NULL;
+  return 0;
+}
 
-    return(0);
-  }
+
+// Implement async api
+int NR_async_wait(NR_SOCKET sock, int how, NR_async_cb cb,void *cb_arg,
+                  char *function,int line) {
+  NrSocket *s = static_cast<NrSocket *>(sock);
+
+  return s->async_wait(how, cb, cb_arg, function, line);
+}
+
+int NR_async_cancel(NR_SOCKET sock,int how) {
+  NrSocket *s = static_cast<NrSocket *>(sock);
+
+  return s->cancel(how);
+}
+

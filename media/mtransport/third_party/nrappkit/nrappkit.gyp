@@ -91,9 +91,9 @@
               #'./src/util/util_db.h',
 
 	      # Events
-              './src/event/async_timer.c',
+#              './src/event/async_timer.c',
               './src/event/async_timer.h',
-              './src/event/async_wait.c',
+#              './src/event/async_wait.c',
               './src/event/async_wait.h',
               './src/event/async_wait_int.h',
 

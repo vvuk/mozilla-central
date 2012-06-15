@@ -62,6 +62,7 @@ LOCAL_INCLUDES += \
  $(NULL)
 
 CPP_UNIT_TESTS = \
+  ice_unittest.cpp \
   sockettransportservice_unittest.cpp \
   transport_unittests.cpp \
   runnable_utils_unittest.cpp \

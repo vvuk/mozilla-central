@@ -9,7 +9,6 @@
 #include "prio.h"
 
 #include "nsCOMPtr.h"
-
 #include "nsASocketHandler.h"
 #include "nsISocketTransportService.h"
 #include "nsNetCID.h"

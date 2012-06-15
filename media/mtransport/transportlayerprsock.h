@@ -67,13 +67,13 @@ class TransportLayerPrsock : public TransportLayer {
       }
       
       // Implement nsASocket
-      void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+      virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
         if (prsock_) {
           prsock_->OnSocketReady(fd, outflags);
         }
       }
 
-      void OnSocketDetached(PRFileDesc *fd) {
+      virtual void OnSocketDetached(PRFileDesc *fd) {
         if (prsock_) {
           prsock_->OnSocketDetached(fd);
         }
