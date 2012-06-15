@@ -1237,19 +1237,19 @@
         this.chooseIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
                                                 "identity.chooseIdentity.description", [origin]);
 
-        if (this.identity.tosURL) {
+        if (this.identity.termsOfService) {
           // Show optional TOS link
           let tos = document.getAnonymousElementByAttribute(this, "anonid", "tos");
           tos.value = gNavigatorBundle.getString("identity.termsOfService");
-          tos.href = this.identity.tosURL;
+          tos.href = this.identity.termsOfService;
           tos.hidden = false;
         }
 
-        if (this.identity.privacyURL) {
+        if (this.identity.privacyPolicy) {
           // Show optional privacy policy link
           let pp = document.getAnonymousElementByAttribute(this, "anonid", "privacypolicy");
           pp.value = gNavigatorBundle.getString("identity.privacyPolicy");
-          pp.href = this.identity.privacyURL;
+          pp.href = this.identity.privacyPolicy;
           pp.hidden = false;
         }
 

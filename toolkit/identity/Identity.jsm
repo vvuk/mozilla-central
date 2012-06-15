@@ -322,7 +322,7 @@ IDService.prototype = {
    *        (integer)  the id of the doc object obtained in .watch()
    *
    * @param aOptions
-   *        (Object)  options including requiredEmail, privacyURL, tosURL
+   *        (Object)  options including requiredEmail, privacyPolicy, termsOfService
    */
   request: function request(aRPId, aOptions) {
     log("request: rpId:", aRPId, "requiredEmail:", aOptions.requiredEmail);
@@ -342,7 +342,7 @@ IDService.prototype = {
     // Append URLs after resolving
     let rp = this._rpFlows[aRPId];
     let baseURI = Services.io.newURI(rp.origin, null, null);
-    for (let optionName of ["privacyURL", "tosURL"]) {
+    for (let optionName of ["privacyPolicy", "termsOfService"]) {
       if (aOptions[optionName]) {
         options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
       }

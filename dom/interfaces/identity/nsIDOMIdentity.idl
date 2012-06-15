@@ -86,13 +86,13 @@ interface nsIDOMIdentityRPRequestOptions : nsISupports
    * (optional) URL to site's privacy policy. When provided, a link will be
    * displayed in the sign-in dialog.
    */
-  readonly attribute DOMString privacyURL;
+  readonly attribute DOMString privacyPolicy;
 
   /**
    * (optional) URL to site's terms of service. When provided, a link will be
    * displayed in the sign-in dialog.
    */
-  readonly attribute DOMString tosURL;
+  readonly attribute DOMString termsOfService;
 };
 
 [scriptable, uuid(2f744abf-e017-4801-b1cb-5d28d0ae3a3e)]
