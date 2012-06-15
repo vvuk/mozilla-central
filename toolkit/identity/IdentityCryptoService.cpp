@@ -39,10 +39,9 @@ HexEncode(const SECItem * it, nsACString & result)
 }
 
 nsresult
-Base64urlEncode(const SECItem * it, nsACString & result)
+Base64UrlEncodeImpl(const nsACString & utf8Input, nsACString & result)
 {
-  nsresult rv = Base64Encode(nsDependentCSubstring(
-      reinterpret_cast<const char*>(it->data), it->len), result);
+  nsresult rv = Base64Encode(utf8Input, result);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -60,6 +59,7 @@ Base64urlEncode(const SECItem * it, nsACString & result)
 
   return NS_OK;
 }
+
 
 nsresult
 PRErrorCode_to_nsresult(PRErrorCode error)
@@ -251,6 +251,13 @@ IdentityCryptoService::GenerateKeyPair(
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+IdentityCryptoService::Base64UrlEncode(const nsACString & utf8Input,
+                                       nsACString & result)
+{
+  return Base64UrlEncodeImpl(utf8Input, result);
 }
 
 KeyPair::KeyPair(SECKEYPrivateKey * privateKey, SECKEYPublicKey * publicKey)
@@ -544,7 +551,9 @@ SignRunnable::Run()
           mRv = MapSECStatus(PK11_Sign(mPrivateKey, &sig, &hashItem));
         }
         if (NS_SUCCEEDED(mRv)) {
-          mRv = Base64urlEncode(&sig, mSignature);
+          nsDependentCSubstring sigString(
+            reinterpret_cast<const char*>(sig.data), sig.len);
+          mRv = Base64UrlEncodeImpl(sigString, mSignature);
         }
         SECITEM_FreeItem(&sig, false);
       }

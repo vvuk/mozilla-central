@@ -32,11 +32,13 @@ interface nsIIdentitySignCallback;
  */
 
 // "@mozilla.org/identity/crypto-service;1"
-[scriptable, builtinclass, uuid(661ebac0-c05a-44d7-98f6-514cc2191b52)]
+[scriptable, builtinclass, uuid(f087e6bc-dd33-4f6c-a106-dd786e052ee9)]
 interface nsIIdentityCryptoService : nsISupports
 {
   void generateKeyPair(in AUTF8String algorithm, 
                        in nsIIdentityKeyGenCallback callback);
+
+  ACString base64UrlEncode(in AUTF8String toEncode);
 };
 
 /**
