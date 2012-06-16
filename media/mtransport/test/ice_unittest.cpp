@@ -57,8 +57,9 @@ class IceTestPeer : public sigslot::has_slots<> {
     nsresult res;
 
     test_utils.sts_target()->Dispatch(
-        WrapRunnable(ice_ctx_, &NrIceCtx::StartGathering, &res),
+        WrapRunnableRet(ice_ctx_, &NrIceCtx::StartGathering, &res),
         NS_DISPATCH_SYNC);
+
     ASSERT_TRUE(NS_SUCCEEDED(res));
   }
 

@@ -264,7 +264,7 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
 }
 
 
-void NrIceCtx::StartGathering(nsresult *result) {
+nsresult NrIceCtx::StartGathering() {
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
                                 this);
 
@@ -273,11 +273,10 @@ void NrIceCtx::StartGathering(nsresult *result) {
   if (r && r != R_WOULDBLOCK) {
       MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
-      *result = NS_ERROR_FAILURE;
-      return;
+      return NS_ERROR_FAILURE;
   }
   
-  *result = NS_OK;
+  return NS_OK;
 }
 
 void NrIceCtx::EmitAllCandidates() {

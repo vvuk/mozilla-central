@@ -51,7 +51,7 @@ class NrIceCtx {
   nsresult ParseGlobalAttributes(std::vector<std::string> attrs);
 
   // Start ICE gathering
-  void StartGathering(nsresult *res);
+  nsresult StartGathering();
 
 
   // Signals to indicate events. API users can (and should)

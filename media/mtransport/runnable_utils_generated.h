@@ -1,3 +1,40 @@
+// 0 arguments --
+template<typename C, typename M> class runnable_args0 : public runnable_args_base {
+ public:
+  runnable_args0(C o, M m) :
+    o_(o), m_(m)  {}
+
+  NS_IMETHOD Run() {
+    ((*o_).*m_)();
+    return NS_OK;
+  }
+
+ private:
+  C o_;
+  M m_;
+};
+
+
+
+// 0 arguments --
+template<typename C, typename M, typename R> class runnable_args0_ret : public runnable_args_base {
+ public:
+  runnable_args0_ret(C o, M m, R *r) :
+    o_(o), m_(m), r_(r)  {}
+
+  NS_IMETHOD Run() {
+    *r_ = ((*o_).*m_)();
+    return NS_OK;
+  }
+
+ private:
+  C o_;
+  M m_;
+  R* r_;
+};
+
+
+
 // 1 arguments --
 template<typename C, typename M, typename A0> class runnable_args1 : public runnable_args_base {
  public:
@@ -423,6 +460,20 @@ template<typename C, typename M, typename A0, typename A1, typename A2, typename
 
 
 
+
+// 0 arguments --
+template<typename C, typename M>
+runnable_args0<C, M>* WrapRunnable(C o, M m) {
+  return new runnable_args0<C, M>
+    (o, m);
+}
+
+// 0 arguments --
+template<typename C, typename M, typename R>
+runnable_args0_ret<C, M, R>* WrapRunnableRet(C o, M m, R* r) {
+  return new runnable_args0_ret<C, M, R>
+    (o, m, r);
+}
 
 // 1 arguments --
 template<typename C, typename M, typename A0>
