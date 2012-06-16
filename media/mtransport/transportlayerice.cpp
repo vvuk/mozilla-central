@@ -41,6 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <string>
 #include <queue>
+#include <vector>
 
 #include "nspr.h"
 #include "nss.h"
@@ -193,6 +194,27 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_init(NR_REG_MODE_LOCAL);
     nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
     initialized = true;
+    
+    // Set the priorites for candidate type preferences
+    NR_reg_set_uchar((char *)"ice.pref.type.srv_rflx",100);
+    NR_reg_set_uchar((char *)"ice.pref.type.peer_rflx",105);
+    NR_reg_set_uchar((char *)"ice.pref.type.prflx",99);
+    NR_reg_set_uchar((char *)"ice.pref.type.host",125);
+    NR_reg_set_uchar((char *)"ice.pref.type.relayed",126);
+
+    // Interface preferences: TODO(ekr@rtfm.com); this doesn't
+    // scale to multiple addresses
+    NR_reg_set_uchar((char *)"ice.pref.interface.rl0", 255);
+    NR_reg_set_uchar((char *)"ice.pref.interface.wi0", 254);
+    NR_reg_set_uchar((char *)"ice.pref.interface.lo0", 253);
+    NR_reg_set_uchar((char *)"ice.pref.interface.en1", 252);
+    NR_reg_set_uchar((char *)"ice.pref.interface.en0", 251);
+    NR_reg_set_uchar((char *)"ice.pref.interface.ppp", 250);
+    NR_reg_set_uchar((char *)"ice.pref.interface.ppp0", 249);
+    NR_reg_set_uchar((char *)"ice.pref.interface.en2", 248);
+    NR_reg_set_uchar((char *)"ice.pref.interface.en3", 247);
+    NR_reg_set_uchar((char *)"ice.pref.interface.em0", 251);
+    NR_reg_set_uchar((char *)"ice.pref.interface.em1", 252);
   }
 
   // Create the ICE context
@@ -230,38 +252,62 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
 void NrIceCtx::StartGathering(nsresult *result) {
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
                                 this);
+
+  this->AddRef();
   
-  if (r) {
-    if (r == R_WOULDBLOCK) {
-      // More candidates coming. AddRef() so we don't get destroyed
-      // while waiting for the callback
-      this->AddRef();
-    } else {
+  if (r && r != R_WOULDBLOCK) {
       MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
       *result = NS_ERROR_FAILURE;
       return;
-    }
-  } else {
-    // All candidates are available
-    ReportAllCandidates();
   }
-
+  
   *result = NS_OK;
 }
 
-void NrIceCtx::ReportAllCandidates() {
+void NrIceCtx::EmitAllCandidates() {
   MLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
        << name_ << "'");
+  
+  for(size_t i=0; i<streams_.size(); ++i) {
+    streams_[i]->EmitAllCandidates();
+  }
+  
+  // Report that we are done gathering
+  SignalGatheringComplete(this);
+}
 
+std::vector<std::string> NrIceCtx::GetGlobalAttributes() {
+  char **attrs = 0;
+  int attrct;
+  int r;
+  std::vector<std::string> ret;
+
+  r = nr_ice_get_global_attributes(ctx_, &attrs, &attrct);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't get ufrag and password for '"
+         << name_ << "'");
+    return ret;
+  }
+
+  for (int i=0; i<attrct; i++) {
+    ret.push_back(std::string(attrs[i]));
+    RFREE(attrs[i]);
+  }
+  RFREE(attrs);
+
+  return ret;
 }
 
 void NrIceCtx::initialized_cb(int s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
   
+  ctx->EmitAllCandidates();
   
   ctx->Release();
 }
+
+
 
 // NrIceMediaStream
 mozilla::RefPtr<NrIceMediaStream>
@@ -287,5 +333,25 @@ NrIceMediaStream::~NrIceMediaStream() {
   // TODO(ekr@rtfm.com): Implement this
 }
                                            
+
+void NrIceMediaStream::EmitAllCandidates() {
+  char **attrs = 0;
+  int attrct;
+  int r;
+  r = nr_ice_media_stream_get_attributes(stream_,
+                                         &attrs, &attrct);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
+         << name_ << "'");
+    return;
+  }
+  
+  for (size_t i=0; i<attrct; i++) {
+    SignalCandidate(this, attrs[i]);
+    RFREE(attrs[i]);
+  }
+
+  RFREE(attrs);
+}
 
 

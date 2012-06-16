@@ -222,16 +222,26 @@ static int nr_praddr_to_transport_addr(PRNetAddr *praddr,
   {
     int _status;
     int r;
+    struct sockaddr_in ip4;
 
     switch(praddr->raw.family) {
       case PR_AF_INET:
-        r = nr_sockaddr_to_transport_addr((sockaddr *)&praddr->raw,
-          sizeof(struct sockaddr_in),IPPROTO_UDP,keep,addr);
+        ip4.sin_family = PF_INET;
+        ip4.sin_addr.s_addr = praddr->inet.ip;
+        ip4.sin_port = praddr->inet.port;
+        if (r = nr_sockaddr_to_transport_addr((sockaddr *)&ip4,
+                                              sizeof(ip4),
+                                              IPPROTO_UDP, 1,
+                                              addr))
+          ABORT(r);
         break;
       case PR_AF_INET6:
+#if 0
         r = nr_sockaddr_to_transport_addr((sockaddr *)&praddr->raw,
           sizeof(struct sockaddr_in6),IPPROTO_UDP,keep,addr);
         break;
+#endif
+        ABORT(R_BAD_ARGS);
       default:
         ABORT(R_BAD_ARGS);
     }
@@ -278,8 +288,10 @@ int NrSocket::create(nr_transport_addr *addr) {
   /* If we have a wildcard port, patch up the addr */
   if(nr_transport_addr_is_wildcard(addr)){
     status = PR_GetSockName(fd_, &naddr);
-    if (status != PR_SUCCESS)
+    if (status != PR_SUCCESS){
+      r_log(LOG_GENERIC, LOG_CRIT, "Couldn't get sock name for socket");
       ABORT(R_INTERNAL);
+    }
     
     if((r=nr_praddr_to_transport_addr(&naddr,&my_addr_,1)))
       ABORT(r);
@@ -388,7 +400,6 @@ int nr_socket_local_create(nr_transport_addr *addr, nr_socket **sockp) {
   if (r)
     ABORT(r);
 
-  // TODO : register with STS
   // Add a reference so that we can delete it in destroy()
   sock->AddRef();
 

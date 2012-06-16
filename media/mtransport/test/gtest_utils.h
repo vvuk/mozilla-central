@@ -42,6 +42,13 @@
   ASSERT_TRUE(res); \
   } while(0);
 
+#define EXPECT_TRUE_WAIT(expression, timeout) \
+  do { \
+  bool res; \
+  WAIT_(expression, timeout, res); \
+  EXPECT_TRUE(res); \
+  } while(0);
+
 #endif
 
 

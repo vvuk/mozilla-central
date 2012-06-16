@@ -39,12 +39,20 @@ class NrIceCtx {
   mozilla::RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
                                                  int components);
 
+  // The name of the ctx
+  const std::string& name() const { return name_; }
+
+  // Get the global attributes
+  std::vector<std::string> GetGlobalAttributes();
+
   // Start ICE gathering
   void StartGathering(nsresult *res);
 
+
   // Signals to indicate events. API users can (and should)
   // register for these.
-  
+
+  sigslot::signal1<NrIceCtx *> SignalGatheringComplete;  // Done gathering
   
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
@@ -55,7 +63,10 @@ class NrIceCtx {
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
   static void initialized_cb(int s, int h, void *arg);
-  void ReportAllCandidates();
+
+  // Iterate through all media streams and emit the candidates
+  // Note that we don't do trickle ICE yet
+  void EmitAllCandidates();
 
   const std::string name_;
   bool offerer_;
@@ -69,7 +80,21 @@ class NrIceMediaStream {
   static mozilla::RefPtr<NrIceMediaStream> Create(mozilla::RefPtr<NrIceCtx> ctx,
                                            const std::string& name,
                                            int components);
+
+  // The name of the stream
+  const std::string& name() const { return name_; }
+
+  // Signals to indicate events. API users can (and should)
+  // register for these.
+
+  // A new ICE candidate
+  sigslot::signal2<NrIceMediaStream *, const std::string& > SignalCandidate;
   
+
+  // Emit all the ICE candidates. Note that this doesn't 
+  // work for trickle ICE yet.
+  void EmitAllCandidates();
+
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
   
@@ -80,9 +105,6 @@ class NrIceMediaStream {
   ~NrIceMediaStream();
 
 
-  // Signals to indicate events. API users can (and should)
-  // register for these.
-  
                    
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
