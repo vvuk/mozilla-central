@@ -230,6 +230,21 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     return NULL;
   }
 
+  // Set up the handler
+  ctx->ice_handler_ = new nr_ice_handler();
+  ctx->ice_handler_->vtbl = &handler_vtbl;
+  ctx->ice_handler_->obj = ctx;
+
+  // Create the peer ctx. Because we do not support parallel forking, we
+  // only have one peer ctx.
+  r = nr_ice_peer_ctx_create(ctx->ctx_, ctx->ice_handler_,
+                             const_cast<char *>("default"),
+                             &ctx->peer_);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
+    return NULL;
+  }
+
   return ctx;
 }
 
@@ -299,6 +314,24 @@ std::vector<std::string> NrIceCtx::GetGlobalAttributes() {
   return ret;
 }
 
+nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
+  std::vector<char *> attrs_in;
+
+  for (size_t i=0; i<attrs.size(); ++i) {
+    attrs_in.push_back(const_cast<char *>(attrs[i].c_str()));
+  }
+  
+  int r = nr_ice_peer_ctx_parse_global_attributes(peer_, &attrs_in[0],
+                                                  attrs.size());
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't parse global attributes for "
+         << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
 void NrIceCtx::initialized_cb(int s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
   
@@ -333,6 +366,26 @@ NrIceMediaStream::~NrIceMediaStream() {
   // TODO(ekr@rtfm.com): Implement this
 }
                                            
+nsresult NrIceMediaStream::ParseCandidates(std::vector<std::string>&
+                                           candidates) {
+  std::vector<char *> candidates_in;
+
+  for (size_t i=0; i<candidates.size(); ++i) {
+    candidates_in.push_back(const_cast<char *>(candidates[i].c_str()));
+  }
+  
+  int r = nr_ice_peer_ctx_parse_stream_attributes(ctx_->peer(),
+                                                  stream_,
+                                                  &candidates_in[0],
+                                                  candidates_in.size());
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't parse attributes for stream "
+         << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+  
+  return NS_OK;
+}
 
 void NrIceMediaStream::EmitAllCandidates() {
   char **attrs = 0;

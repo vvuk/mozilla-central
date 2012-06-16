@@ -24,6 +24,7 @@
 typedef struct nr_ice_ctx_ nr_ice_ctx;
 typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
+typedef struct nr_ice_handler_ nr_ice_handler;
 
 class NrIceMediaStream;
 
@@ -34,6 +35,7 @@ class NrIceCtx {
   virtual ~NrIceCtx();
   
   nr_ice_ctx *ctx() { return ctx_; }
+  nr_ice_peer_ctx *peer() { return peer_; }
 
   // Create a media stream
   mozilla::RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
@@ -45,13 +47,15 @@ class NrIceCtx {
   // Get the global attributes
   std::vector<std::string> GetGlobalAttributes();
 
+  // Set the other side's global attributes
+  nsresult ParseGlobalAttributes(std::vector<std::string> attrs);
+
   // Start ICE gathering
   void StartGathering(nsresult *res);
 
 
   // Signals to indicate events. API users can (and should)
   // register for these.
-
   sigslot::signal1<NrIceCtx *> SignalGatheringComplete;  // Done gathering
   
   // Allow this to be refcountable
@@ -59,7 +63,14 @@ class NrIceCtx {
 
  private:
   NrIceCtx(const std::string& name, bool offerer)
-      : name_(name), offerer_(offerer), streams_(), ctx_(NULL) {}
+      : name_(name),
+        offerer_(offerer),
+        streams_(),
+        ctx_(NULL),
+        peer_(NULL),
+        ice_handler_(NULL) {
+  }
+
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
   static void initialized_cb(int s, int h, void *arg);
@@ -72,6 +83,8 @@ class NrIceCtx {
   bool offerer_;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
   nr_ice_ctx *ctx_;
+  nr_ice_peer_ctx *peer_;
+  nr_ice_handler *ice_handler_;
 };
 
 
@@ -84,6 +97,9 @@ class NrIceMediaStream {
   // The name of the stream
   const std::string& name() const { return name_; }
 
+  // Parse remote candidates
+  nsresult ParseCandidates(std::vector<std::string>& candidates);
+
   // Signals to indicate events. API users can (and should)
   // register for these.
 
@@ -92,7 +108,7 @@ class NrIceMediaStream {
   
 
   // Emit all the ICE candidates. Note that this doesn't 
-  // work for trickle ICE yet.
+  // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
   // Allow this to be refcountable
