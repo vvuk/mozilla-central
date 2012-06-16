@@ -51,6 +51,11 @@ class TargetClass {
     std::cerr << __FUNCTION__ << std::endl;
     *z = true;
   }
+  int return_int(int x) {
+    std::cerr << __FUNCTION__ << std::endl;
+    return x;
+  }
+
   int *ran_;
 };
 
@@ -103,6 +108,15 @@ class DispatchTest : public ::testing::Test {
                       NS_DISPATCH_SYNC);
     ASSERT_TRUE(x);
   }
+
+  void TestRet() {
+    int z;
+    int x = 10;
+
+    target_->Dispatch(WrapRunnableRet(&cl_, &TargetClass::return_int, x, &z),
+                      NS_DISPATCH_SYNC);
+    ASSERT_EQ(10, z);
+  }
     
  private:
   int ran_;
@@ -130,6 +144,11 @@ TEST_F(DispatchTest, TwoArguments) {
 TEST_F(DispatchTest, Test1Set) {
   Test1Set();
 }
+
+TEST_F(DispatchTest, TestRet) {
+  TestRet();
+}
+
 
 } // end of namespace                   
 
