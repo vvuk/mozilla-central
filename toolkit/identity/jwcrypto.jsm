@@ -48,29 +48,20 @@ function log()
 
 }
 
-/*
- * An XPCOM data structure to invoke key generation
- * and call itself back
- */
 function keygenerator() {}
 
 keygenerator.prototype = {
-  QueryInterface: function(aIID)
-  {
-    if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
-      return this;
-    }
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-
   generateKeyPair: function(aAlgorithmName, aCallback)
   {
-    this.callback = aCallback;
-    IdentityCryptoService.generateKeyPair(aAlgorithmName, this);
+    log("gen key pair");
+    IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, keypair) {
+      return this._generateKeyPairFinished(rv, keypair, aCallback);
+    }.bind(this));
   },
 
-  generateKeyPairFinished: function(rv, aKeyPair)
+  _generateKeyPairFinished: function(rv, aKeyPair, aCallback)
   {
+    log("kp finished");
     if (!Components.isSuccessCode(rv)) {
       return this.callback("key generation failed");
     }
@@ -105,43 +96,26 @@ keygenerator.prototype = {
       _kp: aKeyPair
     };
 
-    return this.callback(null, keyWrapper);
+    return aCallback(null, keyWrapper);
   }
 };
 
-/*
- * An XPCOM data structure to invoke signing
- * and call itself back
- */
 function signer() {
 }
 
 signer.prototype = {
-  QueryInterface: function (aIID)
-  {
-    if (aIID.equals(Ci.nsIIdentityKeyGenCallback)) {
-      return this;
-    }
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-
   sign: function(aPayload, aKeypair, aCallback)
   {
     this.payload = aPayload;
     this.callback = aCallback;
-    aKeypair._kp.sign(this.payload, this);
-  },
-
-  signFinished: function (rv, signature)
-  {
-    log("signFinished");
-    if (!Components.isSuccessCode(rv)) {
-      log("sign failed");
-	    return this.callback("Sign Failed");
-	  }
-
-    this.callback(null, signature);
-    log("signFinished: calling callback");
+    aKeypair._kp.sign(this.payload, function(rv, signature) {
+      if (!Components.isSuccessCode(rv)) {
+        log("ERROR: signer.sign failed");
+        return aCallback("Sign failed");
+      }
+      log("signer.sign: success");
+      return aCallback(null, signature);
+    }.bind(this));
   }
 };
 
