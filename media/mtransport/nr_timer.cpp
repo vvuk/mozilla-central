@@ -39,9 +39,11 @@ protected:
 NS_IMPL_ISUPPORTS1(nrappkitTimerCallback, nsITimerCallback)
 
 NS_IMETHODIMP nrappkitTimerCallback::Notify(nsITimer *timer) {
+  r_log(LOG_GENERIC, LOG_DEBUG, "Timer callback fired");
   cb_(0, 0, cb_arg_);
-
-  return NS_ERROR_NOT_IMPLEMENTED;
+  
+  timer->Release();
+  return 0;
 }
 
 int NR_async_timer_set(int timeout, NR_async_cb cb, void *arg, char *func,
@@ -58,6 +60,8 @@ int NR_async_timer_set(int timeout, NR_async_cb cb, void *arg, char *func,
   timer->InitWithCallback(new nrappkitTimerCallback(cb, arg), timeout,
                            nsITimer::TYPE_ONE_SHOT);
   
+  timer->AddRef();
+
   if (handle)
     *handle = timer;
   

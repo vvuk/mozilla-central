@@ -157,6 +157,8 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 static int select_pair(void *obj,nr_ice_media_stream *stream, 
                    int component_id, nr_ice_cand_pair **potentials,
                    int potential_ct) {
+  MLOG(PR_LOG_DEBUG, "select pair called: potential_ct = " << potential_ct);
+
   return 0;
 }
 
@@ -215,6 +217,16 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.en3", 247);
     NR_reg_set_uchar((char *)"ice.pref.interface.em0", 251);
     NR_reg_set_uchar((char *)"ice.pref.interface.em1", 252);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet0", 240);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet1", 241);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet3", 239);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet4", 238);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet5", 237);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet6", 236);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet7", 235);
+    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
+
+
   }
 
   // Create the ICE context
@@ -237,8 +249,9 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
 
   // Create the peer ctx. Because we do not support parallel forking, we
   // only have one peer ctx.
+  std::string peer_name = name + ":default";
   r = nr_ice_peer_ctx_create(ctx->ctx_, ctx->ice_handler_,
-                             const_cast<char *>("default"),
+                             const_cast<char *>(peer_name.c_str()),
                              &ctx->peer_);
   if (r) {
     MLOG(PR_LOG_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
@@ -266,7 +279,7 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
 
 nsresult NrIceCtx::StartGathering() {
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
-                                this);
+                            this);
 
   this->AddRef();
   
@@ -331,7 +344,28 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
   return NS_OK;
 }
 
-void NrIceCtx::initialized_cb(int s, int h, void *arg) {
+nsresult NrIceCtx::StartChecks() {
+  int r;
+
+  r=nr_ice_peer_ctx_pair_candidates(peer_); 
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't pair candidates on "
+         << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+
+  r = nr_ice_peer_ctx_start_checks(peer_);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
+         << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+
+void NrIceCtx::initialized_cb(NR_SOCKET s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
   
   ctx->EmitAllCandidates();

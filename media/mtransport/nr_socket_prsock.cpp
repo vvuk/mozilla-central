@@ -170,12 +170,15 @@ void NrSocket::fire_callback(int how) {
   // This can't happen unless we are armed because we only set
   // the flags if we are armed
   PR_ASSERT(cbs_[how]);
+
+  // Now cancel so that we need to be re-armed. Note that
+  // the re-arming probably happens in the callback we are
+  // about to fire.
+  cancel(how);
+
   // TODO(ekr@rtfm.com): need to make the resource valid, but
   // nICEr does not rely on the resource being valid
-  cbs_[how](0, how, cb_args_[how]);
-
-  // Now cancel so that we need to be re-armed
-  cancel(how);
+  cbs_[how](this, how, cb_args_[how]);
 }
 
 // Helper functions for addresses
@@ -229,10 +232,10 @@ static int nr_praddr_to_transport_addr(PRNetAddr *praddr,
         ip4.sin_family = PF_INET;
         ip4.sin_addr.s_addr = praddr->inet.ip;
         ip4.sin_port = praddr->inet.port;
-        if (r = nr_sockaddr_to_transport_addr((sockaddr *)&ip4,
+        if ((r = nr_sockaddr_to_transport_addr((sockaddr *)&ip4,
                                               sizeof(ip4),
                                               IPPROTO_UDP, 1,
-                                              addr))
+              addr)))
           ABORT(r);
         break;
       case PR_AF_INET6:

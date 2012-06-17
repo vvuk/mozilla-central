@@ -33,6 +33,7 @@ MLOG_INIT("ice");
 MtransportTestUtils test_utils;
 
 namespace {
+
 class IceTestPeer : public sigslot::has_slots<> {
  public:
   IceTestPeer(const std::string& name, bool offerer) :
@@ -63,6 +64,45 @@ class IceTestPeer : public sigslot::has_slots<> {
     ASSERT_TRUE(NS_SUCCEEDED(res));
   }
 
+  // Get various pieces of state
+  std::vector<std::string> GetGlobalAttributes() {
+    return ice_ctx_->GetGlobalAttributes();
+  }
+
+  std::vector<std::string>& GetCandidates(const std::string &name) {
+    return candidates_[name];
+  }
+
+  bool gathering_complete() { return gathering_complete_; }
+
+  
+  // Start connecting to another peer
+  void Connect(IceTestPeer *remote) {
+    nsresult res;
+
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(ice_ctx_, 
+        &NrIceCtx::ParseGlobalAttributes, remote->GetGlobalAttributes(), &res),
+      NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+    
+    for (size_t i=0; i<streams_.size(); ++i) {
+      test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(streams_[i], &NrIceMediaStream::ParseCandidates,
+          remote->GetCandidates(streams_[i]->name()), &res),
+      NS_DISPATCH_SYNC);
+
+      ASSERT_TRUE(NS_SUCCEEDED(res));
+    }
+
+    // Now start checks
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(ice_ctx_, &NrIceCtx::StartChecks, &res),
+      NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+  }
+
+  // Handle events
   void GatheringComplete(NrIceCtx *ctx) {
     gathering_complete_ = true;
   }
@@ -72,15 +112,6 @@ class IceTestPeer : public sigslot::has_slots<> {
     candidates_[stream->name()].push_back(candidate);
   }
 
-  const std::vector<std::string> GetGlobalAttributes() {
-    return ice_ctx_->GetGlobalAttributes();
-  }
-
-  const std::vector<std::string>& GetCandidates(const std::string &name) {
-    return candidates_[name];
-  }
-
-  bool gathering_complete() { return gathering_complete_; }
 
  private:
   nsRefPtr<NrIceCtx> ice_ctx_;
@@ -118,6 +149,13 @@ class IceTest : public ::testing::Test {
     return true;
   }
 
+  void Connect() {
+    p1_.Connect(&p2_);
+    p2_.Connect(&p1_);
+
+    ASSERT_TRUE_WAIT(false, 10000);
+  }
+
  protected:
   nsCOMPtr<nsIEventTarget> target_;
   IceTestPeer p1_;
@@ -127,9 +165,17 @@ class IceTest : public ::testing::Test {
     
 }  // end namespace
 
+
 TEST_F(IceTest, TestGather) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
+}
+
+
+TEST_F(IceTest, TestConnect) {
+  AddStream("first", 1);
+  ASSERT_TRUE(Gather(true));
+  Connect();
 }
 
 

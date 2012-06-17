@@ -53,7 +53,9 @@ class NrIceCtx {
   // Start ICE gathering
   nsresult StartGathering();
 
-
+  // Start checking
+  nsresult StartChecks();
+  
   // Signals to indicate events. API users can (and should)
   // register for these.
   sigslot::signal1<NrIceCtx *> SignalGatheringComplete;  // Done gathering
@@ -73,7 +75,7 @@ class NrIceCtx {
 
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
-  static void initialized_cb(int s, int h, void *arg);
+  static void initialized_cb(void *s, int h, void *arg);
 
   // Iterate through all media streams and emit the candidates
   // Note that we don't do trickle ICE yet
