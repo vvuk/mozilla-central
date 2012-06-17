@@ -7,12 +7,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "IDService",
                                   "resource:///modules/identity/Identity.jsm",
                                   "IdentityService");
 
-const TEST_URL = "https://myfavoritebacon.com";
-const TEST_URL2 = "https://myfavoritebaconinacan.com";
-const TEST_USER = "user@mozilla.com";
-const TEST_PRIVKEY = "fake-privkey";
-const TEST_CERT = "fake-cert";
-
 function test_id_store() {
   // XXX - this is ugly, peaking in like this into IDService
   // probably should instantiate our own.

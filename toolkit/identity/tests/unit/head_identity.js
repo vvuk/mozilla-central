@@ -16,6 +16,17 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
+const TEST_URL = "https://myfavoritebacon.com";
+const TEST_URL2 = "https://myfavoritebaconinacan.com";
+const TEST_USER = "user@mozilla.com";
+const TEST_PRIVKEY = "fake-privkey";
+const TEST_CERT = "fake-cert";
+const TEST_IDPPARAMS = {
+  domain: "myfavoriteflan.com",
+  authentication: "/foo/authenticate.html",
+  provisioning: "/foo/provision.html"
+};
+
 let XULAppInfo = {
   vendor: "Mozilla",
   name: "XPCShell",
@@ -72,7 +83,7 @@ function get_idstore() {
 }
 
 function partial(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
+  let args = Array.prototype.slice.call(arguments, 1);
   return function() {
     return fn.apply(this, args.concat(Array.prototype.slice.call(arguments)));
   };
@@ -106,13 +117,57 @@ function makeObserver(aObserveTopic, aObserveFunc) {
 // when called the first time, calls the first func,
 // then the next time the second, etc.
 function call_sequentially() {
-  var numCalls = 0;
-  var funcs = arguments;
+  let numCalls = 0;
+  let funcs = arguments;
 
   return function() {
     funcs[numCalls].apply(funcs[numCalls],arguments);
     numCalls += 1;
   };
+}
+
+/*
+ * Setup a provisioning workflow with appropriate callbacks
+ *
+ * identity is the email we're provisioning.
+ *
+ * afterSetupCallback is required.
+ *
+ * doneProvisioningCallback is optional, if the caller
+ * wants to be notified when the whole provisioning workflow is done
+ *
+ * frameCallbacks is optional, contains the callbacks that the sandbox
+ * frame would provide in response to DOM calls.
+ */
+function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
+  IDService.init();
+
+  let provId = uuid();
+  IDService._provisionFlows[provId] = {
+    identity : identity,
+    idpParams: TEST_IDPPARAMS,
+    callback: function(err) {
+      if (doneProvisioningCallback)
+        doneProvisioningCallback(err);
+    },
+    sandbox: {
+	// Emulate the free() method on the iframe sandbox
+	free: function() {}
+    }
+  };
+
+  let caller = {};
+  caller.id = provId;
+  caller.doBeginProvisioningCallback = function(id, duration_s) {
+    if (callerCallbacks && callerCallbacks.beginProvisioningCallback)
+      callerCallbacks.beginProvisioningCallback(id, duration_s);
+  };
+  caller.doGenKeyPairCallback = function(pk) {
+    if (callerCallbacks && callerCallbacks.genKeyPairCallback)
+      callerCallbacks.genKeyPairCallback(pk);
+  };
+
+  afterSetupCallback(caller);
 }
 
 // Switch debug messages on by default
