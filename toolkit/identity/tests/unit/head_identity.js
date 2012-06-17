@@ -93,6 +93,24 @@ function uuid() {
   return uuidGenerator.generateUUID();
 }
 
+// create a mock "doc" object, which the Identity Service
+// uses as a pointer back into the doc object
+function mock_doc(aIdentity, aOrigin, aDoFunc) {
+  let mockedDoc = {};
+  mockedDoc.id = uuid();
+  mockedDoc.loggedInEmail = aIdentity;
+  mockedDoc.origin = aOrigin;
+  mockedDoc['do'] = aDoFunc;
+  mockedDoc.doReady = partial(aDoFunc, 'ready');
+  mockedDoc.doLogin = partial(aDoFunc, 'login');
+  mockedDoc.doLogout = partial(aDoFunc, 'logout');
+  mockedDoc.doError = partial(aDoFunc, 'error');
+  mockedDoc.doCancel = partial(aDoFunc, 'cancel');
+  mockedDoc.doCoffee = partial(aDoFunc, 'coffee');
+
+  return mockedDoc;
+}
+
 // mimicking callback funtionality for ease of testing
 // this observer auto-removes itself after the observe function
 // is called, so this is meant to observe only ONE event.
@@ -111,6 +129,20 @@ function makeObserver(aObserveTopic, aObserveFunc) {
   };
 
   Services.obs.addObserver(observer, aObserveTopic, false);
+}
+
+// set up the ID service with an identity with keypair and all
+// when ready, invoke callback with the identity
+function setup_test_identity(identity, cert, cb) {
+  // set up the store so that we're supposed to be logged in
+  let store = get_idstore();
+
+  function keyGenerated(err, kpo) {
+    store.addIdentity(identity, kpo, cert);
+    cb();
+  };
+
+  jwcrypto.generateKeyPair("DS160", keyGenerated);
 }
 
 // takes a list of functions and returns a function that

@@ -186,15 +186,52 @@ function test_register_certificate() {
   );
 }
 
+
+function test_get_assertion_after_provision() {
+  do_test_pending();
+  let _callerId = null;
+
+  setup_provisioning(
+    TEST_USER,
+    function(caller) {
+      _callerId = caller.id;
+      IDService.beginProvisioning(caller);
+    },
+    function(err) {
+      // we should be cool!
+      do_check_eq(err, null);
+
+      check_provision_flow_done(_callerId);
+
+      // check that the cert is there
+      let identity = get_idstore().fetchIdentity(TEST_USER);
+      do_check_neq(identity,null);
+      do_check_eq(identity.cert, "fake-cert-42");
+
+      do_test_finished();
+      run_next_test();
+    },
+    {
+      beginProvisioningCallback: function(email, duration_s) {
+        IDService.genKeyPair(_callerId);
+      },
+      genKeyPairCallback: function(pk) {
+        IDService.registerCertificate(_callerId, "fake-cert-42");
+      }
+    }
+  );
+
+}
+
 let TESTS = [];
 
-// provisioning tests
 TESTS.push(test_begin_provisioning);
 TESTS.push(test_raise_provisioning_failure);
 TESTS.push(test_genkeypair_before_begin_provisioning);
 TESTS.push(test_genkeypair);
 TESTS.push(test_register_certificate_before_genkeypair);
 TESTS.push(test_register_certificate);
+TESTS.push(test_get_assertion_after_provision);
 
 function run_test() {
   run_next_test();
