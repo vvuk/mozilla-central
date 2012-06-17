@@ -163,14 +163,19 @@ static int select_pair(void *obj,nr_ice_media_stream *stream,
 }
 
 static int stream_ready(void *obj, nr_ice_media_stream *stream) {
+  MLOG(PR_LOG_DEBUG, "stream_ready called");
+
   return 0;
 }
 
 static int stream_failed(void *obj, nr_ice_media_stream *stream) {
+  MLOG(PR_LOG_DEBUG, "stream_failed called");
   return 0;
 }
 
 static int ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
+  MLOG(PR_LOG_DEBUG, "ice_completed called");
+
   return 0;
 }
  
@@ -232,10 +237,11 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   // Create the ICE context
   int r;
   
-  r = nr_ice_ctx_create(const_cast<char *>(name.c_str()),
-                        offerer ? 
-                        NR_ICE_CTX_FLAGS_OFFERER :
-                        NR_ICE_CTX_FLAGS_ANSWERER,
+  UINT4 flags = offerer ? NR_ICE_CTX_FLAGS_OFFERER:
+      NR_ICE_CTX_FLAGS_ANSWERER;
+  flags |= NR_ICE_CTX_FLAGS_AGGRESSIVE_NOMINATION;
+
+  r = nr_ice_ctx_create(const_cast<char *>(name.c_str()), flags,
                         &ctx->ctx_);
   if (r) {
     MLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name << "'");
