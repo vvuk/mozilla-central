@@ -44,9 +44,11 @@ class IceTestPeer : public sigslot::has_slots<> {
       streams_(),
       candidates_(),
       gathering_complete_(false),
-      ready_ct_(0) {
+      ready_ct_(0),
+      ice_complete_(false) {
     ice_ctx_->SignalGatheringCompleted.connect(this,
                                               &IceTestPeer::GatheringComplete);
+    ice_ctx_->SignalCompleted.connect(this, &IceTestPeer::IceCompleted);
   }
 
   void AddStream(int components) {
@@ -83,6 +85,7 @@ class IceTestPeer : public sigslot::has_slots<> {
 
   bool gathering_complete() { return gathering_complete_; }
   int ready_ct() { return ready_ct_; }
+  bool ice_complete() { return ice_complete_; }
   
   // Start connecting to another peer
   void Connect(IceTestPeer *remote) {
@@ -121,10 +124,14 @@ class IceTestPeer : public sigslot::has_slots<> {
   }
 
   void StreamReady(NrIceMediaStream *stream) {
-    std::cout << "Stream ready " << stream->name();
+    std::cout << "Stream ready " << stream->name() << std::endl;
     ++ready_ct_;
   }
 
+  void IceCompleted(NrIceCtx *ctx) {
+    std::cout << "ICE completed " << name_ << std::endl;
+    ice_complete_ = true;
+  }
 
  private:
   std::string name_;
@@ -133,6 +140,7 @@ class IceTestPeer : public sigslot::has_slots<> {
   std::map<std::string, std::vector<std::string> > candidates_;
   bool gathering_complete_;
   int ready_ct_;
+  bool ice_complete_;
 };
 
 class IceTest : public ::testing::Test {
@@ -169,6 +177,7 @@ class IceTest : public ::testing::Test {
     p2_.Connect(&p1_);
 
     ASSERT_TRUE_WAIT(p1_.ready_ct() == 1 && p2_.ready_ct() == 1, 5000);
+    ASSERT_TRUE_WAIT(p1_.ice_complete() && p2_.ice_complete(), 5000);
   }
 
  protected:

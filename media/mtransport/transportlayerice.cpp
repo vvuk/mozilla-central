@@ -169,43 +169,27 @@ int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
   
-  // Signal that the stream is ready.
-  // Walk through all the media streams to find which one is ready
-  // This is inefficient but is forced on us by the nICEr API and we're
-  // not going to have many streams. 
-  for (size_t i=0; i<ctx->streams_.size(); ++i) {
-    if (ctx->streams_[i]->stream() == stream) {
-      ctx->streams_[i]->SignalReady(ctx->streams_[i]);
-      return 0;
-    }
-  }
-  
-  // Streams which do not exist should never go ready
-  PR_ASSERT(PR_FALSE);
+  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+
+  // Streams which do not exist should never be ready.
+  PR_ASSERT(s);
+
+  s -> SignalReady(s);
 
   return 0;
 }
 
 int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   MLOG(PR_LOG_DEBUG, "stream_failed called");
-
   
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
-  
-  // Signal that the stream failed.
-  // Walk through all the media streams to find which one failed.
-  // This is inefficient but is forced on us by the nICEr API and we're
-  // not going to have many streams. 
-  for (size_t i=0; i<ctx->streams_.size(); ++i) {
-    if (ctx->streams_[i]->stream() == stream) {
-      ctx->streams_[i]->SignalFailed(ctx->streams_[i]);
-      return 0;
-    }
-  }
-  
+  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+
   // Streams which do not exist should never fail.
-  PR_ASSERT(PR_FALSE);
+  PR_ASSERT(s);
+
+  s -> SignalFailed(s);
 
   return 0;
 }
@@ -351,6 +335,17 @@ void NrIceCtx::EmitAllCandidates() {
   
   // Report that we are done gathering
   SignalGatheringCompleted(this);
+}
+
+mozilla::RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
+    nr_ice_media_stream *stream) {
+  for (size_t i=0; i<streams_.size(); ++i) {
+    if (streams_[i]->stream() == stream) {
+      return streams_[i];
+    }
+  }
+  
+  return NULL;
 }
 
 std::vector<std::string> NrIceCtx::GetGlobalAttributes() {

@@ -88,12 +88,16 @@ class NrIceCtx {
   static int stream_ready(void *obj, nr_ice_media_stream *stream);
   static int stream_failed(void *obj, nr_ice_media_stream *stream);
   static int ice_completed(void *obj, nr_ice_peer_ctx *pctx);
-  static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, int component_id,
+  static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
+                       nr_ice_media_stream *stream, int component_id,
                        unsigned char *msg, int len);
 
   // Iterate through all media streams and emit the candidates
   // Note that we don't do trickle ICE yet
   void EmitAllCandidates();
+
+  // Find a media stream by stream ptr. Gross
+  mozilla::RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
   const std::string name_;
   bool offerer_;
