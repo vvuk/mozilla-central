@@ -32,26 +32,34 @@ MLOG_INIT("ice");
 
 MtransportTestUtils test_utils;
 
+bool stream_added = false;
+
 namespace {
 
 class IceTestPeer : public sigslot::has_slots<> {
  public:
   IceTestPeer(const std::string& name, bool offerer) :
+      name_(name),
       ice_ctx_(NrIceCtx::Create(name, offerer)),
       streams_(),
       candidates_(),
-      gathering_complete_(false) {
-    ice_ctx_->SignalGatheringComplete.connect(this,
+      gathering_complete_(false),
+      ready_ct_(0) {
+    ice_ctx_->SignalGatheringCompleted.connect(this,
                                               &IceTestPeer::GatheringComplete);
   }
 
-  void AddStream(const std::string& name, int components) {
+  void AddStream(int components) {
+    char name[100];
+    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(), streams_.size());
+
     mozilla::RefPtr<NrIceMediaStream> stream = 
-        ice_ctx_->CreateStream(name, components);
+        ice_ctx_->CreateStream(static_cast<char *>(name), components);
     
     ASSERT_TRUE(stream != NULL);
     streams_.push_back(stream);
     stream->SignalCandidate.connect(this, &IceTestPeer::GotCandidate);
+    stream->SignalReady.connect(this, &IceTestPeer::StreamReady);
   }
 
   void Gather() {
@@ -74,7 +82,7 @@ class IceTestPeer : public sigslot::has_slots<> {
   }
 
   bool gathering_complete() { return gathering_complete_; }
-
+  int ready_ct() { return ready_ct_; }
   
   // Start connecting to another peer
   void Connect(IceTestPeer *remote) {
@@ -89,8 +97,8 @@ class IceTestPeer : public sigslot::has_slots<> {
     for (size_t i=0; i<streams_.size(); ++i) {
       test_utils.sts_target()->Dispatch(
         WrapRunnableRet(streams_[i], &NrIceMediaStream::ParseCandidates,
-          remote->GetCandidates(streams_[i]->name()), &res),
-      NS_DISPATCH_SYNC);
+                        remote->GetCandidates(remote->streams_[i]->name()),
+                        &res), NS_DISPATCH_SYNC);
 
       ASSERT_TRUE(NS_SUCCEEDED(res));
     }
@@ -112,12 +120,19 @@ class IceTestPeer : public sigslot::has_slots<> {
     candidates_[stream->name()].push_back(candidate);
   }
 
+  void StreamReady(NrIceMediaStream *stream) {
+    std::cout << "Stream ready " << stream->name();
+    ++ready_ct_;
+  }
+
 
  private:
+  std::string name_;
   nsRefPtr<NrIceCtx> ice_ctx_;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
   std::map<std::string, std::vector<std::string> > candidates_;
   bool gathering_complete_;
+  int ready_ct_;
 };
 
 class IceTest : public ::testing::Test {
@@ -131,8 +146,8 @@ class IceTest : public ::testing::Test {
   }
 
   void AddStream(const std::string& name, int components) {
-    p1_.AddStream(name, components);
-    p2_.AddStream(name, components);
+    p1_.AddStream(components);
+    p2_.AddStream(components);
   }
 
   bool Gather(bool wait) {
@@ -153,7 +168,7 @@ class IceTest : public ::testing::Test {
     p1_.Connect(&p2_);
     p2_.Connect(&p1_);
 
-    ASSERT_TRUE_WAIT(false, 10000);
+    ASSERT_TRUE_WAIT(p1_.ready_ct() == 1 && p2_.ready_ct() == 1, 5000);
   }
 
  protected:

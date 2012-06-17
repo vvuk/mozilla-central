@@ -60,8 +60,9 @@ class NrIceCtx {
   
   // Signals to indicate events. API users can (and should)
   // register for these.
-  sigslot::signal1<NrIceCtx *> SignalGatheringComplete;  // Done gathering
-  
+  sigslot::signal1<NrIceCtx *> SignalGatheringCompleted;  // Done gathering
+  sigslot::signal1<NrIceCtx *> SignalCompleted;  // Done handshaking
+
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
 
@@ -116,17 +117,23 @@ class NrIceMediaStream {
   // Parse remote candidates
   nsresult ParseCandidates(std::vector<std::string>& candidates);
 
+  // The underlying nICEr stream
+  nr_ice_media_stream *stream() { return stream_; }
   // Signals to indicate events. API users can (and should)
   // register for these.
 
-  // A new ICE candidate
+
+  // A new ICE candidate:
   sigslot::signal2<NrIceMediaStream *, const std::string& > SignalCandidate;
-  
+
+  sigslot::signal1<NrIceMediaStream *> SignalReady;  // Candidate pair ready.
+  sigslot::signal1<NrIceMediaStream *> SignalFailed;  // Candidate pair failed.
 
   // Emit all the ICE candidates. Note that this doesn't 
   // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
+  
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
   
