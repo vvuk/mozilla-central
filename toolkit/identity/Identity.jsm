@@ -1032,13 +1032,6 @@ IDService.prototype = {
     let url = aScheme + '://' + aDomain + "/.well-known/browserid";
     log("_fetchWellKnownFile:", url);
 
-    /*
-    let XMLHttpRequest = Cc["@mozilla.org/appshell/appShellService;1"]
-                           .getService(Ci.nsIAppShellService)
-                           .hiddenDOMWindow.XMLHttpRequest;*/
-
-    // let req  = new XMLHttpRequest();
-
     // this appears to be a more successful way to get at xmlhttprequest (which supposedly will close with a window
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                 .getService(Ci.nsIXMLHttpRequest);
