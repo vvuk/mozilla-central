@@ -14,7 +14,6 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
-Cu.import("resource://gre/modules/DOMIdentity.jsm");
 
 var EXPORTED_SYMBOLS = ["IdentityService"];
 var FALLBACK_PROVIDER = "browserid.org";

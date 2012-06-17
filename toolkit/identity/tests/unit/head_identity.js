@@ -11,6 +11,9 @@ do_load_httpd_js();
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
+                                  "resource:///modules/identity/jwcrypto.jsm");
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
