@@ -25,6 +25,8 @@ typedef struct nr_ice_ctx_ nr_ice_ctx;
 typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
 typedef struct nr_ice_handler_ nr_ice_handler;
+typedef struct nr_ice_handler_vtbl_ nr_ice_handler_vtbl;
+typedef struct nr_ice_cand_pair_ nr_ice_cand_pair;
 
 class NrIceMediaStream;
 
@@ -64,18 +66,29 @@ class NrIceCtx {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
 
  private:
-  NrIceCtx(const std::string& name, bool offerer)
+  NrIceCtx(const std::string& name, bool offerer) 
       : name_(name),
         offerer_(offerer),
         streams_(),
         ctx_(NULL),
         peer_(NULL),
-        ice_handler_(NULL) {
-  }
+        ice_handler_vtbl_(NULL),
+        ice_handler_(NULL) {}
 
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
-  static void initialized_cb(void *s, int h, void *arg);
+  // Callbacks for nICEr 
+  static void initialized_cb(void *s, int h, void *arg);  // ICE initialized
+
+  // Handler implementation
+  static int select_pair(void *obj,nr_ice_media_stream *stream, 
+                         int component_id, nr_ice_cand_pair **potentials,
+                         int potential_ct);
+  static int stream_ready(void *obj, nr_ice_media_stream *stream);
+  static int stream_failed(void *obj, nr_ice_media_stream *stream);
+  static int ice_completed(void *obj, nr_ice_peer_ctx *pctx);
+  static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, int component_id,
+                       unsigned char *msg, int len);
 
   // Iterate through all media streams and emit the candidates
   // Note that we don't do trickle ICE yet
@@ -86,7 +99,8 @@ class NrIceCtx {
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
   nr_ice_ctx *ctx_;
   nr_ice_peer_ctx *peer_;
-  nr_ice_handler *ice_handler_;
+  nr_ice_handler_vtbl *ice_handler_vtbl_;  // Must be pointer to isolate nICEr structs
+  nr_ice_handler *ice_handler_;  // Must be pointer to isolate nICEr structs
 };
 
 

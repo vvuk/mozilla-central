@@ -153,8 +153,9 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 
 
 // NrIceCtx
+
 // Handler callbacks
-static int select_pair(void *obj,nr_ice_media_stream *stream, 
+int NrIceCtx::select_pair(void *obj,nr_ice_media_stream *stream, 
                    int component_id, nr_ice_cand_pair **potentials,
                    int potential_ct) {
   MLOG(PR_LOG_DEBUG, "select pair called: potential_ct = " << potential_ct);
@@ -162,34 +163,28 @@ static int select_pair(void *obj,nr_ice_media_stream *stream,
   return 0;
 }
 
-static int stream_ready(void *obj, nr_ice_media_stream *stream) {
+int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
   MLOG(PR_LOG_DEBUG, "stream_ready called");
 
   return 0;
 }
 
-static int stream_failed(void *obj, nr_ice_media_stream *stream) {
+int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   MLOG(PR_LOG_DEBUG, "stream_failed called");
   return 0;
 }
 
-static int ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
+int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
   MLOG(PR_LOG_DEBUG, "ice_completed called");
 
   return 0;
 }
  
-static int msg_recvd(void *obj, nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, int component_id, UCHAR *msg, int len) {
+int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
+                        nr_ice_media_stream *stream, int component_id,
+                        UCHAR *msg, int len) {
   return 0;
 }
-
-static nr_ice_handler_vtbl handler_vtbl = {
-  select_pair,
-  stream_ready,
-  stream_failed,
-  ice_completed,
-  msg_recvd
-};
 
 
 mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
@@ -248,9 +243,16 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     return NULL;
   }
 
-  // Set up the handler
+  // Create the handler objects
+  ctx->ice_handler_vtbl_ = new nr_ice_handler_vtbl();
+  ctx->ice_handler_vtbl_->select_pair = &NrIceCtx::select_pair;
+  ctx->ice_handler_vtbl_->stream_ready = &NrIceCtx::stream_ready;
+  ctx->ice_handler_vtbl_->stream_failed = &NrIceCtx::stream_failed;
+  ctx->ice_handler_vtbl_->ice_completed = &NrIceCtx::ice_completed;
+  ctx->ice_handler_vtbl_->msg_recvd = &NrIceCtx::msg_recvd;
+
   ctx->ice_handler_ = new nr_ice_handler();
-  ctx->ice_handler_->vtbl = &handler_vtbl;
+  ctx->ice_handler_->vtbl = ctx->ice_handler_vtbl_;
   ctx->ice_handler_->obj = ctx;
 
   // Create the peer ctx. Because we do not support parallel forking, we
