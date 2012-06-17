@@ -45,7 +45,9 @@ class IceTestPeer : public sigslot::has_slots<> {
       candidates_(),
       gathering_complete_(false),
       ready_ct_(0),
-      ice_complete_(false) {
+      ice_complete_(false),
+      received_(0),
+      sent_(0) {
     ice_ctx_->SignalGatheringCompleted.connect(this,
                                               &IceTestPeer::GatheringComplete);
     ice_ctx_->SignalCompleted.connect(this, &IceTestPeer::IceCompleted);
@@ -53,7 +55,7 @@ class IceTestPeer : public sigslot::has_slots<> {
 
   void AddStream(int components) {
     char name[100];
-    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(), streams_.size());
+    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(), (int)streams_.size());
 
     mozilla::RefPtr<NrIceMediaStream> stream = 
         ice_ctx_->CreateStream(static_cast<char *>(name), components);
@@ -62,6 +64,7 @@ class IceTestPeer : public sigslot::has_slots<> {
     streams_.push_back(stream);
     stream->SignalCandidate.connect(this, &IceTestPeer::GotCandidate);
     stream->SignalReady.connect(this, &IceTestPeer::StreamReady);
+    stream->SignalPacketReceived.connect(this, &IceTestPeer::PacketReceived);
   }
 
   void Gather() {
@@ -86,6 +89,8 @@ class IceTestPeer : public sigslot::has_slots<> {
   bool gathering_complete() { return gathering_complete_; }
   int ready_ct() { return ready_ct_; }
   bool ice_complete() { return ice_complete_; }
+  size_t received() { return received_; }
+  size_t sent() { return sent_; }
   
   // Start connecting to another peer
   void Connect(IceTestPeer *remote) {
@@ -133,6 +138,20 @@ class IceTestPeer : public sigslot::has_slots<> {
     ice_complete_ = true;
   }
 
+  void PacketReceived(NrIceMediaStream *stream, int component, const unsigned char *data,
+                      int len) {
+    std::cerr << "Received " << len << " bytes" << std::endl;
+    ++received_;    
+  }
+
+  void SendPacket(int stream, int component, const unsigned char *data,
+                  int len) {
+    ASSERT_TRUE(NS_SUCCEEDED(streams_[stream]->SendPacket(component, data, len)));
+
+    ++sent_;
+    std::cerr << "Sent " << len << " bytes" << std::endl;
+  }
+
  private:
   std::string name_;
   nsRefPtr<NrIceCtx> ice_ctx_;
@@ -141,6 +160,8 @@ class IceTestPeer : public sigslot::has_slots<> {
   bool gathering_complete_;
   int ready_ct_;
   bool ice_complete_;
+  size_t received_;
+  size_t sent_;
 };
 
 class IceTest : public ::testing::Test {
@@ -180,6 +201,13 @@ class IceTest : public ::testing::Test {
     ASSERT_TRUE_WAIT(p1_.ice_complete() && p2_.ice_complete(), 5000);
   }
 
+  void SendReceive() {
+    //    p1_.Send(2);
+    p1_.SendPacket(0, 1, reinterpret_cast<const unsigned char *>("TEST"), 4);
+    ASSERT_EQ(1, p1_.sent());
+    ASSERT_TRUE_WAIT(p2_.received() == 1, 1000);
+  }
+
  protected:
   nsCOMPtr<nsIEventTarget> target_;
   IceTestPeer p1_;
@@ -200,6 +228,13 @@ TEST_F(IceTest, TestConnect) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
   Connect();
+}
+
+TEST_F(IceTest, TestSendReceive) {
+  AddStream("first", 1);
+  ASSERT_TRUE(Gather(true));
+  Connect();
+  SendReceive();
 }
 
 
