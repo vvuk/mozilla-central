@@ -67,6 +67,10 @@ function log() {
   dump("Identity test: " + strings.join(' ') + "\n");
 }
 
+function get_idstore() {
+  return IDService._store;
+}
+
 function partial(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   return function() {
@@ -76,6 +80,39 @@ function partial(fn) {
 
 function uuid() {
   return uuidGenerator.generateUUID();
+}
+
+// mimicking callback funtionality for ease of testing
+// this observer auto-removes itself after the observe function
+// is called, so this is meant to observe only ONE event.
+function makeObserver(aObserveTopic, aObserveFunc) {
+  let observer = {
+    // nsISupports provides type management in C++
+    // nsIObserver is to be an observer
+    QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+    observe: function (aSubject, aTopic, aData) {
+      if (aTopic == aObserveTopic) {
+        aObserveFunc(aSubject, aTopic, aData);
+        Services.obs.removeObserver(observer, aObserveTopic);
+      }
+    }
+  };
+
+  Services.obs.addObserver(observer, aObserveTopic, false);
+}
+
+// takes a list of functions and returns a function that
+// when called the first time, calls the first func,
+// then the next time the second, etc.
+function call_sequentially() {
+  var numCalls = 0;
+  var funcs = arguments;
+
+  return function() {
+    funcs[numCalls].apply(funcs[numCalls],arguments);
+    numCalls += 1;
+  };
 }
 
 // Switch debug messages on by default
