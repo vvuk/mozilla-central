@@ -11,6 +11,11 @@ do_load_httpd_js();
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "uuidGenerator",
+                                   "@mozilla.org/uuid-generator;1",
+                                   "nsIUUIDGenerator");
+
 let XULAppInfo = {
   vendor: "Mozilla",
   name: "XPCShell",
@@ -42,9 +47,35 @@ registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"
 
 // The following are utility functions for Identity testing
 
-function log(aMsg)
-{
-  dump("ID Tests: " + aMsg + "\n");
+/**
+ * log() - utility function to print a list of arbitrary things
+ */
+function log() {
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      strings.push(JSON.stringify(arg, null, 2));
+    }
+  });
+  dump("Identity test: " + strings.join(' ') + "\n");
+}
+
+function partial(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return function() {
+    return fn.apply(this, args.concat(Array.prototype.slice.call(arguments)));
+  };
+}
+
+function uuid() {
+  return uuidGenerator.generateUUID();
 }
 
 // Switch debug messages on by default

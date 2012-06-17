@@ -25,8 +25,7 @@ const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 /**
  * log() - utility function to print a list of arbitrary things
  */
-function log()
-{
+function log() {
   let strings = [];
   let args = Array.prototype.slice.call(arguments);
   args.forEach(function(arg) {
@@ -45,22 +44,19 @@ function log()
 
   // Additionally, make the output visible in the Error Console
   Services.console.logStringMessage(output);
-
 }
 
 function keygenerator() {}
 
 keygenerator.prototype = {
-  generateKeyPair: function(aAlgorithmName, aCallback)
-  {
+  generateKeyPair: function(aAlgorithmName, aCallback) {
     log("gen key pair");
     IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, keypair) {
       return this._generateKeyPairFinished(rv, keypair, aCallback);
     }.bind(this));
   },
 
-  _generateKeyPairFinished: function(rv, aKeyPair, aCallback)
-  {
+  _generateKeyPairFinished: function(rv, aKeyPair, aCallback) {
     log("kp finished");
     if (!Components.isSuccessCode(rv)) {
       return this.callback("key generation failed");
@@ -104,8 +100,7 @@ function signer() {
 }
 
 signer.prototype = {
-  sign: function(aPayload, aKeypair, aCallback)
-  {
+  sign: function(aPayload, aKeypair, aCallback) {
     this.payload = aPayload;
     this.callback = aCallback;
     aKeypair._kp.sign(this.payload, function(rv, signature) {

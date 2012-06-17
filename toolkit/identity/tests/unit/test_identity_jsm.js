@@ -1,9 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-
 // delay the loading of the IDService for performance purposes
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
                                   "resource:///modules/identity/Identity.jsm",
@@ -11,44 +8,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "IDService",
 
 XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
                                   "resource:///modules/identity/jwcrypto.jsm");
-
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "uuidGenerator",
-                                   "@mozilla.org/uuid-generator;1",
-                                   "nsIUUIDGenerator");
-
-var INTERNAL_ORIGIN = "browserid://";
-
-function partial(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
-  return function() {
-    return fn.apply(this, args.concat(Array.prototype.slice.call(arguments)));
-  };
-}
-
-function uuid() {
-  return uuidGenerator.generateUUID();
-}
-
-/**
- * log() - utility function to print a list of arbitrary things
- */
-function log() {
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      strings.push(JSON.stringify(arg, null, 2));
-    }
-  });
-  dump("@@ test_identity_jsm: " + strings.join(' ') + "\n");
-}
 
 const TEST_URL = "https://myfavoritebacon.com";
 const TEST_URL2 = "https://myfavoritebaconinacan.com";
@@ -60,7 +19,6 @@ const TEST_IDPPARAMS = {
   authentication: "/foo/authenticate.html",
   provisioning: "/foo/provision.html"
 };
-const ALGORITHMS = { RS256: 1, DS160: 2, };
 
 // mimicking callback funtionality for ease of testing
 // this observer auto-removes itself after the observe function
@@ -81,63 +39,6 @@ function makeObserver(aObserveTopic, aObserveFunc) {
   };
 
   Services.obs.addObserver(observer, aObserveTopic, false);
-}
-
-function test_rsa() {
-  do_test_pending();
-  function checkRSA(err, kpo) {
-    do_check_neq(kpo, undefined);
-    do_check_eq(kpo.algorithm, ALGORITHMS.RS256);
-
-    do_check_neq(kpo.sign, null);
-    do_check_eq(typeof kpo.sign, "function");
-    do_check_neq(kpo.userID, null);
-    do_check_neq(kpo.url, null);
-    do_check_eq(kpo.url, INTERNAL_ORIGIN);
-    do_check_neq(kpo.exponent, null);
-    do_check_neq(kpo.modulus, null);
-
-    // TODO: should sign be async?
-    let sig = kpo.sign("This is a message to sign");
-
-    do_check_neq(sig, null);
-    do_check_eq(typeof sig, "string");
-    do_check_true(sig.length > 1);
-
-    do_test_finished();
-    run_next_test();
-  };
-
-  jwcrypto.generateKeyPair("RS256", checkRSA);
-}
-
-function test_dsa() {
-  do_test_pending();
-  function checkDSA(err, kpo) {
-    do_check_neq(kpo, undefined);
-    do_check_eq(kpo.algorithm, ALGORITHMS.DS160);
-
-    do_check_neq(kpo.sign, null);
-    do_check_eq(typeof kpo.sign, "function");
-    do_check_neq(kpo.userID, null);
-    do_check_neq(kpo.url, null);
-    do_check_eq(kpo.url, INTERNAL_ORIGIN);
-    do_check_neq(kpo.generator, null);
-    do_check_neq(kpo.prime, null);
-    do_check_neq(kpo.subPrime, null);
-    do_check_neq(kpo.publicValue, null);
-
-    let sig = kpo.sign("This is a message to sign");
-
-    do_check_neq(sig, null);
-    do_check_eq(typeof sig, "string");
-    do_check_true(sig.length > 1);
-
-    do_test_finished();
-    run_next_test();
-  };
-
-  jwcrypto.generateKeyPair("DS160", checkDSA);
 }
 
 function test_overall() {
@@ -767,18 +668,6 @@ function test_get_assertion_after_provision() {
 
 }
 
-
-function test_jwcrypto() {
-  do_test_pending();
-
-  jwcrypto.generateKeyPair("DS160", function(err, kp) {
-    do_check_eq(err, null);
-
-    do_test_finished();
-    run_next_test();
-  });
-}
-
 function test_begin_authentication_flow() {
   do_test_pending();
   let _provId = null;
@@ -907,12 +796,6 @@ function test_complete_authentication_flow() {
 }
 
 var TESTS = [test_overall, test_id_store, test_mock_doc];
-
-// no test_rsa, test_dsa for now
-//TESTS = TESTS.concat([test_rsa, test_dsa]);
-
-TESTS.push(test_jwcrypto);
-
 
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
