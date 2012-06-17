@@ -200,6 +200,7 @@ int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
 
+  // Signal that we are done
   ctx->SignalCompleted(ctx);
 
   return 0;
@@ -208,6 +209,15 @@ int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
 int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
                         nr_ice_media_stream *stream, int component_id,
                         UCHAR *msg, int len) {
+  // Get the ICE ctx
+  NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
+  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+
+  // Streams which do not exist should never have packets.
+  PR_ASSERT(s);
+
+  s->SignalPacketReceived(s, component_id, msg, len);
+
   return 0;
 }
 
@@ -417,6 +427,17 @@ void NrIceCtx::initialized_cb(NR_SOCKET s, int h, void *arg) {
   ctx->Release();
 }
 
+nsresult NrIceCtx::Finalize() {
+  int r = nr_ice_ctx_finalize(ctx_, peer_);
+
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't finalize "
+         << name_ << "'");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
 
 
 // NrIceMediaStream
@@ -484,4 +505,20 @@ void NrIceMediaStream::EmitAllCandidates() {
   RFREE(attrs);
 }
 
+nsresult NrIceMediaStream::SendPacket(int component_id,
+                                      const unsigned char *data,
+                                      size_t len) {
+  int r = nr_ice_media_stream_send(ctx_->peer(), stream_,
+                                   component_id,
+                                   const_cast<unsigned char *>(data), len);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't send media on '" << name_ << "'");
+    if (r == R_WOULDBLOCK) {
+      return NS_BASE_STREAM_WOULD_BLOCK;
+    }
 
+    return NS_BASE_STREAM_OSERROR;
+  }
+
+  return NS_OK;
+}

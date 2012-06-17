@@ -57,6 +57,10 @@ class NrIceCtx {
 
   // Start checking
   nsresult StartChecks();
+
+  // Finalize the ICE negotiation. I.e., there will be no
+  // more forking.
+  nsresult Finalize();
   
   // Signals to indicate events. API users can (and should)
   // register for these.
@@ -126,12 +130,15 @@ class NrIceMediaStream {
   // Signals to indicate events. API users can (and should)
   // register for these.
 
+  // Send a packet
+  nsresult SendPacket(int component_id, const unsigned char *data, size_t len);
 
-  // A new ICE candidate:
-  sigslot::signal2<NrIceMediaStream *, const std::string& > SignalCandidate;
-
+  sigslot::signal2<NrIceMediaStream *, const std::string& >
+    SignalCandidate;  // A new ICE candidate:
   sigslot::signal1<NrIceMediaStream *> SignalReady;  // Candidate pair ready.
   sigslot::signal1<NrIceMediaStream *> SignalFailed;  // Candidate pair failed.
+  sigslot::signal4<NrIceMediaStream *, int, const unsigned char *, int>
+    SignalPacketReceived;  // Incoming packet
 
   // Emit all the ICE candidates. Note that this doesn't 
   // work for trickle ICE yet--called internally
