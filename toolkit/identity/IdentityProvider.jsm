@@ -457,6 +457,7 @@ IdentityProviderService.prototype = {
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
       Cu.reportError("cancelAuthentication: No auth flow with id " + aAuthId);
+      return;
     }
     let provId = authFlow.provId;
 
@@ -471,7 +472,7 @@ IdentityProviderService.prototype = {
     // invoke callback with ERROR.
     let errStr = "Authentication canceled by IDP";
     log("ERROR: cancelAuthentication:", errStr);
-    return provFlow.callback(errStr);
+    provFlow.callback(errStr);
   },
 
   /**

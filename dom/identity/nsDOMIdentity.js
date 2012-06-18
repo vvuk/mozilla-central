@@ -162,14 +162,21 @@ nsDOMIdentity.prototype = {
   // IDP Authentication
   beginAuthentication: function nsDOMIdentity_beginAuthentication(aCallback) {
     log("beginAuthentication: " + this._id);
+    if (typeof(aCallback.onBeginAuthentication) !== "function") {
+      throw "beginAuthentication callback is required.";
+    }
     this._beginAuthenticationCallback = aCallback;
     this._mm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
-                          this.DOMIdentityMessage());
+                              this.DOMIdentityMessage());
   },
 
   completeAuthentication: function nsDOMIdentity_completeAuthentication() {
+    if (!this._beginAuthenticationCallback) {
+      // TODO: what if this is called in a prov. flow but before beginProv. is called?
+      throw "navigator.id.completeAuthentication called outside of authentication";
+    }
     this._mm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
-                          this.DOMIdentityMessage());
+                              this.DOMIdentityMessage());
   },
 
   raiseAuthenticationFailure: function nsDOMIdentity_raiseAuthenticationFailure(aReason) {

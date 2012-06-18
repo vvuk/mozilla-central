@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!-- Any copyright is dedicated to the Public Domain.
+   - http://creativecommons.org/publicdomain/zero/1.0/ -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for navigator.id identity provider (IDP) authentication basics</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<a target="_blank">navigator.id identity provider (IDP) authentication basics</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+
+</div>
+<pre id="test">
+<script type="application/javascript;version=1.8">
+
+"use strict"
+
+let identity = window.navigator.mozId;
+let index = 0;
+
+function expectException(aFunc, msg) {
+  msg = msg || "";
+  let caughtEx;
+  try {
+    aFunc();
+  } catch (ex) {
+    caughtEx = ex;
+    info("caught: " + ex);
+  }
+  ok(caughtEx, "Check for thrown exception: " + msg);
+}
+
+let steps = [
+  // completeAuthentication tests
+  function completeAuthenticationExists() {
+    is(typeof(identity.completeAuthentication), "function",
+       "Check completeAuthentication is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function completeAuthenticationInvalidArg() {
+    expectException(function() {
+      identity.completeAuthentication(999);
+    }, "Check completeAuthentication with extra argument");
+    SimpleTest.executeSoon(next);
+  },
+  function completeAuthenticationOutsideFlow() {
+    expectException(function() {
+      identity.completeAuthentication();
+    }, "Check completeAuthentication outside of an auth. flow");
+    SimpleTest.executeSoon(next);
+  },
+
+  // raiseAuthenticationFailure tests
+  function raiseAuthenticationFailureExists() {
+    is(typeof(identity.raiseAuthenticationFailure), "function",
+       "Check raiseAuthenticationFailure is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function raiseAuthenticationFailureNoArgs() {
+    expectException(identity.raiseAuthenticationFailure,
+                    "raiseAuthenticationFailure with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+/* TODO: maybe this is fine if it happens in an auth frame but just before beginAuth?
+  function raiseAuthenticationFailureValidArgs() {
+    expectException(function() {
+      identity.raiseAuthenticationFailure("my auth. failure message");
+    }, "raiseAuthenticationFailure outside of a auth. flow");
+  },
+*/
+
+  // beginAuthentication tests
+  function beginAuthenticationExists() {
+    is(typeof(identity.beginAuthentication), "function",
+       "Check beginAuthentication is a function");
+    SimpleTest.executeSoon(next);
+  },
+  function beginAuthenticationNoArgs() {
+    expectException(function() {
+      identity.beginAuthentication();
+    }, "beginAuthentication with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function beginAuthenticationInvalidArg() {
+    expectException(function() {
+      identity.beginAuthentication(999);
+    }, "beginAuthentication with a non-function argument");
+    SimpleTest.executeSoon(next);
+  },
+  function beginAuthenticationArgs() {
+    function beginAuthenticationCb() {
+      throw "beginAuthentication callback shouldn't have been called outside of an "
+              + "auth flow";
+    }
+    is(identity.beginAuthentication(beginAuthenticationCb), undefined,
+       "Check minimum beginAuthentication arguments");
+    SimpleTest.executeSoon(next);
+  },
+
+  function finish_tests() {
+    info("all done");
+    SimpleTest.finish();
+  },
+];
+
+
+function next() {
+  if (index >= steps.length) {
+    ok(false, "Shouldn't get here!");
+    return;
+  }
+  try {
+    let fn = steps[index];
+    info("Begin test " + index + " '" + steps[index].name + "'!");
+    fn();
+  } catch(ex) {
+    ok(false, "Caught exception", ex);
+  }
+  index += 1;
+}
+
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(next);
+
+</script>
+</pre>
+</body>
+</html>
