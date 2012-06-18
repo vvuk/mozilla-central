@@ -78,7 +78,7 @@ function test_select_identity() {
       // do the select identity
       // we expect this to succeed right away because of test_identity
       // so we don't mock network requests or otherwise
-      IDService.selectIdentity(aSubject.QueryInterface(Ci.nsIPropertyBag).getProperty('rpId'), id);
+      IDService.selectIdentity(aSubject.wrappedJSObject.rpId, id);
     });
 
     // do the request

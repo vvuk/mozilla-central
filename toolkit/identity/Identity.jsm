@@ -720,11 +720,9 @@ IDService.prototype = {
    */
   _beginAuthenticationFlow: function _beginAuthenticationFlow(aProvId, aURL) {
     log("_beginAuthenticationFlow:", aProvId, aURL);
-    let propBag = Cc["@mozilla.org/hash-property-bag;1"]
-                    .createInstance(Ci.nsIWritablePropertyBag);
-    propBag.setProperty("provId", aProvId);
+    let propBag = {provId: aProvId};
 
-    Services.obs.notifyObservers(propBag, "identity-auth", aURL);
+    Services.obs.notifyObservers({wrappedJSObject:propBag}, "identity-auth", aURL);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),

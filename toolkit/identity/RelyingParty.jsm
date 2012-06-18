@@ -227,10 +227,10 @@ IdentityRelyingParty.prototype = {
   _notifyLoginStateChanged: function _notifyLoginStateChanged(aRpCallerId, aIdentity) {
     log("_notifyLoginStateChanged: rpId:", aRpCallerId, "identity:", aIdentity);
 
-    let options = Cc["@mozilla.org/hash-property-bag;1"]
-                    .createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("rpId", aRpCallerId);
-    Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
+    let options = {rpId: aRpCallerId};
+    Services.obs.notifyObservers({wrappedJSObject: options},
+                                 "identity-login-state-changed",
+                                 aIdentity);
   },
 
   /**
@@ -247,22 +247,19 @@ IdentityRelyingParty.prototype = {
     log("request: rpId:", aRPId);
 
     // Notify UX to display identity picker.
-    let options = Cc["@mozilla.org/hash-property-bag;1"]
-                    .createInstance(Ci.nsIWritablePropertyBag);
-
     // Pass the doc id to UX so it can pass it back to us later.
-    options.setProperty("rpId", aRPId);
+    let options = {rpId: aRPId};
 
     // Append URLs after resolving
     let rp = this._rpFlows[aRPId];
     let baseURI = Services.io.newURI(rp.origin, null, null);
     for (let optionName of ["privacyPolicy", "termsOfService"]) {
       if (aOptions[optionName]) {
-        options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
+        options[optionName] = baseURI.resolve(aOptions[optionName]);
       }
     }
 
-    Services.obs.notifyObservers(options, "identity-request", null);
+    Services.obs.notifyObservers({wrappedJSObject: options}, "identity-request", null);
   },
 
   /**

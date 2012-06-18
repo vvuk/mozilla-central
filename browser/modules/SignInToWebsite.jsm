@@ -48,20 +48,20 @@ let SignInToWebsiteUX = {
     log("observe: received " + aTopic + " with " + aData + " for " + aSubject);
     switch(aTopic) {
       case "identity-request":
-        this.requestLogin(aSubject);
+        this.requestLogin(aSubject.wrappedJSObject);
         break;
       case "identity-auth":
-        this._openAuthenticationUI(aData, aSubject);
+        this._openAuthenticationUI(aData, aSubject.wrappedJSObject);
         break;
       case "identity-auth-complete":
         this._closeAuthenticationUI(aData);
         break;
       case "identity-login-state-changed":
         if (aData) { // if there is en email address
-          this._removeRequestUI(aSubject);
-          this._showLoggedInUI(aData, aSubject);
+          this._removeRequestUI(aSubject.wrappedJSObject);
+          this._showLoggedInUI(aData, aSubject.wrappedJSObject);
         } else {
-          this._removeLoggedInUI(aSubject);
+          this._removeLoggedInUI(aSubject.wrappedJSObject);
         }
         break;
     }
@@ -71,7 +71,7 @@ let SignInToWebsiteUX = {
    * The website is requesting login so the user must choose an identity to use.
    */
   requestLogin: function SignInToWebsiteUX_requestLogin(aOptions) {
-    let windowID = aOptions.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
+    let windowID = aOptions.rpId;
     log("requestLogin for " + windowID);
     let [win, browserEl] = this._getUIForID(windowID);
 
@@ -97,16 +97,14 @@ let SignInToWebsiteUX = {
     let secondaryActions = [];
 
     // add some extra properties to the notification to store some identity-related state
-    let requestOptions = aOptions.QueryInterface(Ci.nsIPropertyBag).enumerator;
-    while (requestOptions.hasMoreElements()) {
-      let opt = requestOptions.getNext().QueryInterface(Ci.nsIProperty);
-      options.identity[opt.name] = opt.value;
+    for (let opt in aOptions) {
+      options.identity[opt] = aOptions[opt];
     }
     log("requestLogin: rpId: " + options.identity.rpId);
 
     let reqNot = win.PopupNotifications.show(browserEl, "identity-request", message,
-                                              "identity-notification-icon", mainAction,
-                                              secondaryActions, options);
+                                             "identity-notification-icon", mainAction,
+                                             secondaryActions, options);
   },
 
   /**
@@ -171,7 +169,7 @@ let SignInToWebsiteUX = {
     let windowID = authWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
     log("authWin outer id: " + windowID);
 
-    let provId = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("provId");
+    let provId = aContext.provId;
     // Tell the ID service about the id before loading the url
     IdentityService.setAuthenticationFlow(windowID, provId);
 
@@ -188,7 +186,7 @@ let SignInToWebsiteUX = {
    * Show a doorhanger indicating the currently logged-in user.
    */
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
-    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
+    let windowID = aContext.rpId;
     log("_showLoggedInUI for " + windowID);
     let [win, browserEl] = this._getUIForID(windowID);
 
@@ -216,7 +214,7 @@ let SignInToWebsiteUX = {
    * Remove the doorhanger indicating the currently logged-in user.
    */
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
-    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
+    let windowID = aContext.rpId;
     log("_removeLoggedInUI for " + windowID);
     let [win, browserEl] = this._getUIForID(windowID);
 
@@ -229,7 +227,7 @@ let SignInToWebsiteUX = {
    * Remove the doorhanger indicating the currently logged-in user.
    */
   _removeRequestUI: function _removeRequestUI(aContext) {
-    let windowID = aContext.QueryInterface(Ci.nsIPropertyBag).getProperty("rpId");
+    let windowID = aContext.rpId;
     log("_removeRequestUI for " + windowID);
     let [win, browserEl] = this._getUIForID(windowID);
 

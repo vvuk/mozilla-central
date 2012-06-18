@@ -24,8 +24,7 @@ function test_begin_authentication_flow() {
   makeObserver("identity-auth", function (aSubject, aTopic, aData) {
     do_check_neq(aSubject, null);
 
-    let subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
-    do_check_eq(subj.getProperty('provId'), _provId);
+    do_check_eq(aSubject.wrappedJSObject.provId, _provId);
 
     do_test_finished();
     run_next_test();
@@ -82,8 +81,7 @@ function test_complete_authentication_flow() {
     makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
       do_check_neq(aSubject, null);
 
-      let subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
-      do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
+      do_check_eq(aSubject.wrappedJSObject.rpId, mockedDoc.id);
       do_check_eq(aData, id);
 
       // if callbacks in caller doc already fired, test is done.

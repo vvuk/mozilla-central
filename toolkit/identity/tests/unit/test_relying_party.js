@@ -146,8 +146,7 @@ function test_request() {
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
     do_check_neq(aSubject, null);
 
-    let subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
-    do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
+    do_check_eq(aSubject.wrappedJSObject.rpId, mockedDoc.id);
 
     do_test_finished();
     run_next_test();
