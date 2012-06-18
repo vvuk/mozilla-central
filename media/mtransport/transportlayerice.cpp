@@ -442,7 +442,7 @@ nsresult NrIceCtx::Finalize() {
 
 // NrIceMediaStream
 mozilla::RefPtr<NrIceMediaStream>
-NrIceMediaStream::Create(mozilla::RefPtr<NrIceCtx> ctx,
+NrIceMediaStream::Create(NrIceCtx *ctx,
                          const std::string& name,
                          int components) {
   mozilla::RefPtr<NrIceMediaStream> stream =

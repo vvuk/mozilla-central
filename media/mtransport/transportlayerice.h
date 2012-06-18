@@ -103,19 +103,20 @@ class NrIceCtx {
   // Find a media stream by stream ptr. Gross
   mozilla::RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
+
   const std::string name_;
   bool offerer_;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
   nr_ice_ctx *ctx_;
   nr_ice_peer_ctx *peer_;
-  nr_ice_handler_vtbl *ice_handler_vtbl_;  // Must be pointer to isolate nICEr structs
-  nr_ice_handler *ice_handler_;  // Must be pointer to isolate nICEr structs
+  nr_ice_handler_vtbl* ice_handler_vtbl_;  // Must be pointer
+  nr_ice_handler* ice_handler_;  // Must be pointer
 };
 
 
 class NrIceMediaStream {
  public:
-  static mozilla::RefPtr<NrIceMediaStream> Create(mozilla::RefPtr<NrIceCtx> ctx,
+  static mozilla::RefPtr<NrIceMediaStream> Create(NrIceCtx *ctx,
                                            const std::string& name,
                                            int components);
 
@@ -149,26 +150,17 @@ class NrIceMediaStream {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
   
  private:
-  NrIceMediaStream(mozilla::RefPtr<NrIceCtx> ctx,  const std::string& name,
+  NrIceMediaStream(NrIceCtx *ctx,  const std::string& name,
                    int components)
       : ctx_(ctx), name_(name), components_(components), stream_(NULL)  {}
   ~NrIceMediaStream();
-
-
-                   
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
-  mozilla::RefPtr<NrIceCtx> ctx_;
+  NrIceCtx *ctx_;
   const std::string name_;
   const int components_;
   nr_ice_media_stream *stream_;
 };
-
-
-
-
-
-
 
 
 
