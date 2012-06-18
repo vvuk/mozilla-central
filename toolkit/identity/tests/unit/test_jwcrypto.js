@@ -17,7 +17,7 @@ function test_sanity() {
   do_test_pending();
 
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
-    do_check_eq(err, null);
+    do_check_null(err);
 
     do_test_finished();
     run_next_test();
@@ -27,7 +27,7 @@ function test_sanity() {
 function test_generate() {
   do_test_pending();
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
-    do_check_eq(err, null);
+    do_check_null(err);
     do_check_neq(kp, null);
 
     do_test_finished();
@@ -42,7 +42,7 @@ function test_get_assertion() {
     "DS160",
     function(err, kp) {
       jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
-        do_check_eq(err, null);
+        do_check_null(err);
 
         // more checks on assertion
         log("assertion", assertion);

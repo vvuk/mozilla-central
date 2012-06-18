@@ -22,7 +22,7 @@ function test_well_known_1() {
   let hostPort = "localhost:" + SERVER_PORT;
 
   function check_well_known(aErr, aCallbackObj) {
-    do_check_eq(null, aErr); // TODO: use do_check_null after m-c update
+    do_check_null(aErr);
     do_check_eq(aCallbackObj.domain, hostPort);
     let idpParams = aCallbackObj.idpParams;
     do_check_eq(idpParams['public-key'].algorithm, "RS");

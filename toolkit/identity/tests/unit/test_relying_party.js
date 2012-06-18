@@ -52,7 +52,7 @@ function test_watch_loggedin_login() {
       },
       function(action, params) {
         do_check_eq(action, 'ready');
-        do_check_eq(params, null);
+        do_check_null(params);
 
         do_test_finished();
         run_next_test();
@@ -85,7 +85,7 @@ function test_watch_loggedin_logout() {
         },
         function(action, params) {
           do_check_eq(action, 'ready');
-          do_check_eq(params, null);
+          do_check_null(params);
 
           do_test_finished();
           run_next_test();

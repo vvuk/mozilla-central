@@ -8,7 +8,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "IDService",
                                   "IdentityService");
 
 function check_provision_flow_done(provId) {
-  do_check_eq(IDService._provisionFlows[provId], null);
+  do_check_null(IDService._provisionFlows[provId]);
 }
 
 function test_begin_provisioning() {
@@ -161,7 +161,7 @@ function test_register_certificate() {
     },
     function(err) {
       // we should be cool!
-      do_check_eq(err, null);
+      do_check_null(err);
 
       // XXX this will happen after the callback is called
       //
@@ -199,7 +199,7 @@ function test_get_assertion_after_provision() {
     },
     function(err) {
       // we should be cool!
-      do_check_eq(err, null);
+      do_check_null(err);
 
       check_provision_flow_done(_callerId);
 

@@ -24,7 +24,7 @@ function test_id_store() {
   // clear the cert should keep the identity but not the cert
   store.clearCert(TEST_USER);
   do_check_neq(store.getIdentities()[TEST_USER], null);
-  do_check_eq(store.getIdentities()[TEST_USER].cert, null);
+  do_check_null(store.getIdentities()[TEST_USER].cert);
 
   // remove it should remove everything
   store.removeIdentity(TEST_USER);
@@ -45,12 +45,12 @@ function test_id_store() {
   do_check_eq(store.getLoginState(TEST_URL).email, TEST_USER);
 
   // not logged into other site
-  do_check_eq(store.getLoginState(TEST_URL2), null);
+  do_check_null(store.getLoginState(TEST_URL2));
 
   // clear login state
   store.clearLoginState(TEST_URL);
-  do_check_eq(store.getLoginState(TEST_URL), null);
-  do_check_eq(store.getLoginState(TEST_URL2), null);
+  do_check_null(store.getLoginState(TEST_URL));
+  do_check_null(store.getLoginState(TEST_URL2));
 
   run_next_test();
 }

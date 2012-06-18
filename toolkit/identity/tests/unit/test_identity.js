@@ -47,7 +47,7 @@ function test_select_identity() {
       function(action, params) {
         // ready emitted from first watch() call
 	do_check_eq(action, 'ready');
-	do_check_eq(params, null);
+	do_check_null(params);
       },
       // first the login call
       function(action, params) {
@@ -61,7 +61,7 @@ function test_select_identity() {
       // then the ready call
       function(action, params) {
         do_check_eq(action, 'ready');
-        do_check_eq(params, null);
+        do_check_null(params);
 
         // we should have gotten the assertion already
         do_check_true(gotAssertion);
