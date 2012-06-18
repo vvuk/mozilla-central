@@ -363,6 +363,7 @@ TEST_F(TransportTest, TestConnectIce) {
 
 TEST_F(TransportTest, TestTransferIce) {
   ConnectIce();
+  TransferTest(1);
 }
 
 }  // end namespace
