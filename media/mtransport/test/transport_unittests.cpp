@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <string>
+#include <map>
 
 // From libjingle.
 #include <talk/base/sigslot.h>
@@ -102,21 +103,28 @@ namespace {
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
   TransportTestPeer(nsCOMPtr<nsIEventTarget> target, std::string name) 
-  : target_(target),
-    received_(0), flow_(), 
-    prsock_(new TransportLayerPrsock()),
-    logging_(new TransportLayerLogging()),
-    lossy_(new TransportLayerLossy()),
-    dtls_(new TransportLayerDtls()),
-    ice_ctx_(NrIceCtx::Create("test", true)),
-    identity_(DtlsIdentity::Generate(name)) {
+      : name_(name), target_(target),
+        received_(0), flow_(), 
+        prsock_(new TransportLayerPrsock()),
+        logging_(new TransportLayerLogging()),
+        lossy_(new TransportLayerLossy()),
+        dtls_(new TransportLayerDtls()),
+        identity_(DtlsIdentity::Generate(name)),
+        ice_ctx_(NrIceCtx::Create(name, 
+                                  name == "P2" ?
+                                  TransportLayerDtls::CLIENT :
+                                  TransportLayerDtls::SERVER)),
+        streams_(), candidates_(),
+        peer_(NULL),
+        gathering_complete_(false)
+ {
     dtls_->SetIdentity(identity_);
     dtls_->SetRole(name == "P2" ?
                    TransportLayerDtls::CLIENT :
                    TransportLayerDtls::SERVER);
   }
 
-  void Connect(PRFileDesc *fd) {
+  void ConnectSocket(PRFileDesc *fd) {
     nsresult res;
     res = prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
@@ -130,6 +138,93 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
     
     flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+  }
+
+  void InitIce() {
+    nsresult res;
+
+    // Attach our slots
+    ice_ctx_->SignalGatheringCompleted.
+        connect(this, &TransportTestPeer::GatheringComplete);
+
+    char name[100];
+    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(),
+             (int)streams_.size());
+
+    // Create the media stream
+    mozilla::RefPtr<NrIceMediaStream> stream = 
+        ice_ctx_->CreateStream(static_cast<char *>(name), 1);
+    ASSERT_TRUE(stream != NULL);
+    streams_.push_back(stream);
+    
+    // Listen for candidates
+    stream->SignalCandidate.
+        connect(this, &TransportTestPeer::GotCandidate);
+    
+    // Create the transport layer
+    ice_ = new TransportLayerIce(name, ice_ctx_, stream, 1);
+
+    // Assemble the stack
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(ice_));
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
+
+    // Listen for media events
+    flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+
+    // Start gathering
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(ice_ctx_, &NrIceCtx::StartGathering, &res),
+        NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+  }
+
+  void ConnectIce(TransportTestPeer *peer) {
+    peer_ = peer;
+
+    // If gathering is already complete, push the candidates over
+    if (gathering_complete_)
+      GatheringComplete(ice_ctx_);
+  }
+
+  
+  // New candidate
+  void GotCandidate(NrIceMediaStream *stream, const std::string &candidate) {
+    std::cerr << "Got candidate " << candidate << std::endl;
+    candidates_[stream->name()].push_back(candidate);
+  }
+
+  // Gathering complete, so send our candidates and start
+  // connecting on the other peer.
+  void GatheringComplete(NrIceCtx *ctx) {
+    nsresult res;
+
+    // Don't send to the other side
+    if (!peer_) {
+      gathering_complete_ = true;
+      return;
+    }
+      
+    // First send attributes
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(peer_->ice_ctx_, 
+                      &NrIceCtx::ParseGlobalAttributes,
+                      ice_ctx_->GetGlobalAttributes(), &res),
+      NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+
+    for (size_t i=0; i<streams_.size(); ++i) {
+      test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(peer_->streams_[i], &NrIceMediaStream::ParseCandidates,
+                        candidates_[streams_[i]->name()], &res), NS_DISPATCH_SYNC);
+
+      ASSERT_TRUE(NS_SUCCEEDED(res));
+    }
+
+    // Start checks on the other peer.
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(peer_->ice_ctx_, &NrIceCtx::StartChecks, &res),
+      NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
   }
 
   TransportResult SendPacket(const unsigned char* data, size_t len) {
@@ -154,6 +249,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   size_t received() { return received_; }
 
  private:
+  std::string name_;
   nsCOMPtr<nsIEventTarget> target_;  
   size_t received_;
   TransportFlow flow_;
@@ -161,8 +257,13 @@ class TransportTestPeer : public sigslot::has_slots<> {
   TransportLayerLogging *logging_;
   TransportLayerLossy *lossy_;
   TransportLayerDtls *dtls_;
-  mozilla::RefPtr<NrIceCtx> ice_ctx_;
+  TransportLayerIce *ice_;
   mozilla::RefPtr<DtlsIdentity> identity_;
+  mozilla::RefPtr<NrIceCtx> ice_ctx_;
+  std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
+  std::map<std::string, std::vector<std::string> > candidates_;  
+  TransportTestPeer *peer_;
+  bool gathering_complete_;
 };
 
 
@@ -191,7 +292,7 @@ class TransportTest : public ::testing::Test {
     p2_ = new TransportTestPeer(target_, "P2");
   }
 
-  void Connect() {
+  void ConnectSocket() {
 
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
@@ -204,8 +305,22 @@ class TransportTest : public ::testing::Test {
     status = PR_SetSocketOption(fds_[1], &opt);
     ASSERT_EQ(status, PR_SUCCESS);    
     
-    p1_->Connect(fds_[0]);
-    p2_->Connect(fds_[1]);
+    p1_->ConnectSocket(fds_[0]);
+    p2_->ConnectSocket(fds_[1]);
+    ASSERT_TRUE_WAIT(p1_->connected(), 10000);
+    ASSERT_TRUE_WAIT(p2_->connected(), 10000);
+  }
+
+  void InitIce() {
+    p1_->InitIce();
+    p2_->InitIce();
+  }
+
+  void ConnectIce() {
+    p1_->InitIce();
+    p2_->InitIce();
+    p1_->ConnectIce(p2_);
+    p2_->ConnectIce(p1_);
     ASSERT_TRUE_WAIT(p1_->connected(), 10000);
     ASSERT_TRUE_WAIT(p2_->connected(), 10000);
   }
@@ -233,13 +348,21 @@ class TransportTest : public ::testing::Test {
 
 // TODO(ekr@rtfm.com): add a test with more values
 TEST_F(TransportTest, TestTransfer) {
-  Connect();
+  ConnectSocket();
   TransferTest(1);
 }
 
 TEST_F(TransportTest, TestConnectLoseFirst) {
   p1_->SetLoss(0);
-  Connect();
+  ConnectSocket();
+}
+
+TEST_F(TransportTest, TestConnectIce) {
+  ConnectIce();
+}
+
+TEST_F(TransportTest, TestTransferIce) {
+  ConnectIce();
 }
 
 }  // end namespace

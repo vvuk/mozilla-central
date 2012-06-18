@@ -69,6 +69,8 @@ extern "C" {
 
 // Local includes
 #include "logging.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
 #include "transportflow.h"
 #include "transportlayerice.h"
 
@@ -76,4 +78,55 @@ MLOG_INIT("mtransport");
 
 std::string TransportLayerIce::ID("mt_ice");
 static bool initialized = false;
+
+
+TransportLayerIce::TransportLayerIce(const std::string& name,
+    mozilla::RefPtr<NrIceCtx> ctx, mozilla::RefPtr<NrIceMediaStream> stream,
+                                     int component)
+    : name_(name), ctx_(ctx), stream_(stream), component_(component) {
+  stream_->SignalReady.connect(this, &TransportLayerIce::IceReady);
+  stream_->SignalFailed.connect(this, &TransportLayerIce::IceFailed);
+  stream_->SignalPacketReceived.connect(this,
+                                        &TransportLayerIce::IcePacketReceived);  
+}
+        
+TransportLayerIce::~TransportLayerIce() {
+  // No need to do anything here, since we use smart pointers
+}
+
+TransportResult TransportLayerIce::SendPacket(const unsigned char *data,
+                                              size_t len) {
+  nsresult res = stream_->SendPacket(component_, data, len);
+  
+  if (!NS_SUCCEEDED(res)) {
+    return (res == NS_BASE_STREAM_WOULD_BLOCK) ?
+        TE_WOULDBLOCK : TE_ERROR;
+  }
+  
+  return len;
+}
+
+
+void TransportLayerIce::IceCandidate(NrIceMediaStream *stream,
+                                     const std::string&) {
+  // NO-OP for now
+}
+
+void TransportLayerIce::IceReady(NrIceMediaStream *stream) {
+  SetState(OPEN);
+}
+
+void TransportLayerIce::IceFailed(NrIceMediaStream *stream) {
+  SetState(ERROR);
+}
+
+void TransportLayerIce::IcePacketReceived(NrIceMediaStream *stream, int component,
+                       const unsigned char *data, int len) {
+  // We get packets for both components, so ignore the ones that aren't
+  // for us.
+  if (component_ != component)
+    return;
+  
+  SignalPacketReceived(this, data, len);
+}
 

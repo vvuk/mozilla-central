@@ -31,18 +31,14 @@ class TransportLayerPrsock : public TransportLayer {
   // Internal initializer
   virtual nsresult InitInternal();
 
-  // TODO: ekr@rtfm.com, this currently must be called on the socket thread.
-  // Should we require that or provide a way to pump requests across
-  // threads?
   void Import(PRFileDesc *fd, nsresult *result);
-  
+
   void Detach() {
     handler_->Detach();
   }
 
   // Implement TransportLayer
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
-  
   
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }

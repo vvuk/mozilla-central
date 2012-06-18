@@ -21,18 +21,27 @@
 #include "m_cpp_utils.h"
 
 #include "nricemediastream.h"
-
-class TransportLayerIce;
+#include "transportflow.h"
+#include "transportlayer.h"
 
 // An ICE transport layer -- corresponds to a single ICE
-class TransportLayerIce {
+class TransportLayerIce : public TransportLayer {
  public:
-//  TransportLayerIce(const std::string& name)
-//                    NrIceCtx *ctx);
+  TransportLayerIce(const std::string& name,
+                    mozilla::RefPtr<NrIceCtx> ctx,
+                    mozilla::RefPtr<NrIceMediaStream> stream,
+                    int component);
   virtual ~TransportLayerIce();
 
-  // Allow this to be refcountable
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIce);
+  // Transport layer overrides.
+  virtual TransportResult SendPacket(const unsigned char *data, size_t len);
+
+  // Slots for ICE
+  void IceCandidate(NrIceMediaStream *stream, const std::string&);
+  void IceReady(NrIceMediaStream *stream);
+  void IceFailed(NrIceMediaStream *stream);
+  void IcePacketReceived(NrIceMediaStream *stream, int component,
+                         const unsigned char *data, int len);
 
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
@@ -40,8 +49,16 @@ class TransportLayerIce {
   // A static version of the layer ID
   static std::string ID;
 
+  // Allow this to be refcountable
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIce);
+
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerIce);
+  
+  const std::string name_;
+  mozilla::RefPtr<NrIceCtx> ctx_;
+  mozilla::RefPtr<NrIceMediaStream> stream_;
+  int component_;
 };
 
 #endif
