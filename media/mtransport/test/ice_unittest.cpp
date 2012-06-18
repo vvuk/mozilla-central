@@ -19,8 +19,9 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
-#include "transportlayerice.h"
 #include "logging.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
 

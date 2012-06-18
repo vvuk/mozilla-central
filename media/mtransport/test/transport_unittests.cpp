@@ -18,6 +18,8 @@
 #include "nsXPCOM.h"
 
 #include "dtlsidentity.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 #include "transportlayerdtls.h"

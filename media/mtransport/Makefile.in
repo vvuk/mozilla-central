@@ -80,6 +80,8 @@ EXPORTS_NAMESPACES = mtransport
 
 EXPORTS_mtransport = \
   dtlsidentity.h \
+  nricectx.h \
+  nricemediastream.h \
   transportflow.h \
   transportlayer.h \
   transportlayerdtls.h \
@@ -91,6 +93,10 @@ EXPORTS_mtransport = \
 
 CPPSRCS = \
   dtlsidentity.cpp \
+  nricectx.cpp \
+  nricemediastream.cpp \
+  nr_socket_prsock.cpp \
+  nr_timer.cpp \
   transportflow.cpp \
   transportlayer.cpp \
   transportlayerice.cpp \
@@ -98,8 +104,6 @@ CPPSRCS = \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
-  nr_socket_prsock.cpp \
-  nr_timer.cpp \
   $(NULL)
 
 DIRS = \
