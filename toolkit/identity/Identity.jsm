@@ -20,14 +20,9 @@ let FALLBACK_PROVIDER = "browserid.org";
 
 const PREF_DEBUG = "toolkit.identity.debug";
 
-XPCOMUtils.defineLazyServiceGetter(this,
-                                   "IdentityCryptoService",
-                                   "@mozilla.org/identity/crypto-service;1",
-                                   "nsIIdentityCryptoService");
-
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
-                                  "resource:///modules/identity/jwcrypto.jsm");
+                                  "resource://gre/modules/identity/jwcrypto.jsm");
 
 /**
  * log() - utility function to print a list of arbitrary things
@@ -75,8 +70,6 @@ function IDService() {
 }
 
 IDService.prototype = {
-  // DOM Methods.
-
   /**
    * Reset the state of the IDService object.
    */
@@ -110,8 +103,6 @@ IDService.prototype = {
     // may be necessary to authenticate with an IdP.  The authentication
     // flow maintains the state of that authentication process.
     this._authenticationFlows = {};
-
-    this._registry = {};
   },
 
   /**
@@ -310,6 +301,7 @@ IDService.prototype = {
     });
   },
 
+  // DOM Methods
   /**
    * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
    *
@@ -777,4 +769,3 @@ IDService.prototype = {
 };
 
 let IdentityService = new IDService();
-
