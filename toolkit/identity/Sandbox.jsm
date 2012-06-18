@@ -49,7 +49,7 @@ Sandbox.prototype = {
    */
   load: function Sandbox_load() {
     this._log("load: " + this.id + " : " + this._url);
-    this._createSandbox(function createdSandbox(aSandbox){
+    this._createSandbox(function createdSandbox(aSandbox) {
       this._log("load sandbox id: ", aSandbox.id);
     }.bind(this));
   },

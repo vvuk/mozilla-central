@@ -257,6 +257,17 @@ nsDOMIdentity.prototype = {
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
 
+    // TODO: Also send message to DOMIdentity.jsm notifiying window is no longer valid
+    // ie. in the case that the user closes the auth. window and we need to know.
+
+    try {
+      for (let msgName of this._messages) {
+        this._mm.removeMessageListener(msgName, this);
+      }
+    } catch (ex) {
+      // Avoid errors when removing more than once.
+    }
+
     this._mm = null;
   },
 
