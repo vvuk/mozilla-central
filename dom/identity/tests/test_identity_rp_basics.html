@@ -151,24 +151,7 @@ let steps = [
     is(identity.request({}), undefined, "Check request with empty object argument");
     SimpleTest.executeSoon(next);
   },
-/* TODO: won't fail using DOMString
-  function requestRequiredEmailType() {
-    let options = {
-      requiredEmail: 999,
-    };
-    expectException(function() {
-      identity.request(options)
-    }, "Check requiredEmail type");
-    options.requiredEmail = function() {
-      ok(false, "Shouldn't be called");
-    };
-    expectException(function() {
-      identity.request(options)
-    }, "Check requiredEmail type 2");
 
-    SimpleTest.executeSoon(next);
-  },
-*/
   // logout tests
   function logoutExists() {
     is(typeof(identity.logout), "function", "Check logout is a function");

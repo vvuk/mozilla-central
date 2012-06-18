@@ -73,7 +73,7 @@ nsDOMIdentity.prototype = {
 
     if (aOptions) {
       // Optional string properties
-      let optionalStringProps = ["privacyPolicy", "termsOfService", "requiredEmail"];
+      let optionalStringProps = ["privacyPolicy", "termsOfService"];
       for (let propName of optionalStringProps) {
         if (!aOptions[propName] || aOptions[propName] === "undefined")
           continue;
