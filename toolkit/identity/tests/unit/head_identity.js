@@ -186,7 +186,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   IDService.init();
 
   let provId = uuid();
-  IDService._provisionFlows[provId] = {
+  IDService.IDP._provisionFlows[provId] = {
     identity : identity,
     idpParams: TEST_IDPPARAMS,
     callback: function(err) {

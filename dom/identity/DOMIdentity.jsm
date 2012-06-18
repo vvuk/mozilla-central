@@ -231,32 +231,32 @@ let DOMIdentity = {
 
   _beginProvisioning: function(message, targetMM) {
     let context = new IDPProvisioningContext(message.oid, message.origin, targetMM);
-    IdentityService.beginProvisioning(context);
+    IdentityService.IDP.beginProvisioning(context);
   },
 
   _genKeyPair: function(message) {
-    IdentityService.genKeyPair(message.oid); // TODO: pass ref. to callback?
+    IdentityService.IDP.genKeyPair(message.oid); // TODO: pass ref. to callback?
   },
 
   _registerCertificate: function(message) {
-    IdentityService.registerCertificate(message.oid, message.cert);
+    IdentityService.IDP.registerCertificate(message.oid, message.cert);
   },
 
   _provisioningFailure: function(message) {
-    IdentityService.raiseProvisioningFailure(message.oid, message.reason);
+    IdentityService.IDP.raiseProvisioningFailure(message.oid, message.reason);
   },
 
   _beginAuthentication: function(message, targetMM) {
     let context = new IDPAuthenticationContext(message.oid, message.origin, targetMM);
-    IdentityService.beginAuthentication(context);
+    IdentityService.IDP.beginAuthentication(context);
   },
 
   _completeAuthentication: function(message) {
-    IdentityService.completeAuthentication(message.oid);
+    IdentityService.IDP.completeAuthentication(message.oid);
   },
 
   _authenticationFailure: function(message) {
-    IdentityService.cancelAuthentication(message.oid); // TODO: see issue #4
+    IdentityService.IDP.cancelAuthentication(message.oid); // TODO: see issue #4
   },
 };
 

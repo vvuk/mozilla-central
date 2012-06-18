@@ -29,19 +29,24 @@ function test_begin_authentication_flow() {
     do_test_finished();
     run_next_test();
   });
-
+do_print("foo");
+try {
   setup_provisioning(
     TEST_USER,
     function(caller) {
       _provId = caller.id;
-      IDService.beginProvisioning(caller);
+      IDService.IDP.beginProvisioning(caller);
     }, function() {},
     {
       beginProvisioningCallback: function(email, duration_s) {
 	// let's say this user needs to authenticate
-	IDService._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
       }
     });
+} catch (ex) {
+  do_print(ex);
+}
+do_print("bar");
 }
 
 function test_complete_authentication_flow() {
@@ -100,7 +105,7 @@ function test_complete_authentication_flow() {
     doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity) {
       do_check_eq(identity, TEST_USER);
 
-      IDService.completeAuthentication(_authId);
+      IDService.IDP.completeAuthentication(_authId);
     },
 
     doError: function(err) {
@@ -114,23 +119,23 @@ function test_complete_authentication_flow() {
     function(provFlow) {
       _provId = provFlow.id;
 
-      IDService.beginProvisioning(provFlow);
+      IDService.IDP.beginProvisioning(provFlow);
     }, function() {},
     {
       beginProvisioningCallback: function(email, duration_s) {
 	// let's say this user needs to authenticate
-	IDService._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
 
 	// test_begin_authentication_flow verifies that the right
 	// message is sent to the UI.  So that works.  Moving on,
 	// the UI calls setAuthenticationFlow ...
 	_authId = uuid();
-	IDService.setAuthenticationFlow(_authId, _provId);
+	IDService.IDP.setAuthenticationFlow(_authId, _provId);
 
 	// ... then the UI calls beginAuthentication ...
 	authCaller.id = _authId;
-	IDService._provisionFlows[_provId].caller = authCaller;
-	IDService.beginAuthentication(authCaller);
+	IDService.IDP._provisionFlows[_provId].caller = authCaller;
+	IDService.IDP.beginAuthentication(authCaller);
       }
     });
 }

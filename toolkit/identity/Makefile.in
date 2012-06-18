@@ -31,9 +31,11 @@ CPPSRCS = \
 
 EXTRA_JS_MODULES = \
 	Identity.jsm \
+	IdentityProvider.jsm \
 	IdentityStore.jsm \
 	jwcrypto.jsm \
 	RelyingParty.jsm \
+	Sandbox.jsm \
 	$(NULL)
 
 ifdef ENABLE_TESTS

@@ -51,7 +51,7 @@ Sandbox.prototype = {
     this._log("load: " + this.id + " : " + this._url);
     this._createSandbox(function createdSandbox(aSandbox){
       this._log("load sandbox id: ", aSandbox.id);
-    });
+    }.bind(this));
   },
 
   /**
@@ -101,27 +101,29 @@ Sandbox.prototype = {
   },
 
   _createSandbox: function Sandbox__createSandbox(aCallback) {
-    this._container.addEventListener(
-      "DOMWindowCreated",
-      function _makeSandboxContentLoaded(event) {
-        this._log("_makeSandboxContentLoaded  " + event.target.location.toString());
-        if (event.target.location.toString() != this._url) {
-          return;
-        }
-        event.target.removeEventListener(
-          "DOMWindowCreated", _makeSandboxContentLoaded, false
-        );
-        /* TODO?
-         let workerWindow = this._frame.contentWindow;
-         this._sandbox = new Cu.Sandbox(workerWindow, {
-         wantXrays:        false,
-         sandboxPrototype: workerWindow
-         });
-         */
-        aCallback(this);
-      }.bind(this),
-      true
-    );
+    let self = this;
+    function _makeSandboxContentLoaded(event) {
+      self._log("_makeSandboxContentLoaded  " + event.target.location.toString());
+      if (event.target.location.toString() != self._url) {
+        return;
+      }
+      self._log("removing event listener: " + self.id);
+      self._container.removeEventListener(
+        "DOMWindowCreated", _makeSandboxContentLoaded, true
+      );
+      /* TODO?
+       let workerWindow = this._frame.contentWindow;
+       this._sandbox = new Cu.Sandbox(workerWindow, {
+       wantXrays:        false,
+       sandboxPrototype: workerWindow
+       });
+       */
+      aCallback(self);
+    };
+
+    this._container.addEventListener("DOMWindowCreated",
+                                     _makeSandboxContentLoaded,
+                                     true);
 
     // Load the iframe.
     this._frame.webNavigation.loadURI(

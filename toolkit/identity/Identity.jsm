@@ -31,7 +31,7 @@ XPCOMUtils.defineLazyModuleGetter(this,
  * Enable with about:config pref toolkit.identity.debug
  */
 function log(args) {
-  if (!IdentityService._debugMode) {
+  if (!IdentityService._debug) {
     return;
   }
 
@@ -61,10 +61,11 @@ function log(args) {
 
 function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
+  Services.obs.addObserver(this, "identity-auth-complete", false);
   // NB, prefs.addObserver and obs.addObserver have different interfaces
   Services.prefs.addObserver(PREF_DEBUG, this, false);
 
-  this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
+  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
 
   this.init();
 }
@@ -84,25 +85,50 @@ IDService.prototype = {
                                       "resource://gre/modules/identity/RelyingParty.jsm",
                                       "RelyingParty");
 
+    XPCOMUtils.defineLazyModuleGetter(this,
+                                      "IDP",
+                                      "resource://gre/modules/identity/IdentityProvider.jsm",
+                                      "IdentityProvider");
+
     // Forget all identities
     this._store.init();
 
     // Clear RP state
     this.RP.init();
 
-    // Clear the provisioning flows.  Provision flows contain an
-    // identity, idpParams (how to reach the IdP to provision and
-    // authenticate), a callback (a completion callback for when things
-    // are done), and a provisioningFrame (which is the provisioning
-    // sandbox).  Additionally, two callbacks will be attached:
-    // beginProvisioningCallback and genKeyPairCallback.
-    this._provisionFlows = {};
+    // Clear IDP state
+    this.IDP.init();
+  },
 
-    // Clear the authentication flows.  Authentication flows attach
-    // to provision flows.  In the process of provisioning an id, it
-    // may be necessary to authenticate with an IdP.  The authentication
-    // flow maintains the state of that authentication process.
-    this._authenticationFlows = {};
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+  observe: function observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "quit-application-granted":
+        Services.obs.removeObserver(this, "quit-application-granted");
+        this.shutdown();
+        break;
+      case "nsPref:changed":
+        this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
+        break;
+      case "identity-auth-complete":
+        if (!aSubject || !aSubject.wrappedJSObject)
+          break;
+        let subject = aSubject.wrappedJSObject;
+        // We have authenticated in order to provision an identity.
+        // So try again.
+        this.selectIdentity(subject.rpId, subject.identity);
+        break;
+    }
+  },
+
+  shutdown: function shutdown() {
+    log("shutdown");
+    this.init();
+    try {
+      Services.obs.removeObserver(this, "nsPref:changed");
+      Services.obs.removeObserver(this, "identity-auth-complete");
+    } catch (ex) {}
   },
 
   /**
@@ -171,13 +197,13 @@ IDService.prototype = {
 
           // The idpParams tell us where to go to provision and authenticate
           // the identity.
-          self._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
+          self.IDP._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
 
             // Provision identity may have created a new provision flow
             // for us.  To make it easier to relate provision flows with
             // RP callers, we cross index the two here.
             rp.provId = aProvId;
-            self._provisionFlows[aProvId].rpId = aRPId;
+            self.IDP._provisionFlows[aProvId].rpId = aRPId;
 
             // At this point, we already have a cert.  If the user is also
             // already authenticated with the IdP, then we can try again
@@ -201,8 +227,8 @@ IDService.prototype = {
             // we give up.  Otherwise we try to authenticate with the
             // IdP.
             } else {
-              if (self._provisionFlows[aProvId].didAuthentication) {
-                self._cleanUpProvisionFlow(aProvId);
+              if (self.IDP._provisionFlows[aProvId].didAuthentication) {
+                self.IDP._cleanUpProvisionFlow(aProvId);
                 log("ERROR: selectIdentity: authentication hard fail");
                 rp.doError("Authentication fail.");
                 return;
@@ -211,7 +237,7 @@ IDService.prototype = {
                 // Try to authenticate with the IdP.  Note that we do
                 // not clean up the provision flow here.  We will continue
                 // to use it.
-                self._doAuthentication(aProvId, idpParams);
+                self.IDP._doAuthentication(aProvId, idpParams);
                 return;
               }
             }
@@ -221,57 +247,9 @@ IDService.prototype = {
     });
   },
 
-  /**
-   * Provision an Identity
-   *
-   * @param aIdentity
-   *        (string) the email we're logging in with
-   *
-   * @param aIDPParams
-   *        (object) parameters of the IdP
-   *
-   * @param aCallback
-   *        (function) callback to invoke on completion
-   *                   with first-positional parameter the error.
-   */
-  _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback) {
-    let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
-    log("_provisionIdentity: identity:", aIdentity, "url:", url);
+  // methods for chrome and add-ons
 
-    // If aProvId is not null, then we already have a flow
-    // with a sandbox.  Otherwise, get a sandbox and create a
-    // new provision flow.
-
-    if (aProvId !== null) {
-      // Re-use an existing sandbox
-      log("_provisionIdentity: re-using sandbox in provisioning flow with id:", aProvId);
-      this._provisionFlows[aProvId].provisioningSandbox.load();
-
-    } else {
-      this._createProvisioningSandbox(url, function(aSandbox) {
-        // create a provisioning flow, using the sandbox id, and
-        // stash callback associated with this provisioning workflow.
-
-        let provId = aSandbox.id;
-        this._provisionFlows[provId] = {
-          identity: aIdentity,
-          idpParams: aIDPParams,
-          securityLevel: this.securityLevel,
-          provisioningSandbox: aSandbox,
-          callback: function doCallback(aErr) {
-            aCallback(aErr, provId);
-          },
-        };
-
-        log("_provisionIdentity: Created sandbox and provisioning flow with id:", aProvId);
-
-        // XXX MAYBE
-        // set a timeout to clear out this provisioning workflow if it doesn't
-        // complete in X time.
-
-      }.bind(this));
-    }
-  },
+  // TODO: need helper to logout of all sites for SITB?
 
   /**
    * Discover the IdP for an identity
@@ -300,330 +278,6 @@ IDService.prototype = {
       return aCallback(err, idpParams);
     });
   },
-
-  // DOM Methods
-  /**
-   * the provisioning iframe sandbox has called navigator.id.beginProvisioning()
-   *
-   * @param aCaller
-   *        (object)  the iframe sandbox caller with all callbacks and
-   *                  other information.  Callbacks include:
-   *                  - doBeginProvisioningCallback(id, duration_s)
-   *                  - doGenKeyPairCallback(pk)
-   */
-  beginProvisioning: function beginProvisioning(aCaller) {
-    log("beginProvisioning:", aCaller.id);
-
-    // Expect a flow for this caller already to be underway.
-    let provFlow = this._provisionFlows[aCaller.id];
-    if (!provFlow) {
-      let errStr = "No provisioning flow found with id:" + aCaller.id;
-      log("ERROR: beginProvisioning:", errStr);
-      return aCaller.doError(errStr);
-    }
-
-    // keep the caller object around
-    provFlow.caller = aCaller;
-
-    let identity = provFlow.identity;
-    let frame = provFlow.provisioningFrame;
-
-    // Determine recommended length of cert.
-    let duration = this.certDuration;
-
-    // Make a record that we have begun provisioning.  This is required
-    // for genKeyPair.
-    provFlow.didBeginProvisioning = true;
-
-    // Let the sandbox know to invoke the callback to beginProvisioning with
-    // the identity and cert length.
-    return aCaller.doBeginProvisioningCallback(identity, duration);
-  },
-
-  /**
-   * the provisioning iframe sandbox has called
-   * navigator.id.raiseProvisioningFailure()
-   *
-   * @param aProvId
-   *        (int)  the identifier of the provisioning flow tied to that sandbox
-   * @param aReason
-   */
-  raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason) {
-    log("ERROR: Provisioning failure:", aReason);
-    Cu.reportError("Provisioning failure: " + aReason);
-
-    // look up the provisioning caller and its callback
-    let provFlow = this._provisionFlows[aProvId];
-    if (!provFlow) {
-      let errStr = "No provisioning flow found with id:" + aProvId;
-      log("ERROR: raiseProvisioningFailure:", errStr);
-      Cu.reportError(errStr);
-      return;
-    }
-
-    // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
-
-    // This may be either a "soft" or "hard" fail.  If it's a
-    // soft fail, we'll flow through setAuthenticationFlow, where
-    // the provision flow data will be copied into a new auth
-    // flow.  If it's a hard fail, then the callback will be
-    // responsible for cleaning up the now defunct provision flow.
-
-    // invoke the callback with an error.
-    provFlow.callback(aReason);
-  },
-
-  /**
-   * When navigator.id.genKeyPair is called from provisioning iframe sandbox.
-   * Generates a keypair for the current user being provisioned.
-   *
-   * @param aProvId
-   *        (int)  the identifier of the provisioning caller tied to that sandbox
-   *
-   * It is an error to call genKeypair without receiving the callback for
-   * the beginProvisioning() call first.
-   */
-  genKeyPair: function genKeyPair(aProvId) {
-    // Look up the provisioning caller and make sure it's valid.
-    let provFlow = this._provisionFlows[aProvId];
-
-    if (!provFlow) {
-      log("ERROR: genKeyPair: no provisioning flow found with id:", aProvId);
-      return;
-    }
-
-    if (!provFlow.didBeginProvisioning) {
-      let errStr = "ERROR: genKeyPair called before beginProvisioning";
-      log(errStr);
-      provFlow.callback(errStr);
-      return;
-    }
-
-    // Ok generate a keypair
-    jwcrypto.generateKeyPair(jwcrypto.ALGORITHMS.DS160, function gkpCb(err, kp) {
-      log("in gkp callback");
-      if (err) {
-        log("ERROR: genKeyPair:" + err);
-        provFlow.callback(err);
-        return;
-      }
-
-      provFlow.kp = kp;
-
-      // Serialize the publicKey of the keypair and send it back to the
-      // sandbox.
-      log("genKeyPair: generated keypair for provisioning flow with id:", aProvId);
-      provFlow.caller.doGenKeyPairCallback(provFlow.kp.serializedPublicKey);
-    }.bind(this));
-  },
-
-  /**
-   * When navigator.id.registerCertificate is called from provisioning iframe
-   * sandbox.
-   *
-   * Sets the certificate for the user for which a certificate was requested
-   * via a preceding call to beginProvisioning (and genKeypair).
-   *
-   * @param aProvId
-   *        (integer) the identifier of the provisioning caller tied to that
-   *                  sandbox
-   *
-   * @param aCert
-   *        (String)  A JWT representing the signed certificate for the user
-   *                  being provisioned, provided by the IdP.
-   */
-  registerCertificate: function registerCertificate(aProvId, aCert) {
-    log("registerCertificate:", aProvId, aCert);
-
-    // look up provisioning caller, make sure it's valid.
-    let provFlow = this._provisionFlows[aProvId];
-    if (!provFlow && provFlow.caller) {
-      let errStr = "Cannot register cert; No provision flow or caller";
-      log("ERROR: registerCertificate:", errStr);
-      Cu.reportError(errStr);
-
-      // there is nobody to call back to
-      return;
-    }
-    if (!provFlow.kp)  {
-      let errStr = "Cannot register a certificate without a keypair";
-      log("ERROR: registerCertificate:", errStr);
-      Cu.reportError(errStr);
-      provFlow.callback(errStr);
-      return;
-    }
-
-    // store the keypair and certificate just provided in IDStore.
-    this._store.addIdentity(provFlow.identity, provFlow.kp, aCert);
-
-    // Great success!
-    provFlow.callback(null);
-
-    // Clean up the flow.
-    this._cleanUpProvisionFlow(aProvId);
-  },
-
-  /**
-   * Begin the authentication process with an IdP
-   *
-   * @param aProvId
-   *        (int) the identifier of the provisioning flow which failed
-   *
-   * @param aCallback
-   *        (function) to invoke upon completion, with
-   *                   first-positional-param error.
-   */
-  _doAuthentication: function _doAuthentication(aProvId, aIDPParams) {
-    // create an authentication caller and its identifier AuthId
-    // stash aIdentity, idpparams, and callback in it.
-
-    // extract authentication URL from idpParams
-
-    // ? create a visible frame with sandbox and notify UX
-    // or notify UX so it can create the visible frame, not sure which one.
-    // TODO: make the two lines below into a helper to be used for auth and authentication
-    let authPath = aIDPParams.idpParams.authentication;
-    let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
-
-    log("_doAuthentication: provId:", aProvId, "authURI:", authURI);
-    // beginAuthenticationFlow causes the "identity-auth" topic to be
-    // observed.  Since it's sending a notification to the DOM, there's
-    // no callback.  We wait for the DOM to trigger the next phase of
-    // provisioning.
-    this._beginAuthenticationFlow(aProvId, authURI);
-
-    // either we bind the AuthID to the sandbox ourselves, or UX does that,
-    // in which case we need to tell UX the AuthId.
-    // Currently, the UX creates the UI and gets the AuthId from the window
-    // and sets is with setAuthenticationFlow
-  },
-
-  /**
-   * The authentication frame has called navigator.id.beginAuthentication
-   *
-   * IMPORTANT: the aCaller is *always* non-null, even if this is called from
-   * a regular content page. We have to make sure, on every DOM call, that
-   * aCaller is an expected authentication-flow identifier. If not, we throw
-   * an error or something.
-   *
-   * @param aCaller
-   *        (object)  the authentication caller
-   *
-   */
-  beginAuthentication: function beginAuthentication(aCaller) {
-    log("beginAuthentication: caller id:", aCaller.id);
-
-    // Begin the authentication flow after having concluded a provisioning
-    // flow.  The aCaller that the DOM gives us will have the same ID as
-    // the provisioning flow we just concluded.  (see setAuthenticationFlow)
-    let authFlow = this._authenticationFlows[aCaller.id];
-    if (!authFlow) {
-      return aCaller.doError("beginAuthentication: no flow for caller id", aCaller.id);
-    }
-
-    // stash the caller in the flow
-    // XXX do we need to do this?
-    authFlow.caller = aCaller;
-
-    let identity = this._provisionFlows[authFlow.provId].identity;
-
-    // tell the UI to start the authentication process
-    log("beginAuthentication: authFlow:", aCaller.id, "identity:", identity);
-    return authFlow.caller.doBeginAuthenticationCallback(identity);
-  },
-
-  /**
-   * The auth frame has called navigator.id.completeAuthentication
-   *
-   * @param aAuthId
-   *        (int)  the identifier of the authentication caller tied to that sandbox
-   *
-   */
-  completeAuthentication: function completeAuthentication(aAuthId) {
-    log("completeAuthentication:", aAuthId);
-
-    // look up the AuthId caller, and get its callback.
-    let authFlow = this._authenticationFlows[aAuthId];
-    if (!authFlow) {
-      Cu.reportError("completeAuthentication: No auth flow with id " + aAuthId);
-      return;
-    }
-    let provId = authFlow.provId;
-
-    // delete caller
-    delete authFlow['caller'];
-    delete this._authenticationFlows[aAuthId];
-
-    let provFlow = this._provisionFlows[provId];
-    provFlow.didAuthentication = true;
-    Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
-
-    // We have authenticated in order to provision an identity.
-    // So try again.
-    this.selectIdentity(provFlow.rpId, provFlow.identity);
-  },
-
-  /**
-   * The auth frame has called navigator.id.cancelAuthentication
-   *
-   * @param aAuthId
-   *        (int)  the identifier of the authentication caller
-   *
-   */
-  cancelAuthentication: function cancelAuthentication(aAuthId) {
-    log("cancelAuthentication:", aAuthId);
-
-    // look up the AuthId caller, and get its callback.
-    let authFlow = this._authenticationFlows[aAuthId];
-    if (!authFlow) {
-      Cu.reportError("cancelAuthentication: No auth flow with id " + aAuthId);
-    }
-    let provId = authFlow.provId;
-
-    // delete caller
-    delete authFlow['caller'];
-    delete this._authenticationFlows[aAuthId];
-
-    let provFlow = this._provisionFlows[provId];
-    provFlow.didAuthentication = true;
-    Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
-
-    // invoke callback with ERROR.
-    let errStr = "Authentication canceled by IDP";
-    log("ERROR: cancelAuthentication:", errStr);
-    return provFlow.callback(errStr);
-  },
-
-  // methods for chrome and add-ons
-
-  shutdown: function shutdown() {
-    this.init();
-  },
-
-  /**
-   * Called by the UI to set the ID and caller for the authentication flow after it gets its ID
-   */
-  setAuthenticationFlow: function(aAuthId, aProvId) {
-    // this is the transition point between the two flows,
-    // provision and authenticate.  We tell the auth flow which
-    // provisioning flow it is started from.
-    log("setAuthenticationFlow: authId:", aAuthId, "provId:", aProvId);
-    this._authenticationFlows[aAuthId] = { provId: aProvId };
-    this._provisionFlows[aProvId].authId = aAuthId;
-  },
-
-  get securityLevel() {
-    return 1;
-  },
-
-  get certDuration() {
-    switch(this.securityLevel) {
-      default:
-        return 3600;
-    }
-  },
-
-  // TODO: need helper to logout of all sites for SITB?
 
   /**
    * Fetch the well-known file from the domain.
@@ -698,74 +352,6 @@ IDService.prototype = {
     req.send(null);
   },
 
-  /**
-   * Load the provisioning URL in a hidden frame to start the provisioning
-   * process.
-   * TODO: CHANGE this call to be just _createSandbox, and do the population
-   * of the flow object in _provisionIdentity instead, so that method has full
-   * context.
-   */
-  _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback) {
-    log("_createProvisioningSandbox:", aURL);
-    new Sandbox(aURL, aCallback);
-  },
-
-  /**
-   * Load the authentication UI to start the authentication process.
-   */
-  _beginAuthenticationFlow: function _beginAuthenticationFlow(aProvId, aURL) {
-    log("_beginAuthenticationFlow:", aProvId, aURL);
-    let propBag = {provId: aProvId};
-
-    Services.obs.notifyObservers({wrappedJSObject:propBag}, "identity-auth", aURL);
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-
-  observe: function observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "quit-application-granted":
-        Services.obs.removeObserver(this, "quit-application-granted", false);
-        this.shutdown();
-        break;
-
-      case "nsPref:changed":
-        this._debugMode = Services.prefs.getBoolPref(PREF_DEBUG);
-        break;
-    }
-  },
-
-  /**
-   * Clean up a provision flow and the authentication flow and sandbox
-   * that may be attached to it.
-   */
-  _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
-    log('_cleanUpProvisionFlow:', aProvId);
-    let prov = this._provisionFlows[aProvId];
-    let rp = this.RP._rpFlows[prov.rpId];
-
-    // Clean up the sandbox, if there is one.
-    if (prov.provisioningSandbox) {
-      let sandbox = this._provisionFlows[aProvId]['provisioningSandbox'];
-      if (sandbox.free) {
-        log('_cleanUpProvisionFlow: freeing sandbox');
-        sandbox.free();
-      }
-      delete this._provisionFlows[aProvId]['provisioningSandbox'];
-    }
-
-    // Clean up a related authentication flow, if there is one.
-    if (this._authenticationFlows[prov.authId]) {
-      delete this._authenticationFlows[prov.authId];
-    }
-
-    // Finally delete the provision flow and any reference to it
-    // from the rpFlows
-    delete this._provisionFlows[aProvId];
-    if (rp) {
-      delete rp['provId'];
-    }
-  }
 };
 
 let IdentityService = new IDService();

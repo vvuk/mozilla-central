@@ -4,7 +4,11 @@
 
 const modules = [
   "Identity.jsm",
-  "Sandbox.jsm"
+  "IdentityProvider.jsm",
+  "IdentityStore.jsm",
+  "jwcrypto.jsm",
+  "RelyingParty.jsm",
+  "Sandbox.jsm",
 ];
 
 function run_test() {

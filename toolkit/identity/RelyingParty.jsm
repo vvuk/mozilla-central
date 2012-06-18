@@ -81,7 +81,7 @@ IdentityRelyingParty.prototype = {
   observe: function observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "quit-application-granted":
-        Services.obs.removeObserver(this, "quit-application-granted", false);
+        Services.obs.removeObserver(this, "quit-application-granted");
         this.shutdown();
         break;
     }

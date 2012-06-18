@@ -33,7 +33,7 @@ let SignInToWebsiteUX = {
       "joe@mockmyid.com",
       "matt@browserid.linuxsecured.net",
     ].forEach(function(identity) {
-      IdentityService._store.addIdentity(identity, null, null);
+      IdentityService.addIdentity(identity);
     });
   },
 
@@ -171,7 +171,7 @@ let SignInToWebsiteUX = {
 
     let provId = aContext.provId;
     // Tell the ID service about the id before loading the url
-    IdentityService.setAuthenticationFlow(windowID, provId);
+    IdentityService.IDP.setAuthenticationFlow(windowID, provId);
 
     authWin.location = aAuthURI;
   },
