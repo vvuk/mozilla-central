@@ -515,7 +515,6 @@ IdentityProviderService.prototype = {
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
     log('_cleanUpProvisionFlow:', aProvId);
     let prov = this._provisionFlows[aProvId];
-    //let rp = this.RP._rpFlows[prov.rpId]; // TODO
 
     // Clean up the sandbox, if there is one.
     if (prov.provisioningSandbox) {
@@ -531,14 +530,9 @@ IdentityProviderService.prototype = {
     if (this._authenticationFlows[prov.authId]) {
       delete this._authenticationFlows[prov.authId];
     }
-/* TODO
-    // Finally delete the provision flow and any reference to it
-    // from the rpFlows
+
+    // Finally delete the provision flow
     delete this._provisionFlows[aProvId];
-    if (rp) {
-      delete rp['provId'];
-    }
-*/
   }
 
 };

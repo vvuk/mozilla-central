@@ -405,6 +405,18 @@ IdentityRelyingParty.prototype = {
     jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
   },
 
+  /**
+   * Clean up references to the provisioning flow for the specified RP.
+   */
+  _cleanUpProvisionFlow: function RP_cleanUpProvisionFlow(aRPId, aProvId) {
+    let rp = this._rpFlows[aRPId];
+    if (rp) {
+      delete rp['provId'];
+    } else {
+      log("Error: Couldn't delete provision flow ", aProvId, " for RP ", aRPId);
+    }
+  },
+
 };
 
 let RelyingParty = new IdentityRelyingParty();

@@ -215,6 +215,7 @@ IDService.prototype = {
               self.RP._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (!err) {
                   self.RP._doLogin(rp, rpLoginOptions, assertion);
+                  self.RP._cleanUpProvisionFlow(aRPId, aProvId);
                   return;
                 } else {
                   rp.doError(err);
@@ -229,6 +230,7 @@ IDService.prototype = {
             } else {
               if (self.IDP._provisionFlows[aProvId].didAuthentication) {
                 self.IDP._cleanUpProvisionFlow(aProvId);
+                self.RP._cleanUpProvisionFlow(aRPId, aProvId);
                 log("ERROR: selectIdentity: authentication hard fail");
                 rp.doError("Authentication fail.");
                 return;

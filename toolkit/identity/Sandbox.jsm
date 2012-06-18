@@ -111,13 +111,7 @@ Sandbox.prototype = {
       self._container.removeEventListener(
         "DOMWindowCreated", _makeSandboxContentLoaded, true
       );
-      /* TODO?
-       let workerWindow = this._frame.contentWindow;
-       this._sandbox = new Cu.Sandbox(workerWindow, {
-       wantXrays:        false,
-       sandboxPrototype: workerWindow
-       });
-       */
+
       aCallback(self);
     };
 
