@@ -28,7 +28,7 @@ function test_add_identity() {
 
   IDService.addIdentity(TEST_USER);
 
-  let identities = IDService.getIdentitiesForSite(TEST_URL);
+  let identities = IDService.RP.getIdentitiesForSite(TEST_URL);
   do_check_eq(identities.result.length, 1);
   do_check_eq(identities.result[0], TEST_USER);
 
@@ -71,7 +71,7 @@ function test_select_identity() {
       }));
 
     // register the callbacks
-    IDService.watch(mockedDoc);
+    IDService.RP.watch(mockedDoc);
 
     // register the request UX observer
     makeObserver("identity-request", function (aSubject, aTopic, aData) {
@@ -82,7 +82,7 @@ function test_select_identity() {
     });
 
     // do the request
-    IDService.request(mockedDoc.id, {});
+    IDService.RP.request(mockedDoc.id, {});
   });
 }
 

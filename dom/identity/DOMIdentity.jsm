@@ -218,15 +218,15 @@ let DOMIdentity = {
     this._pending[message.oid] = true; // TODO?
     let context = new RPWatchContext(message.oid, message.origin,
                                      message.loggedInEmail, targetMM);
-    IdentityService.watch(context);
+    IdentityService.RP.watch(context);
   },
 
   _request: function(message) {
-    IdentityService.request(message.oid, message);
+    IdentityService.RP.request(message.oid, message);
   },
 
   _logout: function(message) {
-    IdentityService.logout(message.oid, message.origin);
+    IdentityService.RP.logout(message.oid, message.origin);
   },
 
   _beginProvisioning: function(message, targetMM) {

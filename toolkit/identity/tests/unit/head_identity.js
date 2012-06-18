@@ -14,6 +14,14 @@ Cu.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
                                   "resource:///modules/identity/jwcrypto.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "IDService",
+                                  "resource:///modules/identity/Identity.jsm",
+                                  "IdentityService");
+
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IdentityStore",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
@@ -82,7 +90,7 @@ function log() {
 }
 
 function get_idstore() {
-  return IDService._store;
+  return IdentityStore;
 }
 
 function partial(fn) {
@@ -93,7 +101,7 @@ function partial(fn) {
 }
 
 function uuid() {
-  return uuidGenerator.generateUUID();
+  return uuidGenerator.generateUUID().toString();
 }
 
 // create a mock "doc" object, which the Identity Service

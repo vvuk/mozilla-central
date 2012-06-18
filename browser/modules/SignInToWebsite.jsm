@@ -113,7 +113,7 @@ let SignInToWebsiteUX = {
    * Get the list of possible identities to login to the given origin.
    */
   getIdentitiesForSite: function SignInToWebsiteUX_getIdentitiesForSite(aOrigin) {
-    return IdentityService.getIdentitiesForSite(aOrigin);
+    return IdentityService.RP.getIdentitiesForSite(aOrigin);
   },
 
   /**
@@ -130,7 +130,7 @@ let SignInToWebsiteUX = {
   signOut: function signOut(aNotification) {
     let origin = aNotification.options.identity.origin;
     log("signOut for: " + origin);
-    IdentityService.logout(origin);
+    IdentityService.RP.logout(origin);
   },
 
   // Private
@@ -199,7 +199,7 @@ let SignInToWebsiteUX = {
       accessKey: win.gNavigatorBundle.getString("identity.loggedIn.signOut.accessKey"),
       callback: function(notification) {
         log("sign out callback fired");
-        IdentityService.logout(windowID);
+        IdentityService.RP.logout(windowID);
       },
     };
     let secondaryActions = [];

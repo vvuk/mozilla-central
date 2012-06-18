@@ -16,7 +16,7 @@ function test_begin_authentication_flow() {
 
   // set up a watch, to be consistent
   let mockedDoc = mock_doc(null, TEST_URL, function(action, params) {});
-  IDService.watch(mockedDoc);
+  IDService.RP.watch(mockedDoc);
 
   // The identity-auth notification is sent up to the UX from the
   // _doAuthentication function.  Be ready to receive it and call
@@ -92,14 +92,14 @@ function test_complete_authentication_flow() {
 	do_test_finished();
 	run_next_test();
       }
-     });
+    });
 
-    IDService.watch(mockedDoc);
+    IDService.RP.watch(mockedDoc);
   });
 
   // A mock calling contxt
   let authCaller = {
-    doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity)    {
+    doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity) {
       do_check_eq(identity, TEST_USER);
 
       IDService.completeAuthentication(_authId);

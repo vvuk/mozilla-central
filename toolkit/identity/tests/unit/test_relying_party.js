@@ -3,15 +3,18 @@
 
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
-                                  "IdentityService");
+XPCOMUtils.defineLazyModuleGetter(this, "RelyingParty",
+                                  "resource:///modules/identity/RelyingParty.jsm");
 
+function resetState() {
+  get_idstore().init();
+  RelyingParty.init();
+}
 
 function test_watch_loggedin_ready() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
   let id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -19,7 +22,7 @@ function test_watch_loggedin_ready() {
 
     // set it up so we're supposed to be logged in to TEST_URL
     store.setLoginState(TEST_URL, true, id);
-    IDService.watch(mock_doc(id, TEST_URL, function(action, params) {
+    RelyingParty.watch(mock_doc(id, TEST_URL, function(action, params) {
       do_check_eq(action, 'ready');
       do_check_eq(params, undefined);
 
@@ -32,7 +35,7 @@ function test_watch_loggedin_ready() {
 function test_watch_loggedin_login() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
   let id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -42,7 +45,7 @@ function test_watch_loggedin_login() {
     store.setLoginState(TEST_URL, true, id);
 
     // check for first a login() call, then a ready() call
-    IDService.watch(mock_doc(null, TEST_URL, call_sequentially(
+    RelyingParty.watch(mock_doc(null, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'login');
         do_check_neq(params, null);
@@ -61,7 +64,7 @@ function test_watch_loggedin_login() {
 function test_watch_loggedin_logout() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
   let id = TEST_USER;
   let other_id = "otherid@foo.com";
@@ -75,7 +78,7 @@ function test_watch_loggedin_logout() {
 
       // this should cause a login with an assertion for id,
       // not for other_id
-      IDService.watch(mock_doc(other_id, TEST_URL, call_sequentially(
+      RelyingParty.watch(mock_doc(other_id, TEST_URL, call_sequentially(
         function(action, params) {
           do_check_eq(action, 'login');
           do_check_neq(params, null);
@@ -95,9 +98,9 @@ function test_watch_loggedin_logout() {
 function test_watch_notloggedin_ready() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
-  IDService.watch(mock_doc(null, TEST_URL, function(action, params) {
+  RelyingParty.watch(mock_doc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'ready');
     do_check_eq(params, undefined);
 
@@ -109,9 +112,9 @@ function test_watch_notloggedin_ready() {
 function test_watch_notloggedin_logout() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
-  IDService.watch(mock_doc(TEST_USER, TEST_URL, call_sequentially(
+  RelyingParty.watch(mock_doc(TEST_USER, TEST_URL, call_sequentially(
     function(action, params) {
       do_check_eq(action, 'logout');
       do_check_eq(params, undefined);
@@ -137,27 +140,26 @@ function test_request() {
     // XXX but it is called - is that bad?
   });
 
-  IDService.watch(mockedDoc);
+  RelyingParty.watch(mockedDoc);
 
   // be ready for the UX identity-request notification
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
     do_check_neq(aSubject, null);
 
     let subj = aSubject.QueryInterface(Ci.nsIPropertyBag);
-    do_check_eq(subj.getProperty('requiredEmail'), TEST_USER);
     do_check_eq(subj.getProperty('rpId'), mockedDoc.id);
 
     do_test_finished();
     run_next_test();
   });
 
-  IDService.request(mockedDoc.id, {requiredEmail: TEST_USER});
+  RelyingParty.request(mockedDoc.id, {});
 }
 
 function test_logout() {
   do_test_pending();
 
-  IDService.init();
+  resetState();
 
   let id = TEST_USER;
   setup_test_identity(id, TEST_CERT, function() {
@@ -189,12 +191,12 @@ function test_logout() {
       }));
 
     doLogout = function() {
-      IDService.logout(mockedDoc.id);
+      RelyingParty.logout(mockedDoc.id);
       do_check_false(store.getLoginState(TEST_URL).isLoggedIn);
       do_check_eq(store.getLoginState(TEST_URL).email, TEST_USER);
     };
 
-    IDService.watch(mockedDoc);
+    RelyingParty.watch(mockedDoc);
   });
 }
 

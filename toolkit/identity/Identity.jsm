@@ -15,8 +15,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
-var EXPORTED_SYMBOLS = ["IdentityService"];
-var FALLBACK_PROVIDER = "browserid.org";
+let EXPORTED_SYMBOLS = ["IdentityService"];
+let FALLBACK_PROVIDER = "browserid.org";
 
 const PREF_DEBUG = "toolkit.identity.debug";
 
@@ -64,77 +64,8 @@ function log(args) {
   Services.console.logStringMessage(output);
 };
 
-// the data store for IDService
-// written as a separate thing so it can easily be mocked
-function IDServiceStore() {
-  this.init();
-}
-
-// _identities will associate emails with keypairs and certificates
-IDServiceStore.prototype._identities = null;
-
-// _loginStates will associate remote origins with a login status and
-// the email the user has chosen as his or her identity when logging
-// into that origin.
-IDServiceStore.prototype._loginStates = null;
-
-// Note: eventually these methods may be async, but we haven no need for this
-// for now, since we're not storing to disk.
-IDServiceStore.prototype = {
-  addIdentity: function addIdentity(aEmail, aKeyPair, aCert) {
-    this._identities[aEmail] = {keyPair: aKeyPair, cert: aCert};
-  },
-  fetchIdentity: function fetchIdentity(aEmail) {
-    return aEmail in this._identities ? this._identities[aEmail] : null;
-  },
-  removeIdentity: function removeIdentity(aEmail) {
-    let data = this._identities[aEmail];
-    delete this._identities[aEmail];
-    return data;
-  },
-  getIdentities: function getIdentities() {
-    // XXX - should clone?
-    return this._identities;
-  },
-  clearCert: function clearCert(aEmail) {
-    // XXX - should remove key from store?
-    this._identities[aEmail].cert = null;
-    this._identities[aEmail].keyPair = null;
-  },
-
-  /**
-   * set the login state for a given origin
-   *
-   * @param aOrigin
-   *        (string) a web origin
-   *
-   * @param aState
-   *        (boolean) whether or not the user is logged in
-   *
-   * @param aEmail
-   *        (email) the email address the user is logged in with,
-   *                or, if not logged in, the default email for that origin.
-   */
-  setLoginState: function setLoginState(aOrigin, aState, aEmail) {
-    return this._loginStates[aOrigin] = {isLoggedIn: aState, email: aEmail};
-  },
-  getLoginState: function getLoginState(aOrigin) {
-    return aOrigin in this._loginStates ? this._loginStates[aOrigin] : null;
-  },
-  clearLoginState: function clearLoginState(aOrigin) {
-    delete this._loginStates[aOrigin];
-  },
-
-  init: function init() {
-    this._identities = {};
-    this._loginStates = {};
-  }
-};
-
-
 function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
-  Services.obs.addObserver(this, "identity-login", false);
   // NB, prefs.addObserver and obs.addObserver have different interfaces
   Services.prefs.addObserver(PREF_DEBUG, this, false);
 
@@ -150,12 +81,21 @@ IDService.prototype = {
    * Reset the state of the IDService object.
    */
   init: function init() {
-    // Forget all documents that call in.  (These are sometimes
-    // referred to as callers.)
-    this._rpFlows = {};
+    XPCOMUtils.defineLazyModuleGetter(this,
+                                      "_store",
+                                      "resource://gre/modules/identity/IdentityStore.jsm",
+                                      "IdentityStore");
+
+    XPCOMUtils.defineLazyModuleGetter(this,
+                                      "RP",
+                                      "resource://gre/modules/identity/RelyingParty.jsm",
+                                      "RelyingParty");
 
     // Forget all identities
-    this._store = new IDServiceStore();
+    this._store.init();
+
+    // Clear RP state
+    this.RP.init();
 
     // Clear the provisioning flows.  Provision flows contain an
     // identity, idpParams (how to reach the IdP to provision and
@@ -172,182 +112,6 @@ IDService.prototype = {
     this._authenticationFlows = {};
 
     this._registry = {};
-  },
-
-
-  /**
-   * Register a listener for a given windowID as a result of a call to
-   * navigator.id.watch().
-   *
-   * @param aCaller
-   *        (Object)  an object that represents the caller document, and
-   *                  is expected to have properties:
-   *                  - id (unique, e.g. uuid)
-   *                  - loggedInEmail (string or null)
-   *                  - origin (string)
-   *
-   *                  and a bunch of callbacks
-   *                  - doReady()
-   *                  - doLogin()
-   *                  - doLogout()
-   *                  - doError()
-   *                  - doCancel()
-   *
-   */
-  watch: function watch(aRpCaller) {
-    this._rpFlows[aRpCaller.id] = aRpCaller;
-    let origin = aRpCaller.origin;
-    let state = this._store.getLoginState(origin) || {};
-
-    log("watch: rpId:", aRpCaller.id,
-        "origin:", origin,
-        "loggedInEmail:", aRpCaller.loggedInEmail,
-        "loggedIn:", state.isLoggedIn,
-        "email:", state.email);
-
-    // If the user is already logged in, then there are three cases
-    // to deal with:
-    //
-    //   1. the email is valid and unchanged:  'ready'
-    //   2. the email is null:                 'login'; 'ready'
-    //   3. the email has changed:             'login'; 'ready'
-    if (state.isLoggedIn) {
-      if (state.email && aRpCaller.loggedInEmail === state.email) {
-        this._notifyLoginStateChanged(aRpCaller.id, state.email);
-        return aRpCaller.doReady();
-
-      } else if (aRpCaller.loggedInEmail === null) {
-        // Generate assertion for existing login
-        let options = {requiredEmail: state.email, origin: origin};
-        return this._doLogin(aRpCaller, options);
-
-      } else {
-        // A loggedInEmail different from state.email has been specified.
-        // Change login identity.
-        let options = {requiredEmail: aRpCaller.loggedInEmail, origin: origin};
-        return this._doLogin(aRpCaller, options);
-      }
-
-    // If the user is not logged in, there are two cases:
-    //
-    //   1. a logged in email was provided: 'ready'; 'logout'
-    //   2. not logged in, no email given:  'ready';
-
-    } else {
-      if (aRpCaller.loggedInEmail) {
-        return this._doLogout(aRpCaller, {origin: origin});
-
-      } else {
-        return aRpCaller.doReady();
-      }
-    }
-  },
-
-  /**
-   * A utility for watch() to set state and notify the dom
-   * on login
-   *
-   * Note that this calls _getAssertion
-   */
-  _doLogin: function _doLogin(aRpCaller, aOptions, aAssertion) {
-    log("_doLogin: rpId:", aRpCaller.id, "origin:", aOptions.origin);
-
-    let loginWithAssertion = function loginWithAssertion(assertion) {
-      this._store.setLoginState(aOptions.origin, true, aOptions.loggedInEmail);
-      this._notifyLoginStateChanged(aRpCaller.id, aOptions.loggedInEmail);
-      aRpCaller.doLogin(assertion);
-      aRpCaller.doReady();
-    }.bind(this);
-
-    if (aAssertion) {
-      loginWithAssertion(aAssertion);
-    } else {
-      this._getAssertion(aOptions, function(err, assertion) {
-        if (err) {
-          let errStr = "Failed to get assertion on login attempt: " + err;
-          log("ERROR: _doLogin:", errStr);
-          Cu.reportError(errStr);
-          this._doLogout(aRpCaller);
-        } else {
-          loginWithAssertion(assertion);
-        }
-      });
-    }
-  },
-
-  /**
-   * A utility for watch() to set state and notify the dom
-   * on logout.
-   */
-  _doLogout: function _doLogout(aRpCaller, aOptions) {
-    log("_doLogout: rpId:", aRpCaller.id, "origin:", aOptions.origin);
-
-    let state = this._store.getLoginState(aOptions.origin) || {};
-
-    // XXX add tests for state change
-    state.isLoggedIn = false;
-    this._notifyLoginStateChanged(aRpCaller.id, null);
-
-    aRpCaller.doLogout();
-    aRpCaller.doReady();
-  },
-
-  /**
-   * For use with login or logout, emit 'identity-login-state-changed'
-   *
-   * The notification will send the rp caller id in the properties,
-   * and the email of the user in the message.
-   *
-   * @params aRpCallerId
-   *         (integer) The id of the RP caller
-   *
-   * @params aIdentity
-   *         (string) The email of the user whose login state has changed
-   */
-  _notifyLoginStateChanged: function _notifyLoginStateChanged(aRpCallerId, aIdentity) {
-    log("_notifyLoginStateChanged: rpId:", aRpCallerId, "identity:", aIdentity);
-
-    let options = Cc["@mozilla.org/hash-property-bag;1"]
-                    .createInstance(Ci.nsIWritablePropertyBag);
-    options.setProperty("rpId", aRpCallerId);
-    Services.obs.notifyObservers(options, "identity-login-state-changed", aIdentity);
-  },
-
-  /**
-   * Initiate a login with user interaction as a result of a call to
-   * navigator.id.request().
-   *
-   * @param aRPId
-   *        (integer)  the id of the doc object obtained in .watch()
-   *
-   * @param aOptions
-   *        (Object)  options including requiredEmail, privacyPolicy, termsOfService
-   */
-  request: function request(aRPId, aOptions) {
-    log("request: rpId:", aRPId, "requiredEmail:", aOptions.requiredEmail);
-
-    // Notify UX to display identity picker.
-    let options = Cc["@mozilla.org/hash-property-bag;1"]
-                    .createInstance(Ci.nsIWritablePropertyBag);
-
-    // Pass the doc id to UX so it can pass it back to us later.
-    options.setProperty("rpId", aRPId);
-
-    // Also pass the options tos and privacy policy, and requiredEmail.
-    for (let optionName of ["requiredEmail"]) {
-      options.setProperty(optionName, aOptions[optionName]);
-    }
-
-    // Append URLs after resolving
-    let rp = this._rpFlows[aRPId];
-    let baseURI = Services.io.newURI(rp.origin, null, null);
-    for (let optionName of ["privacyPolicy", "termsOfService"]) {
-      if (aOptions[optionName]) {
-        options.setProperty(optionName, baseURI.resolve(aOptions[optionName]));
-      }
-    }
-
-    Services.obs.notifyObservers(options, "identity-request", null);
   },
 
   /**
@@ -377,9 +141,9 @@ IDService.prototype = {
   selectIdentity: function selectIdentity(aRPId, aIdentity) {
     log("selectIdentity: RP id:", aRPId, "identity:", aIdentity);
 
-    var self = this;
+    let self = this;
     // Get the RP that was stored when watch() was invoked.
-    let rp = this._rpFlows[aRPId];
+    let rp = this.RP._rpFlows[aRPId];
     if (!rp) {
       let errStr = "Cannot select identity for invalid RP with id: " + aRPId;
       log("ERROR: selectIdentity:", errStr);
@@ -400,9 +164,9 @@ IDService.prototype = {
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
-    self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
+    self.RP._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
       if (!err && assertion) {
-        self._doLogin(rp, rpLoginOptions, assertion);
+        self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
 
       } else {
@@ -431,9 +195,9 @@ IDService.prototype = {
               // XXX quick hack - cleanup is done by registerCertificate
               // XXX order of callbacks and signals is a little tricky
               //self._cleanUpProvisionFlow(aProvId);
-              self._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
+              self.RP._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
                 if (!err) {
-                  self._doLogin(rp, rpLoginOptions, assertion);
+                  self.RP._doLogin(rp, rpLoginOptions, assertion);
                   return;
                 } else {
                   rp.doError(err);
@@ -464,42 +228,6 @@ IDService.prototype = {
         });
       }
     });
-  },
-
-  /**
-   * Generate an assertion, including provisioning via IdP if necessary,
-   * but no user interaction, so if provisioning fails, aCallback is invoked
-   * with an error.
-   *
-   * @param aAudience
-   *        (string) web origin
-   *
-   * @param aIdentity
-   *        (string) the email we're logging in with
-   *
-   * @param aCallback
-   *        (function) callback to invoke on completion
-   *                   with first-positional parameter the error.
-   */
-  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback) {
-    log("_generateAssertion: audience:", aAudience, "identity:", aIdentity);
-
-    let id = this._store.fetchIdentity(aIdentity);
-    if (! (id && id.cert)) {
-      let errStr = "Cannot generate an assertion without a certificate";
-      log("ERROR: _generateAssertion:", errStr);
-      return aCallback(errStr);
-    }
-
-    let kp = id.keyPair;
-
-    if (!kp) {
-      let errStr = "Cannot generate an assertion without a keypair";
-      log("ERROR: _generateAssertion:", errStr);
-      return aCallback(errStr);
-    }
-
-    jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
   },
 
   /**
@@ -580,28 +308,6 @@ IDService.prototype = {
       // XXX TODO will need to update spec for that
       return aCallback(err, idpParams);
     });
-  },
-
-  /**
-   * Invoked when a user wishes to logout of a site (for instance, when clicking
-   * on an in-content logout button).
-   *
-   * @param aRpCallerId
-   *        (integer)  the id of the doc object obtained in .watch()
-   *
-   */
-  logout: function logout(aRpCallerId) {
-    log("logout: RP caller id:", aRpCallerId);
-    let rp = this._rpFlows[aRpCallerId];
-    if (rp && rp.origin) {
-      let origin = rp.origin;
-      log("logout: origin:", origin);
-      this._doLogout(rp, {origin: origin});
-    } else {
-      log("logout: no RP found with id:", aRpCallerId);
-    }
-    // We don't delete this._rpFlows[aRpCallerId], because
-    // the user might log back in again.
   },
 
   /**
@@ -701,7 +407,8 @@ IDService.prototype = {
     }
 
     // Ok generate a keypair
-    jwcrypto.generateKeyPair(jwcrypto.ALGORITHMS.DS160, function(err, kp) {
+    jwcrypto.generateKeyPair(jwcrypto.ALGORITHMS.DS160, function gkpCb(err, kp) {
+      log("in gkp callback");
       if (err) {
         log("ERROR: genKeyPair:" + err);
         return provFlow.callback(err);
@@ -826,7 +533,7 @@ IDService.prototype = {
     let identity = this._provisionFlows[authFlow.provId].identity;
 
     // tell the UI to start the authentication process
-    log("beginAuthentication: authFlow:", authFlow.id, "identity:", identity);
+    log("beginAuthentication: authFlow:", aCaller.id, "identity:", identity);
     return authFlow.caller.doBeginAuthenticationCallback(identity);
   },
 
@@ -894,96 +601,8 @@ IDService.prototype = {
 
   // methods for chrome and add-ons
 
-  /**
-   * Obtain a BrowserID assertion with the specified characteristics.
-   *
-   * @param aCallback
-   *        (Function) Callback to be called with (err, assertion) where 'err'
-   *        can be an Error or NULL, and 'assertion' can be NULL or a valid
-   *        BrowserID assertion. If no callback is provided, an exception is
-   *        thrown.
-   *
-   * @param aOptions
-   *        (Object) An object that may contain the following properties:
-   *
-   *          "requiredEmail" : An email for which the assertion is to be
-   *                            issued. If one could not be obtained, the call
-   *                            will fail. If this property is not specified,
-   *                            the default email as set by the user will be
-   *                            chosen.
-   *
-   *          "audience"      : The audience for which the assertion is to be
-   *                            issued. If this property is not set an exception
-   *                            will be thrown.
-   *
-   *        Any properties not listed above will be ignored.
-   */
-  _getAssertion: function _getAssertion(aOptions, aCallback) {
-    let audience = aOptions.origin;
-    let email = aOptions.requiredEmail || this.getDefaultEmailForOrigin(audience);
-    log("_getAssertion: audience:", audience, "email:", email);
-    if (!audience) {
-      throw "audience required for _getAssertion";
-    }
-
-    // We might not have any identity info for this email
-    if (!this._store.fetchIdentity(email)) {
-      this.addIdentity(email, null, null);
-    }
-
-    let cert = this._store.fetchIdentity(email)['cert'];
-    if (cert) {
-      this._generateAssertion(audience, email, function(err, assertion) {
-        if (err) {
-          log("ERROR: _getAssertion:", err);
-        }
-        log("_getAssertion: generated assertion:", assertion);
-        return aCallback(err, assertion);
-      });
-
-    } else {
-      // We need to get a certificate.  Discover the identity's
-      // IdP and provision
-      this._discoverIdentityProvider(email, function(err, idpParams) {
-        if (err) {
-          return aCallback(err);
-        }
-
-        // Now begin provisioning from the IdP
-        this._generateAssertion(audience, email, function(err, assertion) {
-          if (err) {
-            log("ERROR: _getAssertion:", err);
-          }
-          log("_getAssertion: generated assertion:", assertion);
-          return aCallback(err, assertion);
-        }.bind(this));
-      }.bind(this));
-    }
-  },
-
   shutdown: function shutdown() {
     this.init();
-  },
-
-  getDefaultEmailForOrigin: function getDefaultEmailForOrigin(aOrigin) {
-    let identities = this.getIdentitiesForSite(aOrigin);
-    let result = identities.lastUsed || null;
-    log("getDefaultEmailForOrigin:", aOrigin, "->", result);
-    return result;
-  },
-
-  /**
-   * Return the list of identities a user may want to use to login to aOrigin.
-   */
-  getIdentitiesForSite: function getIdentitiesForSite(aOrigin) {
-    let rv = { result: [] };
-    for (let id in this._store.getIdentities()) {
-      rv.result.push(id);
-    }
-    let loginState = this._store.getLoginState(aOrigin);
-    if (loginState && loginState.email)
-      rv.lastUsed = loginState.email;
-    return rv;
   },
 
   /**
@@ -1114,7 +733,6 @@ IDService.prototype = {
     switch (aTopic) {
       case "quit-application-granted":
         Services.obs.removeObserver(this, "quit-application-granted", false);
-        Services.obs.removeObserver(this, "identity-login", false);
         this.shutdown();
         break;
 
@@ -1131,7 +749,7 @@ IDService.prototype = {
   _cleanUpProvisionFlow: function _cleanUpProvisionFlow(aProvId) {
     log('_cleanUpProvisionFlow:', aProvId);
     let prov = this._provisionFlows[aProvId];
-    let rp = this._rpFlows[prov.rpId];
+    let rp = this.RP._rpFlows[prov.rpId];
 
     // Clean up the sandbox, if there is one.
     if (prov.provisioningSandbox) {
@@ -1157,4 +775,5 @@ IDService.prototype = {
   }
 };
 
-var IdentityService = new IDService();
+let IdentityService = new IDService();
+

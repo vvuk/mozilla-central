@@ -50,14 +50,13 @@ function keygenerator() {}
 
 keygenerator.prototype = {
   generateKeyPair: function(aAlgorithmName, aCallback) {
-    log("gen key pair");
+    log("generate key pair");
     IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, keypair) {
       return this._generateKeyPairFinished(rv, keypair, aCallback);
     }.bind(this));
   },
 
   _generateKeyPairFinished: function(rv, aKeyPair, aCallback) {
-    log("kp finished");
     if (!Components.isSuccessCode(rv)) {
       return this.callback("key generation failed");
     }
@@ -91,7 +90,6 @@ keygenerator.prototype = {
       serializedPublicKey: JSON.stringify(publicKey),
       _kp: aKeyPair
     };
-
     return aCallback(null, keyWrapper);
   }
 };
