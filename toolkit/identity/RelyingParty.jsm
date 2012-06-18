@@ -389,7 +389,8 @@ IdentityRelyingParty.prototype = {
     if (! (id && id.cert)) {
       let errStr = "Cannot generate an assertion without a certificate";
       log("ERROR: _generateAssertion:", errStr);
-      return aCallback(errStr);
+      aCallback(errStr);
+      return;
     }
 
     let kp = id.keyPair;
@@ -397,7 +398,8 @@ IdentityRelyingParty.prototype = {
     if (!kp) {
       let errStr = "Cannot generate an assertion without a keypair";
       log("ERROR: _generateAssertion:", errStr);
-      return aCallback(errStr);
+      aCallback(errStr);
+      return;
     }
 
     jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);

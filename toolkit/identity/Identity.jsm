@@ -148,7 +148,7 @@ IDService.prototype = {
       let errStr = "Cannot select identity for invalid RP with id: " + aRPId;
       log("ERROR: selectIdentity:", errStr);
       Cu.reportError(errStr);
-      return null;
+      return;
     }
 
     // It's possible that we are in the process of provisioning an
@@ -397,13 +397,14 @@ IDService.prototype = {
 
     if (!provFlow) {
       log("ERROR: genKeyPair: no provisioning flow found with id:", aProvId);
-      return null;
+      return;
     }
 
     if (!provFlow.didBeginProvisioning) {
       let errStr = "ERROR: genKeyPair called before beginProvisioning";
       log(errStr);
-      return provFlow.callback(errStr);
+      provFlow.callback(errStr);
+      return;
     }
 
     // Ok generate a keypair
@@ -411,7 +412,8 @@ IDService.prototype = {
       log("in gkp callback");
       if (err) {
         log("ERROR: genKeyPair:" + err);
-        return provFlow.callback(err);
+        provFlow.callback(err);
+        return;
       }
 
       provFlow.kp = kp;
@@ -449,13 +451,14 @@ IDService.prototype = {
       Cu.reportError(errStr);
 
       // there is nobody to call back to
-      return null;
+      return;
     }
     if (!provFlow.kp)  {
       let errStr = "Cannot register a certificate without a keypair";
       log("ERROR: registerCertificate:", errStr);
       Cu.reportError(errStr);
-      return provFlow.callback(errStr);
+      provFlow.callback(errStr);
+      return;
     }
 
     // store the keypair and certificate just provided in IDStore.
