@@ -13,7 +13,6 @@ let Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
 let EXPORTED_SYMBOLS = ["IdentityService"];
 let FALLBACK_PROVIDER = "browserid.org";

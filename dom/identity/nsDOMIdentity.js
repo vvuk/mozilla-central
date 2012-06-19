@@ -11,10 +11,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 // This is the child process corresponding to nsIDOMIdentity.
 
-function log(msg) {
-  dump("nsDOMIdentity: " + msg + "\n");
-}
-
 function nsDOMIdentity() {
 }
 nsDOMIdentity.prototype = {
@@ -25,7 +21,7 @@ nsDOMIdentity.prototype = {
    */
 
   watch: function nsDOMIdentity_watch(aOptions) {
-    log("Called watch for ID " + this._id + " with loggedInEmail " + aOptions.loggedInEmail);
+    this._log("Called watch with loggedInEmail " + aOptions.loggedInEmail);
 
     if (typeof(aOptions) !== "object") {
       throw "options argument to watch is required";
@@ -40,11 +36,13 @@ nsDOMIdentity.prototype = {
     }
 
     // Optional callback "onready"
-    if (aOptions["onready"] && typeof(aOptions['onready'].handleEvent) !== "function") {
+    if (aOptions["onready"]
+          && typeof(aOptions['onready'].handleEvent) !== "function") {
       throw "onready must be a function";
     }
 
-    // loggedInEmail - TODO: check email format?
+    // loggedInEmai
+    // TODO: check email format? See nsHTMLInputElement::IsValidEmailAddress
     let emailType = typeof(aOptions["loggedInEmail"]);
     if (aOptions["loggedInEmail"] && aOptions["loggedInEmail"] !== "undefined"
         && emailType !== "string") {
@@ -84,7 +82,8 @@ nsDOMIdentity.prototype = {
         }
       }
 
-      if (aOptions["oncancel"] && typeof(aOptions["oncancel"].handleEvent) !== "function") {
+      if (aOptions["oncancel"]
+            && typeof(aOptions["oncancel"].handleEvent) !== "function") {
         throw "oncancel is not a function";
       } else {
         // Store optional cancel callback for later.
@@ -105,63 +104,49 @@ nsDOMIdentity.prototype = {
   },
 
   /**
-   *  Identity Provider (IDP) APIs
+   *  Identity Provider (IDP) Provisioning APIs
    */
 
   beginProvisioning: function nsDOMIdentity_beginProvisioning(aCallback) {
-    log("beginProvisioning: " + this._id);
-    // TODO: below is always true through XPConnect because of wrappers?
-    if (typeof(aCallback.onBeginProvisioning) !== "function") {
-      throw "beginProvisioning callback is required.";
-    }
-
+    this._log("beginProvisioning");
     this._beginProvisioningCallback = aCallback;
-    this._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning", this.DOMIdentityMessage());
+    this._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning",
+                              this.DOMIdentityMessage());
   },
 
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
-    log("genKeyPair: " + this._id);
+    this._log("genKeyPair");
     if (!this._beginProvisioningCallback) {
       throw "navigator.id.genKeyPair called outside of provisioning";
     }
-
-    // TODO: below is always true through XPConnect because of wrappers?
-    if (typeof(aCallback.onSuccess) !== "function") {
-      throw "genKeyPair callback is required.";
-    }
-
     this._genKeyPairCallback = aCallback;
-    this._mm.sendAsyncMessage("Identity:IDP:GenKeyPair", this.DOMIdentityMessage());
+    this._mm.sendAsyncMessage("Identity:IDP:GenKeyPair",
+                              this.DOMIdentityMessage());
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
-    log("registerCertificate:");
-    log(aCertificate);
+    this._log("registerCertificate");
     if (!this._genKeyPairCallback) {
       throw "navigator.id.registerCertificate called outside of provisioning";
     }
-
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;
     this._mm.sendAsyncMessage("Identity:IDP:RegisterCertificate", message);
   },
 
   raiseProvisioningFailure: function nsDOMIdentity_raiseProvisioningFailure(aReason) {
-    log("raiseProvisioningFailure '" + aReason + "'");
-    /*
-    if (!this._beginProvisioningCallback) {
-      // TODO: what if this is called in a prov. flow but before beginProv. is called?
-      throw "navigator.id.raiseProvisioningFailure called outside of provisioning";
-    }
-     */
+    this._log("raiseProvisioningFailure '" + aReason + "'");
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
     this._mm.sendAsyncMessage("Identity:IDP:ProvisioningFailure", message);
   },
 
-  // IDP Authentication
+  /**
+   *  Identity Provider (IDP) Authentication APIs
+   */
+
   beginAuthentication: function nsDOMIdentity_beginAuthentication(aCallback) {
-    log("beginAuthentication: " + this._id);
+    this._log("beginAuthentication");
     if (typeof(aCallback.onBeginAuthentication) !== "function") {
       throw "beginAuthentication callback is required.";
     }
@@ -172,7 +157,6 @@ nsDOMIdentity.prototype = {
 
   completeAuthentication: function nsDOMIdentity_completeAuthentication() {
     if (!this._beginAuthenticationCallback) {
-      // TODO: what if this is called in a prov. flow but before beginProv. is called?
       throw "navigator.id.completeAuthentication called outside of authentication";
     }
     this._mm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
@@ -189,10 +173,10 @@ nsDOMIdentity.prototype = {
   receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
     // Is this message intended for this window?
-    if (msg.oid != this._id) {
+    if (msg.id != this._id) {
       return;
     }
-    log("receiveMessage: " + aMessage.name + " : " + msg.oid);
+    this._log("receiveMessage: " + aMessage.name);
 
     switch (aMessage.name) {
       case "Identity:RP:Watch:OnLogin":
@@ -200,10 +184,8 @@ nsDOMIdentity.prototype = {
         if (!this._rpWatcher) {
           return;
         }
-        log("have watcher");
+
         if (this._rpWatcher.onlogin) {
-          log("have onlogin: " + typeof(this._rpWatcher.onlogin.handleEvent));
-          log("assertion: " + typeof(msg.assertion) + " : " + msg.assertion);
           this._rpWatcher.onlogin.handleEvent(msg.assertion);
         }
         break;
@@ -264,7 +246,7 @@ nsDOMIdentity.prototype = {
     this._genKeyPairCallback = null;
     this._beginAuthenticationCallback = null;
 
-    // TODO: Also send message to DOMIdentity.jsm notifiying window is no longer valid
+    // TODO: Also send message to DOMIdentity notifiying window is no longer valid
     // ie. in the case that the user closes the auth. window and we need to know.
 
     try {
@@ -280,9 +262,11 @@ nsDOMIdentity.prototype = {
 
   // nsIDOMGlobalPropertyInitializer
   init: function nsDOMIdentity_init(aWindow) {
-    log("init was called from " + aWindow.document.location);
+    this._log("init was called from " + aWindow.document.location);
     if (!Services.prefs.getBoolPref("dom.identity.enabled"))
       return null;
+
+    this._debug = Services.prefs.getBoolPref("toolkit.identity.debug");
 
     this._rpWatcher = null;
     this._onCancelRequestCallback = null;
@@ -324,6 +308,13 @@ nsDOMIdentity.prototype = {
   },
 
   // Private.
+  _log: function nsDOMIdentity__log(msg) {
+    if (!this._debug) {
+      return;
+    }
+    dump("nsDOMIdentity (" + this._id + "): " + msg + "\n");
+  },
+
   _callGenKeyPairCallback: function nsDOMIdentity__callGenKeyPairCallback(message) {
     // create a pubkey object that works
     var chrome_pubkey = JSON.parse(message.publicKey);
@@ -352,7 +343,8 @@ nsDOMIdentity.prototype = {
       function nsDOMIdentity__callBeginProvisioningCallback(message) {
     let identity = message.identity;
     let certValidityDuration = message.certDuration;
-    this._beginProvisioningCallback.onBeginProvisioning(identity, certValidityDuration);
+    this._beginProvisioningCallback.onBeginProvisioning(identity,
+                                                        certValidityDuration);
   },
 
   _callBeginAuthenticationCallback:
@@ -366,7 +358,7 @@ nsDOMIdentity.prototype = {
    */
   DOMIdentityMessage: function DOMIdentityMessage() {
     return {
-      oid: this._id,
+      id: this._id,
       origin: this._origin,
     };
   },

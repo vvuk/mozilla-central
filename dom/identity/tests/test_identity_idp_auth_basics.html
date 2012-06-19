@@ -65,13 +65,6 @@ let steps = [
                     "raiseAuthenticationFailure with no arguments");
     SimpleTest.executeSoon(next);
   },
-/* TODO: maybe this is fine if it happens in an auth frame but just before beginAuth?
-  function raiseAuthenticationFailureValidArgs() {
-    expectException(function() {
-      identity.raiseAuthenticationFailure("my auth. failure message");
-    }, "raiseAuthenticationFailure outside of a auth. flow");
-  },
-*/
 
   // beginAuthentication tests
   function beginAuthenticationExists() {

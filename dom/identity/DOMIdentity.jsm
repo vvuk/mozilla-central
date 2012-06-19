@@ -16,7 +16,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
 function log(msg) {
-  if (!IdentityService._debugMode) {
+  if (!IdentityService._debug) {
     return;
   }
 
@@ -28,7 +28,7 @@ function log(msg) {
 let mmMap = new WeakMap();
 
 function IDDOMMessage(aID) {
-  this.id = this.oid = aID; // TODO: decide on id or oid
+  this.id = aID;
 }
 
 function IDPProvisioningContext(aID, aOrigin, aTargetMM) {
@@ -42,15 +42,16 @@ IDPProvisioningContext.prototype = {
   get origin() this._origin,
   get mm() mmMap.get(this),
 
-  doBeginProvisioningCallback: function IDPProvisioningContext_doBeginProvisioningCallback(aID, aCertDuration) {
+  doBeginProvisioningCallback: function IDPPC_doBeginProvCB(aID, aCertDuration) {
     let message = new IDDOMMessage(this.id);
     message.identity = aID;
     message.certDuration = aCertDuration;
-    this.mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback", message);
+    this.mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback",
+                             message);
   },
 
-  doGenKeyPairCallback: function IDPProvisioningContext_doGenKeyPairCallback(aPublicKey) {
-log("DOMIdentity: doGenKeyPairCallback");
+  doGenKeyPairCallback: function IDPPC_doGenKeyPairCallback(aPublicKey) {
+    log("doGenKeyPairCallback");
     let message = new IDDOMMessage(this.id);
     message.publicKey = aPublicKey;
     this.mm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
@@ -72,13 +73,14 @@ IDPAuthenticationContext.prototype = {
   get origin() this._origin,
   get mm() mmMap.get(this),
 
-  doBeginAuthenticationCallback: function(aIdentity) {
+  doBeginAuthenticationCallback: function IDPAC_doBeginAuthCB(aIdentity) {
     let message = new IDDOMMessage(this.id);
     message.identity = aIdentity;
-    this.mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback", message);
+    this.mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback",
+                             message);
   },
 
-  doError: function(msg) {
+  doError: function IDPAC_doError(msg) {
     log("Authentication ERROR: " + msg);
   },
 };
@@ -97,10 +99,9 @@ RPWatchContext.prototype = {
   get mm() mmMap.get(this),
 
   doLogin: function RPWatchContext_onlogin(aAssertion) {
-    log("doLogin: " + this.id + " : " + aAssertion);
+    log("doLogin: " + this.id);
     let message = new IDDOMMessage(this.id);
     message.assertion = aAssertion;
-    log(message.id + " : " + message.oid);
     this.mm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 
@@ -116,16 +117,14 @@ RPWatchContext.prototype = {
     this.mm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
   },
 
-  doError: function RPWatchContext_onerror() {
-    // XXX handle errors that might be raised in the execution
-    // of watch().
-    log("Ow!");
+  doError: function RPWatchContext_onerror(aMessage) {
+    log("doError: " + aMessage);
   }
 };
 
 let DOMIdentity = {
   // nsIFrameMessageListener
-  receiveMessage: function(aMessage) {
+  receiveMessage: function DOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
 
     // Target is the frame message manager that called us and is
@@ -171,7 +170,7 @@ let DOMIdentity = {
   },
 
   // nsIObserver
-  observe: function(aSubject, aTopic, aData) {
+  observe: function DOMIdentity_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case "domwindowopened":
       case "domwindowclosed":
@@ -188,23 +187,22 @@ let DOMIdentity = {
   },
 
   messages: ["Identity:RP:Watch", "Identity:RP:Request", "Identity:RP:Logout",
-             "Identity:IDP:ProvisioningFailure", "Identity:IDP:BeginProvisioning",
-             "Identity:IDP:GenKeyPair", "Identity:IDP:RegisterCertificate",
-             "Identity:IDP:BeginAuthentication", "Identity:IDP:CompleteAuthentication",
+             "Identity:IDP:BeginProvisioning", "Identity:IDP:ProvisioningFailure",
+             "Identity:IDP:RegisterCertificate", "Identity:IDP:GenKeyPair",
+             "Identity:IDP:BeginAuthentication",
+             "Identity:IDP:CompleteAuthentication",
              "Identity:IDP:AuthenticationFailure"],
 
   // Private.
-  _init: function() {
+  _init: function DOMIdentity__init() {
     Services.ww.registerNotification(this);
     Services.obs.addObserver(this, "xpcom-shutdown", false);
-
-    this._pending = {};
   },
 
-  _configureMessages: function(aWindow, aRegister) {
+  _configureMessages: function DOMIdentity__configureMessages(aWindow, aRegister) {
     if (!aWindow.messageManager)
       return;
- 
+
     let func = aRegister ? "addMessageListener" : "removeMessageListener";
 
     for (let message of this.messages) {
@@ -212,51 +210,52 @@ let DOMIdentity = {
     }
   },
 
-  _watch: function(message, targetMM) {
-    // Forward to Identity.jsm and stash the oid somewhere so we can make
-    // callback after sending a message to parent process.
-    this._pending[message.oid] = true; // TODO?
-    let context = new RPWatchContext(message.oid, message.origin,
+  _watch: function DOMIdentity__watch(message, targetMM) {
+    // Pass an object with the watch members to Identity.jsm so it can call the
+    // callbacks.
+    let context = new RPWatchContext(message.id, message.origin,
                                      message.loggedInEmail, targetMM);
     IdentityService.RP.watch(context);
   },
 
-  _request: function(message) {
-    IdentityService.RP.request(message.oid, message);
+  _request: function DOMIdentity__request(message) {
+    IdentityService.RP.request(message.id, message);
   },
 
-  _logout: function(message) {
-    IdentityService.RP.logout(message.oid, message.origin);
+  _logout: function DOMIdentity__logout(message) {
+    IdentityService.RP.logout(message.id, message.origin);
   },
 
-  _beginProvisioning: function(message, targetMM) {
-    let context = new IDPProvisioningContext(message.oid, message.origin, targetMM);
+  _beginProvisioning: function DOMIdentity__beginProvisioning(message, targetMM) {
+    let context = new IDPProvisioningContext(message.id, message.origin,
+                                             targetMM);
     IdentityService.IDP.beginProvisioning(context);
   },
 
-  _genKeyPair: function(message) {
-    IdentityService.IDP.genKeyPair(message.oid); // TODO: pass ref. to callback?
+  _genKeyPair: function DOMIdentity__genKeyPair(message) {
+    IdentityService.IDP.genKeyPair(message.id);
   },
 
-  _registerCertificate: function(message) {
-    IdentityService.IDP.registerCertificate(message.oid, message.cert);
+  _registerCertificate: function DOMIdentity__registerCertificate(message) {
+    IdentityService.IDP.registerCertificate(message.id, message.cert);
   },
 
-  _provisioningFailure: function(message) {
-    IdentityService.IDP.raiseProvisioningFailure(message.oid, message.reason);
+  _provisioningFailure: function DOMIdentity__provisioningFailure(message) {
+    IdentityService.IDP.raiseProvisioningFailure(message.id, message.reason);
   },
 
-  _beginAuthentication: function(message, targetMM) {
-    let context = new IDPAuthenticationContext(message.oid, message.origin, targetMM);
+  _beginAuthentication: function DOMIdentity__beginAuthentication(message, targetMM) {
+    let context = new IDPAuthenticationContext(message.id, message.origin,
+                                               targetMM);
     IdentityService.IDP.beginAuthentication(context);
   },
 
-  _completeAuthentication: function(message) {
-    IdentityService.IDP.completeAuthentication(message.oid);
+  _completeAuthentication: function DOMIdentity__completeAuthentication(message) {
+    IdentityService.IDP.completeAuthentication(message.id);
   },
 
-  _authenticationFailure: function(message) {
-    IdentityService.IDP.cancelAuthentication(message.oid); // TODO: see issue #4
+  _authenticationFailure: function DOMIdentity__authenticationFailure(message) {
+    IdentityService.IDP.cancelAuthentication(message.id);
   },
 };
 

@@ -49,7 +49,7 @@ let steps = [
   },
   function genKeyPairInvalidArg() {
     expectException(function() {
-      identity.genKeyPair(990);
+      identity.genKeyPair(999);
     }, "Check genKeyPair with non-function object argument");
     SimpleTest.executeSoon(next);
   },
