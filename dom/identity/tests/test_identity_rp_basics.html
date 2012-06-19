@@ -102,22 +102,6 @@ let steps = [
     }, "Check onready type");
     SimpleTest.executeSoon(next);
   },
-/* This won't fail if we use DOMString
-  function watchLoggedInEmailType() {
-    function onLoginLogoutCb() {
-      throw "onlogin/onlogout callback shouldn't have been called";
-    }
-    let options = {
-      onlogin: onLoginLogoutCb,
-      onlogout: onLoginLogoutCb,
-      loggedInEmail: 999,
-    }
-    expectException(function() {
-      identity.watch(options)
-    }, "Check loggedInEmail type");
-    SimpleTest.executeSoon(next);
-  },
-*/
   function watchOnReadyCalled() {
     let onLogoutCalled = false;
     let options = {
@@ -143,11 +127,11 @@ let steps = [
     is(typeof(identity.request), "function", "Check request is a function");
     SimpleTest.executeSoon(next);
   },
-  function requestNoArgs() { // TODO: ISSUE #10
+  function requestNoArgs() {
     is(identity.request(), undefined, "Check request with no arguments");
     SimpleTest.executeSoon(next);
   },
-  function requestEmptyObj() { // TODO: ISSUE #10
+  function requestEmptyObj() {
     is(identity.request({}), undefined, "Check request with empty object argument");
     SimpleTest.executeSoon(next);
   },
