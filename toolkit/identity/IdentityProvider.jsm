@@ -150,7 +150,7 @@ IdentityProviderService.prototype = {
     if (aProvId !== null) {
       // Re-use an existing sandbox
       log("_provisionIdentity: re-using sandbox in provisioning flow with id:", aProvId);
-      this._provisionFlows[aProvId].provisioningSandbox.load();
+      this._provisionFlows[aProvId].provisioningSandbox.reload();
 
     } else {
       this._createProvisioningSandbox(url, function(aSandbox) {

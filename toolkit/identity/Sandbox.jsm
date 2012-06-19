@@ -11,15 +11,14 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const PREF_DEBUG = "toolkit.identity.debug";
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 /**
  * An object that represents a sandbox in an iframe loaded with aURL. The
  * callback provided to the constructor will be invoked when the sandbox is
  * ready to be used. The callback will receive this object as its only argument.
  *
- * Please call free() when you are finished with the sandbox to explicitely free
- * up all associated resources.
+ * You must call free() when you are finished with the sandbox to explicitly
+ * free up all associated resources.
  *
  * @param aURL
  *        (string) URL to load in the sandbox.
@@ -37,20 +36,20 @@ function Sandbox(aURL, aCallback) {
 Sandbox.prototype = {
 
   /**
-   * Use the outer window ID as the identifier of the Sandbox.
+   * Use the outer window ID as the identifier of the sandbox.
    */
   get id() {
     return this._frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-             .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+               .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
   },
 
   /**
-   * Load or reload the url
+   * Reload the URL in the sandbox.
    */
-  load: function Sandbox_load() {
-    this._log("load: " + this.id + " : " + this._url);
+  reload: function Sandbox_reload() {
+    this._log("reload: " + this.id + " : " + this._url);
     this._createSandbox(function createdSandbox(aSandbox) {
-      this._log("load sandbox id: ", aSandbox.id);
+      this._log("reloaded sandbox id: ", aSandbox.id);
     }.bind(this));
   },
 
@@ -92,7 +91,7 @@ Sandbox.prototype = {
 
     // Disable stylesheet loading since the document is not visible.
     let markupDocViewer = frame.docShell.contentViewer
-                            .QueryInterface(Ci.nsIMarkupDocumentViewer);
+                               .QueryInterface(Ci.nsIMarkupDocumentViewer);
     markupDocViewer.authorStyleDisabled = true;
 
     // Set instance properties.
@@ -103,7 +102,8 @@ Sandbox.prototype = {
   _createSandbox: function Sandbox__createSandbox(aCallback) {
     let self = this;
     function _makeSandboxContentLoaded(event) {
-      self._log("_makeSandboxContentLoaded  " + event.target.location.toString());
+      self._log("_makeSandboxContentLoaded  "
+                + event.target.location.toString());
       if (event.target.location.toString() != self._url) {
         return;
       }
