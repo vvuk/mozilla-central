@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/css" href="chrome://global/skin"?>
+<?xml-stylesheet type="text/css" href="/tests/SimpleTest/test.css"?>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=762993
+-->
+<window title="Mozilla Bug 762993"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        onload="run_next_test();">
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
+
+  <!-- test results are displayed in the html:body -->
+  <body xmlns="http://www.w3.org/1999/xhtml">
+  <a href="https://bugzilla.mozilla.org/show_bug.cgi?id=762993"
+     target="_blank">Mozilla Bug 762993</a>
+  </body>
+
+  <!-- test code goes here -->
+  <script type="application/javascript;version=1.8">
+  <![CDATA[
+
+  /** Test for Bug 762993 **/
+
+"use strict";
+
+SimpleTest.waitForExplicitFinish();
+
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+const TEST_URL_1 = "https://example.com/";
+// No trailing slash plus port to test normalization
+const TEST_URL_2 = "https://example.com:443";
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+
+Services.prefs.setBoolPref("toolkit.identity.debug", true);
+
+XPCOMUtils.defineLazyModuleGetter(this, "Sandbox",
+                                  "resource://gre/modules/identity/Sandbox.jsm");
+
+function check_sandbox(aSandbox, aURL) {
+  ok(aSandbox.id > 0, "valid ID");
+  is(aSandbox._url, aURL, "matching URL (with normalization)");
+  isnot(aSandbox._frame, null, "frame");
+  isnot(aSandbox._container, null, "container");
+}
+
+/**
+ * Free the sandbox and make sure all properties that are not booleans,
+ * functions or numbers were freed.
+ */
+function free_and_check_sandbox(aSandbox) {
+  SimpleTest.executeSoon(function() {
+    aSandbox.free();
+
+    for(let prop in aSandbox) {
+      // Don't trigger the "id" getter when the frame is supposed to be freed already
+      if (prop == "id")
+        continue;
+      let propType = typeof(aSandbox[prop]);
+      if (propType == "boolean" || propType == "function" || propType == "number")
+        continue;
+      is(aSandbox[prop], null, "freed " + prop);
+    }
+  });
+}
+
+function test_creation() {
+  new Sandbox(TEST_URL_1, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, TEST_URL_1);
+    free_and_check_sandbox(aSandbox);
+
+    run_next_test();
+  });
+}
+
+function test_reload() {
+  new Sandbox(TEST_URL_1, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, TEST_URL_1);
+    let originalId = aSandbox.id;
+
+    aSandbox.reload(function sandboxReloadCB(aSandbox) {
+      check_sandbox(aSandbox, TEST_URL_1);
+      is(aSandbox.id, originalId, "Sandbox ID should be the same after reload");
+      free_and_check_sandbox(aSandbox);
+
+      run_next_test();
+    });
+  });
+}
+
+function test_url_normalization() {
+  new Sandbox(TEST_URL_2, function sandboxCB(aSandbox) {
+    // TEST_URL_2 should be normalized into the form of TEST_URL_1
+    check_sandbox(aSandbox, TEST_URL_1);
+    free_and_check_sandbox(aSandbox);
+
+    run_next_test();
+  });
+}
+
+function test_disabled_content() {
+  // TODO: make sure disabled content doesn't load
+  let url = "http://mochi.test/TODO";
+  new Sandbox(url, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, url);
+    let originalId = aSandbox.id;
+
+    aSandbox.reload(function sandboxReloadCB(aSandbox) {
+      check_sandbox(aSandbox, url);
+      is(aSandbox.id, originalId, "Sandbox ID should be the same after reload");
+      free_and_check_sandbox(aSandbox);
+
+      run_next_test();
+    });
+  });
+}
+
+function test_origin_change() {
+  // TODO
+}
+
+function test_redirect() {
+  // TODO
+}
+
+function test_alert() {
+  // TODO: can the sandbox call window.alert() or popup other UI?
+}
+
+function test_popup() {
+  // TODO: can the sandboxed page open a popup? ie. window.open?
+}
+
+let TESTS = [test_creation, test_reload, test_url_normalization];
+
+//TESTS.push(test_disabled_content, test_origin_change, test_redirect, test_alert, test_popup);
+
+function run_next_test() {
+  if (TESTS.length) {
+    let test = TESTS.shift();
+    info(test.name);
+    test();
+  } else {
+    Services.prefs.clearUserPref("toolkit.identity.debug");
+    SimpleTest.finish();
+  }
+}
+
+  ]]>
+  </script>
+</window>

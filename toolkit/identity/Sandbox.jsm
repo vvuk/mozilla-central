@@ -28,7 +28,8 @@ Cu.import("resource://gre/modules/Services.jsm");
  */
 function Sandbox(aURL, aCallback) {
   this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
-  this._url = aURL;
+  // Normalize the URL so the comparison in _makeSandboxContentLoaded works
+  this._url = Services.io.newURI(aURL, null, null).spec;
   this._createFrame();
   this._createSandbox(aCallback);
 }
@@ -46,10 +47,11 @@ Sandbox.prototype = {
   /**
    * Reload the URL in the sandbox.
    */
-  reload: function Sandbox_reload() {
+  reload: function Sandbox_reload(aCallback) {
     this._log("reload: " + this.id + " : " + this._url);
     this._createSandbox(function createdSandbox(aSandbox) {
       this._log("reloaded sandbox id: ", aSandbox.id);
+      aCallback(aSandbox);
     }.bind(this));
   },
 
@@ -61,6 +63,7 @@ Sandbox.prototype = {
     this._container.removeChild(this._frame);
     this._frame = null;
     this._container = null;
+    this._url = null;
   },
 
   /**
@@ -102,12 +105,11 @@ Sandbox.prototype = {
   _createSandbox: function Sandbox__createSandbox(aCallback) {
     let self = this;
     function _makeSandboxContentLoaded(event) {
-      self._log("_makeSandboxContentLoaded  "
+      self._log("_makeSandboxContentLoaded : " + self.id + " : "
                 + event.target.location.toString());
       if (event.target.location.toString() != self._url) {
         return;
       }
-      self._log("removing event listener: " + self.id);
       self._container.removeEventListener(
         "DOMWindowCreated", _makeSandboxContentLoaded, true
       );

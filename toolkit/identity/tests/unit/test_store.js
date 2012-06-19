@@ -4,7 +4,7 @@
 "use strict";
 
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
+                                  "resource://gre/modules/identity/Identity.jsm",
                                   "IdentityService");
 
 function test_id_store() {
@@ -55,12 +55,10 @@ function test_id_store() {
   run_next_test();
 }
 
-var TESTS = [test_id_store,];
+let TESTS = [test_id_store,];
 
 TESTS.forEach(add_test);
 
 function run_test() {
   run_next_test();
 }
-
-
