@@ -44,3 +44,9 @@ void TransportLayer::SetState(State state) {
     SignalStateChange(this, state);
   }
 }
+
+const std::string& TransportLayer::flow_id() { 
+    static std::string empty;
+
+    return flow_ ? flow_->id() : empty;
+  }

@@ -47,7 +47,7 @@ class TransportLayer : public sigslot::has_slots<> {
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
 
   // Get the state
-  State state() const { return state_; }
+  State state() const { return state_; }    
   // Must be implemented by derived classes
   virtual TransportResult SendPacket(const unsigned char *data, size_t len) = 0;
   
@@ -61,11 +61,8 @@ class TransportLayer : public sigslot::has_slots<> {
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
 
-  virtual const std::string& flow_id() { 
-    static std::string empty;
-
-    return flow_ ? flow_->id() : empty;
-  }
+  // The id of the flow
+  virtual const std::string& flow_id();
 
  protected:
   virtual void WasInserted() {}

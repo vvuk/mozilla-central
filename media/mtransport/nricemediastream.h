@@ -45,6 +45,12 @@ class NrIceMediaStream {
   // Send a packet
   nsresult SendPacket(int component_id, const unsigned char *data, size_t len);
 
+  // Close the stream. Called by the NrIceCtx.
+  // Different from the destructor because other people
+  // might be holding RefPtrs but we want those writes to fail once
+  // the context has been destroyed.
+  void Close();
+
   sigslot::signal2<NrIceMediaStream *, const std::string& >
     SignalCandidate;  // A new ICE candidate:
   sigslot::signal1<NrIceMediaStream *> SignalReady;  // Candidate pair ready.
@@ -56,7 +62,7 @@ class NrIceMediaStream {
   // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
-  
+
   // Allow this to be refcountable
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
   

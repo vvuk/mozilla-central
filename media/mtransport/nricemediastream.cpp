@@ -89,11 +89,15 @@ NrIceMediaStream::Create(NrIceCtx *ctx,
 }
 
 NrIceMediaStream::~NrIceMediaStream() {
-  // TODO(ekr@rtfm.com): Implement this
+  // We do not need to destroy anything. All major resources
+  // are attached to the ice ctx.
 }
                                            
 nsresult NrIceMediaStream::ParseCandidates(std::vector<std::string>&
                                            candidates) {
+  if (!stream_)
+    return NS_ERROR_FAILURE;
+
   std::vector<char *> candidates_in;
 
   for (size_t i=0; i<candidates.size(); ++i) {
@@ -136,6 +140,9 @@ void NrIceMediaStream::EmitAllCandidates() {
 nsresult NrIceMediaStream::SendPacket(int component_id,
                                       const unsigned char *data,
                                       size_t len) {
+  if (!stream_)
+    return NS_ERROR_FAILURE;
+
   int r = nr_ice_media_stream_send(ctx_->peer(), stream_,
                                    component_id,
                                    const_cast<unsigned char *>(data), len);
@@ -149,4 +156,8 @@ nsresult NrIceMediaStream::SendPacket(int component_id,
   }
 
   return NS_OK;
+}
+
+void NrIceMediaStream::Close() {
+  stream_ = NULL;
 }

@@ -22,9 +22,16 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
 
   TransportLayer *old_layer = layers_.empty() ? NULL : layers_.front();
 
+  // Re-target my signals to the new layer
+  if (old_layer) {
+    old_layer->SignalStateChange.disconnect(this);
+    old_layer->SignalPacketReceived.disconnect(this);
+  }
+  layer->SignalStateChange.connect(this, &TransportFlow::StateChange);
+  layer->SignalPacketReceived.connect(this, &TransportFlow::PacketReceived);
+
   layers_.push_front(layer);
   layer->Inserted(this, old_layer);
-
   return NS_OK;
 }
 
@@ -41,6 +48,29 @@ TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
     
   return NULL;
 }
+
+TransportLayer::State TransportFlow::state() {
+  return top() ? top()->state() : TransportLayer::NONE;
+}
+
+TransportResult TransportFlow::SendPacket(const unsigned char *data,
+                                          size_t len) {
+  return top() ? top()->SendPacket(data, len) : TE_ERROR;
+}
+
+void TransportFlow::StateChange(TransportLayer *layer,
+                                TransportLayer::State state) {
+  SignalStateChange(this, state);
+}
+
+void TransportFlow::PacketReceived(TransportLayer* layer,
+                                   const unsigned char *data,
+                                   size_t len) {
+  SignalPacketReceived(this, data, len);
+}
+
+
+
 
 
 

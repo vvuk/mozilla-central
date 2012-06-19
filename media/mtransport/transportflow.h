@@ -12,13 +12,12 @@
 
 #include "nscore.h"
 
+#include "transportlayer.h"
 #include "m_cpp_utils.h"
-
-class TransportLayer;
 
 // A stack of transport layers acts as a flow.
 // Generally, one reads and writes to the top layer.
-class TransportFlow {
+class TransportFlow : public sigslot::has_slots<> {
  public:
   TransportFlow() : id_("(anonymous)") {}
   ~TransportFlow();
@@ -28,10 +27,27 @@ class TransportFlow {
   nsresult PushLayer(TransportLayer *layer);
   TransportLayer *top() const;
   TransportLayer *GetLayer(const std::string& id) const;
-  
+
+  // Wrappers for whatever TLayer happens to be the top layer
+  // at the time. This way you don't need to do top()->Foo().
+  TransportLayer::State state(); // Current state
+  TransportResult SendPacket(const unsigned char *data, size_t len);
+
+  // State has changed. Reflects the top flow.
+  sigslot::signal2<TransportFlow *, TransportLayer::State>
+    SignalStateChange;
+
+  // Data received on the flow
+  sigslot::signal3<TransportFlow*, const unsigned char *, size_t>
+    SignalPacketReceived;
+
  private:
   DISALLOW_COPY_ASSIGN(TransportFlow);
 
+  void StateChange(TransportLayer *layer, TransportLayer::State state);
+  void PacketReceived(TransportLayer* layer, const unsigned char *data,
+      size_t len);
+  
   std::string id_;
   std::deque<TransportLayer *> layers_;
 };

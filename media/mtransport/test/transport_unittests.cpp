@@ -68,7 +68,7 @@ class TransportLayerLossy : public TransportLayer {
     SetState(state);
   }
 
-  void PacketReceived(TransportLayer* layer, const unsigned char *data,
+  void PacketReceived(TransportLayer *layer, const unsigned char *data,
                       size_t len) {
     SignalPacketReceived(this, data, len);
   }
@@ -137,7 +137,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(lossy_));
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
     
-    flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+    flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
   void InitIce() {
@@ -169,7 +169,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
 
     // Listen for media events
-    flow_.top()->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+    flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
 
     // Start gathering
     test_utils.sts_target()->Dispatch(
@@ -228,11 +228,11 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   TransportResult SendPacket(const unsigned char* data, size_t len) {
-    return flow_.top()->SendPacket(data, len);
+    return flow_.SendPacket(data, len);
   }
 
 
-  void PacketReceived(TransportLayer* flow, const unsigned char* data,
+  void PacketReceived(TransportFlow * flow, const unsigned char* data,
                       size_t len) {
     std::cerr << "Received " << len << " bytes" << std::endl;
     ++received_;
@@ -243,7 +243,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   bool connected() { 
-    return flow_.top()->state() == TransportLayer::OPEN;
+    return flow_.state() == TransportLayer::OPEN;
   }
 
   size_t received() { return received_; }
