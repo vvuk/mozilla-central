@@ -39,12 +39,10 @@
                 #"./src/crypto/nr_crypto_openssl.h",
 
                 # ICE
-                "./src/ice/codewords.h",
                 "./src/ice/ice_candidate.c",
                 "./src/ice/ice_candidate.h",
                 "./src/ice/ice_candidate_pair.c",
                 "./src/ice/ice_candidate_pair.h",
-                "./src/ice/ice_codeword.c",
                 "./src/ice/ice_codeword.h",
                 "./src/ice/ice_component.c",
                 "./src/ice/ice_component.h",
