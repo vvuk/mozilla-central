@@ -36,6 +36,8 @@ const TEST_URL_1 = "https://example.com/";
 // No trailing slash plus port to test normalization
 const TEST_URL_2 = "https://example.com:443";
 
+const TEST_BASE = "http://mochi.test:8888/chrome/toolkit/identity/tests/chrome/"
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -68,6 +70,7 @@ function free_and_check_sandbox(aSandbox) {
         continue;
       is(aSandbox[prop], null, "freed " + prop);
     }
+    run_next_test();
   });
 }
 
@@ -75,8 +78,6 @@ function test_creation() {
   new Sandbox(TEST_URL_1, function sandboxCB(aSandbox) {
     check_sandbox(aSandbox, TEST_URL_1);
     free_and_check_sandbox(aSandbox);
-
-    run_next_test();
   });
 }
 
@@ -89,8 +90,6 @@ function test_reload() {
       check_sandbox(aSandbox, TEST_URL_1);
       is(aSandbox.id, originalId, "Sandbox ID should be the same after reload");
       free_and_check_sandbox(aSandbox);
-
-      run_next_test();
     });
   });
 }
@@ -100,47 +99,129 @@ function test_url_normalization() {
     // TEST_URL_2 should be normalized into the form of TEST_URL_1
     check_sandbox(aSandbox, TEST_URL_1);
     free_and_check_sandbox(aSandbox);
+  });
+}
 
-    run_next_test();
+/**
+ * Check with the server's state to see what content was loaded then reset it.
+ */
+function check_loaded_content(aNothingShouldLoad, aCallback) {
+  let stateURL = TEST_BASE + "sandbox_content.sjs"
+
+  let xhr = new XMLHttpRequest();
+  xhr.open("GET", stateURL + "?get_loaded", true);
+  xhr.onload = function() {
+    is(xhr.status, 200, "Check successful response");
+
+    if (aNothingShouldLoad) {
+      is(xhr.responseText, "NOTHING", "Check that nothing was loaded on the server");
+    } else {
+      let loadedTypes = xhr.responseText == "NOTHING" ? [] : xhr.responseText.split(",");
+
+      // TODO: Media should be disabled after bug 759964.
+      is(loadedTypes.length, 4, "Check number of loaded content types: " + xhr.responseText)
+      todo_is(loadedTypes.length, 2, "Check number of loaded content types: " + xhr.responseText)
+
+      isnot(loadedTypes.indexOf("application/javascript"), -1, "Check JS was loaded");
+      isnot(loadedTypes.indexOf("text/html"), -1, "Check iframe was loaded");
+      todo_is(loadedTypes.indexOf("video/webm"), -1, "Check webm was not loaded");
+      todo_is(loadedTypes.indexOf("audio/ogg"), -1, "Check ogg was not loaded");
+    }
+
+    // Now reset the server state
+    let resetReq = new XMLHttpRequest();
+    resetReq.open("GET", stateURL + "?reset", false);
+    resetReq.send();
+
+    aCallback();
+  };
+  xhr.send();
+}
+
+/**
+ * Helper to check that only certain content is loaded on creation and during reload.
+ */
+function check_disabled_content(aSandboxURL, aNothingShouldLoad = false) {
+  new Sandbox(aSandboxURL, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, aSandboxURL);
+    let originalId = aSandbox.id;
+
+    setTimeout(function() {
+      check_loaded_content(aNothingShouldLoad, function checkFinished() {
+
+        info("reload the sandbox content");
+        aSandbox.reload(function sandboxReloadCB(aSandbox) {
+          check_sandbox(aSandbox, aSandboxURL);
+          is(aSandbox.id, originalId, "Sandbox ID should be the same after reload");
+
+          setTimeout(function() {
+            check_loaded_content(aNothingShouldLoad, function reloadCheckFinished() {
+              free_and_check_sandbox(aSandbox);
+            });
+          }, 1000);
+        });
+      });
+    }, 1000);
   });
 }
 
 function test_disabled_content() {
-  // TODO: make sure disabled content doesn't load
-  let url = "http://mochi.test/TODO";
-  new Sandbox(url, function sandboxCB(aSandbox) {
-    check_sandbox(aSandbox, url);
-    let originalId = aSandbox.id;
-
-    aSandbox.reload(function sandboxReloadCB(aSandbox) {
-      check_sandbox(aSandbox, url);
-      is(aSandbox.id, originalId, "Sandbox ID should be the same after reload");
-      free_and_check_sandbox(aSandbox);
-
-      run_next_test();
-    });
-  });
+  let url = TEST_BASE + "sandbox_content.html";
+  check_disabled_content(url);
 }
 
-function test_origin_change() {
-  // TODO
+// Same as test above but with content in an iframe.
+function test_disabled_content_framed() {
+  let url = TEST_BASE + "sandbox_content_framed.html";
+  check_disabled_content(url);
 }
 
 function test_redirect() {
-  // TODO
+  let url = TEST_BASE + "sandbox_content_redirect.html";
+  check_disabled_content(url);
 }
 
+// Can the sandbox call window.alert() or popup other UI?
 function test_alert() {
-  // TODO: can the sandbox call window.alert() or popup other UI?
+  let alertURL = TEST_BASE + "sandbox_content_alert.html";
+
+  new Sandbox(alertURL, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, alertURL);
+    setTimeout(function() {
+      let win = Services.wm.getMostRecentWindow(null);
+      todo_isnot(win.document.documentElement.getAttribute("id"), "commonDialog",
+                 "Make sure most recent window is not a dialog");
+      free_and_check_sandbox(aSandbox);
+    }, 500);
+  });
 }
 
+// Can the sandboxed page open a popup with window.open?
 function test_popup() {
-  // TODO: can the sandboxed page open a popup? ie. window.open?
+  let alertURL = TEST_BASE + "sandbox_content_popup.html";
+  let originalWin = Services.wm.getMostRecentWindow("navigator:browser");
+  new Sandbox(alertURL, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, alertURL);
+    setTimeout(function() {
+      let win = Services.wm.getMostRecentWindow("navigator:browser");
+      todo_is(win, originalWin, "Make sure a new window didn't open");
+
+      free_and_check_sandbox(aSandbox);
+    }, 1000);
+  });
+}
+
+// Loading a page with a bad cert
+function test_bad_cert() {
+  let url = TEST_BASE + "sandbox_content.sjs?text/html";
+  url = url.replace("http://mochi.test:8888", "https://untrusted.example.com");
+  check_disabled_content(url, true);
 }
 
 let TESTS = [test_creation, test_reload, test_url_normalization];
-
-//TESTS.push(test_disabled_content, test_origin_change, test_redirect, test_alert, test_popup);
+TESTS.push(test_disabled_content, test_disabled_content_framed);
+TESTS.push(test_alert, test_popup, test_bad_cert);
+//TESTS.push(test_redirect);
 
 function run_next_test() {
   if (TESTS.length) {
