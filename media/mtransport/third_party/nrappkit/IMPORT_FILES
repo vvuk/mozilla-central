@@ -1,3 +1,5 @@
+              # API
+              src/plugin/nr_plugin.h
               src/share/nr_api.h
               src/share/nr_common.h
               src/share/nr_reg_keys.h
@@ -71,6 +73,9 @@
               src/port/linux/include/sys/ttycom.h
               src/port/linux/port-impl.mk
 
+              # Stats
+              src/stats/nrstats.h
+              
               # Meta-files
               COPYRIGHT
               VERSION
