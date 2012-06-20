@@ -183,6 +183,22 @@ function test_redirect() {
   run_next_test();
 }
 
+function WindowObserver(aCallback) {
+  this.observe = function(aSubject, aTopic, aData) {
+    if (aTopic != "domwindowopened") {
+      return;
+    }
+    Services.ww.unregisterNotification(this);
+
+    let domWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    todo(!domWin, "No window should be opened");
+    SimpleTest.executesoon(function() {
+      domWin.close();
+      aCallback();
+    });
+  }
+}
+
 // Can the sandbox call window.alert() or popup other UI?
 function test_alert() {
   let alertURL = TEST_BASE + "sandbox_content_alert.html";
@@ -190,9 +206,12 @@ function test_alert() {
   new Sandbox(alertURL, function sandboxCB(aSandbox) {
     check_sandbox(aSandbox, alertURL);
     setTimeout(function() {
+
       let win = Services.wm.getMostRecentWindow(null);
       todo_isnot(win.document.documentElement.getAttribute("id"), "commonDialog",
                  "Make sure most recent window is not a dialog");
+      win.close();
+
       free_and_check_sandbox(aSandbox);
     }, 500);
   });
@@ -201,15 +220,20 @@ function test_alert() {
 // Can the sandboxed page open a popup with window.open?
 function test_popup() {
   let alertURL = TEST_BASE + "sandbox_content_popup.html";
-  let originalWin = Services.wm.getMostRecentWindow("navigator:browser");
+  let theSandbox;
+  function continueTest() {
+    // avoid double-free
+    if (!theSandbox)
+      return;
+    free_and_check_sandbox(theSandbox);
+    theSandbox = null;
+  }
+  Services.ww.registerNotification(new WindowObserver(continueTest));
   new Sandbox(alertURL, function sandboxCB(aSandbox) {
+    theSandbox = aSandbox;
     check_sandbox(aSandbox, alertURL);
-    setTimeout(function() {
-      let win = Services.wm.getMostRecentWindow("navigator:browser");
-      todo_is(win, originalWin, "Make sure a new window didn't open");
-
-      free_and_check_sandbox(aSandbox);
-    }, 1000);
+    // Wait 5 seconds to see if the window is going to open.
+    setTimeout(continueTest, 5000);
   });
 }
 

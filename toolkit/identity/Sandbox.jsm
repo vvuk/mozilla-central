@@ -30,6 +30,7 @@ function Sandbox(aURL, aCallback) {
   this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
   // Normalize the URL so the comparison in _makeSandboxContentLoaded works
   this._url = Services.io.newURI(aURL, null, null).spec;
+  this._log("Creating sandbox for: " + this._url);
   this._createFrame();
   this._createSandbox(aCallback);
 }

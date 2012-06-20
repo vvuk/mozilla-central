@@ -10,7 +10,11 @@
 <script>
 
 var strWindowFeatures = "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes";
-var win = window.open("http://mochi.test:8888", "sandbox_popup", strWindowFeatures);
+
+var uri = "data:text/html,";
+uri += encodeURI("<body onload='setTimeout(window.close, 1000)'>");
+
+var win = window.open(uri, "sandbox_popup", strWindowFeatures);
 
 </script>
 
