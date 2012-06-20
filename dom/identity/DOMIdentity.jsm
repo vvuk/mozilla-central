@@ -23,10 +23,6 @@ function log(msg) {
   dump("DOMIdentity: " + msg + "\n");
 }
 
-// Maps the callback objects to the message manager
-// to be used to send the message back to the child.
-let mmMap = new WeakMap();
-
 function IDDOMMessage(aID) {
   this.id = aID;
 }
@@ -34,13 +30,13 @@ function IDDOMMessage(aID) {
 function IDPProvisioningContext(aID, aOrigin, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
-  mmMap.set(this, aTargetMM);
+  this._mm = aTargetMM;
 }
 
 IDPProvisioningContext.prototype = {
   get id() this._id,
   get origin() this._origin,
-  get mm() mmMap.get(this),
+  get mm() this._mm,
 
   doBeginProvisioningCallback: function IDPPC_doBeginProvCB(aID, aCertDuration) {
     let message = new IDDOMMessage(this.id);
@@ -65,13 +61,13 @@ IDPProvisioningContext.prototype = {
 function IDPAuthenticationContext(aID, aOrigin, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
-  mmMap.set(this, aTargetMM);
+  this._mm = aTargetMM;
 }
 
 IDPAuthenticationContext.prototype = {
   get id() this._id,
   get origin() this._origin,
-  get mm() mmMap.get(this),
+  get mm() this._mm,
 
   doBeginAuthenticationCallback: function IDPAC_doBeginAuthCB(aIdentity) {
     let message = new IDDOMMessage(this.id);
@@ -89,14 +85,14 @@ function RPWatchContext(aID, aOrigin, aLoggedInEmail, aTargetMM) {
   this._id = aID;
   this._origin = aOrigin;
   this._loggedInEmail = aLoggedInEmail;
-  mmMap.set(this, aTargetMM);
+  this._mm = aTargetMM;
 }
 
 RPWatchContext.prototype = {
   get id() this._id,
   get origin() this._origin,
   get loggedInEmail() this._loggedInEmail,
-  get mm() mmMap.get(this),
+  get mm() this._mm,
 
   doLogin: function RPWatchContext_onlogin(aAssertion) {
     log("doLogin: " + this.id);
