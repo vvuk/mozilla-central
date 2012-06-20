@@ -178,7 +178,9 @@ function test_disabled_content_framed() {
 
 function test_redirect() {
   let url = TEST_BASE + "sandbox_content_redirect.html";
-  check_disabled_content(url);
+  todo(false, "Make redirects work. (_makeSandboxContentLoaded checks event.target.location)");
+  //check_disabled_content(url);
+  run_next_test();
 }
 
 // Can the sandbox call window.alert() or popup other UI?
@@ -221,7 +223,7 @@ function test_bad_cert() {
 let TESTS = [test_creation, test_reload, test_url_normalization];
 TESTS.push(test_disabled_content, test_disabled_content_framed);
 TESTS.push(test_alert, test_popup, test_bad_cert);
-//TESTS.push(test_redirect);
+TESTS.push(test_redirect);
 
 function run_next_test() {
   if (TESTS.length) {
