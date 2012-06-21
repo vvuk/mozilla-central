@@ -1,7 +1,7 @@
-"use strict";
-
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
+
+"use strict";
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -9,13 +9,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 const idService = Cc["@mozilla.org/identity/crypto-service;1"]
                     .getService(Ci.nsIIdentityCryptoService);
 
-
 const ALG_DSA = "DS160";
 const ALG_RSA = "RS256";
 
-function log(aMsg){ dump("ID Tests: " + aMsg+ "\n"); };
-
-// When the output of an operation is a 
+// When the output of an operation is a
 function do_check_eq_or_slightly_less(x, y) {
   do_check_true(x >= y - (3 * 8));
 }
@@ -66,11 +63,6 @@ function test_rsa() {
 add_test(test_dsa);
 add_test(test_rsa);
 
-function run_test()
-{
+function run_test() {
   run_next_test();
-}
-
-function finish_test()
-{
 }

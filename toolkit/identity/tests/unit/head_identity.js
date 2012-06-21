@@ -22,6 +22,10 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IdentityStore",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
@@ -69,24 +73,8 @@ registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"
 
 // The following are utility functions for Identity testing
 
-/**
- * log() - utility function to print a list of arbitrary things
- */
-function log() {
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      strings.push(JSON.stringify(arg, null, 2));
-    }
-  });
-  dump("Identity test: " + strings.join(' ') + "\n");
+function log(aMessage) {
+  IDLog("test", aMessage);
 }
 
 function get_idstore() {

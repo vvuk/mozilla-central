@@ -14,48 +14,19 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+const EXPORTED_SYMBOLS = ["RelyingParty"];
+
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
-var EXPORTED_SYMBOLS = ["RelyingParty"];
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
-/**
- * log() - utility function to print a list of arbitrary things
- *
- * Enable with about:config pref toolkit.identity.debug
- * TODO: move to IdentityUtils and share
- */
-function log(args) {
-/* TODO
-  if (!IdentityService._debugMode) {
-    return;
-  }
-*/
-
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      try {
-        strings.push(JSON.stringify(arg, null, 2));
-      } catch(err) {
-        strings.push("<<something>>");
-      }
-    }
-  });
-  let output = 'Identity RP: ' + strings.join(' ') + '\n';
-  dump(output);
-
-  // Additionally, make the output visible in the Error Console
-  Services.console.logStringMessage(output);
-};
+function log(aMessage) {
+  IDLog("RP", aMessage);
+}
 
 function IdentityRelyingParty() {
   Services.obs.addObserver(this, "quit-application-granted", false);
@@ -349,7 +320,7 @@ IdentityRelyingParty.prototype = {
     } else {
       // We need to get a certificate.  Discover the identity's
       // IdP and provision
-      /* TODO: this doesn't doesn't change the logic
+      /* TODO: this doesn't change the logic so it's pointless
       this._discoverIdentityProvider(email, function(err, idpParams) {
         if (err) {
           return aCallback(err);

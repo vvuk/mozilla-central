@@ -17,54 +17,22 @@ Cu.import("resource://gre/modules/Services.jsm");
 let EXPORTED_SYMBOLS = ["IdentityService"];
 let FALLBACK_PROVIDER = "browserid.org";
 
-const PREF_DEBUG = "toolkit.identity.debug";
-
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
-/**
- * log() - utility function to print a list of arbitrary things
- * Depends on IdentityService (bottom of this module).
- *
- * Enable with about:config pref toolkit.identity.debug
- */
-function log(args) {
-  if (!IdentityService._debug) {
-    return;
-  }
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      try {
-        strings.push(JSON.stringify(arg, null, 2));
-      } catch(err) {
-        strings.push("<<something>>");
-      }
-    }
-  });
-  let output = 'Identity: ' + strings.join(' ') + '\n';
-  dump(output);
-
-  // Additionally, make the output visible in the Error Console
-  Services.console.logStringMessage(output);
-};
+function log(aMessage) {
+  IDLog(null, aMessage);
+}
 
 function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-auth-complete", false);
   // NB, prefs.addObserver and obs.addObserver have different interfaces
-  Services.prefs.addObserver(PREF_DEBUG, this, false);
-
-  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
 
   this.init();
 }
@@ -107,9 +75,6 @@ IDService.prototype = {
         Services.obs.removeObserver(this, "quit-application-granted");
         this.shutdown();
         break;
-      case "nsPref:changed":
-        this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
-        break;
       case "identity-auth-complete":
         if (!aSubject || !aSubject.wrappedJSObject)
           break;
@@ -125,7 +90,6 @@ IDService.prototype = {
     log("shutdown");
     this.init();
     try {
-      Services.obs.removeObserver(this, "nsPref:changed");
       Services.obs.removeObserver(this, "identity-auth-complete");
     } catch (ex) {}
   },
@@ -249,8 +213,6 @@ IDService.prototype = {
   },
 
   // methods for chrome and add-ons
-
-  // TODO: need helper to logout of all sites for SITB?
 
   /**
    * Discover the IdP for an identity

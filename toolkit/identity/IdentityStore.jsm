@@ -14,11 +14,52 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-let EXPORTED_SYMBOLS = ["IdentityStore"];
+let EXPORTED_SYMBOLS = ["IdentityStore", "IDLog"];
+
+const PREF_DEBUG = "toolkit.identity.debug";
+
+/**
+ * log() - utility function to print a list of arbitrary things
+ * Depends on IdentityStore (bottom of this file).
+ *
+ * Enable with about:config pref toolkit.identity.debug
+ */
+function IDLog(prefix, args) {
+  if (!IdentityStore._debug) {
+    return;
+  }
+  prefix = prefix || "";
+  let strings = [];
+  let args = Array.prototype.slice.call(arguments, 1);
+  args.forEach(function(arg) {
+    if (typeof arg === 'string') {
+      strings.push(arg);
+    } else if (typeof arg === 'undefined') {
+      strings.push('undefined');
+    } else if (arg === null) {
+      strings.push('null');
+    } else {
+      try {
+        strings.push(JSON.stringify(arg, null, 2));
+      } catch(err) {
+        strings.push("<<something>>");
+      }
+    }
+  });
+  let output = 'Identity ' + prefix + ': ' + strings.join(' ') + '\n';
+  dump(output);
+
+  // Additionally, make the output visible in the Error Console
+  Services.console.logStringMessage(output);
+};
+
 
 // the data store for IDService
 // written as a separate thing so it can easily be mocked
 function IDServiceStore() {
+  Services.prefs.addObserver(PREF_DEBUG, this, false);
+  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
+
   this.init();
 }
 
@@ -83,7 +124,22 @@ IDServiceStore.prototype = {
   init: function init() {
     this._identities = {};
     this._loginStates = {};
-  }
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+  observe: function observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "quit-application-granted":
+        Services.obs.removeObserver(this, "quit-application-granted");
+        Services.prefs.removeObserver(PREF_DEBUG, this);
+        this.init();
+        break;
+      case "nsPref:changed":
+        this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
+        break;
+    }
+  },
 };
 
 let IdentityStore = new IDServiceStore();

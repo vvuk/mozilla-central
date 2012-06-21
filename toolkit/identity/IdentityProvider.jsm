@@ -18,55 +18,21 @@ Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 let EXPORTED_SYMBOLS = ["IdentityProvider"];
 let FALLBACK_PROVIDER = "browserid.org";
 
-const PREF_DEBUG = "toolkit.identity.debug";
-
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
-/**
- * log() - utility function to print a list of arbitrary things
- * Depends on IdentityService (bottom of this module).
- *
- * Enable with about:config pref toolkit.identity.debug
- * TODO: consolidate with other copies
- */
-function log(args) {
-  if (!IdentityProvider._debug) {
-    return;
-  }
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      try {
-        strings.push(JSON.stringify(arg, null, 2));
-      } catch(err) {
-        strings.push("<<something>>");
-      }
-    }
-  });
-  let output = 'Identity IDP: ' + strings.join(' ') + '\n';
-  dump(output);
-
-  // Additionally, make the output visible in the Error Console
-  Services.console.logStringMessage(output);
-};
-
+function log(aMessage) {
+  IDLog("IDP", aMessage);
+}
 
 function IdentityProviderService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   // NB, prefs.addObserver and obs.addObserver have different interfaces
-  Services.prefs.addObserver(PREF_DEBUG, this, false);
-
-  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
 
   this.init();
 }
@@ -101,9 +67,6 @@ IdentityProviderService.prototype = {
       case "quit-application-granted":
         Services.obs.removeObserver(this, "quit-application-granted");
         this.shutdown();
-        break;
-      case "nsPref:changed":
-        this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
         break;
     }
   },

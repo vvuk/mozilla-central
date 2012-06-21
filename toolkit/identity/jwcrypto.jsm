@@ -14,36 +14,20 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
+
 const IdentityCryptoService
   = Cc["@mozilla.org/identity/crypto-service;1"]
       .getService(Ci.nsIIdentityCryptoService);
 
-var EXPORTED_SYMBOLS = ["jwcrypto"];
+const EXPORTED_SYMBOLS = ["jwcrypto"];
 
 const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
-/**
- * log() - utility function to print a list of arbitrary things
- */
-function log() {
-  let strings = [];
-  let args = Array.prototype.slice.call(arguments);
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      strings.push(JSON.stringify(arg, null, 2));
-    }
-  });
-  let output = "Identity jwcrypto.jsm: " + strings.join(' ') + "\n";
-  dump(output);
-
-  // Additionally, make the output visible in the Error Console
-  Services.console.logStringMessage(output);
+function log(aMessage) {
+  IDLog("jwcrypto", aMessage);
 }
 
 function keygenerator() {}
