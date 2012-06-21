@@ -6,16 +6,15 @@
 
 "use strict";
 
-let Cu = Components.utils;
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-let Cr = Components.results;
+const Cu = Components.utils;
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-let EXPORTED_SYMBOLS = ["IdentityService"];
-let FALLBACK_PROVIDER = "browserid.org";
+const EXPORTED_SYMBOLS = ["IdentityService"];
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
@@ -32,7 +31,6 @@ function log(aMessage) {
 function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-auth-complete", false);
-  // NB, prefs.addObserver and obs.addObserver have different interfaces
 
   this.init();
 }

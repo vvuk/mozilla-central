@@ -8,9 +8,12 @@ const EXPORTED_SYMBOLS = ["Sandbox"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
-const PREF_DEBUG = "toolkit.identity.debug";
-
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
 /**
  * An object that represents a sandbox in an iframe loaded with aURL. The
@@ -27,7 +30,6 @@ Cu.import("resource://gre/modules/Services.jsm");
  *        (function) Callback to be invoked with a Sandbox, when ready.
  */
 function Sandbox(aURL, aCallback) {
-  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
   // Normalize the URL so the comparison in _makeSandboxContentLoaded works
   this._url = Services.io.newURI(aURL, null, null).spec;
   this._log("Creating sandbox for: " + this._url);
@@ -133,10 +135,8 @@ Sandbox.prototype = {
 
   },
 
-  _log: function Sandbox__log(msg) {
-    if (!this._debug)
-      return;
-    dump("Sandbox.jsm: " + msg + "\n");
+  _log: function Sandbox__log(aMessage) {
+    IDLog("Sandbox", aMessage);
   },
 
 };

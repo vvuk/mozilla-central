@@ -6,17 +6,17 @@
 
 "use strict";
 
-let Cu = Components.utils;
-let Ci = Components.interfaces;
-let Cc = Components.classes;
-let Cr = Components.results;
+const Cu = Components.utils;
+const Ci = Components.interfaces;
+const Cc = Components.classes;
+const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
-let EXPORTED_SYMBOLS = ["IdentityProvider"];
-let FALLBACK_PROVIDER = "browserid.org";
+const EXPORTED_SYMBOLS = ["IdentityProvider"];
+const FALLBACK_PROVIDER = "browserid.org";
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
