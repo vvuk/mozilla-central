@@ -114,6 +114,7 @@
               'USE_STUN_PEDANTIC',
               'USE_TURN',
               'NR_SOCKET="void *"',
+              'restrict=',
           ],
           
           'conditions' : [
