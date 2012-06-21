@@ -32,7 +32,7 @@ XPCOMUtils.defineLazyModuleGetter(this,
  * TODO: consolidate with other copies
  */
 function log(args) {
-  if (!IdentityProviderService._debug) {
+  if (!IdentityProvider._debug) {
     return;
   }
 
