@@ -70,10 +70,14 @@ void LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   
   if (trackType == mozilla::MediaSegment::AUDIO)
   {
+    // FIX to not add the same ID twice.
+    // Should have very few tracks so not a hashtable
     mAudioTracks.AppendElement(aID);
   }
   else if (trackType == mozilla::MediaSegment::VIDEO)
   {
+    // FIX to not add the same ID twice
+    // Should have very few tracks so not a hashtable
     mVideoTracks.AppendElement(aID);
   }
   else

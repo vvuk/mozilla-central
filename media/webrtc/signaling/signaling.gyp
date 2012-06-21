@@ -130,9 +130,6 @@
         # PeerConnection
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
-        './src/peerconnection/CodecInfoImpl.cpp',
-        './src/peerconnection/CodecInfoImpl.h',
-        
 
       ],
     

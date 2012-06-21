@@ -36,7 +36,6 @@
 
 #include "prlock.h"
 #include "PeerConnection.h"
-#include "CodecInfoImpl.h"
 #include "CallControlManager.h"
 #include "CC_Device.h"
 #include "CC_Call.h"
