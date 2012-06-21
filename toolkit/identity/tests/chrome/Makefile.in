@@ -19,7 +19,6 @@ _CHROME_FILES = \
 		sandbox_content_redirect.html \
 		sandbox_content_redirect.html^headers^ \
 		sandbox_content.sjs \
-		test_relying_party.xul \
 		test_sandbox.xul \
 		$(NULL)
 

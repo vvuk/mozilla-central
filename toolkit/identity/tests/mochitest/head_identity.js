@@ -71,7 +71,11 @@ function makeObserver(aObserveTopic, aObserveFunc) {
 
     observe: function (aSubject, aTopic, aData) {
       if (aTopic == aObserveTopic) {
-        aObserveFunc(aSubject, aTopic, aData);
+        try {
+          aObserveFunc(SpecialPowers.wrap(aSubject), aTopic, aData);
+        } catch (ex) {
+          ok(false, ex);
+        }
         Services.obs.removeObserver(observer, aObserveTopic);
       }
     }
@@ -102,7 +106,7 @@ function call_sequentially() {
   let funcs = arguments;
 
   return function() {
-    funcs[numCalls].apply(funcs[numCalls],arguments);
+    funcs[numCalls].apply(funcs[numCalls], arguments);
     numCalls += 1;
   };
 }

@@ -166,13 +166,13 @@ function test_logout() {
         is(action, 'ready');
         is(params, undefined);
 
-        do_timeout(100, doLogout);
+        SimpleTest.executeSoon(doLogout);
       },
       function(action, params) {
         is(action, 'logout');
         is(params, undefined);
 
-        do_timeout(100, doLogout);
+        SimpleTest.executeSoon(doLogout);
       },
       function(action, params) {
         is(action, 'ready');
@@ -183,11 +183,11 @@ function test_logout() {
 
     doLogout = function() {
       makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
-        isnot(aSubject, null, "Check subject is not null");
+        isnot(aSubject.wrappedJSObject.rpId, null, "Check rpId is not null");
         is(aData, null, "Check identity changed to nobody");
 
-        ok(!store.getLoginState(TEST_URL).isLoggedIn);
-        is(store.getLoginState(TEST_URL).email, TEST_USER);
+        ok(!store.getLoginState(TEST_URL).isLoggedIn, "Check isLoggedIn is false");
+        is(store.getLoginState(TEST_URL).email, TEST_USER, "Check notification email");
       });
       identity.logout();
     };
