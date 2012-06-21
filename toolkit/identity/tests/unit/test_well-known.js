@@ -5,7 +5,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
+                                  "resource://gre/modules/identity/Identity.jsm",
                                   "IdentityService");
 
 const WELL_KNOWN_PATH = "/.well-known/browserid";

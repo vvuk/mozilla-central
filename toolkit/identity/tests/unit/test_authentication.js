@@ -4,11 +4,11 @@
 "use strict";
 
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
+                                  "resource://gre/modules/identity/Identity.jsm",
                                   "IdentityService");
 
 XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
-                                  "resource:///modules/identity/jwcrypto.jsm");
+                                  "resource://gre/modules/identity/jwcrypto.jsm");
 
 function test_begin_authentication_flow() {
   do_test_pending();

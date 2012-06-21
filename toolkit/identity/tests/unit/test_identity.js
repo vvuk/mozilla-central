@@ -4,7 +4,7 @@
 "use strict";
 
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
+                                  "resource://gre/modules/identity/Identity.jsm",
                                   "IdentityService");
 
 function test_overall() {

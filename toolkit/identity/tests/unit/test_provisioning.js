@@ -3,7 +3,7 @@
 
 "use strict";
 
-Cu.import("resource:///modules/identity/IdentityProvider.jsm");
+Cu.import("resource://gre/modules/identity/IdentityProvider.jsm");
 
 function check_provision_flow_done(provId) {
   do_check_null(IdentityProvider._provisionFlows[provId]);

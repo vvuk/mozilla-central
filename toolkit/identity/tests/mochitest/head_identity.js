@@ -22,7 +22,7 @@ const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
 Services.prefs.setBoolPref("toolkit.identity.debug", true);
 Services.prefs.setBoolPref("dom.identity.enabled", true);
 
-const jwcrypto = Cu.import("resource:///modules/identity/jwcrypto.jsm").jwcrypto;
+const jwcrypto = Cu.import("resource://gre/modules/identity/jwcrypto.jsm").jwcrypto;
 const IdentityStore = Cu.import("resource://gre/modules/identity/IdentityStore.jsm").IdentityStore;
 const RelyingParty = Cu.import("resource://gre/modules/identity/RelyingParty.jsm").RelyingParty;
 const XPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm").XPCOMUtils;

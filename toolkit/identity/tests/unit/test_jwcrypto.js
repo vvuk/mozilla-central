@@ -4,11 +4,11 @@
 "use strict"
 
 XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource:///modules/identity/Identity.jsm",
+                                  "resource://gre/modules/identity/Identity.jsm",
                                   "IdentityService");
 
 XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
-                                  "resource:///modules/identity/jwcrypto.jsm");
+                                  "resource://gre/modules/identity/jwcrypto.jsm");
 
 const RP_ORIGIN = "http://123done.org";
 const INTERNAL_ORIGIN = "browserid://";

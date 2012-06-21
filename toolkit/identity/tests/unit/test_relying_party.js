@@ -4,7 +4,7 @@
 "use strict";
 
 XPCOMUtils.defineLazyModuleGetter(this, "RelyingParty",
-                                  "resource:///modules/identity/RelyingParty.jsm");
+                                  "resource://gre/modules/identity/RelyingParty.jsm");
 
 function resetState() {
   get_idstore().init();
