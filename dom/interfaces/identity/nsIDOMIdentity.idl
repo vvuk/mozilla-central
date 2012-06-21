@@ -20,7 +20,7 @@ interface nsIDOMIdentityRPLoginCallback : nsISupports
 [scriptable, function, uuid(6070c8ce-acf3-11e1-8a5f-000c295c4dc0)]
 interface nsIDOMIdentityKeypairCallback : nsISupports
 {
-  void onSuccess(in jsval pubkey); // TODO: decide on object or string
+  void onSuccess(in jsval pubkey);
 };
 
 [scriptable, function, uuid(65f1b6fb-acab-43af-97b9-825fb442c02d)]
@@ -136,4 +136,3 @@ interface nsIDOMIdentity : nsISupports
   void completeAuthentication();
   void raiseAuthenticationFailure(in DOMString reason);
 };
-

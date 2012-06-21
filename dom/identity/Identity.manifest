@@ -1,7 +1,7 @@
 # nsDOMIdentity.js
 component {8bcac6a3-56a4-43a4-a44c-cdf42763002f} nsDOMIdentity.js
 contract @mozilla.org/identity;1 {8bcac6a3-56a4-43a4-a44c-cdf42763002f}
-# TODO: remove id before m-c
+# TODO: remove id (unprefixed) before enabling by default
 category JavaScript-navigator-property id @mozilla.org/identity;1
 category JavaScript-navigator-property mozId @mozilla.org/identity;1
 

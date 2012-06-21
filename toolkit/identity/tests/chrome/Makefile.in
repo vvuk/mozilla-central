@@ -12,7 +12,6 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _CHROME_FILES = \
-		test_sandbox.xul \
 		sandbox_content.html \
 		sandbox_content_alert.html \
 		sandbox_content_framed.html \
@@ -20,6 +19,8 @@ _CHROME_FILES = \
 		sandbox_content_redirect.html \
 		sandbox_content_redirect.html^headers^ \
 		sandbox_content.sjs \
+		test_relying_party.xul \
+		test_sandbox.xul \
 		$(NULL)
 
 libs:: $(_CHROME_FILES)
