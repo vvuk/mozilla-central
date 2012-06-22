@@ -26,8 +26,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
-function log(aMessage) {
-  IDLog("IDP", aMessage);
+function log(...aMessageArgs) {
+  IDLog.apply(this, ["IDP"].concat(aMessageArgs));
 }
 
 function IdentityProviderService() {
@@ -104,7 +104,7 @@ IdentityProviderService.prototype = {
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback) {
     let provPath = aIDPParams.idpParams.provisioning;
-    let url = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(provPath).spec;
+    let url = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(provPath);
     log("_provisionIdentity: identity:", aIdentity, "url:", url);
 
     // If aProvId is not null, then we already have a flow
