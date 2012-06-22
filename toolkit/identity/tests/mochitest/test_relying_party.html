@@ -171,8 +171,6 @@ function test_logout() {
       function(action, params) {
         is(action, 'logout');
         is(params, undefined);
-
-        SimpleTest.executeSoon(doLogout);
       },
       function(action, params) {
         is(action, 'ready');
@@ -196,25 +194,12 @@ function test_logout() {
   });
 }
 
-let TESTS = [];
 
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS.push(test_request);
-
 TESTS.push(test_logout);
 
-function run_next_test() {
-  if (TESTS.length) {
-    let test = TESTS.shift();
-    info(test.name);
-    test();
-  } else {
-    Services.prefs.clearUserPref("toolkit.identity.debug");
-    Services.prefs.clearUserPref("dom.identity.enabled");
-    SimpleTest.finish();
-  }
-}
 </script>
 </pre>
 </body>

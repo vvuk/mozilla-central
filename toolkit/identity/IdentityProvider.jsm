@@ -103,7 +103,8 @@ IdentityProviderService.prototype = {
    *                   with first-positional parameter the error.
    */
   _provisionIdentity: function _provisionIdentity(aIdentity, aIDPParams, aProvId, aCallback) {
-    let url = 'https://' + aIDPParams.domain + aIDPParams.idpParams.provisioning;
+    let provPath = aIDPParams.idpParams.provisioning;
+    let url = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(provPath).spec;
     log("_provisionIdentity: identity:", aIdentity, "url:", url);
 
     // If aProvId is not null, then we already have a flow

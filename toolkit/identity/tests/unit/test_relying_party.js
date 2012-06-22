@@ -178,8 +178,6 @@ function test_logout() {
       function(action, params) {
         do_check_eq(action, 'logout');
         do_check_eq(params, undefined);
-
-        do_timeout(100, doLogout);
       },
       function(action, params) {
         do_check_eq(action, 'ready');
@@ -204,7 +202,6 @@ let TESTS = [];
 TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
 TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
 TESTS.push(test_request);
-
 TESTS.push(test_logout);
 
 TESTS.forEach(add_test);

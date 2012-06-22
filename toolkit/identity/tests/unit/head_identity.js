@@ -152,6 +152,11 @@ function call_sequentially() {
   let funcs = arguments;
 
   return function() {
+    if (!funcs[numCalls]) {
+      let argString = Array.prototype.slice.call(arguments).join(",");
+      do_throw("Too many calls: " + argString);
+      return;
+    }
     funcs[numCalls].apply(funcs[numCalls],arguments);
     numCalls += 1;
   };
