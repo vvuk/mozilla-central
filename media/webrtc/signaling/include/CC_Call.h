@@ -312,6 +312,8 @@ namespace CSF
         virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp) = 0;
 
         virtual void addIceCandidate(const std::string& strCandidate) = 0;
+
+        virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks) = 0;
     };
 }
 

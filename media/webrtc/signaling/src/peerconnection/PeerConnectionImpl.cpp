@@ -45,7 +45,7 @@ namespace sipcc {
 
 // LocalSourceStreamInfo
 LocalSourceStreamInfo::LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream) :
-  mMediaStream(aMediaStream)
+  mMediaStream(aMediaStream)  
 {  
 }
   
@@ -55,6 +55,8 @@ LocalSourceStreamInfo:: ~LocalSourceStreamInfo()
 }
 
 // We get this callback in order to find out which tracks are audio and which are video
+// We should get this callback right away for existing streams after we add this class 
+// as a listener.
 void LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   mozilla::MediaStreamGraph* aGraph, 
   mozilla::TrackID aID,
@@ -70,20 +72,49 @@ void LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   
   if (trackType == mozilla::MediaSegment::AUDIO)
   {
-    // FIX to not add the same ID twice.
     // Should have very few tracks so not a hashtable
-    mAudioTracks.AppendElement(aID);
+    bool found = false;
+    for (unsigned u = 0; u < mAudioTracks.Length(); u++)
+    {
+      if (aID == mAudioTracks.ElementAt(u))
+      {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
+    {
+      mAudioTracks.AppendElement(aID);
+    }
   }
   else if (trackType == mozilla::MediaSegment::VIDEO)
   {
-    // FIX to not add the same ID twice
     // Should have very few tracks so not a hashtable
-    mVideoTracks.AppendElement(aID);
+    bool found = false;
+    for (unsigned u = 0; u < mVideoTracks.Length(); u++)
+    {
+      if (aID == mVideoTracks.ElementAt(u))
+      {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
+    {
+      mVideoTracks.AppendElement(aID);
+    }
   }
   else
   {
     CSFLogError(logTag, "NotifyQueuedTrackChanges - unknown media type");
   }
+}
+
+nsRefPtr<mozilla::MediaStream> LocalSourceStreamInfo::GetMediaStream()
+{
+  return mMediaStream;
 }
   
 unsigned LocalSourceStreamInfo::AudioTrackCount()
@@ -116,7 +147,8 @@ PeerConnectionImpl::PeerConnectionImpl() :
   mCall(NULL), 
   mPCObserver(NULL), 
   mReadyState(kNew), 
-  mSipccState(kIdle) 
+  mSipccState(kIdle),
+  mLocalSourceStreamsLock(PR_NewLock()) 
 {
 }
 
@@ -124,6 +156,7 @@ PeerConnectionImpl::PeerConnectionImpl() :
 PeerConnectionImpl::~PeerConnectionImpl() 
 {
   Shutdown();  
+  PR_DestroyLock(mLocalSourceStreamsLock);
 }
 
 StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
@@ -171,7 +204,26 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
  * CC_SDP_DIRECTION_SENDRECV will not be used when Constraints are implemented
  */
 StatusCode PeerConnectionImpl::CreateOffer(const std::string& hints) {
+  unsigned localSourceAudioTracks = 0;
+  unsigned localSourceVideoTracks = 0;
+
+  // Add up all the audio/video inputs, e.g. microphone/camera
+  PR_Lock(mLocalSourceStreamsLock);
+  for (unsigned u = 0; u < mLocalSourceStreams.Length(); u++)
+  {
+    nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
+    localSourceAudioTracks += localSourceStream->AudioTrackCount();
+    localSourceVideoTracks += localSourceStream->VideoTrackCount();
+  }
+  PR_Unlock(mLocalSourceStreamsLock);
+
+  // Tell the SDP creator about the streams we received from GetUserMedia
+  // FIX - we are losing information here.  When we need SIPCC to handle two
+  // cameras with different caps this will need to be changed
+  mCall->setLocalSourceAudioVideo(localSourceAudioTracks, localSourceVideoTracks);
+
   mCall->createOffer(CC_SDP_DIRECTION_SENDRECV, hints);
+
   return PC_OK;
 }
 
@@ -207,12 +259,27 @@ void PeerConnectionImpl::AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
   
   // Make it the listener for info from the MediaStream and add it to the list
   aMediaStream->AddListener(localSourceStream);
+
+  PR_Lock(mLocalSourceStreamsLock);
   mLocalSourceStreams.AppendElement(localSourceStream);
+  PR_Unlock(mLocalSourceStreamsLock);
 }
   
 void PeerConnectionImpl::RemoveStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
 {
   CSFLogDebug(logTag, "RemoveStream");
+
+  PR_Lock(mLocalSourceStreamsLock);
+  for (unsigned u = 0; u < mLocalSourceStreams.Length(); u++)
+  {
+    nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
+    if (localSourceStream->GetMediaStream() == aMediaStream)
+    {
+      mLocalSourceStreams.RemoveElementAt(u);
+      break;
+    }    
+  }
+  PR_Unlock(mLocalSourceStreamsLock);
 }
   
 void PeerConnectionImpl::CloseStreams() {

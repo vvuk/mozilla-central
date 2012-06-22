@@ -69,7 +69,7 @@
 
 namespace CSF
 {
-	DECLARE_PTR(CallControlManager);
+	DECLARE_PTR(CallControlManager)
 	/**
 	 * CallControlManager
 	 *

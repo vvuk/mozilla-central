@@ -138,6 +138,7 @@ namespace CSF
         virtual int setLocalDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);
         virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);		
         virtual void addIceCandidate(const std::string& strCandidate);
+        virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks);
 
         virtual CC_SIPCCCallMediaDataPtr getMediaData();
 

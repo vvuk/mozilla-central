@@ -63,6 +63,7 @@ public:
     PRUint32 aTrackEvents,
     const mozilla::MediaSegment& aQueuedMedia);
 
+  nsRefPtr<mozilla::MediaStream> GetMediaStream();
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
   
@@ -125,6 +126,7 @@ private:
   std::string mRemoteSDP;
   
   // A list of streams returned from GetUserMedia
+  PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
 
 };

@@ -115,7 +115,7 @@ public:
     kNegotiating,
     kActive,
     kClosing,
-    kClosed,
+    kClosed
   };
   
   enum SipccState {

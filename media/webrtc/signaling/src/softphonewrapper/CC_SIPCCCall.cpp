@@ -585,6 +585,15 @@ int CC_SIPCCCall::setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_ac
 void CC_SIPCCCall::addIceCandidate(const std::string& strCandidate)
 {
   CSFLogDebug(logTag, "addIceCandidate %s", strCandidate.c_str());
+
+  // FIX - add info to dcb for use when creating SDP
+}
+
+void CC_SIPCCCall::setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks)
+{
+  CSFLogDebug(logTag, "setLocalSourceAudioVideo %d, %d", localSourceAudioTracks, localSourceVideoTracks);
+
+  // FIX - add info to dcb for use when creating SDP
 }
 
 

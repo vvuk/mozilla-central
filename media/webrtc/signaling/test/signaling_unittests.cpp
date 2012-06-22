@@ -50,6 +50,9 @@ using namespace std;
 #include "nspr.h"
 #include "prthread.h"
 
+#include "nsDOMMediaStream.h"
+#include "MediaStreamGraph.h"
+#include "FakeMediaSegment.h"
 #include "PeerConnectionImpl.h"
 
 namespace {
@@ -237,7 +240,7 @@ public:
   bool onAddStreamCalled;
   
 private:
-  static const int observerWaitTimeout = 10; // In seconds
+  static const int observerWaitTimeout = 30; // In seconds
   PRLock *pLock;
   PRCondVar *pCondVar;
   sipcc::PeerConnectionInterface *pc;
@@ -284,7 +287,28 @@ class SignalingTest : public ::testing::Test
     void CreateOffer(const char* hints)
     {
       std::string strHints(hints);
+ 
+      // Create a media stream as if it came from GUM
+      // Looks like we have to GetInstance() this so it can be created
+      // FIX - this does not start all of the event threads needed to run the MediaGraph
+      mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
 
+      nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+      nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
+      
+      // Add fake audio track
+      FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
+      sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
+
+      // Add fake video track
+      FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
+      sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
+
+      // Call AddStream as JS would after GetUserMedia()
+      nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
+      pc->AddStream(mediaStream);
+
+      // Now call CreateOffer as JS would
       ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
       ASSERT_TRUE(pObserver->WaitForObserverCall());
       ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
@@ -367,10 +391,10 @@ TEST_F(SignalingTest, CreateOfferHints)
 //  CreateOfferExpectError("9.uoeuhaoensthuaeugc.pdu8g");
 //}
 
-TEST_F(SignalingTest, CreateOfferSetLocal)
-{
-  CreateOfferSetLocal("");
-}
+//TEST_F(SignalingTest, CreateOfferSetLocal)
+//{
+//  CreateOfferSetLocal("");
+//}
 
 //TEST_F(SignalingTest, CreateAnswerNoHints)
 //{
@@ -390,77 +414,9 @@ int main(int argc, char **argv)
 }
 
 // Defining this here, usually generated for libxul
+// should not be needed by these tests
 const mozilla::Module *const *const kPStaticModules[] = {
   NULL
 };
 
-/*
-//
-// HACK HACK HACK
-// We are declaring these here in order to avoid linking in all of libXUL.
-// When the fixes for gkmedias isolation for Windows are pushed
-// We can get rid of these hopefully.
-//
-
-#include "base/lock.h"
-
-LockImpl::LockImpl() 
-{
-  pthread_mutex_init(&os_lock_, NULL);
-}
-
-LockImpl::~LockImpl() 
-{
-  pthread_mutex_destroy(&os_lock_);
-}
-
-bool LockImpl::Try() 
-{
-  int rv = pthread_mutex_trylock(&os_lock_);
-  return rv == 0;
-}
-
-void LockImpl::Lock() 
-{
-  pthread_mutex_lock(&os_lock_);
-}
-
-void LockImpl::Unlock() 
-{
-  pthread_mutex_unlock(&os_lock_);
-}
-
-
-
-#include "base/logging.h"
-
-namespace mozilla {
-
-Logger::~Logger()
-{
-}
-
-void
-Logger::printf(const char* fmt, ...)
-{
-  va_list args;
-  va_start(args, fmt);
-  mMsg = PR_vsprintf_append(mMsg, fmt, args);
-  va_end(args);
-}
-
-PRLogModuleInfo* Logger::GetLog()
-{
-  return NULL;
-}
-
-} // namespace mozilla 
-
-
-void PlatformThread::Sleep(int duration_ms) 
-{
-  PR_Sleep(PR_MillisecondsToInterval(duration_ms));
-}
-
-*/
 
