@@ -117,7 +117,7 @@ nsDOMIdentity.prototype = {
   genKeyPair: function nsDOMIdentity_genKeyPair(aCallback) {
     this._log("genKeyPair");
     if (!this._beginProvisioningCallback) {
-      throw "navigator.id.genKeyPair called outside of provisioning";
+      throw new Error("navigator.id.genKeyPair called outside of provisioning");
     }
     this._genKeyPairCallback = aCallback;
     this._mm.sendAsyncMessage("Identity:IDP:GenKeyPair",
@@ -127,7 +127,7 @@ nsDOMIdentity.prototype = {
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
     this._log("registerCertificate");
     if (!this._genKeyPairCallback) {
-      throw "navigator.id.registerCertificate called outside of provisioning";
+      throw new Error("navigator.id.registerCertificate called outside of provisioning");
     }
     let message = this.DOMIdentityMessage();
     message.cert = aCertificate;

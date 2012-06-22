@@ -167,7 +167,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
       callerCallbacks.genKeyPairCallback(pk);
   };
 
-  afterSetupCallback(caller);
+  afterSetupCallback(callerCallbacks);
 }
 
 function resetState() {
