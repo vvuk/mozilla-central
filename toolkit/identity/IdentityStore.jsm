@@ -19,18 +19,18 @@ const EXPORTED_SYMBOLS = ["IdentityStore", "IDLog"];
 const PREF_DEBUG = "toolkit.identity.debug";
 
 /**
- * log() - utility function to print a list of arbitrary things
- * Depends on IdentityStore (bottom of this file).
+ * IDLog() - utility function to print a list of arbitrary things
+ * Depends on IdentityStore (bottom of this file) for _debug.
  *
  * Enable with about:config pref toolkit.identity.debug
  */
-function IDLog(prefix, args) {
+function IDLog(aPrefix, ...args) {
   if (!IdentityStore._debug) {
     return;
   }
-  prefix = prefix || "";
+  aPrefix = aPrefix || "";
   let strings = [];
-  let args = Array.prototype.slice.call(arguments, 1);
+
   args.forEach(function(arg) {
     if (typeof arg === 'string') {
       strings.push(arg);
@@ -46,7 +46,7 @@ function IDLog(prefix, args) {
       }
     }
   });
-  let output = 'Identity ' + prefix + ': ' + strings.join(' ') + '\n';
+  let output = 'Identity ' + aPrefix + ': ' + strings.join(' ') + '\n';
   dump(output);
 
   // Additionally, make the output visible in the Error Console

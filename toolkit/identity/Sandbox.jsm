@@ -135,8 +135,8 @@ Sandbox.prototype = {
 
   },
 
-  _log: function Sandbox__log(aMessage) {
-    IDLog("Sandbox", aMessage);
+  _log: function Sandbox__log(...aMessageArgs) {
+    IDLog.apply(this, ["Sandbox"].concat(aMessageArgs));
   },
 
 };

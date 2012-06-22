@@ -15,12 +15,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
                                   "resource://gre/modules/identity/Identity.jsm");
 
-function log(msg) {
-  if (!IdentityService._debug) {
-    return;
-  }
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
-  dump("DOMIdentity: " + msg + "\n");
+function log(msg) {
+  IDLog("DOMIdentity", msg);
 }
 
 function IDDOMMessage(aID) {
@@ -207,6 +207,7 @@ let DOMIdentity = {
   },
 
   _watch: function DOMIdentity__watch(message, targetMM) {
+    log("DOMIdentity__watch: " + message.id);
     // Pass an object with the watch members to Identity.jsm so it can call the
     // callbacks.
     let context = new RPWatchContext(message.id, message.origin,

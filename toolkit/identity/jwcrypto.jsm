@@ -26,8 +26,8 @@ const EXPORTED_SYMBOLS = ["jwcrypto"];
 
 const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
-function log(aMessage) {
-  IDLog("jwcrypto", aMessage);
+function log(...aMessageArgs) {
+  IDLog.apply(this, ["jwcrypto"].concat(aMessageArgs));
 }
 
 function keygenerator() {}

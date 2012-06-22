@@ -24,8 +24,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
-function log(aMessage) {
-  IDLog("RP", aMessage);
+function log(...aMessageArgs) {
+  IDLog.apply(this, ["RP"].concat(aMessageArgs));
 }
 
 function IdentityRelyingParty() {
@@ -84,7 +84,7 @@ IdentityRelyingParty.prototype = {
   watch: function watch(aRpCaller) {
     this._rpFlows[aRpCaller.id] = aRpCaller;
     let origin = aRpCaller.origin;
-    let state = this._store.getLoginState(origin) || {};
+    let state = this._store.getLoginState(origin) || { isLoggedIn: false, email: null };
 
     log("watch: rpId:", aRpCaller.id,
         "origin:", origin,

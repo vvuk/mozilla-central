@@ -1,56 +1,69 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
+<!DOCTYPE html>
+<html>
+<!--
+Test of Identity Provider (IDP) Authentication using the DOM APIs
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Test of Identity Provider (IDP) Authentication using the DOM APIs</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+  <script type="application/javascript;version=1.8" src="head_identity.js"></script>
+</head>
+<body onload="run_next_test()">
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=753238">Test of Identity Provider (IDP) Authentication using the DOM APIs</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+
+</div>
+<pre id="test">
+<script type="application/javascript;version=1.8">
+
+/** Test of Identity Provider (IDP) Authentication using the DOM APIs **/
+/** Most tests are ported from test_authentication.js */
 
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetter(this, "IDService",
-                                  "resource://gre/modules/identity/Identity.jsm",
-                                  "IdentityService");
-
-XPCOMUtils.defineLazyModuleGetter(this, "jwcrypto",
-                                  "resource://gre/modules/identity/jwcrypto.jsm");
+SimpleTest.waitForExplicitFinish();
 
 function test_begin_authentication_flow() {
-  do_test_pending();
   let _provId = null;
 
   // set up a watch, to be consistent
-  let mockedDoc = mock_doc(null, TEST_URL, function(action, params) {});
-  IDService.RP.watch(mockedDoc);
+  let mockedDoc = mock_watch(null, function(action, params) {});
+  identity.watch(mockedDoc);
 
   // The identity-auth notification is sent up to the UX from the
   // _doAuthentication function.  Be ready to receive it and call
   // beginAuthentication
   makeObserver("identity-auth", function (aSubject, aTopic, aData) {
-    do_check_neq(aSubject, null);
+    isnot(aSubject, null);
 
-    do_check_eq(aSubject.wrappedJSObject.provId, _provId);
+    is(aSubject.wrappedJSObject.provId, _provId);
 
-    do_test_finished();
     run_next_test();
   });
-do_print("foo");
+info("foo");
 try {
   setup_provisioning(
     TEST_USER,
     function(caller) {
       _provId = caller.id;
-      IDService.IDP.beginProvisioning(caller);
+      identity.beginProvisioning(caller.beginProvisioningCallback);
     }, function() {},
     {
       beginProvisioningCallback: function(email, duration_s) {
 	// let's say this user needs to authenticate
-	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+	IDService.IDP._doAuthentication(_provId, TEST_IDPPARAMS);
       }
     });
 } catch (ex) {
-  do_print(ex);
+  info(ex);
 }
-do_print("bar");
+info("bar");
 }
 
 function test_complete_authentication_flow() {
-  do_test_pending();
   let _provId = null;
   let _authId = null;
   let id = TEST_USER;
@@ -69,47 +82,45 @@ function test_complete_authentication_flow() {
     // At the same time, a separate topic will be sent up to the
     // the observer in the UI.  The test is complete when both
     // events have occurred.
-    let mockedDoc = mock_doc(id, TEST_URL, call_sequentially(
+    let mockedDoc = mock_watch(id, call_sequentially(
       function(action, params) {
-        do_check_eq(action, 'ready');
-        do_check_eq(params, undefined);
+        is(action, 'ready');
+        is(params, undefined);
 
 	// if notification already received by observer, test is done
 	callbacksFired = true;
 	if (topicObserved) {
-	  do_test_finished();
           run_next_test();
 	}
       }
     ));
 
     makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
-      do_check_neq(aSubject, null);
+      isnot(aSubject, null);
 
-      do_check_eq(aSubject.wrappedJSObject.rpId, mockedDoc.id);
-      do_check_eq(aData, id);
+      //is(aSubject.wrappedJSObject.rpId, mockedDoc.id);
+      is(aData, id);
 
       // if callbacks in caller doc already fired, test is done.
       topicObserved = true;
       if (callbacksFired) {
-	do_test_finished();
 	run_next_test();
       }
     });
 
-    IDService.RP.watch(mockedDoc);
+    identity.watch(mockedDoc);
   });
 
   // A mock calling context
   let authCaller = {
     doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity) {
-      do_check_eq(identity, TEST_USER);
+      is(identity, TEST_USER);
 
-      IDService.IDP.completeAuthentication(_authId);
+      //IDService.IDP.completeAuthentication(_authId); // TODO: switch to dom call
     },
 
     doError: function(err) {
-      log("OW! My doError callback hurts!", err);
+      ok(false, "OW! My doError callback hurts!: " + err);
     },
   };
 
@@ -119,17 +130,17 @@ function test_complete_authentication_flow() {
     function(provFlow) {
       _provId = provFlow.id;
 
-      IDService.IDP.beginProvisioning(provFlow);
+      identity.beginProvisioning(provFlow.beginProvisioningCallback);
     }, function() {},
     {
       beginProvisioningCallback: function(email, duration_s) {
 	// let's say this user needs to authenticate
-	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+	IDService.IDP._doAuthentication(_provId, TEST_IDPPARAMS);
 
 	// test_begin_authentication_flow verifies that the right
 	// message is sent to the UI.  So that works.  Moving on,
 	// the UI calls setAuthenticationFlow ...
-	_authId = uuid();
+	_authId = _provId;
 	IDService.IDP.setAuthenticationFlow(_authId, _provId);
 
 	// ... then the UI calls beginAuthentication ...
@@ -140,13 +151,10 @@ function test_complete_authentication_flow() {
     });
 }
 
-let TESTS = [];
+//TESTS.push(test_begin_authentication_flow);
+//TESTS.push(test_complete_authentication_flow);
 
-TESTS.push(test_begin_authentication_flow);
-TESTS.push(test_complete_authentication_flow);
-
-TESTS.forEach(add_test);
-
-function run_test() {
-  run_next_test();
-}
+</script>
+</pre>
+</body>
+</html>

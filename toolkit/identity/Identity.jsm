@@ -24,8 +24,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
-function log(aMessage) {
-  IDLog(null, aMessage);
+function log(...aMessageArgs) {
+  IDLog.apply(this, [null].concat(aMessageArgs));
 }
 
 function IDService() {
@@ -289,6 +289,7 @@ IDService.prototype = {
           domain: aDomain,
           idpParams: idpParams,
         };
+        log("_fetchWellKnownFile result: ", callbackObj);
         // Yay.  Valid IdP configuration for the domain.
         return aCallback(null, callbackObj);
 

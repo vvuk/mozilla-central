@@ -216,6 +216,8 @@ let SignInToWebsiteUX = {
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
     let windowID = aContext.rpId;
     log("_removeLoggedInUI for " + windowID);
+    if (!windowID)
+      throw "_removeLoggedInUI: Invalid RP ID";
     let [win, browserEl] = this._getUIForID(windowID);
 
     let loggedInNot = win.PopupNotifications.getNotification("identity-logged-in", browserEl);

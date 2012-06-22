@@ -12,13 +12,15 @@ const Cu = SpecialPowers.wrap(Components).utils;
 
 const TEST_URL = "http://mochi.test:8888";
 const TEST_URL2 = "https://myfavoritebaconinacan.com";
-const TEST_USER = "user@mozilla.com";
+const TEST_USER = "user@example.com";
 const TEST_PRIVKEY = "fake-privkey";
 const TEST_CERT = "fake-cert";
 const TEST_IDPPARAMS = {
-  domain: "myfavoriteflan.com",
-  authentication: "/foo/authenticate.html",
-  provisioning: "/foo/provision.html"
+  domain: "example.com",
+  idpParams: {
+    authentication: "/foo/authenticate.html",
+    provisioning: "/foo/provision.html"
+  },
 };
 
 const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
@@ -157,7 +159,7 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
   };
 
   let caller = {};
-  caller.id = provId;
+  caller.id = callerCallbacks.id = provId;
   caller.doBeginProvisioningCallback = function(id, duration_s) {
     if (callerCallbacks && callerCallbacks.beginProvisioningCallback)
       callerCallbacks.beginProvisioningCallback(id, duration_s);
