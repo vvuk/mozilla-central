@@ -103,8 +103,6 @@ LIBS = \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)tkautocomplete.$(LIB_SUFFIX) \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)satchel.$(LIB_SUFFIX) \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)pippki.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)gkdebug.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)profiler.$(LIB_SUFFIX) \
   $(DEPTH)/intl/unicharutil/util/internal/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFIX) \
   $(DEPTH)/rdf/util/src/$(LIB_PREFIX)rdfutil_external_s.$(LIB_SUFFIX) \
   $(LIBS_DIR) \
@@ -119,6 +117,36 @@ LIBS = \
   $(MOZ_DBUS_GLIB_LIBS) \
   $(NSPR_LIBS) \
   $(NULL)
+
+ifdef MOZ_ENABLE_PROFILER_SPS
+LIBS += \
+  $(DEPTH)/staticlib/components/$(LIB_PREFIX)profiler.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
+LIBS += \
+  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_windows.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
+LIBS += \
+  $(DEPTH)/staticlib/components/$(LIB_PREFIX)wdgtos2.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+LIBS += \
+  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_mac.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+LIBS += \
+  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_qt.$(LIB_SUFFIX) \
+  $(NULL)
+endif
 
 ifdef ACCESSIBILITY
 LIBS += \
@@ -142,6 +170,12 @@ ifdef MOZ_ZIPWRITER
 LIBS += \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)zipwriter.$(LIB_SUFFIX) \
   $(NULL)
+endif
+
+ifdef MOZ_DEBUG
+ifdef ENABLE_TESTS
+COMPONENT_LIBS += gkdebug
+endif
 endif
 
 ifdef MOZ_JSDEBUGGER
@@ -201,7 +235,6 @@ ifeq ($(OS_ARCH),Darwin)
 LIBS += \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)osxproxy.$(LIB_SUFFIX) \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)imgicon.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_mac.$(LIB_SUFFIX) \
   -framework AudioToolbox \
   -framework AudioUnit \
   -framework Carbon \
