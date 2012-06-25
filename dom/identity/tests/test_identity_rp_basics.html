@@ -27,10 +27,13 @@ function resetAndNext() {
   makeObserver("identity-DOM-state-reset", function() {
     SimpleTest.executeSoon(next);
   });
-  info("oid: " + outerWinId);
   // Give the flow some time to cross the IPC boundary
   setTimeout(function() {
     let rpContext = RP._rpFlows[outerWinId];
+    if (!rpContext) {
+      SimpleTest.executeSoon(next);
+      return;
+    }
     DOMIdentity._resetFrameState(rpContext);
   }, 500);
 }
