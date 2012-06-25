@@ -76,6 +76,10 @@ ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
 endif
 
+ifeq ($(OS_ARCH), Linux)
+LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include
+endif
+
 EXPORTS_NAMESPACES = mtransport
 
 EXPORTS_mtransport = \

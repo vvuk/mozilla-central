@@ -245,6 +245,9 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.lo0", 253);
     NR_reg_set_uchar((char *)"ice.pref.interface.en1", 252);
     NR_reg_set_uchar((char *)"ice.pref.interface.en0", 251);
+    NR_reg_set_uchar((char *)"ice.pref.interface.eth0", 252);
+    NR_reg_set_uchar((char *)"ice.pref.interface.eth1", 251);
+    NR_reg_set_uchar((char *)"ice.pref.interface.eth2", 249);
     NR_reg_set_uchar((char *)"ice.pref.interface.ppp", 250);
     NR_reg_set_uchar((char *)"ice.pref.interface.ppp0", 249);
     NR_reg_set_uchar((char *)"ice.pref.interface.en2", 248);

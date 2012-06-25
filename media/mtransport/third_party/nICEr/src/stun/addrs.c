@@ -53,6 +53,8 @@ static char *RCSSTRING __UNUSED__="$Id: addrs.c,v 1.2 2008/04/28 18:21:30 ekr Ex
 #include <net/if_dl.h>
 #include <net/if_types.h>
 #include <sys/sockio.h>
+#else
+#include <linux/if.h>
 #endif
 #include <net/route.h>
 
@@ -574,7 +576,7 @@ stun_get_siocgifconf_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
       struct ifreq* ifr = (struct ifreq *)ptr;
 
 #ifdef LINUX
-      int si = sizeof(ifr->ifr_name) + sizeof(ifr->ifr_addr);
+      int si = sizeof(struct ifreq);
 #else
       int si = sizeof(ifr->ifr_name) + MAX(ifr->ifr_addr.sa_len, sizeof(ifr->ifr_addr));
 #endif

@@ -208,8 +208,13 @@ static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
       case NR_IPV6:
         naddr->ipv6.family = PR_AF_INET6;
         naddr->ipv6.port = addr->u.addr6.sin6_port;
+#ifdef LINUX
+        memcpy(naddr->ipv6.ip._S6_un._S6_u8,
+               &addr->u.addr6.sin6_addr.__in6_u.__u6_addr8, 16);
+#else
         memcpy(naddr->ipv6.ip._S6_un._S6_u8,
                &addr->u.addr6.sin6_addr.__u6_addr.__u6_addr8, 16);
+#endif
         break;
       default:
         ABORT(R_BAD_ARGS);

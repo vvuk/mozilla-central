@@ -298,6 +298,8 @@ int nr_sha1_file(char *filename,UCHAR *out)
   // TODO
 #else
 
+#if 0
+
 #include <fts.h>
 
 int nr_rm_tree(char *path)
@@ -343,6 +345,7 @@ int nr_rm_tree(char *path)
     if(fts) fts_close(fts);
     return(_status);
   }
+#endif
 
 int nr_write_pid_file(char *pid_filename)
   {

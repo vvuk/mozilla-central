@@ -42,10 +42,12 @@
 
 #include <linux_funcs.h>
 
+#ifndef NR_SOCKET
 typedef int NR_SOCKET;
 #define NR_SOCKET_READ(sock,buf,count)   read((sock),(buf),(count))
 #define NR_SOCKET_WRITE(sock,buf,count)  write((sock),(buf),(count))
 #define NR_SOCKET_CLOSE(sock)            close(sock)
+#endif
 
 #endif
 

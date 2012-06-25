@@ -156,7 +156,32 @@
               
               ## Linux
               [ 'OS == "linux"', {
+                'cflags': [
+                    '-Werror',
+                    '-Wall',
+                    '-Wno-parentheses',
+                    '-Wno-strict-prototypes',
+                    '-Wmissing-prototypes',
+                 ],
+                 'defines' : [
+                     'LINUX',
+                     'HAVE_LIBM=1',
+                     'HAVE_STRDUP=1',
+                     'HAVE_STRLCPY=1',
+                     'HAVE_SYS_TIME_H=1',
+                     'HAVE_VFPRINTF=1',
+                     'NEW_STDIO'
+                     'RETSIGTYPE=void',
+                     'TIME_WITH_SYS_TIME_H=1',
+                     '__UNUSED__="__attribute__((unused))"',
+                 ],
 
+		 'include_dirs': [
+		     '../nrappkit/src/port/linux/include'
+		 ],
+		 
+		 'sources': [
+		 ],
               }]
           ]
       }]
