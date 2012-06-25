@@ -413,7 +413,8 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
     static const char *fname = "SIPTaskProcessListEvent";
     sipSMEvent_t    sip_sm_event;
     int             idx;
-	int				p2psip;
+	int	            p2psip = 0;
+	int             sdpmode = 0;
     cprCallBackTimerMsg_t *timerMsg;
     line_t          last_available_line;
     CCM_ID ccm_id;
@@ -468,6 +469,7 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
 
     p2psip = 0;
 	config_get_value(CFGID_P2PSIP, &p2psip, sizeof(p2psip));
+	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     switch (cmd) {
         /*
@@ -484,6 +486,7 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
         if (p2psip == TRUE)
         	CC_Config_setIntValue(CFGID_TRANSPORT_LAYER_PROT, 2);
 
+  
         if (sip_sm_init() < 0) {
         	CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sip_sm_init() failed ",  fname);
         	return;
@@ -492,7 +495,7 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
         sip_mode_quiet = FALSE;
 
         // If P2P do not register with SIP Server
-        if (p2psip == FALSE)
+        if (p2psip == FALSE && sdpmode == FALSE)
         	sip_platform_init();
         else
         	ui_set_sip_registration_state(CC_ALL_LINES, TRUE);
@@ -3057,6 +3060,7 @@ void destroy_sip_thread()
     static const char fname[] = "destroy_sip_thread";
     DEF_DEBUG(DEB_F_PREFIX"Unloading SIP and destroying sip thread\n", 
         DEB_F_PREFIX_ARGS(SIP_CC_INIT, fname));
+
     /* kill msgQ thread first, then itself */
     (void) cprDestroyThread(sip_thread);
 }

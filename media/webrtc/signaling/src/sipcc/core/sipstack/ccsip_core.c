@@ -7220,50 +7220,56 @@ sip_sm_init (void)
 {
     line_t          i;
     const char     *fname = "sip_sm_init";
+    int            sdpmode = 0;
 
-     //    ccsip_debug_init();
-    if (ccsip_register_init() == SIP_ERROR) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"registration initialization failed\n", fname);
-        return SIP_ERROR;
-    }
-
-    if (ccsip_info_package_handler_init() == SIP_ERROR) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"info package initialization failed\n", fname);
-        return SIP_ERROR;
-    }
-
-    /*
-     * Allocate timers for CCBs
-     */
-    if (sip_platform_timers_init() == SIP_ERROR) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"timer initialization failed\n", fname);
-        return SIP_ERROR;
-    }
-
-    if (sipTransportInit() != SIP_OK) {
-        return SIP_ERROR;
-    }
-
-    DEF_DEBUG(DEB_F_PREFIX"Disabling mass reg state", DEB_F_PREFIX_ARGS(SIP_REG, fname));
-    for (i = 0; i < MAX_CCBS; i++) {
-        if (i == 0 || i == (MAX_CCBS-1)) {
-            g_disable_mass_reg_debug_print = FALSE;
-        } else {
-            g_disable_mass_reg_debug_print = TRUE;
-        }
-        sip_sm_call_cleanup(&(gGlobInfo.ccbs[i]));
-        if (sip_sm_ccb_init(&(gGlobInfo.ccbs[i]), i, 1, SIP_STATE_IDLE) < 0) {
+	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+	
+	if (sdpmode == FALSE) {
+	
+        if (ccsip_register_init() == SIP_ERROR) {
+            CCSIP_DEBUG_ERROR(SIP_F_PREFIX"registration initialization failed\n", fname);
             return SIP_ERROR;
         }
-    }
-    g_disable_mass_reg_debug_print = FALSE;
 
-    /* Initialize all timers */
-    sip_platform_msg_timers_init();
+        if (ccsip_info_package_handler_init() == SIP_ERROR) {
+            CCSIP_DEBUG_ERROR(SIP_F_PREFIX"info package initialization failed\n", fname);
+            return SIP_ERROR;
+        }
 
-    /* Initialize Subscription Manager */
-    if (sip_subsManager_init() != SIP_OK) {
-        return SIP_ERROR;
+        /*
+         * Allocate timers for CCBs
+         */
+        if (sip_platform_timers_init() == SIP_ERROR) {
+            CCSIP_DEBUG_ERROR(SIP_F_PREFIX"timer initialization failed\n", fname);
+            return SIP_ERROR;
+        }
+
+        if (sipTransportInit() != SIP_OK) {
+            return SIP_ERROR;
+        }
+
+        DEF_DEBUG(DEB_F_PREFIX"Disabling mass reg state", DEB_F_PREFIX_ARGS(SIP_REG, fname));
+        for (i = 0; i < MAX_CCBS; i++) {
+            if (i == 0 || i == (MAX_CCBS-1)) {
+                g_disable_mass_reg_debug_print = FALSE;
+            } else {
+                g_disable_mass_reg_debug_print = TRUE;
+            }
+            sip_sm_call_cleanup(&(gGlobInfo.ccbs[i]));
+            if (sip_sm_ccb_init(&(gGlobInfo.ccbs[i]), i, 1, SIP_STATE_IDLE) < 0) {
+                return SIP_ERROR;
+            }
+        }
+        g_disable_mass_reg_debug_print = FALSE;
+
+        /* Initialize all timers */
+        sip_platform_msg_timers_init();
+
+        /* Initialize Subscription Manager */
+        if (sip_subsManager_init() != SIP_OK) {
+            return SIP_ERROR;
+        }
+    
     }
 
     /* Initialize SDP Parser */

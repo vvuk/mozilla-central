@@ -33,6 +33,7 @@
         './src/common/browser_logging',
         './src/media',
         './src/softphonewrapper',
+        './src/peerconnection',
         './include',
         './src/sipcc/include',
         './src/sipcc/cpr/include',
@@ -44,6 +45,7 @@
         '../trunk/src',
         '../trunk/src/video_engine/include',
         '../trunk/src/voice_engine/main/interface',
+        '../trunk/src/peerconnection',
       ],	
 	  
       #
@@ -125,6 +127,9 @@
         './src/softphonewrapper/CC_SIPCCLine.h',
         './src/softphonewrapper/CC_SIPCCLineInfo.h',
         './src/softphonewrapper/CC_SIPCCService.h',
+        # PeerConnection
+        './src/peerconnection/PeerConnectionImpl.cpp',
+        './src/peerconnection/PeerConnectionImpl.h',
 
       ],
     
@@ -137,9 +142,10 @@
         '_NO_LOG4CXX', 
         'USE_SSLEAY', 
         '_CPR_USE_EXTERNAL_LOGGER',
-   	'WEBRTC_RELATIVE_PATH',
+        'WEBRTC_RELATIVE_PATH',
       	'HAVE_WEBRTC_VIDEO',
         'HAVE_WEBRTC_VOICE',
+        'MOZILLA_INTERNAL_API'
       ],
 
       #

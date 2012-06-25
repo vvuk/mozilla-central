@@ -556,6 +556,45 @@ bool CC_SIPCCCall::originateP2PCall (cc_sdp_direction_t video_pref, const std::s
 {
 	char sdpIP[] = "empty SDP string";
 	CCAPI_Config_set_server_address(ip.c_str());
-	return (CCAPI_Call_originateCall(callHandle, video_pref, digits.c_str(), sdpIP, 0, 0) == CC_SUCCESS);
+	return (CCAPI_Call_originateCall(callHandle, video_pref, digits.c_str(), sdpIP, 16384, 1024) == CC_SUCCESS);
+}
+ 
+/*
+ * This method works asynchronously, there will be an onCallEvent with the resulting SDP
+ * When Constraints are implemented the Audio and Video port will not be a parameter to CCAPI_CreateAnswer
+ */
+int CC_SIPCCCall::createOffer (cc_sdp_direction_t video_pref, const std::string& hints) {
+	return CCAPI_CreateOffer(callHandle, video_pref, 16384, 1024);
 }
 
+/*
+ * This method works asynchronously, there will be an onCallEvent with the resulting SDP
+ */
+int CC_SIPCCCall::createAnswer (cc_sdp_direction_t video_pref, const std::string & hints, const std::string & offersdp) {	
+	return CCAPI_CreateAnswer(callHandle, video_pref, offersdp.c_str(), 16384, 1024);
+}
+
+int CC_SIPCCCall::setLocalDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp) {
+	return CCAPI_SetLocalDescription(callHandle, video_pref, action, sdp.c_str());
+}
+        
+int CC_SIPCCCall::setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp) {
+	return CCAPI_SetRemoteDescription(callHandle, video_pref, action, sdp.c_str());
+}
+
+void CC_SIPCCCall::addIceCandidate(const std::string& strCandidate)
+{
+  CSFLogDebug(logTag, "addIceCandidate %s", strCandidate.c_str());
+
+  // FIX - add info to dcb for use when creating SDP
+}
+
+void CC_SIPCCCall::setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks)
+{
+  CSFLogDebug(logTag, "setLocalSourceAudioVideo %d, %d", localSourceAudioTracks, localSourceVideoTracks);
+
+  // FIX - add info to dcb for use when creating SDP
+}
+
+
+        

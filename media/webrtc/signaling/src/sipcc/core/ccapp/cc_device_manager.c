@@ -526,6 +526,7 @@ void registration_processEvent(int event) {
                 isServiceStopped = TRUE;
                 switch ( mgmtState) {
                     case MGMT_STATE_REGISTERED:
+						CC_Service_destroy();
                         processInsToOos();
                     case MGMT_STATE_REGISTERING:
                     case MGMT_STATE_OOS:
@@ -537,7 +538,6 @@ void registration_processEvent(int event) {
                     case MGMT_STATE_OOS_AWAIT_SHUTDOWN_ACK:
                     case MGMT_STATE_OOS_AWAIT_UN_REG_ACK:
                         //setState(MGMT_STATE_DESTROY_AWAIT_SHUTDOWN_ACK);
-                    	//Suhas
                     	setState(MGMT_STATE_IDLE);
                     	CC_Service_destroy();
                     	break;
@@ -548,8 +548,6 @@ void registration_processEvent(int event) {
                     	CC_Service_destroy();
                     	break;
                     case MGMT_STATE_DESTROY_AWAIT_SHUTDOWN_ACK:
-
-                    	// Suhas: Adding state change
                         setState(MGMT_STATE_IDLE);
 
                     default:
@@ -578,8 +576,9 @@ void registration_processEvent(int event) {
                     case MGMT_STATE_CREATED:
                     case MGMT_STATE_IDLE:
                     case MGMT_STATE_DESTROY_AWAIT_SHUTDOWN_ACK:
-			 // Suhas: Adding state change
                         setState(MGMT_STATE_IDLE);
+						//action(CMD_SHUTDOWN);
+						CC_Service_destroy();
 
                     default:
                         ignored = 1;

@@ -243,6 +243,7 @@ void sip_platform_task_msgqwait (void *arg)
     void          *msg;
     uint8_t       num_messages = 0;
     uint8_t       response = 0;
+    boolean       quit_thread = FALSE;
 
     if (msgq == NULL) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"task msgq is null, exiting\n", fname);
@@ -294,7 +295,7 @@ void sip_platform_task_msgqwait (void *arg)
         return;
     }
 
-    while (TRUE) {
+    while (quit_thread == FALSE) {
         msg = cprGetMessage(msgq, TRUE, (void **) &syshdr);
         while (msg != NULL) {
             /*
@@ -304,6 +305,15 @@ void sip_platform_task_msgqwait (void *arg)
             sip_int_msgq_buf[num_messages].msg    = msg;
             sip_int_msgq_buf[num_messages].syshdr = syshdr;
             num_messages++;
+
+            switch (syshdr->Cmd) {
+            case THREAD_UNLOAD:
+                quit_thread = TRUE;
+                    break;
+                default:
+                    break;
+            }
+
             if (num_messages == MAX_SIP_MESSAGES) {
                 /*
                  * Limit the number of messages passed to the main SIP
@@ -334,15 +344,17 @@ void sip_platform_task_msgqwait (void *arg)
                 CCSIP_DEBUG_ERROR(SIP_F_PREFIX"send IPC failed errno=%d\n", fname, cpr_errno);
             }
 
-            /*
-             * Wait for main thread to signal us to get more message.
-             */
-            if (cprRecvFrom(sip_ipc_clnt_socket, &response, 
-                            sizeof(response), 0, NULL, NULL) < 0) {
-                CCSIP_DEBUG_ERROR(SIP_F_PREFIX"read IPC failed:"
-                                  " errno=%d\n", fname, cpr_errno);
+            if (FALSE == quit_thread) {
+            	/*
+            	 * Wait for main thread to signal us to get more message.
+            	 */
+            	if (cprRecvFrom(sip_ipc_clnt_socket, &response,
+            			sizeof(response), 0, NULL, NULL) < 0) {
+            		CCSIP_DEBUG_ERROR(SIP_F_PREFIX"read IPC failed:"
+            				" errno=%d\n", fname, cpr_errno);
+            	}
+            	num_messages = 0;
             }
-            num_messages = 0;
         }
     }
 }

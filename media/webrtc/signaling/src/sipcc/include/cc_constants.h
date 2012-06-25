@@ -40,7 +40,6 @@
 #ifndef _CC_CONSTANTS_H_
 #define _CC_CONSTANTS_H_
 #include "cc_types.h"
-//#include "string_lib.h"
 
 /**
  * Max call servers 
@@ -267,7 +266,6 @@ typedef enum {
     CC_SDP_MAX_QOS_DIRECTIONS
 } cc_sdp_direction_t;
 
-
 /**
  * Defines BLF state
  */
@@ -310,6 +308,15 @@ typedef enum {
 	WHISPER,
     PRESERVATION,
 	WAITINGFORDIGITS = 21,
+	CREATEOFFER,
+	CREATEANSWER,
+	CREATEOFFERERROR,
+	CREATEANSWERERROR,
+	SETLOCALDESC,
+	SETREMOTEDESC,	
+	SETLOCALDESCERROR,
+	SETREMOTEDESCERROR,
+	REMOTESTREAMADD,
     MAX_CALL_STATES
 } cc_call_state_t;
 
@@ -362,7 +369,6 @@ typedef enum {
 	CC_SECURITY_NOT_AUTHENTICATED,
 	CC_SECURITY_ENCRYPTED
 } cc_call_security_t;
-
 
 /**
  * Defines call policy
@@ -493,7 +499,7 @@ typedef enum {
 	CC_CAUSE_XFER_COMPLETE,
 	CC_CAUSE_RESP_TIMEOUT,
 	CC_CAUSE_SERV_ERR_UNAVAIL,
-        CC_CAUSE_REMOTE_DISCONN_REQ_PLAYTONE,
+    CC_CAUSE_REMOTE_DISCONN_REQ_PLAYTONE,
 	CC_CAUSE_MAX
 } cc_cause_t;
 
@@ -535,7 +541,10 @@ typedef enum {
     CC_SIS_CFWD_ANY_LINE
 } cc_sis_feature_id_e;
   
-// enum for conference participant status
+/**
+ * enum for conference participant status
+ */  
+
 typedef enum {
    CCAPI_CONFPARTICIPANT_UNKNOWN,
    CCAPI_CONFPARTICIPANT_DIALING_OUT,
@@ -544,6 +553,16 @@ typedef enum {
    CCAPI_CONFPARTICIPANT_ON_HOLD,
    CCAPI_CONFPARTICIPANT_DISCONNECTED
 } cc_conf_participant_status_t;  
+
+
+typedef enum {
+  JSEP_NO_ACTION = -1,
+  JSEP_OFFER,
+  JSEP_ANSWER,
+  JSEP_PRANSWER
+} cc_jsep_action_t;
+
+
 
 #endif /* _CC_CONSTANTS_H_ */
 

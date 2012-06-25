@@ -43,7 +43,7 @@
 #include "CCProvider.h"
 #include "text_strings.h"
 #include "phone_debug.h"
-
+#include "peer_connection_types.h"
 
 /**
  * get Line on which this call is
@@ -745,4 +745,65 @@ cc_boolean CCAPI_CallInfo_isVideoMuted (cc_callinfo_ref_t handle){
   return FALSE;
 }
 
+/**
+ * get SDP for CreateOffer\Create answer success callback
+ * @param handle - call handle
+ * @return sdp
+ */
+cc_string_t CCAPI_CallInfo_getSDP(cc_callinfo_ref_t handle){
+  static const char *fname="CCAPI_CallInfo_getSDP";
+  session_data_t *data = (session_data_t *)handle;
+  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
 
+  if (data != NULL){
+     CCAPP_DEBUG(DEB_F_PREFIX"returned %s\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname), data->sdp);
+     return data->sdp;
+  }
+
+  return strlib_empty();
+}
+
+/**
+ * get status code from internal JSEP functions
+ * @param handle - call handle
+ * @return status code
+ */
+cc_int32_t  CCAPI_CallInfo_getStatusCode(cc_callinfo_ref_t handle){
+  static const char *fname="CCAPI_CallInfo_getStatusCode";
+  session_data_t *data = (session_data_t *)handle;
+  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
+
+  if ( data != NULL){
+     CCAPP_DEBUG(DEB_F_PREFIX"returned %d\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname), data->cause);
+     return data->cause;
+  }
+
+  return CC_CAUSE_NORMAL;
+}
+
+
+/**
+ * get media track table
+ * @param handle - call handle
+ * @return status code
+ */
+MediaTrackTable*  CCAPI_CallInfo_getMediaTrackTable(cc_callinfo_ref_t handle) {
+  static const char *fname="CCAPI_CallInfo_getMediaTrackTable";
+  session_data_t *data = (session_data_t *)handle;
+  MediaTrackTable* stream;
+  cc_media_track_table_t *media_track_tbl;
+
+  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
+
+  if ( data != NULL){
+	  // TODO for now just do this for one track
+	  media_track_tbl = data->media_track_tbl;
+	  stream->stream_id = media_track_tbl->stream_id;
+	  stream->track[0].ref_id = media_track_tbl->track[0].ref_id;
+	  stream->track[0].video = media_track_tbl->track[0].video;
+
+     return stream;
+  }
+
+  return NULL;
+}

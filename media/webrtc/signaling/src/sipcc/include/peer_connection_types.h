@@ -19,9 +19,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Enda Mannion <emannion@cisco.com>
- *  Suhas Nandakumar <snandaku@cisco.com>
- *  Ethan Hugg <ehugg@cisco.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,26 +34,43 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#pragma once
+#ifndef _PEER_CONNECTION_TYPES_H_
+#define _PEER_CONNECTION_TYPES_H_
 
-#include "CC_Common.h"
-#include "ECC_Types.h"
+#define MAX_TRACKS 8
 
-namespace CSF
-{
-	/**
-	 * These callbacks relate to CallControlManager's "value add" features relating to authentication,
-	 * configuration, setup, service health and management of SIP.
-	 *
-	 * They do not relate to call control - see also CC_Observer.
-	 */
-	class ECC_API ECC_Observer
-	{
-	public:
-		virtual void onAvailablePhoneEvent (AvailablePhoneEventType::AvailablePhoneEvent event,
-											const PhoneDetailsPtr availablePhoneDetails) = 0;
+enum StatusCode { 
+    PC_OK = 0, 
+    PC_INVALID_HINTS, 
+    PC_INVALID_OFFER, 
+    PC_INVALID_REMOTE_SDP, 
+    PC_INVALID_LOCAL_SDP, 
+    PC_NO_OBSERVER,
+    PC_SDPCHANGED,
+    PC_SETLOCALDESCERROR,
+    PC_SETREMOTEDESCERROR
+};
 
-		virtual void onAuthenticationStatusChange (AuthenticationStatusEnum::AuthenticationStatus) = 0;
-		virtual void onConnectionStatusChange(ConnectionStatusEnum::ConnectionStatus status) = 0;
-	};
-}
+
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
+
+typedef struct MediaTrack {
+	unsigned short  ref_id;
+    int             video;
+} MediaTrack_t;
+
+typedef struct MediaTrackTable {
+	unsigned short    stream_id;
+    MediaTrack_t      track[MAX_TRACKS];
+} MediaTrackTable;
+
+//#ifdef __cplusplus
+//}
+//#endif
+// UPDATE: declare an instance here:
+//extern MediaTrackTable MediaTrackTable_t;
+
+
+#endif /*_PEER_CONNECTION_TYPES_H_*/

@@ -171,7 +171,6 @@ extern boolean apply_config;
 extern  char g_new_signaling_ip[];
 
 extern int configFileDownloadNeeded;
-//cc_boolean parse_config_properties (int device_handle, const char *device_name, const char *cfg, int from_memory);
 extern int g_dev_hdl;
 extern char g_dev_name[];
 extern char g_cfg_p[];
@@ -622,6 +621,18 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
          case CC_FEATURE_BKSPACE:
              dp_int_update_keypress(line_id, call_id, BKSP_KEY);
              break;
+         case CC_FEATURE_CREATEOFFER:
+             cc_createoffer (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_CREATEOFFER, &featdata);                                        
+             break;
+         case CC_FEATURE_CREATEANSWER:
+             cc_createanswer (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_CREATEANSWER, data, &featdata);                                        
+             break;     
+         case CC_FEATURE_SETLOCALDESC:
+             cc_setlocaldesc (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_SETLOCALDESC, ccData.action, data, &featdata);
+             break;
+         case CC_FEATURE_SETREMOTEDESC:
+             cc_setremotedesc (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_SETREMOTEDESC, ccData.action, data, &featdata);
+             break;             
          case CC_FEATURE_DIALSTR:
              if (CheckAndGetAvailableLine(&line_id, &call_id) == TRUE) {
                  getDigits(data, digits);
@@ -1284,9 +1295,12 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
 
     if ( data == NULL ) {
         cc_call_state_t call_state = sessUpd->update.ccSessionUpd.data.state_data.state;
-        // TODO: Think how can this be handled better
+
         if ( ( sessUpd->eventID == CALL_INFORMATION ) ||
-                ( sessUpd->eventID == CALL_STATE || sessUpd->eventID == CALL_NEWCALL)) {
+                ( sessUpd->eventID == CALL_STATE || sessUpd->eventID == CALL_NEWCALL
+                || sessUpd->eventID == CREATE_OFFER || sessUpd->eventID == CREATE_ANSWER
+                || sessUpd->eventID == SET_LOCAL_DESC  || sessUpd->eventID == SET_REMOTE_DESC
+                || sessUpd->eventID == REMOTE_STREAM_ADD)) {
 
             CCAPP_DEBUG(DEB_F_PREFIX"CALL_SESSION_CREATED for session id 0x%x event is 0x%x \n",
                     DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname), sessUpd->sessionID,
@@ -1321,7 +1335,9 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         data->sess_id = sessUpd->sessionID;
 				data->state = call_state;
         data->line = sessUpd->update.ccSessionUpd.data.state_data.line_id;
-        if (sessUpd->eventID == CALL_NEWCALL) {
+        if (sessUpd->eventID == CALL_NEWCALL || sessUpd->eventID == CREATE_OFFER ||
+            sessUpd->eventID == CREATE_ANSWER || sessUpd->eventID == SET_LOCAL_DESC || 
+            sessUpd->eventID == SET_REMOTE_DESC || sessUpd->eventID == REMOTE_STREAM_ADD ) {
             data->attr = sessUpd->update.ccSessionUpd.data.state_data.attr;
             data->inst = sessUpd->update.ccSessionUpd.data.state_data.inst;
         }
@@ -1342,6 +1358,14 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
 	data->vid_dir = SDP_DIRECTION_INACTIVE;
         data->callref = 0;
         calllogger_init_call_log(&data->call_log);
+        
+        if ( sessUpd->eventID == CREATE_OFFER || sessUpd->eventID == CREATE_ANSWER 
+        || sessUpd->eventID == SET_LOCAL_DESC  || sessUpd->eventID == SET_REMOTE_DESC) {
+        	data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
+        	data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
+        	data->media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.media_track_tbl;
+        }
+        
         /*
          * If phone was idle, we not going to active state
          * send notification to resetmanager that we
@@ -1658,6 +1682,18 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
     case MEDIA_INTERFACE_UPDATE_FAIL:
         ccsnap_gen_callEvent(CCAPI_CALL_EV_MEDIA_INTERFACE_UPDATE_FAIL, 
             CREATE_CALL_HANDLE_FROM_SESSION_ID(sessUpd->sessionID));
+        break;
+    case CREATE_OFFER:
+    case CREATE_ANSWER:
+    case SET_LOCAL_DESC: 
+    case SET_REMOTE_DESC:
+    case REMOTE_STREAM_ADD:
+        data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
+        data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
+        data->state = sessUpd->update.ccSessionUpd.data.state_data.state;
+        data->media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.media_track_tbl;
+        capset_get_allowed_features(gCCApp.mode, data->state, data->allowed_features);
+        ccsnap_gen_callEvent(CCAPI_CALL_EV_CREATED, CREATE_CALL_HANDLE_FROM_SESSION_ID(data->sess_id));
         break;
     default:
         DEF_DEBUG(DEB_F_PREFIX"Unknown event, id = %d\n",

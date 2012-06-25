@@ -92,6 +92,7 @@ extern accessory_cfg_info_t g_accessoryCfgInfo;
 // Configurable settings
 static int gTransportLayerProtocol = 4;   //  4 = tcp, 2 = udp
 static boolean gP2PSIP = FALSE;
+static boolean gSDPMODE = FALSE;
 static int gVoipControlPort = 5060;
 static int gCcm1_sip_port = 5060;
 static boolean gROAPPROXY = FALSE;
@@ -628,6 +629,11 @@ const char* config_get_version() {
 void config_setup_p2p_mode(const cc_boolean is_p2p) {
 	gP2PSIP = is_p2p;
 	compare_or_set_boolean_value(CFGID_P2PSIP, is_p2p, (const unsigned char *) "p2psip");
+}
+
+void config_setup_sdp_mode(const cc_boolean is_sdp) {
+	gSDPMODE = is_sdp;
+	compare_or_set_boolean_value(CFGID_SDPMODE, is_sdp, (const unsigned char *) "sdpsip");
 }
 
 void config_setup_roap_proxy_mode(const cc_boolean is_roap_proxy) {

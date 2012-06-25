@@ -99,9 +99,9 @@ cc_return_t CCAPI_Service_create() {
 cc_return_t CCAPI_Service_destroy() {
     CCAPP_ERROR("CCAPI_Service_destroy - calling CC_Service_destroy \n");
     
-    if (is_action_to_be_deferred(STOP_ACTION) == TRUE) {
-        return CC_SUCCESS; 
-    }
+ //   if (is_action_to_be_deferred(STOP_ACTION) == TRUE) {
+ //       return CC_SUCCESS; 
+ //   }
     // initialize the config to empty
     init_empty_str(g_cfg_p);
     isServiceStartRequestPending = FALSE;
@@ -134,9 +134,15 @@ cc_return_t CCAPI_Service_start() {
  */
 cc_return_t CCAPI_Service_stop() {
 
+	int  sdpmode = 0;
+
     CCAPP_ERROR("CCAPI_Service_stop - calling registration stop \n");
-    if (is_action_to_be_deferred(STOP_ACTION) == TRUE) {
-        return CC_SUCCESS; 
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+        if (is_action_to_be_deferred(STOP_ACTION) == TRUE) {
+            return CC_SUCCESS;
+        }
     }
     sendResetUpdates  = 0;         // reset to default is not to send updates
     isServiceStartRequestPending = FALSE;

@@ -613,6 +613,7 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
     cc_rcs_t      rc = CC_RC_ERROR;
     fsmdef_dcb_t *dcb;
     int roapproxy;
+    int sdpmode;
 
     dcb = lcb->dcb;
     if (dcb == NULL) {
@@ -669,9 +670,11 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
     } else {
 
         roapproxy = 0;
+        sdpmode = 0;
     	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
+    	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
-    	if (roapproxy == FALSE) {
+    	if (roapproxy == FALSE && sdpmode == FALSE) {
 
     		vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
     						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
@@ -2148,7 +2151,8 @@ lsm_get_facility_by_called_number (callid_t call_id,
     lsm_debug_entry(call_id, 0, fname);
     LSM_DEBUG(DEB_F_PREFIX"called_number= %s\n", DEB_F_PREFIX_ARGS(LSM, fname), called_number);
 
-    line = sip_config_get_line_by_called_number(1, called_number);
+    //line = sip_config_get_line_by_called_number(1, called_number);
+    line = 1;
     if (line == 0) {
         return (CC_CAUSE_UNASSIGNED_NUM);
     }
@@ -3924,6 +3928,9 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
     call_events     original_call_event;
     int ringSettingBusyStationPolicy;
     boolean tone_stop_bool = TRUE;
+    int             sdpmode = 0;
+    
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     dcb = lcb->dcb;
     if (dcb == NULL) {
@@ -3952,18 +3959,22 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
     }
 
     lsm_change_state(lcb, __LINE__, LSM_S_CONNECTED);
-
-	if (tone_stop_bool == TRUE)
-		(void) lsm_stop_tone(lcb, NULL);
-
+    
+    if (sdpmode == FALSE) {
+	    if (tone_stop_bool == TRUE)
+		    (void) lsm_stop_tone(lcb, NULL);
+    }
+    
     /*
      * Open the RTP receive channel.
      */
     lsm_call_state_media(lcb, line, cc_state_name(CC_STATE_CONNECTED));
 
-    vcmEnableSidetone(YES);
+    if (sdpmode == FALSE) {
+        vcmEnableSidetone(YES);
 
-    lsm_set_ringer(lcb, call_id, line, alerting);
+        lsm_set_ringer(lcb, call_id, line, alerting);
+    }    
 
     FSM_RESET_FLAGS(lcb->flags, LSM_FLAGS_ANSWER_PENDING);
     FSM_RESET_FLAGS(lcb->flags, LSM_FLAGS_DUSTING);
@@ -5297,10 +5308,10 @@ cc_call_action (callid_t call_id, line_t line, cc_actions_t action,
 
     lcb = lsm_get_lcb_by_call_id(call_id);
 
-    if ((lcb == NULL) && (action != CC_ACTION_MWI)) {
-        LSM_DEBUG(get_debug_string(DEBUG_INPUT_NULL), fname);
-        return (CC_RC_ERROR);
-    }
+	if ((lcb == NULL) && (action != CC_ACTION_MWI)) {
+		LSM_DEBUG(get_debug_string(DEBUG_INPUT_NULL), fname);
+		return (CC_RC_ERROR);
+	}
 
     switch (action) {
     case CC_ACTION_PLAY_TONE:

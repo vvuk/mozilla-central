@@ -122,6 +122,7 @@ namespace CSF
 		virtual bool setLocalVoipPort(int port);
 		virtual bool setRemoteVoipPort(int port);
 		virtual bool setP2PMode(bool mode);
+		virtual bool setSDPMode(bool mode);
 		virtual bool setROAPProxyMode(bool mode);
 		virtual bool setROAPClientMode(bool mode);
 
@@ -138,18 +139,16 @@ namespace CSF
         static void onDeviceEvent(ccapi_device_event_e type, cc_device_handle_t hDevice, cc_deviceinfo_ref_t dev_info);
         static void onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_ref_t /* device_info */, cc_featureinfo_ref_t feature_info);
         static void onLineEvent(ccapi_line_event_e eventType, cc_lineid_t line, cc_lineinfo_ref_t info);
-        static void onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t handle, cc_callinfo_ref_t info, char* sdp);
+        static void onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t handle, cc_callinfo_ref_t info);
 
 	private: // Helper functions
 
         //These notify functions call through to CallControlManager
         void notifyDeviceEventObservers  (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info);
         void notifyFeatureEventObservers (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info);
-        void notifyCallEventObservers    (ccapi_call_event_e callEvent,     CC_CallPtr callPtr, CC_CallInfoPtr info, char* sdp);
+        void notifyCallEventObservers    (ccapi_call_event_e callEvent,     CC_CallPtr callPtr, CC_CallInfoPtr info);
         void notifyLineEventObservers    (ccapi_line_event_e lineEvent,     CC_LinePtr linePtr, CC_LineInfoPtr info);
 
-        bool waitUntilSIPCCFullyStarted();
-        void signalToPhoneWhenInService (ccapi_device_event_e type, cc_deviceinfo_ref_t info);
         void endAllActiveCalls();
 
         void applyLoggingMask(int newMask);
@@ -165,7 +164,7 @@ namespace CSF
 	    std::string deviceName;
         cc_int32_t loggingMask;
 
-        //IP Addres Info
+        //IP Address Info
         std::string localAddress;
         std::string defaultGW;
 
@@ -173,7 +172,6 @@ namespace CSF
         bool bCreated;
         bool bStarted;
         Lock m_lock;
-        base::WaitableEvent sippStartedEvent;
 
         // Media Lifecycle
         VcmSIPCCBinding vcmMediaBridge;

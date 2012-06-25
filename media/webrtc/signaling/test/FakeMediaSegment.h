@@ -37,26 +37,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#pragma once
+#ifndef FAKE_MEDIA_SEGMENT_H_
+#define FAKE_MEDIA_SEGMENT_H_
 
-#include "CC_Common.h"
-#include "ECC_Types.h"
-
-namespace CSF
+class FakeMediaSegment : public mozilla::MediaSegment
 {
-	/**
-	 * These callbacks relate to CallControlManager's "value add" features relating to authentication,
-	 * configuration, setup, service health and management of SIP.
-	 *
-	 * They do not relate to call control - see also CC_Observer.
-	 */
-	class ECC_API ECC_Observer
-	{
-	public:
-		virtual void onAvailablePhoneEvent (AvailablePhoneEventType::AvailablePhoneEvent event,
-											const PhoneDetailsPtr availablePhoneDetails) = 0;
+public:
+  FakeMediaSegment(mozilla::MediaSegment::Type aType) :
+    MediaSegment(aType) {}
 
-		virtual void onAuthenticationStatusChange (AuthenticationStatusEnum::AuthenticationStatus) = 0;
-		virtual void onConnectionStatusChange(ConnectionStatusEnum::ConnectionStatus status) = 0;
-	};
-}
+  MediaSegment* CreateEmptyClone() { return NULL; }
+  void AppendFrom(mozilla::MediaSegment* aSource) {}
+  void ForgetUpTo(mozilla::TrackTicks aDuration) {}
+  void InsertNullDataAtStart(mozilla::TrackTicks aDuration) {}
+
+};
+
+#endif

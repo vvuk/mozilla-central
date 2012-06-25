@@ -408,6 +408,11 @@ typedef struct {
      */
     cc_media_cap_table_t *media_cap_tbl;
 
+    /*
+     * Holds the remote stream track information to be passed to UI
+     */
+    cc_media_track_table_t *media_track_tbl;
+
 #define FSMDEF_F_HOLD_REQ_PENDING  (1 << 0)/* hold feature pending    */ 
 #define FSMDEF_F_XFER_COMPLETE     (1 << 1)/* hold feature pending    */ 
     uint32_t                flags;         /* misc. flags.            */

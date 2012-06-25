@@ -57,7 +57,6 @@ extern char g_cfg_p[];
 extern int g_compl_cfg;
 extern boolean apply_config;
 extern cc_apply_config_result_t apply_config_result;
-//cc_boolean parse_config_properties (int device_handle, const char *device_name, const char *cfg, int from_memory);
 cc_boolean parse_setup_properties (int device_handle, const char *device_name, const char *sipUser, const char *sipPassword, const char *sipDomain);
 
 /**
@@ -189,6 +188,11 @@ cc_boolean CCAPI_Config_checkValidity (int device_handle, const char *cfg_file_n
 
 cc_boolean CCAPI_Config_set_p2p_mode(const cc_boolean is_p2p) {
 	config_setup_p2p_mode(is_p2p);
+	return TRUE;
+}
+
+cc_boolean CCAPI_Config_set_sdp_mode(const cc_boolean is_sdp) {
+	config_setup_sdp_mode(is_sdp);
 	return TRUE;
 }
 

@@ -78,6 +78,10 @@ extern boolean cpr_memory_mgmt_pre_init(size_t size);
 extern boolean cpr_memory_mgmt_post_init(void);
 extern void cpr_memory_mgmt_destroy(void);
 
+// used in early init code where config has not been setup
+const boolean gHardCodeSDPMode = TRUE;
+boolean gStopTickTask = FALSE;
+
 /**
  * Force a crash dump which will allow a stack trace to be generated
  *
@@ -283,6 +287,7 @@ ccInit ()
 static int
 thread_init ()
 {
+    gStopTickTask = FALSE;
     /*
      * This will have already been called for CPR CNU code,
      * but may be called here for Windows emulation.
@@ -295,7 +300,10 @@ thread_init ()
     /* initialize message queues */
     sip_msgq = cprCreateMessageQueue("SIPQ", SIPQSZ);
     gsm_msgq = cprCreateMessageQueue("GSMQ", GSMQSZ);
-    misc_app_msgq = cprCreateMessageQueue("MISCAPPQ", DEFQSZ);
+
+    if (FALSE == gHardCodeSDPMode) {
+        misc_app_msgq = cprCreateMessageQueue("MISCAPPQ", DEFQSZ);
+    }
     ccapp_msgq = cprCreateMessageQueue("CCAPPQ", DEFQSZ);
 #ifdef JINDO_DEBUG_SUPPORTED
     debug_msgq = cprCreateMessageQueue("DEBUGAPPQ", DEFQSZ);
@@ -309,10 +317,6 @@ thread_init ()
      * Initialize the command parser and debug infrastructure
      */
     debugInit();
-
-    /* initialize adapter level debugs */
-    //debug_bind_keyword("sip-adapter", &TNPDebug);
-//    bind_clear_keyword("mwi", &ui_clear_mwi);
 
     /* create threads */
     ccapp_thread = cprCreateThread("CCAPP Task",
@@ -333,7 +337,7 @@ thread_init ()
     }
 #endif
 #endif
-
+	
     /* SIP main thread */
     sip_thread = cprCreateThread("SIPStack task",
                                  (cprThreadStartRoutine) sip_platform_task_loop,
@@ -359,11 +363,14 @@ thread_init ()
     if (gsm_thread == NULL) {
         err_msg("failed to create gsm task \n");
     }
-    misc_app_thread = cprCreateThread("MiscApp Task",
-                                      (cprThreadStartRoutine) MiscAppTask,
-                                      STKSZ, 0 /* pri */, misc_app_msgq);
-    if (misc_app_thread == NULL) {
-        err_msg("failed to create MiscApp task \n");
+
+    if (FALSE == gHardCodeSDPMode) {
+    	misc_app_thread = cprCreateThread("MiscApp Task",
+    			(cprThreadStartRoutine) MiscAppTask,
+    			STKSZ, 0 /* pri */, misc_app_msgq);
+    	if (misc_app_thread == NULL) {
+    		err_msg("failed to create MiscApp task \n");
+    	}
     }
 
 #ifdef EXTERNAL_TICK_REQUIRED
@@ -376,9 +383,13 @@ thread_init ()
 #endif
 
     /* Associate the threads with the message queues */
-    (void) cprSetMessageQueueThread(sip_msgq, sip_thread);
+    (void) cprSetMessageQueueThread(sip_msgq, sip_thread);  
     (void) cprSetMessageQueueThread(gsm_msgq, gsm_thread);
-    (void) cprSetMessageQueueThread(misc_app_msgq, misc_app_thread);
+
+    if (FALSE == gHardCodeSDPMode) {
+    	(void) cprSetMessageQueueThread(misc_app_msgq, misc_app_thread);
+    }
+
     (void) cprSetMessageQueueThread(ccapp_msgq, ccapp_thread);
 #ifdef JINDO_DEBUG_SUPPORTED
     (void) cprSetMessageQueueThread(debug_msgq, debug_thread);
@@ -442,7 +453,7 @@ int
 TickerTask (void *a)
 {
     TNP_DEBUG(DEB_F_PREFIX"Ticker Task initialized..\n", DEB_F_PREFIX_ARGS(SIP_CC_INIT, "TickerTask"));
-    while (1) {
+    while (FALSE == gStopTickTask) {
         cprSleep(20);
         MAIN0Timer();
     }
@@ -493,6 +504,9 @@ send_task_unload_msg(cc_srcs_t dest_id)
     const char *fname = "send_task_unload_msg";
     uint16_t len = 4;
     cprBuffer_t  msg =  gsm_get_buffer(len);
+    int  sdpmode = 0;
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     if (msg == NULL) {
         err_msg("%s: failed to allocate  msg cprBuffer_t\n", fname);
@@ -512,7 +526,10 @@ send_task_unload_msg(cc_srcs_t dest_id)
             /* send this msg so phone can send unRegister msg */
             SIPTaskPostShutdown(SIP_EXTERNAL, CC_CAUSE_SHUTDOWN, "");
             /* allow unRegister msg to sent out and shutdown to complete */
-            cprSleep(2000);
+
+            if (sdpmode == FALSE) {
+                cprSleep(2000);
+            }
             /* send a unload message to the SIP Task to kill sip thread*/
             msg =  SIPTaskGetBuffer(len);
             if (msg == NULL) {
@@ -601,7 +618,15 @@ ccUnload (void)
     */
     send_task_unload_msg(CC_SRC_SIP);
     send_task_unload_msg(CC_SRC_GSM);
-    send_task_unload_msg(CC_SRC_MISC_APP);
+
+    if (FALSE == gHardCodeSDPMode) {
+    	send_task_unload_msg(CC_SRC_MISC_APP);
+    }
+
     send_task_unload_msg(CC_SRC_CCAPP);
+
+    cprSleep(200);
+
+    gStopTickTask = TRUE;
 }
 

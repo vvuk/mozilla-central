@@ -72,7 +72,7 @@ public:
    * Gets the total duration of the segment.
    */
   TrackTicks GetDuration() { return mDuration; }
-  Type GetType() { return mType; }
+  Type GetType() const { return mType; }
 
   /**
    * Create a MediaSegment of the same type.

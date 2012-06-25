@@ -130,6 +130,8 @@ typedef struct cc_call_info_t_{
     cc_boolean    audio_mute;
     cc_boolean    video_mute;
     cc_call_conference_Info_t call_conference;
+    cc_string_t   sdp;
+    cc_media_track_table_t *media_track_tbl;
 } session_data_t;
 
 typedef enum {
