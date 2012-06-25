@@ -70,7 +70,7 @@ typedef struct nr_ice_cand_pair_ nr_ice_cand_pair;
 
 class NrIceMediaStream;
 
-class NrIceCtx {
+class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
  public:
   static mozilla::RefPtr<NrIceCtx> Create(const std::string& name,
                                           bool offerer);
@@ -107,8 +107,6 @@ class NrIceCtx {
   sigslot::signal1<NrIceCtx *> SignalGatheringCompleted;  // Done gathering
   sigslot::signal1<NrIceCtx *> SignalCompleted;  // Done handshaking
 
-  // Allow this to be refcountable
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
 
  private:
   NrIceCtx(const std::string& name, bool offerer) 

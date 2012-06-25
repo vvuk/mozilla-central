@@ -12,6 +12,8 @@
 // to not use sigslot
 #include <talk/base/sigslot.h>
 
+#include "mozilla/RefPtr.h"
+
 #include "m_cpp_utils.h"
 
 class TransportFlow;

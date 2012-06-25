@@ -215,7 +215,7 @@ int nr_ice_socket_destroy(nr_ice_socket **isockp)
 
 int nr_ice_socket_close(nr_ice_socket *isock)
   {
-    int fd=-1;
+    NR_SOCKET fd=-1;
 
     if (!isock||!isock->sock)
       return(0);
