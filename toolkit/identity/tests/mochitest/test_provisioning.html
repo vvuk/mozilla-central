@@ -26,8 +26,29 @@ Test of Identity Provider (IDP) Provisioning using the DOM APIs
 
 SimpleTest.waitForExplicitFinish();
 
+const DOMIdentity = Cu.import("resource://gre/modules/DOMIdentity.jsm")
+                      .DOMIdentity;
+let outerWinId = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+
 function check_provision_flow_done(provId) {
   do_check_null(IdentityProvider._provisionFlows[provId]);
+}
+
+/**
+ * Allow specifying aProvFlow so we can reset after the _provisionFlows is cleaned up.
+ */
+function run_next_prov_test(aProvFlow) {
+  // Reset the DOM state then run the next test
+  let provContext = aProvFlow || IdentityProvider._provisionFlows[outerWinId];
+  if (provContext && provContext.caller) {
+    makeObserver("identity-DOM-state-reset", function() {
+      SimpleTest.executeSoon(run_next_test);
+    });
+    DOMIdentity._resetFrameState(provContext.caller);
+  } else {
+    SimpleTest.executeSoon(run_next_test);
+  }
 }
 
 function test_begin_provisioning() {
@@ -44,7 +65,7 @@ function test_begin_provisioning() {
         ok(duration_s > 0);
         ok(duration_s <= (24 * 3600));
 
-        run_next_test();
+        run_next_prov_test();
       }
     });
 }
@@ -63,14 +84,14 @@ function test_raise_provisioning_failure() {
       isnot(err, null);
       ok(err.indexOf("can't authenticate this email") > -1);
 
-      run_next_test();
+      run_next_prov_test();
     },
     {
       beginProvisioningCallback: function(email, duration_s) {
         // raise the failure as if we can't provision this email
         identity.raiseProvisioningFailure("can't authenticate this email");
       }
-    });
+  });
 }
 
 function test_genkeypair_before_begin_provisioning() {
@@ -82,14 +103,14 @@ function test_genkeypair_before_begin_provisioning() {
         identity.genKeyPair(caller.genKeyPairCallback);
       } catch (ex) {
         ok(ex, "Caught exception for calling genKeyPair without beginProvisioning: " + ex);
-        run_next_test();
+        run_next_prov_test();
       }
     },
     // expect this to be called with an error
     function(err) {
       ok(false, "Shoudn't reach here as DOM code should have caught the problem");
 
-      run_next_test();
+      run_next_prov_test();
     },
     {
       // this should not be called at all!
@@ -97,7 +118,7 @@ function test_genkeypair_before_begin_provisioning() {
         // a test that will surely fail because we shouldn't be here.
         ok(false);
 
-        run_next_test();
+        run_next_prov_test();
       }
     }
   );
@@ -110,7 +131,7 @@ function test_genkeypair() {
     isnot(kp, null);
 
     // yay!
-    run_next_test();
+    run_next_prov_test();
   }
 
   setup_provisioning(
@@ -123,7 +144,7 @@ function test_genkeypair() {
       // should not be called!
       ok(false);
 
-      run_next_test();
+      run_next_prov_test();
     },
     {
       beginProvisioningCallback: function(email, time_s) {
@@ -151,17 +172,16 @@ function test_register_certificate_before_genkeypair() {
     function(err) {
       ok(false, "Shoudn't reach here as DOM code should have caught the problem");
 
-      run_next_test();
+      run_next_prov_test();
     },
     {
       beginProvisioningCallback: function(email, duration_s) {
-
-       try {
+        try {
           // now we try to register cert but no keygen has been done
           identity.registerCertificate("fake-cert");
         } catch (ex) {
           ok(ex, "Caught exception for calling genKeyPair without beginProvisioning: " + ex);
-          run_next_test();
+          run_next_prov_test();
         }
 
       }
@@ -171,8 +191,12 @@ function test_register_certificate_before_genkeypair() {
 
 function test_register_certificate() {
   let _callerId = null;
+  let provFlow = null;
 
   function gkpCallback(pk) {
+    // Hold on to the provFlow so we have access to .caller to cleanup later
+    provFlow = IdentityProvider._provisionFlows[outerWinId];
+
     identity.registerCertificate("fake-cert-42");
   }
 
@@ -195,7 +219,7 @@ function test_register_certificate() {
         // cleanup will happen after the callback is called
         check_provision_flow_done(_callerId);
 
-        run_next_test();
+        run_next_prov_test(provFlow);
       });
     },
     {
@@ -209,8 +233,11 @@ function test_register_certificate() {
 
 function test_get_assertion_after_provision() {
   let _callerId = null;
+  let provFlow = null;
 
   function gkpCallback(pk) {
+    // Hold on to the provFlow so we have access to .caller to cleanup later
+    provFlow = IdentityProvider._provisionFlows[outerWinId];
     identity.registerCertificate("fake-cert-42");
   }
 
@@ -233,7 +260,7 @@ function test_get_assertion_after_provision() {
         // cleanup will happen after the callback is called
         check_provision_flow_done(_callerId);
 
-        run_next_test();
+        run_next_prov_test(provFlow);
       });
     },
     {

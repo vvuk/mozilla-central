@@ -26,6 +26,24 @@ Test of Relying Party (RP) using the DOM APIs
 
 SimpleTest.waitForExplicitFinish();
 
+const DOMIdentity = Cu.import("resource://gre/modules/DOMIdentity.jsm")
+                      .DOMIdentity;
+let outerWinId = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+
+// Reset the DOM state then run the next test
+function run_next_rp_test() {
+  let rpContext = RelyingParty._rpFlows[outerWinId];
+  if (rpContext) {
+    makeObserver("identity-DOM-state-reset", function() {
+      SimpleTest.executeSoon(run_next_test);
+    });
+    DOMIdentity._resetFrameState(rpContext);
+  } else {
+    SimpleTest.executeSoon(run_next_test);
+  }
+}
+
 function test_watch_loggedin_ready() {
   resetState();
 
@@ -39,7 +57,7 @@ function test_watch_loggedin_ready() {
       is(action, 'ready');
       is(params, undefined);
 
-      run_next_test();
+      run_next_rp_test();
     }));
   });
 }
@@ -64,7 +82,7 @@ function test_watch_loggedin_login() {
         is(action, 'ready');
         do_check_null(params);
 
-        run_next_test();
+        run_next_rp_test();
       }
     )));
   });
@@ -94,7 +112,7 @@ function test_watch_loggedin_logout() {
           is(action, 'ready');
           do_check_null(params);
 
-          run_next_test();
+          run_next_rp_test();
         }
       )));
     });
@@ -108,7 +126,7 @@ function test_watch_notloggedin_ready() {
     is(action, 'ready');
     is(params, undefined);
 
-    run_next_test();
+    run_next_rp_test();
   }));
 }
 
@@ -126,7 +144,7 @@ function test_watch_notloggedin_logout() {
     function(action, params) {
       is(action, 'ready');
       is(params, undefined);
-      run_next_test();
+      run_next_rp_test();
     }
   )));
 }
@@ -144,7 +162,7 @@ function test_request() {
   makeObserver("identity-request", function (aSubject, aTopic, aData) {
     isnot(aSubject, null);
 
-    run_next_test();
+    run_next_rp_test();
   });
 
   identity.request();
@@ -176,7 +194,7 @@ function test_logout() {
         is(action, 'ready');
         is(params, undefined);
 
-        run_next_test();
+        run_next_rp_test();
       }));
 
     doLogout = function() {

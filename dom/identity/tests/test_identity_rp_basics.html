@@ -6,6 +6,7 @@
   <meta charset="utf-8">
   <title>Test for navigator.id relying party (RP) basics</title>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript;version=1.8" src="head_identity.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
 <body>
@@ -17,21 +18,21 @@
 <pre id="test">
 <script type="application/javascript;version=1.8">
 
-"use strict"
+"use strict";
 
-let identity = window.navigator.mozId;
-let index = 0;
+const RP = Cu.import("resource://gre/modules/RelyingParty.jsm").RelyingParty;
 
-function expectException(aFunc, msg) {
-  msg = msg || "";
-  let caughtEx;
-  try {
-    aFunc();
-  } catch (ex) {
-    caughtEx = ex;
-    info("caught: " + ex);
-  }
-  ok(caughtEx, "Check for thrown exception: " + msg);
+function resetAndNext() {
+  // reset DOM state for the next test
+  makeObserver("identity-DOM-state-reset", function() {
+    SimpleTest.executeSoon(next);
+  });
+  info("oid: " + outerWinId);
+  // Give the flow some time to cross the IPC boundary
+  setTimeout(function() {
+    let rpContext = RP._rpFlows[outerWinId];
+    DOMIdentity._resetFrameState(rpContext);
+  }, 500);
 }
 
 let steps = [
@@ -86,8 +87,9 @@ let steps = [
     }
     is(identity.watch({onlogin: onLoginLogoutCb, onlogout: onLoginLogoutCb}), undefined,
        "Check minimum watch argument members");
-    SimpleTest.executeSoon(next);
+    resetAndNext();
   },
+/*
   function watchOnReadyType() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
@@ -100,8 +102,9 @@ let steps = [
     expectException(function() {
       identity.watch(options)
     }, "Check onready type");
-    SimpleTest.executeSoon(next);
+    resetAndNext();
   },
+*/
   function watchOnReadyCalled() {
     let onLogoutCalled = false;
     let options = {
@@ -142,27 +145,8 @@ let steps = [
     SimpleTest.executeSoon(next);
   },
 
-  function finish_tests() {
-    info("all done");
-    SimpleTest.finish();
-  },
+  finish_tests,
 ];
-
-
-function next() {
-  if (index >= steps.length) {
-    ok(false, "Shouldn't get here!");
-    return;
-  }
-  try {
-    let fn = steps[index];
-    info("Begin test " + index + " '" + steps[index].name + "'!");
-    fn();
-  } catch(ex) {
-    ok(false, "Caught exception", ex);
-  }
-  index += 1;
-}
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(next);

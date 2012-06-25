@@ -73,24 +73,19 @@ function mock_watch(aIdentity, aDoFunc) {
 // this observer auto-removes itself after the observe function
 // is called, so this is meant to observe only ONE event.
 function makeObserver(aObserveTopic, aObserveFunc) {
-  let observer = {
-    // nsISupports provides type management in C++
-    // nsIObserver is to be an observer
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+  function observe(aSubject, aTopic, aData) {
+    if (aTopic == aObserveTopic) {
 
-    observe: function (aSubject, aTopic, aData) {
-      if (aTopic == aObserveTopic) {
-        try {
-          aObserveFunc(SpecialPowers.wrap(aSubject), aTopic, aData);
-        } catch (ex) {
-          ok(false, ex);
-        }
-        Services.obs.removeObserver(observer, aObserveTopic);
+      Services.obs.removeObserver(this, aObserveTopic);
+      try {
+        aObserveFunc(SpecialPowers.wrap(aSubject), aTopic, aData);
+      } catch (ex) {
+        ok(false, ex);
       }
     }
-  };
+  }
 
-  Services.obs.addObserver(observer, aObserveTopic, false);
+  Services.obs.addObserver(observe, aObserveTopic, false);
 }
 
 // set up the ID service with an identity with keypair and all

@@ -6,6 +6,7 @@
   <meta charset="utf-8">
   <title>Test for navigator.id identity provider (IDP) authentication basics</title>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript;version=1.8" src="head_identity.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
 <body>
@@ -18,21 +19,6 @@
 <script type="application/javascript;version=1.8">
 
 "use strict"
-
-let identity = window.navigator.mozId;
-let index = 0;
-
-function expectException(aFunc, msg) {
-  msg = msg || "";
-  let caughtEx;
-  try {
-    aFunc();
-  } catch (ex) {
-    caughtEx = ex;
-    info("caught: " + ex);
-  }
-  ok(caughtEx, "Check for thrown exception: " + msg);
-}
 
 let steps = [
   // completeAuthentication tests
@@ -94,27 +80,8 @@ let steps = [
     SimpleTest.executeSoon(next);
   },
 
-  function finish_tests() {
-    info("all done");
-    SimpleTest.finish();
-  },
+  finish_tests,
 ];
-
-
-function next() {
-  if (index >= steps.length) {
-    ok(false, "Shouldn't get here!");
-    return;
-  }
-  try {
-    let fn = steps[index];
-    info("Begin test " + index + " '" + steps[index].name + "'!");
-    fn();
-  } catch(ex) {
-    ok(false, "Caught exception", ex);
-  }
-  index += 1;
-}
 
 SimpleTest.waitForExplicitFinish();
 addLoadEvent(next);

@@ -19,8 +19,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
-function log(msg) {
-  IDLog("DOMIdentity", msg);
+function log(...aMessageArgs) {
+  IDLog.apply(this, ["DOMIdentity"].concat(aMessageArgs));
 }
 
 function IDDOMMessage(aID) {
@@ -36,13 +36,12 @@ function IDPProvisioningContext(aID, aOrigin, aTargetMM) {
 IDPProvisioningContext.prototype = {
   get id() this._id,
   get origin() this._origin,
-  get mm() this._mm,
 
   doBeginProvisioningCallback: function IDPPC_doBeginProvCB(aID, aCertDuration) {
     let message = new IDDOMMessage(this.id);
     message.identity = aID;
     message.certDuration = aCertDuration;
-    this.mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback",
+    this._mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback",
                              message);
   },
 
@@ -50,7 +49,7 @@ IDPProvisioningContext.prototype = {
     log("doGenKeyPairCallback");
     let message = new IDDOMMessage(this.id);
     message.publicKey = aPublicKey;
-    this.mm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
+    this._mm.sendAsyncMessage("Identity:IDP:CallGenKeyPairCallback", message);
   },
 
   doError: function(msg) {
@@ -67,12 +66,11 @@ function IDPAuthenticationContext(aID, aOrigin, aTargetMM) {
 IDPAuthenticationContext.prototype = {
   get id() this._id,
   get origin() this._origin,
-  get mm() this._mm,
 
   doBeginAuthenticationCallback: function IDPAC_doBeginAuthCB(aIdentity) {
     let message = new IDDOMMessage(this.id);
     message.identity = aIdentity;
-    this.mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback",
+    this._mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback",
                              message);
   },
 
@@ -92,25 +90,24 @@ RPWatchContext.prototype = {
   get id() this._id,
   get origin() this._origin,
   get loggedInEmail() this._loggedInEmail,
-  get mm() this._mm,
 
   doLogin: function RPWatchContext_onlogin(aAssertion) {
     log("doLogin: " + this.id);
     let message = new IDDOMMessage(this.id);
     message.assertion = aAssertion;
-    this.mm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
+    this._mm.sendAsyncMessage("Identity:RP:Watch:OnLogin", message);
   },
 
   doLogout: function RPWatchContext_onlogout() {
     log("doLogout :" + this.id);
     let message = new IDDOMMessage(this.id);
-    this.mm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
+    this._mm.sendAsyncMessage("Identity:RP:Watch:OnLogout", message);
   },
 
   doReady: function RPWatchContext_onready() {
     log("doReady: " + this.id);
     let message = new IDDOMMessage(this.id);
-    this.mm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
+    this._mm.sendAsyncMessage("Identity:RP:Watch:OnReady", message);
   },
 
   doError: function RPWatchContext_onerror(aMessage) {
@@ -199,11 +196,18 @@ let DOMIdentity = {
     if (!aWindow.messageManager)
       return;
 
-    let func = aRegister ? "addMessageListener" : "removeMessageListener";
+    let func = aWindow.messageManager[aRegister ? "addMessageListener"
+                                                : "removeMessageListener"];
 
     for (let message of this.messages) {
-      aWindow.messageManager[func](message, this);
+      func(message, this);
     }
+  },
+
+  _resetFrameState: function(aContext) {
+    log("_resetFrameState: ", aContext.id);
+    let message = new IDDOMMessage(aContext.id);
+    aContext._mm.sendAsyncMessage("Identity:ResetState", message);
   },
 
   _watch: function DOMIdentity__watch(message, targetMM) {
