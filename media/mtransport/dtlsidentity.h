@@ -47,7 +47,7 @@
 #include "mozilla/RefPtr.h"
 #include "nsISupportsImpl.h"
 
-class DtlsIdentity {
+class DtlsIdentity : public mozilla::RefCounted<DtlsIdentity> {
  public:
   ~DtlsIdentity();
   
@@ -55,8 +55,6 @@ class DtlsIdentity {
 
   CERTCertificate *cert() { return cert_; }
   SECKEYPrivateKey *privkey() { return privkey_; }
-
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DtlsIdentity);
 
  private:
   DtlsIdentity(SECKEYPrivateKey *privkey, CERTCertificate *cert)

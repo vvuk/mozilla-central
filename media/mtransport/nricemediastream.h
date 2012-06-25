@@ -25,11 +25,12 @@ typedef struct nr_ice_media_stream_ nr_ice_media_stream;
 
 class NrIceCtx;
 
-class NrIceMediaStream {
+class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
  public:
   static mozilla::RefPtr<NrIceMediaStream> Create(NrIceCtx *ctx,
                                            const std::string& name,
                                            int components);
+  ~NrIceMediaStream();
 
   // The name of the stream
   const std::string& name() const { return name_; }
@@ -62,15 +63,12 @@ class NrIceMediaStream {
   // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
-
-  // Allow this to be refcountable
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
   
  private:
   NrIceMediaStream(NrIceCtx *ctx,  const std::string& name,
                    int components)
       : ctx_(ctx), name_(name), components_(components), stream_(NULL)  {}
-  ~NrIceMediaStream();
+
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
   NrIceCtx *ctx_;

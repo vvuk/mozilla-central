@@ -49,9 +49,6 @@ class TransportLayerIce : public TransportLayer {
   // A static version of the layer ID
   static std::string ID;
 
-  // Allow this to be refcountable
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportLayerIce);
-
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerIce);
   
