@@ -274,3 +274,8 @@ ifdef MOZ_WEBRTC
 tier_platform_dirs += media/webrtc/signaling/test
 endif
 endif
+
+
+ifdef MOZ_WEBRTC
+tier_platform_dirs +=     media/mtransport
+endif

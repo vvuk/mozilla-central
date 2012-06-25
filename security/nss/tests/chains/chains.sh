@@ -1,40 +1,8 @@
 #!/bin/bash
 #
-# ***** BEGIN LICENSE BLOCK *****
-# Version: MPL 1.1/GPL 2.0/LGPL 2.1
-#
-# The contents of this file are subject to the Mozilla Public License Version
-# 1.1 (the "License"); you may not use this file except in compliance with
-# the License. You may obtain a copy of the License at
-# http://www.mozilla.org/MPL/
-#
-# Software distributed under the License is distributed on an "AS IS" basis,
-# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
-# for the specific language governing rights and limitations under the
-# License.
-#
-# The Original Code is the Network Security Services (NSS)
-#
-# The Initial Developer of the Original Code is Sun Microsystems, Inc.
-# Portions created by the Initial Developer are Copyright (C) 2008-2009
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Slavomir Katuscak <slavomir.katuscak@sun.com>, Sun Microsystems
-#
-# Alternatively, the contents of this file may be used under the terms of
-# either the GNU General Public License Version 2 or later (the "GPL"), or
-# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
-# in which case the provisions of the GPL or the LGPL are applicable instead
-# of those above. If you wish to allow use of your version of this file only
-# under the terms of either the GPL or the LGPL, and not to allow others to
-# use your version of this file under the terms of the MPL, indicate your
-# decision by deleting the provisions above and replace them with the notice
-# and other provisions required by the GPL or the LGPL. If you do not delete
-# the provisions above, a recipient may use your version of this file under
-# the terms of any one of the MPL, the GPL or the LGPL.
-#
-# ***** END LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ########################################################################
 #
@@ -794,18 +762,13 @@ check_ocsp()
         CERT_FILE=${CERT}
     fi
 
+    # sample line:
+    #   URI: "http://ocsp.server:2601"
     OCSP_HOST=$(${BINDIR}/pp -t certificate -i ${CERT_FILE} | grep URI | sed "s/.*:\/\///" | sed "s/:.*//")
+    OCSP_PORT=$(${BINDIR}/pp -t certificate -i ${CERT_FILE} | grep URI | sed "s/.*:.*:\([0-9]*\)\"/\1/")
 
-    if [ "${OS_ARCH}" = "WINNT" ]; then
-        ping -n 1 ${OCSP_HOST}
-        return $?
-    elif [ "${OS_ARCH}" = "HP-UX" ]; then
-        ping ${OCSP_HOST} -n 1
-        return $?
-    else
-        ping -c 1 ${OCSP_HOST}
-        return $?
-    fi
+    tstclnt -h ${OCSP_HOST} -p ${OCSP_PORT} -q -t 20
+    return $?
 }
 
 ############################ parse_result ##############################
@@ -997,10 +960,13 @@ parse_config()
             break
             ;;
         "check_ocsp")
+            TESTNAME="Test that OCSP server is reachable"
             check_ocsp ${VALUE}
             if [ $? -ne 0 ]; then
-                echo "OCSP server not accessible, skipping OCSP tests"
+                html_failed "$TESTNAME"
                 break;
+            else
+                html_passed "$TESTNAME"
             fi
             ;;
         "ku")
