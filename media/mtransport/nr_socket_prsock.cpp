@@ -176,8 +176,6 @@ void NrSocket::fire_callback(int how) {
   // about to fire.
   cancel(how);
 
-  // TODO(ekr@rtfm.com): need to make the resource valid, but
-  // nICEr does not rely on the resource being valid
   cbs_[how](this, how, cb_args_[how]);
 }
 
@@ -206,6 +204,7 @@ static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
         naddr->inet.ip = addr->u.addr4.sin_addr.s_addr;
         break;
       case NR_IPV6:
+#if 0
         naddr->ipv6.family = PR_AF_INET6;
         naddr->ipv6.port = addr->u.addr6.sin6_port;
 #ifdef LINUX
@@ -214,6 +213,10 @@ static int nr_transport_addr_to_praddr(nr_transport_addr *addr,
 #else
         memcpy(naddr->ipv6.ip._S6_un._S6_u8,
                &addr->u.addr6.sin6_addr.__u6_addr.__u6_addr8, 16);
+#endif
+#else
+        // TODO(ekr@rtfm.com): make IPv6 work
+        ABORT(R_INTERNAL);
 #endif
         break;
       default:
