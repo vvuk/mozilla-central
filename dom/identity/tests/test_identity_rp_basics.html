@@ -84,7 +84,7 @@ let steps = [
     }, "watch with invalid onlogin and onlogout members");
     SimpleTest.executeSoon(next);
   },
-  function watchMinumumArgs() {
+  function watchMinimumArgs() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
