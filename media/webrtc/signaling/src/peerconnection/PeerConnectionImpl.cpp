@@ -140,6 +140,9 @@ PeerConnectionInterface* PeerConnectionInterface::CreatePeerConnection()
   return pc;
 }
   
+std::map<const std::string, PeerConnectionImpl *> 
+   PeerConnectionImpl::peerconnections;
+
 PeerConnectionImpl::PeerConnectionImpl() : 
   mAddr(""), 
   mCCM(NULL), 
@@ -195,6 +198,8 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
     mCCM->addCCObserver(this);
     mDevice = mCCM->getActiveDevice();	
     mCall = mDevice->createCall();
+
+    mCall->setPeerConnection("abc");
   }
    
    return PC_OK;
@@ -400,6 +405,20 @@ void PeerConnectionImpl::ChangeSipccState(PeerConnectionInterface::SipccState si
   if (mPCObserver)
     mPCObserver->OnStateChange(PeerConnectionObserver::kSipccState);  
 }
+
+PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
+  return NULL;
+}
+
+void PeerConnectionImpl::ReleaseInstance(PeerConnectionImpl *) {
+  ;
+}
+ 
+const std::string& PeerConnectionImpl::GetHandle() {
+  return mHandle;
+}
+
+
 
 
 #include <sys/socket.h>

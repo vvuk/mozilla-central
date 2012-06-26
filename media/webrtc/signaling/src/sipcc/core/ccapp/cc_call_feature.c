@@ -285,6 +285,16 @@ cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc
 	return cc_invokeFeature(call_handle, CC_FEATURE_SETREMOTEDESC, video_pref, action, sdp);
 }
 
+cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t *pc) {
+	static const char fname[] = "CC_CallFeature_SetPeerConnection";
+	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
+			GET_LINE_ID(call_handle), fname));
+
+	return cc_invokeFeature(call_handle, CC_FEATURE_SETPEERCONNECTION, 
+          CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, pc);
+        return 0;
+}
+
 
 /**
  * Initiate a speed dial.

@@ -181,8 +181,9 @@ cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_sdp_direction
     return CC_CallFeature_SetRemoteDescription(handle, video_pref, action, sdp);
 }
 
-
-
+cc_return_t CCAPI_SetPeerConnection(cc_call_handle_t handle, cc_peerconnection_t pc) {
+  return CC_CallFeature_SetPeerConnection(handle, pc);
+}
 
 /**
  * Dial digits on the call

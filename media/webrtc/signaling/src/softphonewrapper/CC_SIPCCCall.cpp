@@ -596,5 +596,13 @@ void CC_SIPCCCall::setLocalSourceAudioVideo(unsigned localSourceAudioTracks, uns
   // FIX - add info to dcb for use when creating SDP
 }
 
+void CC_SIPCCCall::setPeerConnection(const std::string& handle)
+{
+  CSFLogDebug(logTag, "setPeerConnection");
+  
+  CCAPI_SetPeerConnection(callHandle, handle.c_str());
+
+  // FIX - add info to dcb for use when creating SDP
+}
 
         

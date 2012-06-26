@@ -103,7 +103,11 @@ public:
   virtual void onFeatureEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_FeatureInfoPtr feature_info) {}
   virtual void onLineEvent(ccapi_line_event_e lineEvent, CSF::CC_LinePtr line, CSF::CC_LineInfoPtr info) {}
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
-  
+
+  static PeerConnectionImpl *AcquireInstance(const std::string& handle);
+  virtual void ReleaseInstance(PeerConnectionImpl *);
+  virtual const std::string& GetHandle();
+
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
   void ChangeSipccState(PeerConnectionInterface::SipccState sipcc_state);
@@ -129,6 +133,11 @@ private:
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
 
+  // A handle to refer to this PC with
+  std::string mHandle;
+
+  // Singleton list of all the PeerConnections
+  static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 };
  
 }  // end sipcc namespace
