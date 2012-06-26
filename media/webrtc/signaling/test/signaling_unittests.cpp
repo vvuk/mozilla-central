@@ -291,22 +291,22 @@ class SignalingTest : public ::testing::Test
       // Create a media stream as if it came from GUM
       // Looks like we have to GetInstance() this so it can be created
       // FIX - this does not start all of the event threads needed to run the MediaGraph
-      mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
+      //mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
 
-      nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
-      nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
+      //nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+      //nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
       
       // Add fake audio track
-      FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
-      sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
+      //FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
+      //sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
 
       // Add fake video track
-      FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
-      sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
+      //FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
+      //sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
 
       // Call AddStream as JS would after GetUserMedia()
-      nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
-      pc->AddStream(mediaStream);
+      //nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
+      //pc->AddStream(mediaStream);
 
       // Now call CreateOffer as JS would
       ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
@@ -381,10 +381,10 @@ TEST_F(SignalingTest, CreateOfferNoHints)
   CreateOffer("");
 }
 
-TEST_F(SignalingTest, CreateOfferHints)
-{
-  CreateOffer("audio,video");
-}
+//TEST_F(SignalingTest, CreateOfferHints)
+//{
+//  CreateOffer("audio,video");
+//}
 
 //TEST_F(SignalingTest, CreateOfferBadHints)
 //{
