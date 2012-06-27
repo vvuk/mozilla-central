@@ -39,6 +39,8 @@
 #include "MediaSegment.h"
 #include "cpr_socket.h"
 
+#include <nspr.h>
+
 static const char* logTag = "PeerConnectionImpl";
 
 namespace sipcc {
@@ -142,6 +144,7 @@ PeerConnectionInterface* PeerConnectionInterface::CreatePeerConnection()
   
 std::map<const std::string, PeerConnectionImpl *> 
    PeerConnectionImpl::peerconnections;
+int PeerConnectionImpl::peerconnection_index;
 
 PeerConnectionImpl::PeerConnectionImpl() : 
   mAddr(""), 
@@ -160,6 +163,7 @@ PeerConnectionImpl::~PeerConnectionImpl()
 {
   Shutdown();  
   PR_DestroyLock(mLocalSourceStreamsLock);
+  peerconnections.erase(mHandle);
 }
 
 StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
@@ -199,7 +203,25 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
     mDevice = mCCM->getActiveDevice();	
     mCall = mDevice->createCall();
 
-    mCall->setPeerConnection("abc");
+    // Use the pointer as the handle. You might ask why we have
+    // a table if we're going to just pass the pointer? The answer
+    // is so that we can detect stale handles.
+    PeerConnectionImpl *handle = this;
+    unsigned char handle_bin[8];
+    PR_ASSERT(sizeof(handle) <= sizeof(handle_bin));
+    memcpy(handle_bin, &handle, sizeof(handle));
+    for (size_t i = 0; i<sizeof(handle_bin); i++) {
+      char hex[3];
+      
+      snprintf(hex, 3, "%.2x", handle_bin[i]);
+      mHandle += hex;
+    }
+
+    // Store under mHandle
+    peerconnections[mHandle] = this;
+
+    // Now notify SIPCC of our handle
+    mCall->setPeerConnection(mHandle);
   }
    
    return PC_OK;
@@ -407,18 +429,19 @@ void PeerConnectionImpl::ChangeSipccState(PeerConnectionInterface::SipccState si
 }
 
 PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
-  return NULL;
+  if (peerconnections.find(handle) == peerconnections.end()) {
+    return NULL;
+  }
+
+  PeerConnectionImpl *impl = peerconnections[handle];
+  // TODO(ekr@rtfm.com): Lock the instance
+  
+  return impl;
 }
 
 void PeerConnectionImpl::ReleaseInstance(PeerConnectionImpl *) {
   ;
 }
- 
-const std::string& PeerConnectionImpl::GetHandle() {
-  return mHandle;
-}
-
-
 
 
 #include <sys/socket.h>

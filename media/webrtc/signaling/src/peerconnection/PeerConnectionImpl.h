@@ -106,7 +106,7 @@ public:
 
   static PeerConnectionImpl *AcquireInstance(const std::string& handle);
   virtual void ReleaseInstance(PeerConnectionImpl *);
-  virtual const std::string& GetHandle();
+  virtual const std::string& GetHandle() { return mHandle; }
 
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
@@ -138,6 +138,7 @@ private:
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+  static int peerconnection_index;
 };
  
 }  // end sipcc namespace

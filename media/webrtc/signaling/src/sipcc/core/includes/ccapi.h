@@ -58,7 +58,7 @@ typedef int cc_causes_t;
 #define  CC_CALL_NONE       CC_CALL_TYPE_NONE
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
 #define  SDP_SIZE			1024   // must increase this
-#define  PC_HANDLE_SIZE			16
+#define  PC_HANDLE_SIZE			(1 + (sizeof(void *) * 2))
 
 #include "sessionConstants.h"
 
