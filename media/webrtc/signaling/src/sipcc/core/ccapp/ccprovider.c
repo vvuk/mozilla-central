@@ -633,6 +633,18 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
          case CC_FEATURE_SETREMOTEDESC:
              cc_setremotedesc (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_SETREMOTEDESC, ccData.action, data, &featdata);
              break;             
+         case CC_FEATURE_SETPEERCONNECTION:
+           // assert(strlen(data) < PC_HANDLE_SIZE);
+           if (strlen(data) >= PC_HANDLE_SIZE)
+             return;
+           
+           strncpy(featdata.pc.pc_handle, data, PC_HANDLE_SIZE - 1);
+
+           cc_int_feature2(CC_MSG_SETPEERCONNECTION, CC_SRC_UI, CC_SRC_GSM, 
+             call_id, (line_t)instance,
+             CC_FEATURE_SETPEERCONNECTION, &featdata);
+           break;
+           
          case CC_FEATURE_DIALSTR:
              if (CheckAndGetAvailableLine(&line_id, &call_id) == TRUE) {
                  getDigits(data, digits);

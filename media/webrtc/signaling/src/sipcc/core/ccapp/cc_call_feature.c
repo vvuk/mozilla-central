@@ -112,6 +112,7 @@ cc_return_t cc_invokeFeature(cc_call_handle_t call_handle, group_cc_feature_t fe
     case CC_FEATURE_CREATEANSWER:
     case CC_FEATURE_SETLOCALDESC:
     case CC_FEATURE_SETREMOTEDESC:
+    case CC_FEATURE_SETPEERCONNECTION:
     	callFeature.featData.ccData.info = strlib_malloc(data, strlen(data));
         callFeature.featData.ccData.info1 = NULL;
     	break;
@@ -285,7 +286,7 @@ cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc
 	return cc_invokeFeature(call_handle, CC_FEATURE_SETREMOTEDESC, video_pref, action, sdp);
 }
 
-cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t *pc) {
+cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc) {
 	static const char fname[] = "CC_CallFeature_SetPeerConnection";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));

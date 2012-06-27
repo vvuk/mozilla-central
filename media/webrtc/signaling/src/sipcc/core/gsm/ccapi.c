@@ -1150,8 +1150,9 @@ cc_int_release_complete (cc_srcs_t src_id, cc_srcs_t dst_id,
 
 
 void
-cc_int_feature (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
-                line_t line, cc_features_t feature_id, cc_feature_data_t *data)
+cc_int_feature2 (cc_msgs_t msg_id, cc_srcs_t src_id, cc_srcs_t dst_id,
+                 callid_t call_id,
+                 line_t line, cc_features_t feature_id, cc_feature_data_t *data)
 {
     static const char fname[] = "cc_int_feature";
     cc_feature_t *pmsg;
@@ -1165,7 +1166,7 @@ cc_int_feature (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
         return;
     }
     
-    pmsg->msg_id     = CC_MSG_FEATURE;
+    pmsg->msg_id     = msg_id;
     pmsg->src_id     = src_id;
     pmsg->call_id    = call_id;
     pmsg->line       = line;
