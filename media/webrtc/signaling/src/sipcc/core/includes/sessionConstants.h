@@ -243,6 +243,13 @@ static const char *cc_feature_names[] = {
     "CAC FAILED",
     "FAST_PIC_UPD",
     "UNDEFINED",
+    "CREATEOFFER",
+    "CREATEANSWER",
+    "SETLOCALDESC",
+    "SETREMOTEDESC",
+    "LOCALDESC",
+    "REMOTEDESC",
+    "SETPEERCONNECTION",
     "MAX"
 };
 #endif
