@@ -32,6 +32,8 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+
 const TEST_URL_1 = "https://example.com/";
 // No trailing slash plus port to test normalization
 const TEST_URL_2 = "https://example.com:443";
@@ -51,6 +53,9 @@ function check_sandbox(aSandbox, aURL) {
   is(aSandbox._url, aURL, "matching URL (with normalization)");
   isnot(aSandbox._frame, null, "frame");
   isnot(aSandbox._container, null, "container");
+  let docPrincipal = aSandbox._frame.contentDocument.nodePrincipal;
+  is(secMan.isSystemPrincipal(docPrincipal), false,
+     "principal must not be system");
 }
 
 /**
@@ -178,9 +183,7 @@ function test_disabled_content_framed() {
 
 function test_redirect() {
   let url = TEST_BASE + "sandbox_content_redirect.html";
-  todo(false, "Make redirects work. (_makeSandboxContentLoaded checks event.target.location)");
-  //check_disabled_content(url);
-  run_next_test();
+  check_disabled_content(url);
 }
 
 function WindowObserver(aCallback) {
@@ -193,6 +196,7 @@ function WindowObserver(aCallback) {
     let domWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
     todo(!domWin, "No window should be opened");
     SimpleTest.executesoon(function() {
+      info("Closing opened window");
       domWin.close();
       aCallback();
     });
@@ -208,9 +212,12 @@ function test_alert() {
     setTimeout(function() {
 
       let win = Services.wm.getMostRecentWindow(null);
-      todo_isnot(win.document.documentElement.getAttribute("id"), "commonDialog",
+      isnot(win.document.documentElement.getAttribute("id"), "commonDialog",
                  "Make sure most recent window is not a dialog");
-      win.close();
+      if (win.document.documentElement.getAttribute("id") == "commonDialog") {
+        // If a dialog did open, close it so we don't interfere with future tests
+        win.close()
+      }
 
       free_and_check_sandbox(aSandbox);
     }, 500);
@@ -241,7 +248,7 @@ function test_popup() {
 function test_bad_cert() {
   let url = TEST_BASE + "sandbox_content.sjs?text/html";
   url = url.replace("http://mochi.test:8888", "https://untrusted.example.com");
-  check_disabled_content(url, true);
+  check_disabled_content(url, /*nothingShouldLoad=*/true);
 }
 
 let TESTS = [test_creation, test_reload, test_url_normalization];

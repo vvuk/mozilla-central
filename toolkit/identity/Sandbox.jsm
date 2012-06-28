@@ -8,6 +8,8 @@ const EXPORTED_SYMBOLS = ["Sandbox"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
+const XHTML_NS = "http://www.w3.org/1999/xhtml";
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -48,7 +50,8 @@ Sandbox.prototype = {
   },
 
   /**
-   * Reload the URL in the sandbox.
+   * Reload the URL in the sandbox. This is useful to reuse a Sandbox (same
+   * id and URL).
    */
   reload: function Sandbox_reload(aCallback) {
     this._log("reload: " + this.id + " : " + this._url);
@@ -74,30 +77,32 @@ Sandbox.prototype = {
    * property of this object.
    */
   _createFrame: function Sandbox__createFrame() {
-    // TODO: What if there is no most recent browser window? (bug 745415).
-    // Or use hiddenWindow
-    let doc = Services.wm.getMostRecentWindow("navigator:browser").document;
+    let hiddenWindow = Services.appShell.hiddenDOMWindow;
+    let doc = hiddenWindow.document;
 
     // Insert iframe in to create docshell.
-    let frame = doc.createElement("iframe");
-    frame.setAttribute("type", "content");
-    frame.setAttribute("collapsed", "true");
+    let frame = doc.createElementNS(XHTML_NS, "iframe");
+    frame.style.visibility = "collapse";
     doc.documentElement.appendChild(frame);
 
+    let docShell = frame.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                      .getInterface(Ci.nsIWebNavigation)
+                                      .QueryInterface(Ci.nsIInterfaceRequestor)
+                                      .getInterface(Ci.nsIDocShell);
+
     // Stop about:blank from being loaded.
-    let webNav = frame.docShell.QueryInterface(Ci.nsIWebNavigation);
-    webNav.stop(Ci.nsIWebNavigation.STOP_NETWORK);
+    docShell.stop(Ci.nsIWebNavigation.STOP_NETWORK);
 
     // Disable some types of content
-    webNav.allowAuth = false;
-    webNav.allowPlugins = false;
-    webNav.allowImages = false;
-    webNav.allowWindowControl = false;
+    docShell.allowAuth = false;
+    docShell.allowPlugins = false;
+    docShell.allowImages = false;
+    docShell.allowWindowControl = false;
     // TODO: disable media (bug 759964)
 
     // Disable stylesheet loading since the document is not visible.
-    let markupDocViewer = frame.docShell.contentViewer
-                               .QueryInterface(Ci.nsIMarkupDocumentViewer);
+    let markupDocViewer = docShell.contentViewer
+                                  .QueryInterface(Ci.nsIMarkupDocumentViewer);
     markupDocViewer.authorStyleDisabled = true;
 
     // Set instance properties.
@@ -110,24 +115,33 @@ Sandbox.prototype = {
     function _makeSandboxContentLoaded(event) {
       self._log("_makeSandboxContentLoaded : " + self.id + " : "
                 + event.target.location.toString());
-      if (event.target.location.toString() != self._url) {
+      if (event.target != self._frame.contentDocument) {
         return;
       }
-      self._container.removeEventListener(
-        "DOMWindowCreated", _makeSandboxContentLoaded, true
+      self._frame.removeEventListener(
+        "DOMContentLoaded", _makeSandboxContentLoaded, true
       );
 
       aCallback(self);
     };
 
-    this._container.addEventListener("DOMWindowCreated",
-                                     _makeSandboxContentLoaded,
-                                     true);
+    this._frame.addEventListener("DOMContentLoaded",
+                                 _makeSandboxContentLoaded,
+                                 true);
 
     // Load the iframe.
-    this._frame.webNavigation.loadURI(
+    let webNav = this._frame.contentWindow
+                            .QueryInterface(Ci.nsIInterfaceRequestor)
+                            .getInterface(Ci.nsIWebNavigation);
+    let docShell = this._frame.contentWindow
+                              .QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIWebNavigation)
+                              .QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIDocShell);
+
+    webNav.loadURI(
       this._url,
-      this._frame.docShell.LOAD_FLAGS_BYPASS_CACHE,
+      docShell.LOAD_FLAGS_BYPASS_CACHE,
       null, // referrer
       null, // postData
       null  // headers
