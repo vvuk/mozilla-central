@@ -206,6 +206,9 @@ let DOMIdentity = {
 
   _resetFrameState: function(aContext) {
     log("_resetFrameState: ", aContext.id);
+    if (!aContext._mm) {
+      throw new Error("ERROR: Trying to reset an invalid context");
+    }
     let message = new IDDOMMessage(aContext.id);
     aContext._mm.sendAsyncMessage("Identity:ResetState", message);
   },

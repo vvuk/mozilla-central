@@ -27,6 +27,9 @@ function setupProv() {
   // Add a provisioning flow so the DOM calls succeed
   IDP._provisionFlows[outerWinId] = {
     sandbox: {},
+    callback: function doCallback(aErr) {
+      info("provisioning callback: " + aErr);
+    },
   }
 }
 
@@ -41,6 +44,7 @@ function resetAndNext() {
       return;
     }
     makeObserver("identity-DOM-state-reset", function() {
+      info("reset done");
       SimpleTest.executeSoon(next);
     });
     DOMIdentity._resetFrameState(provContext);
@@ -54,8 +58,15 @@ let steps = [
        "Check genKeyPair is a function");
     SimpleTest.executeSoon(next);
   },
+  function genKeyPairOutsideProv() {
+    expectException(function(){
+      identity.genKeyPair(function(){});
+    }, "Check genKeyPair outside of a prov. flow");
+    SimpleTest.executeSoon(resetAndNext);
+  },
 /*
   function genKeyPairNoArgs() {
+    setupProv();
     identity.beginProvisioning(function() {
       expectException(function() {
         identity.genKeyPair();
@@ -63,6 +74,7 @@ let steps = [
       SimpleTest.executeSoon(resetAndNext);
     });
   },
+*/
   function genKeyPairInvalidArg() {
     setupProv();
     identity.beginProvisioning(function() {
@@ -72,12 +84,6 @@ let steps = [
       SimpleTest.executeSoon(next);
     });
   },
-  function genKeyPairOutsideProv() {
-    expectException(function(){
-      identity.genKeyPair(function(){});
-    }, "Check genKeyPair outside of a prov. flow");
-    SimpleTest.executeSoon(next);
-  },
 
   // registerCertificate tests
   function registerCertificateExists() {
@@ -86,6 +92,7 @@ let steps = [
     SimpleTest.executeSoon(next);
   },
   function registerCertificateNoArgs() {
+    setupProv();
     expectException(identity.registerCertificate,
                     "Check registerCertificate with no arguments");
     SimpleTest.executeSoon(next);
@@ -127,6 +134,7 @@ let steps = [
     }, "beginProvisioning with a non-function argument");
     SimpleTest.executeSoon(next);
   },
+/* TODO
   function beginProvisioningArgs() {
     function beginProvisioningCb() {
       throw "beginProvisioning callback shouldn't have been called outside of a"
@@ -134,7 +142,7 @@ let steps = [
     }
     is(identity.beginProvisioning(beginProvisioningCb), undefined,
        "Check minimum beginProvisioning arguments");
-    SimpleTest.executeSoon(next);
+    SimpleTest.executeSoon(resetAndNext);
   },
 */
   finish_tests,

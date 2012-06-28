@@ -52,6 +52,7 @@ function expectException(aFunc, msg) {
 }
 
 function next() {
+  info("next");
   if (index >= steps.length) {
     ok(false, "Shouldn't get here!");
     return;
