@@ -29,8 +29,7 @@ function test_begin_authentication_flow() {
     do_test_finished();
     run_next_test();
   });
-do_print("foo");
-try {
+
   setup_provisioning(
     TEST_USER,
     function(caller) {
@@ -39,14 +38,12 @@ try {
     }, function() {},
     {
       beginProvisioningCallback: function(email, duration_s) {
-	// let's say this user needs to authenticate
-	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+
+        // let's say this user needs to authenticate
+        IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
       }
-    });
-} catch (ex) {
-  do_print(ex);
-}
-do_print("bar");
+    }
+  );
 }
 
 function test_complete_authentication_flow() {
@@ -56,13 +53,15 @@ function test_complete_authentication_flow() {
   let id = TEST_USER;
 
   let callbacksFired = false;
-  let topicObserved = false;
+  let loginStateChanged = false;
+  let identityAuthComplete = false;
 
   // The result of authentication should be a successful login
   IDService.init();
 
   setup_test_identity(id, TEST_CERT, function() {
     // set it up so we're supposed to be logged in to TEST_URL
+
     get_idstore().setLoginState(TEST_URL, true, id);
 
     // When we authenticate, our ready callback will be fired.
@@ -74,14 +73,20 @@ function test_complete_authentication_flow() {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
 
-	// if notification already received by observer, test is done
-	callbacksFired = true;
-	if (topicObserved) {
-	  do_test_finished();
+        // if notification already received by observer, test is done
+        callbacksFired = true;
+        if (loginStateChanged && identityAuthComplete) {
+          do_test_finished();
           run_next_test();
-	}
+        }
       }
     ));
+
+    makeObserver("identity-auth-complete", function(aSubject, aTopic, aData) {
+      identityAuthComplete = true;
+      do_test_finished();
+      run_next_test();
+    });
 
     makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
       do_check_neq(aSubject, null);
@@ -90,21 +95,48 @@ function test_complete_authentication_flow() {
       do_check_eq(aData, id);
 
       // if callbacks in caller doc already fired, test is done.
-      topicObserved = true;
-      if (callbacksFired) {
-	do_test_finished();
-	run_next_test();
+      loginStateChanged = true;
+      if (callbacksFired && identityAuthComplete) {
+        do_test_finished();
+        run_next_test();
       }
     });
 
     IDService.RP.watch(mockedDoc);
+
+    // Create a provisioning flow for our auth flow to attach to
+    setup_provisioning(
+      TEST_USER,
+      function(provFlow) {
+        _provId = provFlow.id;
+
+        IDService.IDP.beginProvisioning(provFlow);
+      }, function() {},
+      {
+        beginProvisioningCallback: function(email, duration_s) {
+          // let's say this user needs to authenticate
+          IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
+
+          // test_begin_authentication_flow verifies that the right
+          // message is sent to the UI.  So that works.  Moving on,
+          // the UI calls setAuthenticationFlow ...
+          _authId = uuid();
+          IDService.IDP.setAuthenticationFlow(_authId, _provId);
+
+          // ... then the UI calls beginAuthentication ...
+          authCaller.id = _authId;
+          IDService.IDP._provisionFlows[_provId].caller = authCaller;
+          IDService.IDP.beginAuthentication(authCaller);
+        }
+      }
+    );
   });
 
   // A mock calling context
   let authCaller = {
     doBeginAuthenticationCallback: function doBeginAuthenticationCallback(identity) {
       do_check_eq(identity, TEST_USER);
-
+      // completeAuthentication will emit "identity-auth-complete"
       IDService.IDP.completeAuthentication(_authId);
     },
 
@@ -113,31 +145,6 @@ function test_complete_authentication_flow() {
     },
   };
 
-  // Create a provisioning flow for our auth flow to attach to
-  setup_provisioning(
-    TEST_USER,
-    function(provFlow) {
-      _provId = provFlow.id;
-
-      IDService.IDP.beginProvisioning(provFlow);
-    }, function() {},
-    {
-      beginProvisioningCallback: function(email, duration_s) {
-	// let's say this user needs to authenticate
-	IDService.IDP._doAuthentication(_provId, {idpParams:TEST_IDPPARAMS});
-
-	// test_begin_authentication_flow verifies that the right
-	// message is sent to the UI.  So that works.  Moving on,
-	// the UI calls setAuthenticationFlow ...
-	_authId = uuid();
-	IDService.IDP.setAuthenticationFlow(_authId, _provId);
-
-	// ... then the UI calls beginAuthentication ...
-	authCaller.id = _authId;
-	IDService.IDP._provisionFlows[_provId].caller = authCaller;
-	IDService.IDP.beginAuthentication(authCaller);
-      }
-    });
 }
 
 let TESTS = [];
