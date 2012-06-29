@@ -228,6 +228,8 @@ IDService.prototype = {
    *                   with first-positional parameter the error.
    */
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback) {
+    // XXX bug 767610 - validate email address call
+    // When that is available, we can remove this custom parser
     var parsedEmail = this.parseEmail(identity);
     if (parsedEmail === null) {
       return aCallback("Could not parse email: " + aIdentity);
