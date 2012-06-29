@@ -318,6 +318,7 @@ IdentityProviderService.prototype = {
    *                   first-positional-param error.
    */
   _doAuthentication: function _doAuthentication(aProvId, aIDPParams) {
+    log("_doAuthentication: provId:", aProvId, "idpParams:", aIDPParams);
     // create an authentication caller and its identifier AuthId
     // stash aIdentity, idpparams, and callback in it.
 
@@ -329,7 +330,6 @@ IdentityProviderService.prototype = {
     let authPath = aIDPParams.idpParams.authentication;
     let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
 
-    log("_doAuthentication: provId:", aProvId, "authURI:", authURI);
     // beginAuthenticationFlow causes the "identity-auth" topic to be
     // observed.  Since it's sending a notification to the DOM, there's
     // no callback.  We wait for the DOM to trigger the next phase of
@@ -389,7 +389,9 @@ IdentityProviderService.prototype = {
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
-      Cu.reportError("completeAuthentication: No auth flow with id " + aAuthId);
+      let errStr = "No auth flow with id " + aAuthId;
+      log("ERROR: completeAuthentication:", errStr);
+      Cu.reportError("completeAuthentication: " + errStr);
       return;
     }
     let provId = authFlow.provId;

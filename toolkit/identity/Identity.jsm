@@ -6,6 +6,8 @@
 
 "use strict";
 
+const EXPORTED_SYMBOLS = ["IdentityService"];
+
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -13,16 +15,13 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-const EXPORTED_SYMBOLS = ["IdentityService"];
+Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
+Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
+Cu.import("resource://gre/modules/identity/IdentityProvider.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this,
-                                  "IDLog",
-                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
 function log(...aMessageArgs) {
   IDLog.apply(this, [null].concat(aMessageArgs));
@@ -32,6 +31,10 @@ function IDService() {
   Services.obs.addObserver(this, "quit-application-granted", false);
   Services.obs.addObserver(this, "identity-auth-complete", false);
 
+  this._store = IdentityStore;
+  this.RP = RelyingParty;
+  this.IDP = IdentityProvider;
+
   this.init();
 }
 
@@ -40,21 +43,7 @@ IDService.prototype = {
    * Reset the state of the IDService object.
    */
   init: function init() {
-    XPCOMUtils.defineLazyModuleGetter(this,
-                                      "_store",
-                                      "resource://gre/modules/identity/IdentityStore.jsm",
-                                      "IdentityStore");
-
-    XPCOMUtils.defineLazyModuleGetter(this,
-                                      "RP",
-                                      "resource://gre/modules/identity/RelyingParty.jsm",
-                                      "RelyingParty");
-
-    XPCOMUtils.defineLazyModuleGetter(this,
-                                      "IDP",
-                                      "resource://gre/modules/identity/IdentityProvider.jsm",
-                                      "IdentityProvider");
-
+    log("IN init - store is  ", this._store);
     // Forget all identities
     this._store.init();
 
@@ -77,6 +66,7 @@ IDService.prototype = {
         if (!aSubject || !aSubject.wrappedJSObject)
           break;
         let subject = aSubject.wrappedJSObject;
+        log("NOW SELECT", aSubject.wrappedJSObject);
         // We have authenticated in order to provision an identity.
         // So try again.
         this.selectIdentity(subject.rpId, subject.identity);

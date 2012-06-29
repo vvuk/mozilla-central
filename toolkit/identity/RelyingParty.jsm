@@ -13,16 +13,13 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
 
 const EXPORTED_SYMBOLS = ["RelyingParty"];
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this,
-                                  "IDLog",
-                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
 function log(...aMessageArgs) {
   IDLog.apply(this, ["RP"].concat(aMessageArgs));
@@ -31,20 +28,18 @@ function log(...aMessageArgs) {
 function IdentityRelyingParty() {
   Services.obs.addObserver(this, "quit-application-granted", false);
 
+  this._store = IdentityStore;
+
   this.init();
 }
 
 IdentityRelyingParty.prototype = {
 
   init: function RP_init() {
-    XPCOMUtils.defineLazyModuleGetter(this,
-                                      "_store",
-                                      "resource://gre/modules/identity/IdentityStore.jsm",
-                                      "IdentityStore");
-
     // Forget all documents that call in.  (These are sometimes
     // referred to as callers.)
     this._rpFlows = {};
+    this._store.init();
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),

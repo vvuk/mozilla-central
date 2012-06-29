@@ -34,7 +34,7 @@ function keygenerator() {}
 
 keygenerator.prototype = {
   generateKeyPair: function(aAlgorithmName, aCallback) {
-    log("generate key pair");
+    log("Generate key pair; alg =", aAlgorithmName);
     IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, keypair) {
       return this._generateKeyPairFinished(rv, keypair, aCallback);
     }.bind(this));
