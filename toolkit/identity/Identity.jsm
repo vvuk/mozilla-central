@@ -39,23 +39,23 @@ function IDService() {
   this.RP = RelyingParty;
   this.IDP = IdentityProvider;
 
-  this.init();
+  this.reset();
 }
 
 IDService.prototype = {
   /**
    * Reset the state of the IDService object.
    */
-  init: function init() {
-    log("IN init - store is  ", this._store);
+  reset: function reset() {
+    log("IN reset - store is  ", this._store);
     // Forget all identities
-    this._store.init();
+    this._store.reset();
 
     // Clear RP state
-    this.RP.init();
+    this.RP.reset();
 
     // Clear IDP state
-    this.IDP.init();
+    this.IDP.reset();
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
@@ -85,7 +85,8 @@ IDService.prototype = {
     Services.obs.removeObserver(this, "identity-auth-complete");
     Services.obs.removeObserver(this, "quit-application-granted");
 
-    this.init();
+    // Don't leak after shutdown
+    this.reset();
   },
 
   /**

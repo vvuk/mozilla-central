@@ -7,8 +7,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "RelyingParty",
                                   "resource://gre/modules/identity/RelyingParty.jsm");
 
 function resetState() {
-  get_idstore().init();
-  RelyingParty.init();
+  get_idstore().reset();
+  RelyingParty.reset();
 }
 
 function test_watch_loggedin_ready() {

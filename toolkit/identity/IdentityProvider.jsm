@@ -32,12 +32,12 @@ function reportError(...aMessageArgs) {
 
 
 function IdentityProviderService() {
-  this.init();
+  this.reset();
 }
 
 IdentityProviderService.prototype = {
 
-  init: function IDP_init() {
+  reset: function IDP_reset() {
     XPCOMUtils.defineLazyModuleGetter(this,
                                       "_store",
                                       "resource://gre/modules/identity/IdentityStore.jsm",
@@ -59,7 +59,7 @@ IdentityProviderService.prototype = {
   },
 
   shutdown: function RP_shutdown() {
-    this.init();
+    this.reset();
   },
 
   get securityLevel() {

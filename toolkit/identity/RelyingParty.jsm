@@ -35,19 +35,19 @@ function IdentityRelyingParty() {
   // state in the _store on shutdown.
   this._store = IdentityStore;
 
-  this.init();
+  this.reset();
 }
 
 IdentityRelyingParty.prototype = {
 
-  init: function RP_init() {
+  reset: function RP_reset() {
     // Forget all documents that call in.  (These are sometimes
     // referred to as callers.)
     this._rpFlows = {};
   },
 
   shutdown: function RP_shutdown() {
-    this.init();
+    this.reset();
   },
 
   /**

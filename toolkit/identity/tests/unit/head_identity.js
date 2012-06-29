@@ -176,7 +176,7 @@ function call_sequentially() {
  * frame would provide in response to DOM calls.
  */
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
-  IDService.init();
+  IDService.reset();
 
   let provId = uuid();
   IDService.IDP._provisionFlows[provId] = {

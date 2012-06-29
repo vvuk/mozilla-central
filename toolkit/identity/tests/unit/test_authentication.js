@@ -57,7 +57,7 @@ function test_complete_authentication_flow() {
   let identityAuthComplete = false;
 
   // The result of authentication should be a successful login
-  IDService.init();
+  IDService.reset();
 
   setup_test_identity(id, TEST_CERT, function() {
     // set it up so we're supposed to be logged in to TEST_URL

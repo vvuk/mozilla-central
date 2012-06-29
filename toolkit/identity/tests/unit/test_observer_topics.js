@@ -26,7 +26,7 @@ function test_identity_request() {
 
   do_test_pending();
 
-  IDService.init();
+  IDService.reset();
 
   let id = "landru@mockmyid.com";
   setup_test_identity(id, TEST_CERT, function() {

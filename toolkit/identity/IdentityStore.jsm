@@ -19,7 +19,7 @@ const EXPORTED_SYMBOLS = ["IdentityStore"];
 // the data store for IDService
 // written as a separate thing so it can easily be mocked
 function IDServiceStore() {
-  this.init();
+  this.reset();
 }
 
 IDServiceStore.prototype._identities = null;
@@ -76,7 +76,7 @@ IDServiceStore.prototype = {
     delete this._loginStates[aOrigin];
   },
 
-  init: function init() {
+  reset: function Store_reset() {
     // _identities associates emails with keypairs and certificates
     this._identities = {};
 
@@ -92,7 +92,7 @@ IDServiceStore.prototype = {
     switch (aTopic) {
       case "quit-application-granted":
         Services.obs.removeObserver(this, "quit-application-granted");
-        this.init();
+        this.reset();
         break;
     }
   },

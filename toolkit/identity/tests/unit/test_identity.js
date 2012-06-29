@@ -24,7 +24,7 @@ function test_mock_doc() {
 }
 
 function test_add_identity() {
-  IDService.init();
+  IDService.reset();
 
   IDService.addIdentity(TEST_USER);
 
@@ -38,7 +38,7 @@ function test_add_identity() {
 function test_select_identity() {
   do_test_pending();
 
-  IDService.init();
+  IDService.reset();
 
   let id = "ishtar@mockmyid.com";
   setup_test_identity(id, TEST_CERT, function() {
