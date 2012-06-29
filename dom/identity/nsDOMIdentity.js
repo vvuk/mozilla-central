@@ -466,8 +466,6 @@ nsDOMIdentityInternal.prototype = {
       Services.prefs.getPrefType(PREF_DEBUG) == Ci.nsIPrefBranch.PREF_BOOL
       && Services.prefs.getBoolPref(PREF_DEBUG);
 
-    this._log("init was called from " + aWindow.document.location);
-
     this._identity = new nsDOMIdentity(this);
 
     this._identity._init(aWindow);
@@ -476,6 +474,8 @@ nsDOMIdentityInternal.prototype = {
                       .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
+
+    this._log("init was called from " + aWindow.document.location);
 
     this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                       .getInterface(Ci.nsIWebNavigation)
