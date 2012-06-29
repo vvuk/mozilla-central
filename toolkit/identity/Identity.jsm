@@ -89,6 +89,20 @@ IDService.prototype = {
   },
 
   /**
+   * Parse an email into username and domain if it is valid, else return null
+   */
+  parseEmail: function parseEmail(email) {
+    var match = email.match(/^([^@]+)@([^@^/]+.[a-z]+)$/);
+    if (match) {
+      return {
+        username: match[1],
+        domain: match[2]
+      };
+    }
+    return null;
+  },
+
+  /**
    * The UX wants to add a new identity
    * often followed by selectIdentity()
    *
@@ -213,8 +227,11 @@ IDService.prototype = {
    *                   with first-positional parameter the error.
    */
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback) {
-    let domain = aIdentity.split('@')[1];
-    log("_discoverIdentityProvider: identity:", aIdentity, "domain:", domain);
+    var parsedEmail = this.parseEmail(identity);
+    if (parsedEmail === null) {
+      return aCallback("Could not parse email: " + aIdentity);
+    }
+    log("_discoverIdentityProvider: identity:", aIdentity, "domain:", parsedEmail.domain);
 
     this._fetchWellKnownFile(domain, function fetchedWellKnown(err, idpParams) {
       // idpParams includes the pk, authorization url, and

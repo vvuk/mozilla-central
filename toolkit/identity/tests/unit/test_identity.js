@@ -86,10 +86,26 @@ function test_select_identity() {
   });
 }
 
+function test_parse_good_email() {
+  var parsed = IDService.parseEmail('prime-minister@jed.gov');
+  do_check_eq(parsed.username, 'prime-minister');
+  do_check_eq(parsed.domain, 'jed.gov');
+  run_next_test();
+}
+
+function test_parse_bogus_emails() {
+  do_check_eq(null, IDService.parseEmail('@evil.org'));
+  do_check_eq(null, IDService.parseEmail('foo@bar@baz.com'));
+  do_check_eq(null, IDService.parseEmail('you@wellsfargo.com/accounts/transfer?to=dolske&amt=all'));
+  run_next_test();
+}
+
 let TESTS = [test_overall, test_mock_doc];
 
 TESTS.push(test_add_identity);
 TESTS.push(test_select_identity);
+TESTS.push(test_parse_good_email);
+TESTS.push(test_parse_bogus_emails);
 
 TESTS.forEach(add_test);
 
