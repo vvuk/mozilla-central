@@ -33,7 +33,7 @@ function test_well_known_1() {
     server.stop(run_next_test);
   }
 
-  IDService._fetchWellKnownFile(hostPort, "http", check_well_known);
+  IDService._fetchWellKnownFile(hostPort, check_well_known, "http");
 }
 
 // valid domain, non-exixtent browserid file
@@ -55,7 +55,7 @@ function test_well_known_404() {
     server.stop(run_next_test);
   }
 
-  IDService._fetchWellKnownFile(hostPort, "http", check_well_known_404);
+  IDService._fetchWellKnownFile(hostPort, check_well_known_404, "http");
 }
 
 // valid domain, invalid browserid file (no "provisioning" member)
@@ -78,7 +78,7 @@ function test_well_known_invalid_1() {
     server.stop(run_next_test);
   }
 
-  IDService._fetchWellKnownFile(hostPort, "http", check_well_known_invalid_1);
+  IDService._fetchWellKnownFile(hostPort, check_well_known_invalid_1, "http");
 }
 
 let TESTS = [test_well_known_1, test_well_known_404, test_well_known_invalid_1];

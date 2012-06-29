@@ -260,11 +260,7 @@ IDService.prototype = {
    * @param aCallback
    *
    */
-  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aScheme, aCallback) {
-    if (arguments.length <= 2) {
-      aCallback = aScheme;
-      aScheme = "https";
-    }
+  _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback, aScheme='https') {
     let url = aScheme + '://' + aDomain + "/.well-known/browserid";
     log("_fetchWellKnownFile:", url);
 
