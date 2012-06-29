@@ -274,8 +274,10 @@ IDService.prototype = {
     req.responseType = "json";
     req.mozBackgroundRequest = true;
     req.onload = function _fetchWellKnownFile_onload() {
-      if (req.status < 200 || req.status >= 400)
-        return aCallback(req.status);
+      if (req.status < 200 || req.status >= 400) {
+        log("_fetchWellKnownFile", url, ": server returned status:", req.status);
+        return aCallback("Error");
+      }
       try {
         let idpParams = req.response;
 

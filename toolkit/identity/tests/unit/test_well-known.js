@@ -49,7 +49,7 @@ function test_well_known_404() {
   let hostPort = "localhost:" + SERVER_PORT;
 
   function check_well_known_404(aErr, aCallbackObj) {
-    do_check_eq(404, aErr);
+    do_check_eq("Error", aErr);
     do_check_eq(undefined, aCallbackObj);
     do_test_finished();
     server.stop(run_next_test);
