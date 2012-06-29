@@ -94,7 +94,7 @@ IdentityProviderService.prototype = {
     // with a sandbox.  Otherwise, get a sandbox and create a
     // new provision flow.
 
-    if (aProvId !== null) {
+    if (aProvId) {
       // Re-use an existing sandbox
       log("_provisionIdentity: re-using sandbox in provisioning flow with id:", aProvId);
       this._provisionFlows[aProvId].provisioningSandbox.reload();

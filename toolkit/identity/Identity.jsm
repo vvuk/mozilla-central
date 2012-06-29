@@ -111,7 +111,6 @@ IDService.prototype = {
   selectIdentity: function selectIdentity(aRPId, aIdentity) {
     log("selectIdentity: RP id:", aRPId, "identity:", aIdentity);
 
-    let self = this;
     // Get the RP that was stored when watch() was invoked.
     let rp = this.RP._rpFlows[aRPId];
     if (!rp) {
@@ -123,9 +122,8 @@ IDService.prototype = {
 
     // It's possible that we are in the process of provisioning an
     // identity.
-    let provId = rp.provId || null;
+    let provId = rp.provId;
 
-    // XXX consolidate rp, flows, etc. ?
     let rpLoginOptions = {
       loggedInEmail: aIdentity,
       origin: rp.origin
@@ -134,7 +132,8 @@ IDService.prototype = {
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
-    self.RP._generateAssertion(rp.origin, aIdentity, function hadReadyAssertion(err, assertion) {
+    let self = this;
+    this.RP._generateAssertion(rp.origin, aIdentity, function hadReadyAssertion(err, assertion) {
       if (!err && assertion) {
         self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
@@ -161,41 +160,38 @@ IDService.prototype = {
             // At this point, we already have a cert.  If the user is also
             // already authenticated with the IdP, then we can try again
             // to generate an assertion and login.
-            if (!err) {
-              // XXX quick hack - cleanup is done by registerCertificate
-              // XXX order of callbacks and signals is a little tricky
-              //self._cleanUpProvisionFlow(aProvId);
-              self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
-                if (!err) {
-                  self.RP._doLogin(rp, rpLoginOptions, assertion);
-                  self.RP._cleanUpProvisionFlow(aRPId, aProvId);
-                  return;
-                } else {
-                  rp.doError(err);
-                  return;
-                }
-              });
+            if (err) {
+              // We are not authenticated.  If we have already tried to
+              // authenticate and failed, then this is a "hard fail" and
+              // we give up.  Otherwise we try to authenticate with the
+              // IdP.
 
-            // We are not authenticated.  If we have already tried to
-            // authenticate and failed, then this is a "hard fail" and
-            // we give up.  Otherwise we try to authenticate with the
-            // IdP.
-            } else {
               if (self.IDP._provisionFlows[aProvId].didAuthentication) {
                 self.IDP._cleanUpProvisionFlow(aProvId);
                 self.RP._cleanUpProvisionFlow(aRPId, aProvId);
                 log("ERROR: selectIdentity: authentication hard fail");
                 rp.doError("Authentication fail.");
                 return;
+              }
+              // Try to authenticate with the IdP.  Note that we do
+              // not clean up the provision flow here.  We will continue
+              // to use it.
+              self.IDP._doAuthentication(aProvId, idpParams);
+              return;
+            }
 
-              } else {
-                // Try to authenticate with the IdP.  Note that we do
-                // not clean up the provision flow here.  We will continue
-                // to use it.
-                self.IDP._doAuthentication(aProvId, idpParams);
+            // Provisioning flows end when a certificate has been registered.
+            // Thus IdentityProvider's registerCertificate() cleans up the
+            // current provisioning flow.  We only do this here on error.
+            self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
+              if (err) {
+                rp.doError(err);
                 return;
               }
-            }
+              self.RP._doLogin(rp, rpLoginOptions, assertion);
+              self.RP._cleanUpProvisionFlow(aRPId, aProvId);
+              return;
+            });
           });
         });
       }

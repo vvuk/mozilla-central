@@ -63,12 +63,8 @@ function IDServiceStore() {
   this.init();
 }
 
-// _identities will associate emails with keypairs and certificates
 IDServiceStore.prototype._identities = null;
 
-// _loginStates will associate remote origins with a login status and
-// the email the user has chosen as his or her identity when logging
-// into that origin.
 IDServiceStore.prototype._loginStates = null;
 
 // Note: eventually these methods may be async, but we haven no need for this
@@ -122,7 +118,12 @@ IDServiceStore.prototype = {
   },
 
   init: function init() {
+    // _identities associates emails with keypairs and certificates
     this._identities = {};
+
+    // _loginStates associates. remote origins with a login status and
+    // the email the user has chosen as his or her identity when logging
+    // into that origin.
     this._loginStates = {};
   },
 
