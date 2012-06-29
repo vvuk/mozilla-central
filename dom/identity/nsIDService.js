@@ -31,5 +31,4 @@ IDService.prototype = {
   }
 };
 
-const components = [IDService];
-const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([IDService]);
