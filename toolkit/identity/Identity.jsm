@@ -304,15 +304,9 @@ IDService.prototype = {
       }
     };
     req.onerror = function _fetchWellKnownFile_onerror() {
-      let err = "Failed to fetch well-known file";
-      if (req.status) {
-        err += " " + req.status + ":";
-      }
-      if (req.statusText) {
-        err += " " + req.statusText;
-      }
+      log("_fetchWellKnownFile", "ERROR:", req.status, req.statusText);
       log("ERROR: _fetchWellKnownFile:", err);
-      return aCallback(err);
+      return aCallback("Error");
     };
     req.send(null);
   },
