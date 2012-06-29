@@ -79,6 +79,7 @@ IDService.prototype = {
     this.init();
     try {
       Services.obs.removeObserver(this, "identity-auth-complete");
+      Services.obs.removeObserver(this, "quit-application-granted");
     } catch (ex) {}
   },
 

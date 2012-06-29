@@ -31,9 +31,6 @@ function log(...aMessageArgs) {
 }
 
 function IdentityProviderService() {
-  Services.obs.addObserver(this, "quit-application-granted", false);
-  // NB, prefs.addObserver and obs.addObserver have different interfaces
-
   this.init();
 }
 
@@ -60,22 +57,8 @@ IdentityProviderService.prototype = {
     this._authenticationFlows = {};
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-
-  observe: function observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "quit-application-granted":
-        Services.obs.removeObserver(this, "quit-application-granted");
-        this.shutdown();
-        break;
-    }
-  },
-
   shutdown: function RP_shutdown() {
     this.init();
-    try {
-      Services.obs.removeObserver(this, "nsPref:changed");
-    } catch (ex) {}
   },
 
   get securityLevel() {

@@ -26,8 +26,9 @@ function log(...aMessageArgs) {
 }
 
 function IdentityRelyingParty() {
-  Services.obs.addObserver(this, "quit-application-granted", false);
-
+  // The store is a singleton shared among Identity, RelyingParty, and
+  // IdentityProvider.  The Identity module takes care of resetting
+  // state in the _store on shutdown.
   this._store = IdentityStore;
 
   this.init();
@@ -39,18 +40,6 @@ IdentityRelyingParty.prototype = {
     // Forget all documents that call in.  (These are sometimes
     // referred to as callers.)
     this._rpFlows = {};
-    this._store.init();
-  },
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
-
-  observe: function observe(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "quit-application-granted":
-        Services.obs.removeObserver(this, "quit-application-granted");
-        this.shutdown();
-        break;
-    }
   },
 
   shutdown: function RP_shutdown() {
