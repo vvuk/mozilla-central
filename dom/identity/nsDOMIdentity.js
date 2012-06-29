@@ -48,12 +48,12 @@ nsDOMIdentity.prototype = {
    */
 
   watch: function nsDOMIdentity_watch(aOptions) {
-    this._log("Called watch with loggedInEmail " + aOptions.loggedInEmail);
+    this._log("watch");
     if (this._rpWatcher) {
       throw new Error("navigator.id.watch was already called");
     }
 
-    if (typeof(aOptions) !== "object" && aOptions != null) {
+    if (!aOptions || typeof(aOptions) !== "object") {
       throw new Error("options argument to watch is required");
     }
 
@@ -82,7 +82,7 @@ nsDOMIdentity.prototype = {
         throw new Error("loggedInEmail must be a String or null");
       }
 
-      // TODO: Bug 767610 check email format.
+      // TODO: Bug 767610 - check email format.
       // See nsHTMLInputElement::IsValidEmailAddress
       if (aOptions["loggedInEmail"].indexOf("@") == -1
           || aOptions["loggedInEmail"].length > MAX_STRING_LENGTH) {
@@ -91,15 +91,14 @@ nsDOMIdentity.prototype = {
       // Set loggedInEmail in this block that "undefined" doesn't get through.
       message.loggedInEmail = aOptions.loggedInEmail;
     }
+    this._log("loggedInEmail: " + message.loggedInEmail);
 
     this._rpWatcher = aOptions;
-
     this._identityInternal._mm.sendAsyncMessage("Identity:RP:Watch", message);
   },
 
   request: function nsDOMIdentity_request(aOptions) {
-    // TODO: "This function must be invoked from within a click handler."
-    // This is doable once nsEventStateManager::IsHandlingUserInput is scriptable.
+    // TODO: Bug 769569 - "must be invoked from within a click handler"
 
     // Has the caller called watch() before this?
     if (!this._rpWatcher) {
@@ -134,6 +133,7 @@ nsDOMIdentity.prototype = {
         this._onCancelRequestCallback = aOptions.oncancel;
       }
     }
+
     this._rpCalls++;
     this._identityInternal._mm.sendAsyncMessage("Identity:RP:Request", message);
   },
@@ -163,6 +163,7 @@ nsDOMIdentity.prototype = {
     if (!aCallback || typeof(aCallback) !== "function") {
       throw new Error("beginProvisioning callback is required.");
     }
+
     this._beginProvisioningCallback = aCallback;
     this._identityInternal._mm.sendAsyncMessage("Identity:IDP:BeginProvisioning",
                                                 this.DOMIdentityMessage());
@@ -182,7 +183,7 @@ nsDOMIdentity.prototype = {
 
     this._genKeyPairCallback = aCallback;
     this._identityInternal._mm.sendAsyncMessage("Identity:IDP:GenKeyPair",
-                              this.DOMIdentityMessage());
+                                                this.DOMIdentityMessage());
   },
 
   registerCertificate: function nsDOMIdentity_registerCertificate(aCertificate) {
@@ -204,6 +205,9 @@ nsDOMIdentity.prototype = {
     this._log("raiseProvisioningFailure '" + aReason + "'");
     if (this._provisioningEnded) {
       throw new Error("Provisioning already ended");
+    }
+    if (!aReason || typeof(aReason) != "string") {
+      throw new Error("raiseProvisioningFailure reason is required");
     }
     this._provisioningEnded = true;
 
@@ -230,7 +234,7 @@ nsDOMIdentity.prototype = {
 
     this._beginAuthenticationCallback = aCallback;
     this._identityInternal._mm.sendAsyncMessage("Identity:IDP:BeginAuthentication",
-                              this.DOMIdentityMessage());
+                                                this.DOMIdentityMessage());
   },
 
   completeAuthentication: function nsDOMIdentity_completeAuthentication() {
@@ -241,21 +245,26 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.completeAuthentication called outside of authentication");
     }
     this._authenticationEnded = true;
+
     this._identityInternal._mm.sendAsyncMessage("Identity:IDP:CompleteAuthentication",
-                              this.DOMIdentityMessage());
+                                                this.DOMIdentityMessage());
   },
 
   raiseAuthenticationFailure: function nsDOMIdentity_raiseAuthenticationFailure(aReason) {
     if (this._authenticationEnded) {
       throw new Error("Authentication already ended");
     }
+    if (!aReason || typeof(aReason) != "string") {
+      throw new Error("raiseProvisioningFailure reason is required");
+    }
+
     let message = this.DOMIdentityMessage();
     message.reason = aReason;
     this._identityInternal._mm.sendAsyncMessage("Identity:IDP:AuthenticationFailure", message);
   },
 
   // Private.
-  _init: function(aWindow) {
+  _init: function nsDOMIdentity__init(aWindow) {
 
     this._initializeState();
 
@@ -265,14 +274,14 @@ nsDOMIdentity.prototype = {
 
     // Setup identifiers for current window.
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIDOMWindowUtils);
+                      .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
   },
 
   /**
    * Called during init and shutdown.
    */
-  _initializeState: function() {
+  _initializeState: function nsDOMIdentity__initializeState() {
     // Some state to prevent abuse
     // Limit the number of calls to .request
     this._rpCalls = 0;
@@ -395,7 +404,7 @@ nsDOMIdentity.prototype = {
   /**
    * Helper to create messages to send using a message manager
    */
-  DOMIdentityMessage: function DOMIdentityMessage() { // TODO: rename
+  DOMIdentityMessage: function DOMIdentityMessage() {
     return {
       id: this._id,
       origin: this._origin,
@@ -412,7 +421,7 @@ function nsDOMIdentityInternal() {
 nsDOMIdentityInternal.prototype = {
 
   // nsIFrameMessageListener
-  receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
+  receiveMessage: function nsDOMIdentityInternal_receiveMessage(aMessage) {
     let msg = aMessage.json;
     // Is this message intended for this window?
     if (msg.id != this._id) {
@@ -422,7 +431,7 @@ nsDOMIdentityInternal.prototype = {
   },
 
   // nsIObserver
-  observe: function nsDOMIdentity_observe(aSubject, aTopic, aData) {
+  observe: function nsDOMIdentityInternal_observe(aSubject, aTopic, aData) {
     let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
     if (wId != this._innerWindowID) {
       return;
@@ -447,7 +456,7 @@ nsDOMIdentityInternal.prototype = {
   },
 
   // nsIDOMGlobalPropertyInitializer
-  init: function nsDOMIdentity_init(aWindow) {
+  init: function nsDOMIdentityInternal_init(aWindow) {
     if (Services.prefs.getPrefType(PREF_ENABLED) != Ci.nsIPrefBranch.PREF_BOOL
         || !Services.prefs.getBoolPref(PREF_ENABLED)) {
       return null;
@@ -464,14 +473,14 @@ nsDOMIdentityInternal.prototype = {
     this._identity._init(aWindow);
 
     let util = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIDOMWindowUtils);
+                      .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
     this._innerWindowID = util.currentInnerWindowID;
 
     this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIWebNavigation)
-                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIContentFrameMessageManager);
+                      .getInterface(Ci.nsIWebNavigation)
+                      .QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIContentFrameMessageManager);
 
     // Setup listeners for messages from parent process.
     this._messages = [
@@ -495,7 +504,7 @@ nsDOMIdentityInternal.prototype = {
   },
 
   // Private.
-  _log: function nsDOMIdentity__log(msg) {
+  _log: function nsDOMIdentityInternal__log(msg) {
     if (!this._debug) {
       return;
     }

@@ -34,25 +34,27 @@ function makeObserver(aObserveTopic, aObserveFunc) {
   Services.obs.addObserver(observe, aObserveTopic, false);
 }
 
-function expectException(aFunc, msg) {
+function expectException(aFunc, msg, aErrorType="Error") {
+  info("Expecting an exception: " + msg);
   msg = msg || "";
-  let caughtEx;
+  let caughtEx = null;
   try {
     aFunc();
   } catch (ex) {
-    info("caught: " + ex);
+    let exProto = Object.getPrototypeOf(ex);
     // Don't count NS_* exceptions since they shouldn't be exposed to content
-    if (ex.toString().indexOf("NS_ERROR_FAILURE") == -1) {
+    if (exProto.toString() == aErrorType
+        && ex.toString().indexOf("NS_ERROR_FAILURE") == -1) {
       caughtEx = ex;
     } else {
       ok(false, ex);
+      return;
     }
   }
-  ok(caughtEx, "Check for thrown exception: " + msg);
+  isnot(caughtEx, null, "Check for thrown exception.");
 }
 
 function next() {
-  info("next");
   if (index >= steps.length) {
     ok(false, "Shouldn't get here!");
     return;

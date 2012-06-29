@@ -47,7 +47,7 @@ function resetAndNext() {
       info("reset done");
       SimpleTest.executeSoon(next);
     });
-    DOMIdentity._resetFrameState(provContext);
+    DOMIdentity._resetFrameState(provContext.caller);
   }, 500);
 }
 
@@ -62,9 +62,8 @@ let steps = [
     expectException(function(){
       identity.genKeyPair(function(){});
     }, "Check genKeyPair outside of a prov. flow");
-    SimpleTest.executeSoon(resetAndNext);
+    SimpleTest.executeSoon(next);
   },
-/*
   function genKeyPairNoArgs() {
     setupProv();
     identity.beginProvisioning(function() {
@@ -74,14 +73,13 @@ let steps = [
       SimpleTest.executeSoon(resetAndNext);
     });
   },
-*/
   function genKeyPairInvalidArg() {
     setupProv();
     identity.beginProvisioning(function() {
       expectException(function() {
         identity.genKeyPair(999);
       }, "Check genKeyPair with non-function object argument");
-      SimpleTest.executeSoon(next);
+      SimpleTest.executeSoon(resetAndNext);
     });
   },
 
@@ -93,9 +91,12 @@ let steps = [
   },
   function registerCertificateNoArgs() {
     setupProv();
-    expectException(identity.registerCertificate,
-                    "Check registerCertificate with no arguments");
-    SimpleTest.executeSoon(next);
+    identity.beginProvisioning(function() {
+      expectException(function() {
+        identity.registerCertificate();
+      }, "Check registerCertificate with no arguments");
+    });
+    SimpleTest.executeSoon(resetAndNext);
   },
   function registerCertificateOutsideProv() {
     expectException(function(){
@@ -111,8 +112,13 @@ let steps = [
     SimpleTest.executeSoon(next);
   },
   function raiseProvisioningFailureNoArgs() {
-    expectException(identity.raiseProvisioningFailure,
-                    "raiseProvisioningFailure with no arguments");
+    expectException(function() {
+      identity.raiseProvisioningFailure();
+    }, "raiseProvisioningFailure with no arguments");
+    SimpleTest.executeSoon(next);
+  },
+  function raiseProvisioningFailureWithReason() {
+    identity.raiseProvisioningFailure("my test reason");
     SimpleTest.executeSoon(next);
   },
 
@@ -134,17 +140,14 @@ let steps = [
     }, "beginProvisioning with a non-function argument");
     SimpleTest.executeSoon(next);
   },
-/* TODO
   function beginProvisioningArgs() {
     function beginProvisioningCb() {
-      throw "beginProvisioning callback shouldn't have been called outside of a"
-              + "provisioning flow";
+      SimpleTest.executeSoon(resetAndNext);
     }
     is(identity.beginProvisioning(beginProvisioningCb), undefined,
        "Check minimum beginProvisioning arguments");
-    SimpleTest.executeSoon(resetAndNext);
   },
-*/
+
   finish_tests,
 ];
 

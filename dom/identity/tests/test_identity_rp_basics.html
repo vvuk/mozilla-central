@@ -43,7 +43,7 @@ let steps = [
     is(identity.foobarbaz, undefined, "Check that foobarbaz does not exist");
     expectException(function() {
       identity.foobarbaz()
-    }, "Check for exception calling non-existent method");
+    }, "Check for exception calling non-existent method", "TypeError");
     SimpleTest.executeSoon(next);
   },
 
@@ -88,11 +88,10 @@ let steps = [
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
     }
-    is(identity.watch({onlogin: onLoginLogoutCb, onlogout: onLoginLogoutCb}), undefined,
-       "Check minimum watch argument members");
+    is(identity.watch({onlogin: onLoginLogoutCb, onlogout: onLoginLogoutCb}),
+       undefined, "Check minimum watch argument members");
     resetAndNext();
   },
-/*
   function watchOnReadyType() {
     function onLoginLogoutCb() {
       throw "onlogin/onlogout callback shouldn't have been called";
@@ -100,14 +99,27 @@ let steps = [
     let options = {
       onlogin: onLoginLogoutCb,
       onlogout: onLoginLogoutCb,
-      onready: 999
+      onready: 999,
     }
     expectException(function() {
       identity.watch(options)
     }, "Check onready type");
     resetAndNext();
   },
-*/
+  function watchLoggedInEmailType() {
+    function onLoginLogoutCb() {
+      throw "onlogin/onlogout callback shouldn't have been called";
+    }
+    let options = {
+      onlogin: onLoginLogoutCb,
+      onlogout: onLoginLogoutCb,
+      loggedInEmail: {},
+    }
+    expectException(function() {
+      identity.watch(options)
+    }, "Check loggedInEmail type");
+    resetAndNext();
+  },
   function watchOnReadyCalled() {
     let onLogoutCalled = false;
     let options = {

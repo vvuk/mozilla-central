@@ -27,12 +27,6 @@ let steps = [
        "Check completeAuthentication is a function");
     SimpleTest.executeSoon(next);
   },
-  function completeAuthenticationInvalidArg() {
-    expectException(function() {
-      identity.completeAuthentication(999);
-    }, "Check completeAuthentication with extra argument");
-    SimpleTest.executeSoon(next);
-  },
   function completeAuthenticationOutsideFlow() {
     expectException(function() {
       identity.completeAuthentication();
@@ -47,8 +41,9 @@ let steps = [
     SimpleTest.executeSoon(next);
   },
   function raiseAuthenticationFailureNoArgs() {
-    expectException(identity.raiseAuthenticationFailure,
-                    "raiseAuthenticationFailure with no arguments");
+    expectException(function() {
+      identity.raiseAuthenticationFailure();
+    }, "raiseAuthenticationFailure with no arguments");
     SimpleTest.executeSoon(next);
   },
 
