@@ -23,8 +23,8 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
-                                  "IDLog",
-                                  "resource://gre/modules/identity/IdentityStore.jsm");
+                                  "Logger",
+                                  "resource://gre/modules/identity/LogUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "uuidGenerator",
@@ -74,7 +74,7 @@ registrar.registerFactory(Components.ID("{fbfae60b-64a4-44ef-a911-08ceb70b9f31}"
 // The following are utility functions for Identity testing
 
 function log(...aMessageArgs) {
-  IDLog.apply(this, ["test"].concat(aMessageArgs));
+  Logger.log(["test"].concat(aMessageArgs));
 }
 
 function get_idstore() {

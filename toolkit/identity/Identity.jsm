@@ -15,6 +15,7 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
 Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
 Cu.import("resource://gre/modules/identity/IdentityProvider.jsm");
@@ -24,7 +25,10 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
 function log(...aMessageArgs) {
-  IDLog.apply(this, [null].concat(aMessageArgs));
+  Logger.log([null].concat(aMessageArgs));
+}
+function reportError(...aMessageArgs) {
+  Logger.reportError([null].concat(aMessageArgs));
 }
 
 function IDService() {
@@ -114,9 +118,7 @@ IDService.prototype = {
     // Get the RP that was stored when watch() was invoked.
     let rp = this.RP._rpFlows[aRPId];
     if (!rp) {
-      let errStr = "Cannot select identity for invalid RP with id: " + aRPId;
-      log("ERROR: selectIdentity:", errStr);
-      Cu.reportError(errStr);
+      reportError("selectIdentity", "Invalid RP id: ", aRPId);
       return;
     }
 
@@ -282,9 +284,7 @@ IDService.prototype = {
         return aCallback(null, callbackObj);
 
       } catch (err) {
-        let errStr = "Bad configuration from " + aDomain + ": " + err;
-        Cu.reportError(errStr);
-        log("ERROR: _fetchWellKnownFile:", errStr);
+        reportError("_fetchWellKnownFile", "Bad configuration from", aDomain, err);
         return aCallback(err.toString());
       }
     };

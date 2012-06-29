@@ -12,6 +12,7 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
@@ -150,7 +151,7 @@ Sandbox.prototype = {
   },
 
   _log: function Sandbox__log(...aMessageArgs) {
-    IDLog.apply(this, ["Sandbox"].concat(aMessageArgs));
+    Logger.logger(["Sandbox"].concat(aMessageArgs));
   },
 
 };

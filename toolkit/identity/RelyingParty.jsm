@@ -13,6 +13,7 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 Cu.import("resource://gre/modules/identity/IdentityStore.jsm");
 
 const EXPORTED_SYMBOLS = ["RelyingParty"];
@@ -22,7 +23,10 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
 function log(...aMessageArgs) {
-  IDLog.apply(this, ["RP"].concat(aMessageArgs));
+  Logger.log(["RP"].concat(aMessageArgs));
+}
+function reportError(...aMessageArgs) {
+  Logger.reportError(["RP"].concat(aMessageArgs));
 }
 
 function IdentityRelyingParty() {
@@ -139,9 +143,7 @@ IdentityRelyingParty.prototype = {
     } else {
       this._getAssertion(aOptions, function gotAssertion(err, assertion) {
         if (err) {
-          let errStr = "Failed to get assertion on login attempt: " + err;
-          log("ERROR: _doLogin:", errStr);
-          Cu.reportError(errStr);
+          reportError("_doLogin:", "Failed to get assertion on login attempt:", err);
           this._doLogout(aRpCaller);
         } else {
           loginWithAssertion(assertion);

@@ -13,6 +13,7 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
@@ -27,7 +28,7 @@ const EXPORTED_SYMBOLS = ["jwcrypto"];
 const ALGORITHMS = { RS256: "RS256", DS160: "DS160" };
 
 function log(...aMessageArgs) {
-  IDLog.apply(this, ["jwcrypto"].concat(aMessageArgs));
+  Logger.log(["jwcrypto"].concat(aMessageArgs));
 }
 
 function keygenerator() {}

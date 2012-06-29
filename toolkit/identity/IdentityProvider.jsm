@@ -13,6 +13,7 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 Cu.import("resource://gre/modules/identity/Sandbox.jsm");
 
 const EXPORTED_SYMBOLS = ["IdentityProvider"];
@@ -22,13 +23,13 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "jwcrypto",
                                   "resource://gre/modules/identity/jwcrypto.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this,
-                                  "IDLog",
-                                  "resource://gre/modules/identity/IdentityStore.jsm");
-
 function log(...aMessageArgs) {
-  IDLog.apply(this, ["IDP"].concat(aMessageArgs));
+  Logger.log(["IDP"].concat(aMessageArgs));
 }
+function reportError(...aMessageArgs) {
+  Logger.reportError(["IDP"].concat(aMessageArgs));
+}
+
 
 function IdentityProviderService() {
   this.init();
@@ -176,15 +177,12 @@ IdentityProviderService.prototype = {
    * @param aReason
    */
   raiseProvisioningFailure: function raiseProvisioningFailure(aProvId, aReason) {
-    log("ERROR: Provisioning failure:", aReason);
-    Cu.reportError("Provisioning failure: " + aReason);
+    reportError("Provisioning failure", aReason);
 
     // look up the provisioning caller and its callback
     let provFlow = this._provisionFlows[aProvId];
     if (!provFlow) {
-      let errStr = "No provisioning flow found with id:" + aProvId;
-      log("ERROR: raiseProvisioningFailure:", errStr);
-      Cu.reportError(errStr);
+      reportError("Provisioning failure", "No provisioning flow with id", aProvId);
       return;
     }
 
@@ -265,17 +263,12 @@ IdentityProviderService.prototype = {
     // look up provisioning caller, make sure it's valid.
     let provFlow = this._provisionFlows[aProvId];
     if (!provFlow && provFlow.caller) {
-      let errStr = "Cannot register cert; No provision flow or caller";
-      log("ERROR: registerCertificate:", errStr);
-      Cu.reportError(errStr);
-
-      // there is nobody to call back to
+      reportError("registerCertificate", "No provision flow or caller");
       return;
     }
     if (!provFlow.kp)  {
       let errStr = "Cannot register a certificate without a keypair";
-      log("ERROR: registerCertificate:", errStr);
-      Cu.reportError(errStr);
+      reportError("registerCertificate", errStr);
       provFlow.callback(errStr);
       return;
     }
@@ -372,9 +365,7 @@ IdentityProviderService.prototype = {
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
-      let errStr = "No auth flow with id " + aAuthId;
-      log("ERROR: completeAuthentication:", errStr);
-      Cu.reportError("completeAuthentication: " + errStr);
+      reportError("completeAuthentication", "No auth flow with id", aAuthId);
       return;
     }
     let provId = authFlow.provId;
@@ -405,7 +396,7 @@ IdentityProviderService.prototype = {
     // look up the AuthId caller, and get its callback.
     let authFlow = this._authenticationFlows[aAuthId];
     if (!authFlow) {
-      Cu.reportError("cancelAuthentication: No auth flow with id " + aAuthId);
+      reportError("cancelAuthentication", "No auth flow with id:", aAuthId);
       return;
     }
     let provId = authFlow.provId;

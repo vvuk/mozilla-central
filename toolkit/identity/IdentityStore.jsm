@@ -14,52 +14,11 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const EXPORTED_SYMBOLS = ["IdentityStore", "IDLog"];
-
-const PREF_DEBUG = "toolkit.identity.debug";
-
-/**
- * IDLog() - utility function to print a list of arbitrary things
- * Depends on IdentityStore (bottom of this file) for _debug.
- *
- * Enable with about:config pref toolkit.identity.debug
- */
-function IDLog(aPrefix, ...args) {
-  if (!IdentityStore._debug) {
-    return;
-  }
-  aPrefix = aPrefix || "";
-  let strings = [];
-
-  args.forEach(function(arg) {
-    if (typeof arg === 'string') {
-      strings.push(arg);
-    } else if (typeof arg === 'undefined') {
-      strings.push('undefined');
-    } else if (arg === null) {
-      strings.push('null');
-    } else {
-      try {
-        strings.push(JSON.stringify(arg, null, 2));
-      } catch(err) {
-        strings.push("<<something>>");
-      }
-    }
-  });
-  let output = 'Identity ' + aPrefix + ': ' + strings.join(' ') + '\n';
-  dump(output);
-
-  // Additionally, make the output visible in the Error Console
-  Services.console.logStringMessage(output);
-};
-
+const EXPORTED_SYMBOLS = ["IdentityStore"];
 
 // the data store for IDService
 // written as a separate thing so it can easily be mocked
 function IDServiceStore() {
-  Services.prefs.addObserver(PREF_DEBUG, this, false);
-  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
-
   this.init();
 }
 
@@ -133,11 +92,7 @@ IDServiceStore.prototype = {
     switch (aTopic) {
       case "quit-application-granted":
         Services.obs.removeObserver(this, "quit-application-granted");
-        Services.prefs.removeObserver(PREF_DEBUG, this);
         this.init();
-        break;
-      case "nsPref:changed":
-        this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
         break;
     }
   },
