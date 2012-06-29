@@ -277,5 +277,7 @@ endif
 
 
 ifdef MOZ_WEBRTC
-tier_platform_dirs +=     media/mtransport
+tier_platform_dirs +=     media/mtransport/third_party
+tier_platform_dirs +=     media/mtransport/build
+tier_platform_dirs +=     media/mtransport/standalone
 endif

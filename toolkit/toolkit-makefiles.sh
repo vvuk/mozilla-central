@@ -186,7 +186,7 @@ MAKEFILES_content="
   content/html/document/src/Makefile
   content/svg/Makefile
   content/svg/document/src/Makefile
-  content/svg/content/Makefile
+<  content/svg/content/Makefile
   content/svg/content/src/Makefile
   content/xml/Makefile
   content/xml/content/src/Makefile
@@ -1622,7 +1622,8 @@ fi
 if [ "$MOZ_WEBRTC" ]; then
  add_makefiles "
    media/webrtc/Makefile
-   media/mtransport/Makefile
+   media/mtransport/build/Makefile
+   media/mtransport/standalone/Makefile
  "
 fi
 

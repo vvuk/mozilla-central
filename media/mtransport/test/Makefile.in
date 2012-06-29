@@ -100,3 +100,4 @@ CPP_UNIT_TESTS = \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
