@@ -42,7 +42,7 @@ IDPProvisioningContext.prototype = {
     message.identity = aID;
     message.certDuration = aCertDuration;
     this._mm.sendAsyncMessage("Identity:IDP:CallBeginProvisioningCallback",
-                             message);
+                              message);
   },
 
   doGenKeyPairCallback: function IDPPC_doGenKeyPairCallback(aPublicKey) {
@@ -71,7 +71,7 @@ IDPAuthenticationContext.prototype = {
     let message = new IDDOMMessage(this.id);
     message.identity = aIdentity;
     this._mm.sendAsyncMessage("Identity:IDP:CallBeginAuthenticationCallback",
-                             message);
+                              message);
   },
 
   doError: function IDPAC_doError(msg) {

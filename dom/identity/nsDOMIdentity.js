@@ -462,11 +462,11 @@ nsDOMIdentityInternal.prototype = {
       return null;
     }
 
-    this._log("init was called from " + aWindow.document.location);
-
     this._debug =
       Services.prefs.getPrefType(PREF_DEBUG) == Ci.nsIPrefBranch.PREF_BOOL
       && Services.prefs.getBoolPref(PREF_DEBUG);
+
+    this._log("init was called from " + aWindow.document.location);
 
     this._identity = new nsDOMIdentity(this);
 
@@ -515,16 +515,16 @@ nsDOMIdentityInternal.prototype = {
   classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
 
   QueryInterface: XPCOMUtils.generateQI(
-    [Ci.nsIDOMIdentity, Ci.nsIDOMGlobalPropertyInitializer, Ci.nsIFrameMessageListener]
+    [Ci.nsIDOMGlobalPropertyInitializer, Ci.nsIFrameMessageListener]
   ),
 
   classInfo: XPCOMUtils.generateCI({
     classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
     contractID: "@mozilla.org/dom/identity;1",
-    interfaces: [Ci.nsIDOMIdentity],
-    flags: Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces: [],
     classDescription: "Identity DOM Implementation"
   })
+
 };
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);
