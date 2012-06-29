@@ -100,7 +100,7 @@ IdentityProviderService.prototype = {
       this._provisionFlows[aProvId].provisioningSandbox.reload();
 
     } else {
-      this._createProvisioningSandbox(url, function(aSandbox) {
+      this._createProvisioningSandbox(url, function createdSandbox(aSandbox) {
         // create a provisioning flow, using the sandbox id, and
         // stash callback associated with this provisioning workflow.
 

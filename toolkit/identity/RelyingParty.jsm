@@ -137,7 +137,7 @@ IdentityRelyingParty.prototype = {
     if (aAssertion) {
       loginWithAssertion(aAssertion);
     } else {
-      this._getAssertion(aOptions, function(err, assertion) {
+      this._getAssertion(aOptions, function gotAssertion(err, assertion) {
         if (err) {
           let errStr = "Failed to get assertion on login attempt: " + err;
           log("ERROR: _doLogin:", errStr);
@@ -293,7 +293,7 @@ IdentityRelyingParty.prototype = {
 
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
-      this._generateAssertion(audience, email, function(err, assertion) {
+      this._generateAssertion(audience, email, function generatedAssertion(err, assertion) {
         if (err) {
           log("ERROR: _getAssertion:", err);
         }

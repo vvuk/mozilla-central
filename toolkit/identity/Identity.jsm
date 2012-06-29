@@ -134,7 +134,7 @@ IDService.prototype = {
 
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
-    self.RP._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
+    self.RP._generateAssertion(rp.origin, aIdentity, function hadReadyAssertion(err, assertion) {
       if (!err && assertion) {
         self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
@@ -142,7 +142,7 @@ IDService.prototype = {
       } else {
         // Need to provision an identity first.  Begin by discovering
         // the user's IdP.
-        self._discoverIdentityProvider(aIdentity, function(err, idpParams) {
+        self._discoverIdentityProvider(aIdentity, function gotIDP(err, idpParams) {
           if (err) {
             rp.doError(err);
             return;
@@ -150,7 +150,7 @@ IDService.prototype = {
 
           // The idpParams tell us where to go to provision and authenticate
           // the identity.
-          self.IDP._provisionIdentity(aIdentity, idpParams, provId, function(err, aProvId) {
+          self.IDP._provisionIdentity(aIdentity, idpParams, provId, function gotID(err, aProvId) {
 
             // Provision identity may have created a new provision flow
             // for us.  To make it easier to relate provision flows with
@@ -165,7 +165,7 @@ IDService.prototype = {
               // XXX quick hack - cleanup is done by registerCertificate
               // XXX order of callbacks and signals is a little tricky
               //self._cleanUpProvisionFlow(aProvId);
-              self.RP._generateAssertion(rp.origin, aIdentity, function(err, assertion) {
+              self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
                 if (!err) {
                   self.RP._doLogin(rp, rpLoginOptions, assertion);
                   self.RP._cleanUpProvisionFlow(aRPId, aProvId);
@@ -218,7 +218,7 @@ IDService.prototype = {
     let domain = aIdentity.split('@')[1];
     log("_discoverIdentityProvider: identity:", aIdentity, "domain:", domain);
 
-    this._fetchWellKnownFile(domain, function(err, idpParams) {
+    this._fetchWellKnownFile(domain, function fetchedWellKnown(err, idpParams) {
       // idpParams includes the pk, authorization url, and
       // provisioning url.
 
