@@ -300,25 +300,6 @@ IdentityRelyingParty.prototype = {
         log("_getAssertion: generated assertion:", assertion);
         return aCallback(err, assertion);
       });
-
-    } else {
-      // We need to get a certificate.  Discover the identity's
-      // IdP and provision
-      /* TODO: this doesn't change the logic so it's pointless
-      this._discoverIdentityProvider(email, function(err, idpParams) {
-        if (err) {
-          return aCallback(err);
-        }
-       */
-        // Now begin provisioning from the IdP
-        this._generateAssertion(audience, email, function(err, assertion) {
-          if (err) {
-            log("ERROR: _getAssertion:", err);
-          }
-          log("_getAssertion: generated assertion:", assertion);
-          return aCallback(err, assertion);
-        }.bind(this));
-      //}.bind(this));
     }
   },
 
