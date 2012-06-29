@@ -230,13 +230,13 @@ IDService.prototype = {
   _discoverIdentityProvider: function _discoverIdentityProvider(aIdentity, aCallback) {
     // XXX bug 767610 - validate email address call
     // When that is available, we can remove this custom parser
-    var parsedEmail = this.parseEmail(identity);
+    var parsedEmail = this.parseEmail(aIdentity);
     if (parsedEmail === null) {
       return aCallback("Could not parse email: " + aIdentity);
     }
     log("_discoverIdentityProvider: identity:", aIdentity, "domain:", parsedEmail.domain);
 
-    this._fetchWellKnownFile(domain, function fetchedWellKnown(err, idpParams) {
+    this._fetchWellKnownFile(parsedEmail.domain, function fetchedWellKnown(err, idpParams) {
       // idpParams includes the pk, authorization url, and
       // provisioning url.
 
