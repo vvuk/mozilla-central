@@ -293,10 +293,6 @@ IdentityProviderService.prototype = {
     // stash aIdentity, idpparams, and callback in it.
 
     // extract authentication URL from idpParams
-
-    // ? create a visible frame with sandbox and notify UX
-    // or notify UX so it can create the visible frame, not sure which one.
-    // TODO: make the two lines below into a helper to be used for auth and authentication
     let authPath = aIDPParams.idpParams.authentication;
     let authURI = Services.io.newURI("https://" + aIDPParams.domain, null, null).resolve(authPath);
 
@@ -422,9 +418,6 @@ IdentityProviderService.prototype = {
   /**
    * Load the provisioning URL in a hidden frame to start the provisioning
    * process.
-   * TODO: CHANGE this call to be just _createSandbox, and do the population
-   * of the flow object in _provisionIdentity instead, so that method has full
-   * context.
    */
   _createProvisioningSandbox: function _createProvisioningSandbox(aURL, aCallback) {
     log("_createProvisioningSandbox:", aURL);

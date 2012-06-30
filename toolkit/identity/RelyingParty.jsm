@@ -100,9 +100,6 @@ IdentityRelyingParty.prototype = {
         // A loggedInEmail different from state.email has been specified.
         // Change login identity.
 
-        // TODO: this case needs to be looked at carefully.  We shouldn't switch identities without a .request call.
-        //let options = {loggedInEmail: aRpCaller.loggedInEmail, origin: origin};
-
         let options = {loggedInEmail: state.email, origin: origin};
         return this._doLogin(aRpCaller, options);
       }

@@ -269,8 +269,8 @@ IDService.prototype = {
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                 .getService(Ci.nsIXMLHttpRequest);
 
-    // XXX how can we detect whether we are off-line?
-    // TODO: decide on how to handle redirects
+    // XXX bug 769865 gracefully handle being off-line
+    // XXX bug 769866 decide on how to handle redirects
     req.open("GET", url, true);
     req.responseType = "json";
     req.mozBackgroundRequest = true;
