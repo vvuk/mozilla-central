@@ -325,7 +325,7 @@ pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.
 pref("toolkit.telemetry.debugSlowSql", false);
 
 // Identity module
-pref("dom.identity.enabled", true); // TODO: change for m-c
+pref("dom.identity.enabled", false);
 pref("toolkit.identity.debug", false);
 
 // Disable remote debugging protocol logging
