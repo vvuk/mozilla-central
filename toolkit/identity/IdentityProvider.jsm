@@ -130,10 +130,7 @@ IdentityProviderService.prototype = {
         };
 
         log("_provisionIdentity: Created sandbox and provisioning flow with id:", aProvId);
-
-        // XXX MAYBE
-        // set a timeout to clear out this provisioning workflow if it doesn't
-        // complete in X time.
+        // XXX bug 769862 - provisioning flow should timeout after N seconds
 
       }.bind(this));
     }
@@ -338,8 +335,6 @@ IdentityProviderService.prototype = {
       return aCaller.doError("beginAuthentication: no flow for caller id", aCaller.id);
     }
 
-    // stash the caller in the flow
-    // XXX do we need to do this?
     authFlow.caller = aCaller;
 
     let identity = this._provisionFlows[authFlow.provId].identity;
