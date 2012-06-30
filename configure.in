@@ -9150,6 +9150,7 @@ if test -n "$MOZ_WEBRTC"; then
      --depth=${srcdir}/media/webrtc/trunk \
      -D build_with_mozilla=1 -D enable_protobuf=0 \
      -D include_internal_video_render=0 \
+     -D build_for_test=0 \
      $EXTRA_GYP_DEFINES \
      --generator-output=${_objdir}/media/webrtc/signaling \
      --toplevel-dir=${srcdir} \
@@ -9157,6 +9158,21 @@ if test -n "$MOZ_WEBRTC"; then
      ${srcdir}/media/webrtc/signaling/signaling.gyp
    if test "$?" != 0; then
       AC_MSG_ERROR([failed to generate WebRTC/Signaling Makefiles])
+   fi
+   
+   AC_MSG_RESULT("generating WebRTC/SignalingTest Makefiles...")
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+     --depth=${srcdir}/media/webrtc/trunk \
+     -D build_with_mozilla=1 -D enable_protobuf=0 \
+     -D include_internal_video_render=0 \
+     -D build_for_test=1 \
+     $EXTRA_GYP_DEFINES \
+     --generator-output=${_objdir}/media/webrtc/signalingtest \
+     --toplevel-dir=${srcdir} \
+     -G OBJDIR=${_objdir} \
+     ${srcdir}/media/webrtc/signaling/signaling.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate WebRTC/SignalingTest Makefiles])
    fi
 
    AC_MSG_RESULT("generating gtest Makefiles...")

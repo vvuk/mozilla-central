@@ -145,13 +145,21 @@
         'WEBRTC_RELATIVE_PATH',
       	'HAVE_WEBRTC_VIDEO',
         'HAVE_WEBRTC_VOICE',
-        'MOZILLA_INTERNAL_API'
       ],
 
       #
-      # OS SPECIFIC
-      #      
+      # Conditionals
+      #
       'conditions': [
+        ['build_for_test==0', {
+          'defines' : [
+            'MOZILLA_INTERNAL_API'
+          ],
+        }], 
+        ['build_for_test==1', {
+          'defines' : [
+          ],
+        }], 
         ['OS=="linux"', {
           'include_dirs': [
           ],

@@ -48,7 +48,10 @@ DIRS = trunk \
        $(NULL)
 
 ifneq ($(OS_TARGET),WINNT)
-DIRS += signaling
+DIRS += \
+        signaling \
+        signalingtest \
+        $(NULL)
 endif
 
 # These Makefiles don't have corresponding Makefile.ins
