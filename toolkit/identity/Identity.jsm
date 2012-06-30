@@ -264,6 +264,7 @@ IDService.prototype = {
    *
    */
   _fetchWellKnownFile: function _fetchWellKnownFile(aDomain, aCallback, aScheme='https') {
+    // XXX bug 769854 make tests https and remove aScheme option
     let url = aScheme + '://' + aDomain + "/.well-known/browserid";
     log("_fetchWellKnownFile:", url);
 
