@@ -91,6 +91,8 @@ Sandbox.prototype = {
                                       .QueryInterface(Ci.nsIInterfaceRequestor)
                                       .getInterface(Ci.nsIDocShell);
 
+    docShell.isBrowserFrame = true;
+
     // Stop about:blank from being loaded.
     docShell.stop(Ci.nsIWebNavigation.STOP_NETWORK);
 
