@@ -243,9 +243,6 @@ IDService.prototype = {
       // XXX TODO follow any authority delegations
       // if no well-known at any point in the delegation
       // fall back to browserid.org as IdP
-
-      // XXX TODO use email-specific delegation if IdP supports it
-      // XXX TODO will need to update spec for that
       return aCallback(err, idpParams);
     });
   },
