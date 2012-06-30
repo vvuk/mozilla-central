@@ -7,6 +7,7 @@ const Ci = Components.interfaces;
 const Cu = SpecialPowers.wrap(Components).utils;
 
 SpecialPowers.setBoolPref("toolkit.identity.debug", true);
+SpecialPowers.setBoolPref("dom.identity.enabled", true);
 
 const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
 const DOMIdentity = Cu.import("resource://gre/modules/DOMIdentity.jsm")
@@ -72,5 +73,6 @@ function next() {
 function finish_tests() {
   info("all done");
   SpecialPowers.clearUserPref("toolkit.identity.debug");
+  SpecialPowers.clearUserPref("dom.identity.enabled");
   SimpleTest.finish();
 }
