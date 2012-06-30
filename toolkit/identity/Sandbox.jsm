@@ -9,14 +9,10 @@ const EXPORTED_SYMBOLS = ["Sandbox"];
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
+const PREF_DEBUG = "toolkit.identity.debug";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/identity/LogUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this,
-                                  "IDLog",
-                                  "resource://gre/modules/identity/IdentityStore.jsm");
 
 /**
  * An object that represents a sandbox in an iframe loaded with aURL. The
@@ -38,6 +34,7 @@ function Sandbox(aURL, aCallback) {
   this._log("Creating sandbox for: " + this._url);
   this._createFrame();
   this._createSandbox(aCallback);
+  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
 }
 
 Sandbox.prototype = {
@@ -155,7 +152,10 @@ Sandbox.prototype = {
   },
 
   _log: function Sandbox__log(...aMessageArgs) {
-    Logger.log(["Sandbox"].concat(aMessageArgs));
+    if (!this._debug) {
+      return;
+    }
+    dump("Sandbox: " + aMessageArgs.join(" : ") + "\n");
   },
 
 };
