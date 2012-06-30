@@ -35,14 +35,14 @@ function log(...aMessageArgs) {
 
 function generateKeyPair(aAlgorithmName, aCallback) {
   log("Generate key pair; alg =", aAlgorithmName);
-  
+
   IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, aKeyPair) {
     if (!Components.isSuccessCode(rv)) {
       return aCallback("key generation failed");
     }
-    
+
     var publicKey;
-    
+
     switch (aKeyPair.keyType) {
      case ALGORITHMS.RS256:
       publicKey = {
@@ -51,7 +51,7 @@ function generateKeyPair(aAlgorithmName, aCallback) {
         modulus:   aKeyPair.hexRSAPublicKeyModulus
       };
       break;
-      
+
      case ALGORITHMS.DS160:
       publicKey = {
         algorithm: "DS",
@@ -61,16 +61,16 @@ function generateKeyPair(aAlgorithmName, aCallback) {
         g: aKeyPair.hexDSAGenerator
       };
       break;
-      
+
     default:
       return aCallback("unknown key type");
     }
-    
+
     let keyWrapper = {
       serializedPublicKey: JSON.stringify(publicKey),
       _kp: aKeyPair
     };
-    
+
     return aCallback(null, keyWrapper);
   });
 }
