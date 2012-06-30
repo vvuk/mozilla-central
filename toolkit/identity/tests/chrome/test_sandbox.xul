@@ -163,10 +163,10 @@ function check_disabled_content(aSandboxURL, aNothingShouldLoad = false) {
             check_loaded_content(aNothingShouldLoad, function reloadCheckFinished() {
               free_and_check_sandbox(aSandbox);
             });
-          }, 1000);
+          }, 2000);
         });
       });
-    }, 1000);
+    }, 2000);
   });
 }
 
