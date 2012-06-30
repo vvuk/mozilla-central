@@ -31,10 +31,10 @@ Cu.import("resource://gre/modules/Services.jsm");
 function Sandbox(aURL, aCallback) {
   // Normalize the URL so the comparison in _makeSandboxContentLoaded works
   this._url = Services.io.newURI(aURL, null, null).spec;
+  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
   this._log("Creating sandbox for: " + this._url);
   this._createFrame();
   this._createSandbox(aCallback);
-  this._debug = Services.prefs.getBoolPref(PREF_DEBUG);
 }
 
 Sandbox.prototype = {
@@ -90,6 +90,7 @@ Sandbox.prototype = {
                                       .QueryInterface(Ci.nsIInterfaceRequestor)
                                       .getInterface(Ci.nsIDocShell);
 
+    // Mark this docShell as a "browserFrame", to break script access to e.g. window.top
     docShell.isBrowserFrame = true;
 
     // Stop about:blank from being loaded.
