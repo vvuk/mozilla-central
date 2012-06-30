@@ -28,6 +28,9 @@
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
 #include "nsStringGlue.h"
+#include "mozilla/AppData.h"
+
+using namespace mozilla;
 
 const char WEBAPPRT_EXECUTABLE[] = "webapprt-stub";
 const char FXAPPINI_NAME[] = "application.ini";
@@ -81,19 +84,6 @@ AttemptGRELoad(char *greDir)
 
   return rv;
 }
-
-// Copied from toolkit/xre/nsAppData.cpp.
-void
-SetAllocatedString(const char *&str, const char *newvalue)
-{
-  NS_Free(const_cast<char*>(str));
-  if (newvalue) {
-    str = NS_strdup(newvalue);
-  } else {
-    str = nsnull;
-  }
-}
-
 
 int
 main(int argc, char **argv)
@@ -223,10 +213,6 @@ main(int argc, char **argv)
         // directory.
         snprintf(rtINIPath, MAXPATHLEN, "%s%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBAPPRT_PATH, WEBRTINI_NAME);
         NSLog(@"WebappRT application.ini path: %s", rtINIPath);
-        if (![[NSFileManager defaultManager] fileExistsAtPath:[NSString stringWithFormat:@"%s", rtINIPath]]) {
-          NSString* msg = [NSString stringWithFormat: @"This copy of Firefox (%@) cannot run web applications, because it is missing important files", firefoxVersion];
-          @throw MakeException(@"Missing WebRT Files", msg);
-        }
 
         // Load the runtime's INI from its path.
         nsCOMPtr<nsIFile> rtINI;
@@ -235,9 +221,11 @@ main(int argc, char **argv)
           @throw MakeException(@"Error", @"Incorrect path to base INI file.");
         }
 
-        if (!rtINI) {
-          NSLog(@"Error: missing WebappRT application.ini");
-          @throw MakeException(@"Error", @"Missing base INI file.");
+        bool exists;
+        nsresult rv = rtINI->Exists(&exists);
+        if (NS_FAILED(rv) || !exists) {
+          NSString* msg = [NSString stringWithFormat: @"This copy of Firefox (%@) cannot run web applications, because it is missing WebappRT application.ini", firefoxVersion];
+          @throw MakeException(@"Missing WebappRT application.ini", msg);
         }
 
         nsXREAppData *webShellAppData;

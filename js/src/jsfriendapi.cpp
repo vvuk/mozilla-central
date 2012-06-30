@@ -161,6 +161,31 @@ JS_GetCompartmentPrincipals(JSCompartment *compartment)
     return compartment->principals;
 }
 
+JS_FRIEND_API(void)
+JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals)
+{
+    // Short circuit if there's no change.
+    if (principals == compartment->principals)
+        return;
+
+    // Clear out the old principals, if any.
+    if (compartment->principals) {
+        JS_DropPrincipals(compartment->rt, compartment->principals);
+        compartment->principals = NULL;
+    }
+
+    // Set up the new principals.
+    if (principals) {
+        JS_HoldPrincipals(principals);
+        compartment->principals = principals;
+    }
+
+    // Any compartment with the trusted principals -- and there can be
+    // multiple -- is a system compartment.
+    JSPrincipals *trusted = compartment->rt->trustedPrincipals();
+    compartment->isSystemCompartment = principals && principals == trusted;
+}
+
 JS_FRIEND_API(JSBool)
 JS_WrapPropertyDescriptor(JSContext *cx, js::PropertyDescriptor *desc)
 {
@@ -206,8 +231,8 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj_, const JSFunctionSpecWi
             return false;
 
         RootedFunction fun(cx);
-        fun = js_DefineFunction(cx, obj, RootedId(cx, AtomToId(atom)),
-                                fs->call, fs->nargs, fs->flags);
+        Rooted<jsid> id(cx, AtomToId(atom));
+        fun = js_DefineFunction(cx, obj, id, fs->call, fs->nargs, fs->flags);
         if (!fun)
             return false;
 
@@ -313,9 +338,8 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj_, const char *name, 
     JSAtom *atom = js_Atomize(cx, name, strlen(name));
     if (!atom)
         return NULL;
-    return js_DefineFunction(cx, obj, RootedId(cx, AtomToId(atom)),
-                             call, nargs, attrs,
-                             JSFunction::ExtendedFinalizeKind);
+    Rooted<jsid> id(cx, AtomToId(atom));
+    return js_DefineFunction(cx, obj, id, call, nargs, attrs, JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSFunction *)
@@ -441,6 +465,23 @@ js::GCThingIsMarkedGray(void *thing)
     return reinterpret_cast<gc::Cell *>(thing)->isMarked(gc::GRAY);
 }
 
+JS_FRIEND_API(JSCompartment*)
+js::GetGCThingCompartment(void *thing)
+{
+    JS_ASSERT(thing);
+    return reinterpret_cast<gc::Cell *>(thing)->compartment();
+}
+
+JS_FRIEND_API(void)
+js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure)
+{
+    for (WrapperMap::Enum e(comp->crossCompartmentWrappers); !e.empty(); e.popFront()) {
+        gc::Cell *thing = e.front().key.wrapped;
+        if (thing->isMarked(gc::GRAY))
+            callback(closure, thing);
+    }
+}
+
 JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback)
 {
@@ -498,6 +539,8 @@ js_DumpObject(JSObject *obj)
 {
     obj->dump();
 }
+
+#endif
 
 struct DumpingChildInfo {
     void *node;
@@ -588,8 +631,8 @@ js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
 
     while (!dtrc.nodes.empty()) {
         DumpingChildInfo dci = dtrc.nodes.popCopy();
-        JS_PrintTraceThingInfo(dtrc.buffer, sizeof(dtrc.buffer),
-                               &dtrc, dci.node, dci.kind, JS_TRUE);
+        JS_GetTraceThingInfo(dtrc.buffer, sizeof(dtrc.buffer),
+                             &dtrc, dci.node, dci.kind, JS_TRUE);
         fprintf(fp, "%p %c %s\n", dci.node, MarkDescriptor(dci.node), dtrc.buffer);
         JS_TraceChildren(&dtrc, dci.node, dci.kind);
     }
@@ -597,8 +640,6 @@ js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
     dtrc.visited.finish();
     fflush(dtrc.output);
 }
-
-#endif
 
 namespace js {
 

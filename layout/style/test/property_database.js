@@ -65,8 +65,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
-		other_values: [ "alternate", "normal, alternate", "alternate, normal", "normal, normal", "normal, normal, normal" ],
-		invalid_values: [ "normal normal", "inherit, normal" ]
+		other_values: [ "alternate", "normal, alternate", "alternate, normal", "normal, normal", "normal, normal, normal", "reverse", "alternate-reverse", "normal, reverse, alternate-reverse, alternate" ],
+		invalid_values: [ "normal normal", "inherit, normal", "reverse-alternate" ]
 	},
 	"-moz-animation-duration": {
 		domProp: "MozAnimationDuration",
@@ -516,14 +516,6 @@ var gCSSProperties = {
 		other_values: [ "1", "17" ],
 		// negative and zero invalid per editor's draft
 		invalid_values: [ "-1", "0", "3px" ]
-	},
-	"-moz-column-fill": {
-		domProp: "MozColumnFill",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "balance" ],
-		other_values: [ "auto" ],
-		invalid_values: [ "2px", "dotted", "5em" ]
 	},
 	"-moz-column-gap": {
 		domProp: "MozColumnGap",
@@ -1972,7 +1964,27 @@ var gCSSProperties = {
 		initial_values: [ "inline" ],
 		/* XXX none will really mess with other properties */
 		prerequisites: { "float": "none", "position": "static" },
-		other_values: [ "block", "list-item", "inline-block", "table", "inline-table", "table-row-group", "table-header-group", "table-footer-group", "table-row", "table-column-group", "table-column", "table-cell", "table-caption", "none" ],
+		other_values: [
+			"block",
+			"list-item",
+			"inline-block",
+			"table",
+			"inline-table",
+			"table-row-group",
+			"table-header-group",
+			"table-footer-group",
+			"table-row",
+			"table-column-group",
+			"table-column",
+			"table-cell",
+			"table-caption",
+/* XXXdholbert In builds with MOZ_FLEXBOX enabled, this should be uncommented.
+   (This would be #ifdef MOZ_FLEXBOX, if that worked in JS files.)
+			"-moz-flex",
+			"-moz-inline-flex",
+*/
+			"none"
+		],
 		invalid_values: []
 	},
 	"empty-cells": {
@@ -2352,7 +2364,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "auto", "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
 		other_values: [ "30px", "50%",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2360,14 +2372,14 @@ var gCSSProperties = {
 			"-moz-calc(25px*3)",
 			"-moz-calc(3*25px + 50%)",
 		],
-		invalid_values: [ "auto", "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
+		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
 	},
 	"min-width": {
 		domProp: "minWidth",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
+		initial_values: [ "auto", "0", "-moz-calc(0em)", "-moz-calc(-2px)", "-moz-calc(-1%)" ],
 		other_values: [ "30px", "50%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
 			"-moz-calc(2px)",
 			"-moz-calc(50%)",
@@ -2375,7 +2387,7 @@ var gCSSProperties = {
 			"-moz-calc(25px*3)",
 			"-moz-calc(3*25px + 50%)",
 		],
-		invalid_values: [ "auto", "none" ]
+		invalid_values: [ "none" ]
 	},
 	"opacity": {
 		domProp: "opacity",

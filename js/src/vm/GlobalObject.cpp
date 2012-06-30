@@ -111,13 +111,19 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         JS_ASSERT(proto == functionProto);
         functionProto->flags |= JSFUN_PROTOTYPE;
 
-        JSScript *script =
-            JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, JSVERSION_DEFAULT);
-        if (!script)
+        Rooted<JSScript*> script(cx);
+        script = JSScript::Create(cx,
+                                  /* savedCallerFun = */ false,
+                                  /* principals = */ NULL,
+                                  /* originPrincipals = */ NULL,
+                                  /* compileAndGo = */ false,
+                                  /* noScriptRval = */ true,
+                                  /* globalObject = */ NULL,
+                                  JSVERSION_DEFAULT,
+                                  /* staticLevel = */ 0);
+        if (!script || !script->fullyInitTrivial(cx))
             return NULL;
-        script->noScriptRval = true;
-        script->code[0] = JSOP_STOP;
-        script->code[1] = SRC_NULL;
+
         functionProto->initScript(script);
         functionProto->getType(cx)->interpretedFunction = functionProto;
         script->setFunction(functionProto);
@@ -236,24 +242,25 @@ GlobalObject::create(JSContext *cx, Class *clasp)
 {
     JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
-    Rooted<GlobalObject*> obj(cx);
-
-    JSObject *obj_ = NewObjectWithGivenProto(cx, clasp, NULL, NULL);
-    if (!obj_)
+    JSObject *obj = NewObjectWithGivenProto(cx, clasp, NULL, NULL);
+    if (!obj)
         return NULL;
-    obj = &obj_->asGlobal();
 
-    if (!obj->setSingletonType(cx) || !obj->setVarObj(cx))
+    Rooted<GlobalObject *> global(cx, &obj->asGlobal());
+
+    cx->compartment->initGlobal(*global);
+
+    if (!global->setSingletonType(cx) || !global->setVarObj(cx))
         return NULL;
 
     /* Construct a regexp statics object for this global object. */
-    JSObject *res = RegExpStatics::create(cx, obj);
+    JSObject *res = RegExpStatics::create(cx, global);
     if (!res)
         return NULL;
-    obj->initSlot(REGEXP_STATICS, ObjectValue(*res));
-    obj->initFlags(0);
+    global->initSlot(REGEXP_STATICS, ObjectValue(*res));
+    global->initFlags(0);
 
-    return obj;
+    return global;
 }
 
 /* static */ bool

@@ -6,6 +6,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
 #include "mozilla/CheckedInt.h"
+#include "mozilla/Attributes.h"
 
 #include "gfxASurface.h"
 #include "gfxContext.h"
@@ -557,7 +558,7 @@ PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_SKIA) ==
 
 static PRInt64 gSurfaceMemoryUsed[gfxASurface::SurfaceTypeMax] = { 0 };
 
-class SurfaceMemoryReporter :
+class SurfaceMemoryReporter MOZ_FINAL :
     public nsIMemoryMultiReporter
 {
 public:
@@ -794,7 +795,7 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
   } else {
     nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
     if (clipboard) {
-      clipboard->CopyString(NS_ConvertASCIItoUTF16(string));
+      clipboard->CopyString(NS_ConvertASCIItoUTF16(string), nsnull);
     }
   }
 

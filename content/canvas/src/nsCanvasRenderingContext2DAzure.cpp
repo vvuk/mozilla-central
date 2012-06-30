@@ -89,6 +89,8 @@
 #include "mozilla/ipc/PDocumentRendererParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
+#include "nsCCUncollectableMarker.h"
+#include "nsWrapperCacheInlines.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -355,6 +357,7 @@ NS_INTERFACE_MAP_BEGIN(nsTextMetricsAzure)
 NS_INTERFACE_MAP_END
 
 struct nsCanvasBidiProcessorAzure;
+class CanvasRenderingContext2DUserDataAzure;
 
 // Cap sigma to avoid overly large temp surfaces.
 static const Float SIGMA_MAX = 100;
@@ -364,7 +367,8 @@ static const Float SIGMA_MAX = 100;
  **/
 class nsCanvasRenderingContext2DAzure :
   public nsIDOMCanvasRenderingContext2D,
-  public nsICanvasRenderingContextInternal
+  public nsICanvasRenderingContextInternal,
+  public nsWrapperCache
 {
 public:
   nsCanvasRenderingContext2DAzure();
@@ -405,7 +409,8 @@ public:
   // nsISupports interface + CC
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsCanvasRenderingContext2DAzure, nsIDOMCanvasRenderingContext2D)
+  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(
+    nsCanvasRenderingContext2DAzure, nsIDOMCanvasRenderingContext2D)
 
   // nsIDOMCanvasRenderingContext2D interface
   NS_DECL_NSIDOMCANVASRENDERINGCONTEXT2D
@@ -418,6 +423,8 @@ public:
   
   nsresult LineTo(const Point& aPoint);
   nsresult BezierTo(const Point& aCP1, const Point& aCP2, const Point& aCP3);
+
+  friend class CanvasRenderingContext2DUserDataAzure;
 
 protected:
   nsresult GetImageDataArray(JSContext* aCx, int32_t aX, int32_t aY,
@@ -499,6 +506,8 @@ protected:
   bool mResetLayer;
   // This is needed for drawing in drawAsyncXULElement
   bool mIPC;
+
+  nsTArray<CanvasRenderingContext2DUserDataAzure*> mUserDatas;
 
   // If mCanvasElement is not provided, then a docshell is
   nsCOMPtr<nsIDocShell> mDocShell;
@@ -586,9 +595,8 @@ protected:
     * Gets the pres shell from either the canvas element or the doc shell
     */
   nsIPresShell *GetPresShell() {
-    nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
-    if (content) {
-      return content->OwnerDoc()->GetShell();
+    if (mCanvasElement) {
+      return mCanvasElement->OwnerDoc()->GetShell();
     }
     if (mDocShell) {
       nsCOMPtr<nsIPresShell> shell;
@@ -932,24 +940,86 @@ protected:
   friend struct nsCanvasBidiProcessorAzure;
 };
 
+class CanvasRenderingContext2DUserDataAzure : public LayerUserData {
+public:
+    CanvasRenderingContext2DUserDataAzure(nsCanvasRenderingContext2DAzure *aContext)
+    : mContext(aContext)
+  {
+    aContext->mUserDatas.AppendElement(this);
+  }
+  ~CanvasRenderingContext2DUserDataAzure()
+  {
+    if (mContext) {
+      mContext->mUserDatas.RemoveElement(this);
+    }
+  }
+  static void DidTransactionCallback(void* aData)
+  {
+      CanvasRenderingContext2DUserDataAzure* self =
+      static_cast<CanvasRenderingContext2DUserDataAzure*>(aData);
+    if (self->mContext) {
+      self->mContext->MarkContextClean();
+    }
+  }
+  bool IsForContext(nsCanvasRenderingContext2DAzure *aContext)
+  {
+    return mContext == aContext;
+  }
+  void Forget()
+  {
+    mContext = nsnull;
+  }
+
+private:
+  nsCanvasRenderingContext2DAzure *mContext;
+};
+
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCanvasRenderingContext2DAzure)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCanvasRenderingContext2DAzure)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsCanvasRenderingContext2DAzure)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2DAzure)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCanvasElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsCanvasRenderingContext2DAzure)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCanvasRenderingContext2DAzure)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCanvasElement, nsINode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsCanvasRenderingContext2DAzure)
+ if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack()) {
+    nsGenericElement* canvasElement = tmp->mCanvasElement;
+    if (canvasElement) {
+      if (canvasElement->IsPurple()) {
+        canvasElement->RemovePurple();
+      }
+      nsGenericElement::MarkNodeChildren(canvasElement);
+    }
+    return true;
+  }
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
+
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsCanvasRenderingContext2DAzure)
+  return nsCCUncollectableMarker::sGeneration && tmp->IsBlack();
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
+
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsCanvasRenderingContext2DAzure)
+  return nsCCUncollectableMarker::sGeneration && tmp->IsBlack();
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 // XXX
 // DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2DAzure)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCanvasRenderingContext2DAzure)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMCanvasRenderingContext2D)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports,
+                                   nsICanvasRenderingContextInternal)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasRenderingContext2D)
 NS_INTERFACE_MAP_END
 
@@ -998,6 +1068,10 @@ nsCanvasRenderingContext2DAzure::nsCanvasRenderingContext2DAzure()
 nsCanvasRenderingContext2DAzure::~nsCanvasRenderingContext2DAzure()
 {
   Reset();
+  // Drop references from all CanvasRenderingContext2DUserDataAzure to this context
+  for (PRUint32 i = 0; i < mUserDatas.Length(); ++i) {
+    mUserDatas[i]->Forget();
+  }
   sNumLivingContexts--;
   if (!sNumLivingContexts) {
     delete[] sUnpremultiplyTable;
@@ -1241,10 +1315,9 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
   if (size.width <= 0xFFFF && size.height <= 0xFFFF &&
       size.width >= 0 && size.height >= 0) {
     SurfaceFormat format = GetSurfaceFormat();
-    nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     nsIDocument* ownerDoc = nsnull;
-    if (content) {
-      ownerDoc = content->OwnerDoc();
+    if (mCanvasElement) {
+      ownerDoc = mCanvasElement->OwnerDoc();
     }
 
     nsRefPtr<LayerManager> layerManager = nsnull;
@@ -1535,8 +1608,12 @@ nsCanvasRenderingContext2DAzure::Restore()
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Scale(float x, float y)
 {
-  if (!FloatValidate(x,y))
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+  if (!FloatValidate(x,y)) {
     return NS_OK;
+  }
 
   TransformWillUpdate();
 
@@ -1548,8 +1625,12 @@ nsCanvasRenderingContext2DAzure::Scale(float x, float y)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Rotate(float angle)
 {
-  if (!FloatValidate(angle))
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+  if (!FloatValidate(angle)) {
     return NS_OK;
+  }
 
   TransformWillUpdate();
 
@@ -1561,6 +1642,9 @@ nsCanvasRenderingContext2DAzure::Rotate(float angle)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Translate(float x, float y)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
   if (!FloatValidate(x,y)) {
     return NS_OK;
   }
@@ -1575,6 +1659,9 @@ nsCanvasRenderingContext2DAzure::Translate(float x, float y)
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Transform(float m11, float m12, float m21, float m22, float dx, float dy)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
   if (!FloatValidate(m11,m12,m21,m22,dx,dy)) {
     return NS_OK;
   }
@@ -1589,6 +1676,9 @@ nsCanvasRenderingContext2DAzure::Transform(float m11, float m12, float m21, floa
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetTransform(float m11, float m12, float m21, float m22, float dx, float dy)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
   if (!FloatValidate(m11,m12,m21,m22,dx,dy)) {
     return NS_OK;
   }
@@ -1605,6 +1695,10 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetMozCurrentTransform(JSContext* cx,
                                                         const jsval& matrix)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+
   nsresult rv;
   Matrix newCTM;
 
@@ -1621,6 +1715,10 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetMozCurrentTransform(JSContext* cx,
                                                         jsval* matrix)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+
   return MatrixToJSVal(mTarget->GetTransform(), cx, matrix);
 }
 
@@ -1628,6 +1726,10 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetMozCurrentTransformInverse(JSContext* cx,
                                                                const jsval& matrix)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+
   nsresult rv;
   Matrix newCTMInverse;
 
@@ -1647,6 +1749,10 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::GetMozCurrentTransformInverse(JSContext* cx,
                                                                jsval* matrix)
 {
+  if (!mTarget) {
+    return NS_ERROR_FAILURE;
+  }
+
   Matrix ctm = mTarget->GetTransform();
 
   if (!ctm.Invert()) {
@@ -3155,9 +3261,9 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
     return NS_ERROR_FAILURE;
   }
 
-  nsIPresShell* presShell = GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
   if (!presShell)
-      return NS_ERROR_FAILURE;
+    return NS_ERROR_FAILURE;
 
   nsIDocument* document = presShell->GetDocument();
 
@@ -3213,15 +3319,15 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   // bounding boxes before rendering anything
   nsBidi bidiEngine;
   rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
-                                textToDraw.Length(),
-                                isRTL ? NSBIDI_RTL : NSBIDI_LTR,
-                                presShell->GetPresContext(),
-                                processor,
-                                nsBidiPresUtils::MODE_MEASURE,
-                                nsnull,
-                                0,
-                                &totalWidthCoord,
-                                &bidiEngine);
+                                    textToDraw.Length(),
+                                    isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+                                    presShell->GetPresContext(),
+                                    processor,
+                                    nsBidiPresUtils::MODE_MEASURE,
+                                    nsnull,
+                                    0,
+                                    &totalWidthCoord,
+                                    &bidiEngine);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -4336,19 +4442,6 @@ nsCanvasRenderingContext2DAzure::SetMozImageSmoothingEnabled(bool val)
 
 static PRUint8 g2DContextLayerUserData;
 
-class CanvasRenderingContext2DUserData : public LayerUserData {
-public:
-  CanvasRenderingContext2DUserData(nsHTMLCanvasElement *aContent)
-    : mContent(aContent) {}
-  static void DidTransactionCallback(void* aData)
-  {
-    static_cast<CanvasRenderingContext2DUserData*>(aData)->mContent->MarkContextClean();
-  }
-
-private:
-  nsRefPtr<nsHTMLCanvasElement> mContent;
-};
-
 already_AddRefed<CanvasLayer>
 nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                            CanvasLayer *aOldLayer,
@@ -4362,18 +4455,22 @@ nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     mTarget->Flush();
   }
 
-  if (!mResetLayer && aOldLayer &&
-      aOldLayer->HasUserData(&g2DContextLayerUserData)) {
+  if (!mResetLayer && aOldLayer) {
+      CanvasRenderingContext2DUserDataAzure* userData =
+      static_cast<CanvasRenderingContext2DUserDataAzure*>(
+        aOldLayer->GetUserData(&g2DContextLayerUserData));
+    if (userData && userData->IsForContext(this)) {
       NS_ADDREF(aOldLayer);
       return aOldLayer;
+    }
   }
 
   nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
   if (!canvasLayer) {
-      NS_WARNING("CreateCanvasLayer returned null!");
-      return nsnull;
+    NS_WARNING("CreateCanvasLayer returned null!");
+    return nsnull;
   }
-  CanvasRenderingContext2DUserData *userData = nsnull;
+  CanvasRenderingContext2DUserDataAzure *userData = nsnull;
   if (aBuilder->IsPaintingToWindow()) {
     // Make the layer tell us whenever a transaction finishes (including
     // the current transaction), so we can clear our invalidation state and
@@ -4387,9 +4484,9 @@ nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     // releasing the reference to the element.
     // The userData will receive DidTransactionCallbacks, which flush the
     // the invalidation state to indicate that the canvas is up to date.
-    userData = new CanvasRenderingContext2DUserData(mCanvasElement);
+    userData = new CanvasRenderingContext2DUserDataAzure(this);
     canvasLayer->SetDidTransactionCallback(
-            CanvasRenderingContext2DUserData::DidTransactionCallback, userData);
+            CanvasRenderingContext2DUserDataAzure::DidTransactionCallback, userData);
   }
   canvasLayer->SetUserData(&g2DContextLayerUserData, userData);
 

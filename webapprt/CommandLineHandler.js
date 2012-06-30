@@ -21,8 +21,12 @@ CommandLineHandler.prototype = {
     Services.ww.openWindow(null,
                            "chrome://webapprt/content/webapp.xul",
                            "_blank",
-                           "chrome,dialog=no,all,resizable",
+                           "chrome,dialog=no,resizable,scrollbars",
                            []);
+
+    // Initialize window-independent handling of webapps- notifications
+    Cu.import("resource://webapprt/modules/WebappsHandler.jsm");
+    WebappsHandler.init();
   },
 
   helpInfo : "",
@@ -52,6 +56,10 @@ try {
     // Set AppCache-related permissions.
     Services.perms.add(uri, "pin-app", Ci.nsIPermissionManager.ALLOW_ACTION);
     Services.perms.add(uri, "offline-app",
+                       Ci.nsIPermissionManager.ALLOW_ACTION);
+
+    Services.perms.add(uri, "indexedDB", Ci.nsIPermissionManager.ALLOW_ACTION);
+    Services.perms.add(uri, "indexedDB-unlimited",
                        Ci.nsIPermissionManager.ALLOW_ACTION);
 
     // Now that we've set the appropriate permissions, twiddle the firstrun flag

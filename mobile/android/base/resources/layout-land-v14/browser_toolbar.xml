@@ -12,9 +12,11 @@
                     android:background="@drawable/address_bar_bg">
 
         <ImageButton android:id="@+id/back"
+                     android:contentDescription="@string/back"
                      style="@style/AddressBar.ImageButton.Unused"/>
 
         <ImageButton android:id="@+id/forward"
+                     android:contentDescription="@string/forward"
                      style="@style/AddressBar.ImageButton.Unused"/>
 
         <LinearLayout android:id="@+id/menu_items"
@@ -34,7 +36,6 @@
                      android:background="@drawable/tabs_button"
                      android:gravity="center_vertical"
                      android:src="@drawable/tabs_level"
-                     android:paddingTop="2.5dip"
                      android:paddingLeft="31dip"
                      android:paddingRight="9dip"/>
 
@@ -42,7 +43,7 @@
                      style="@style/AddressBar.ImageButton"
                      android:layout_width="38.5dip"
                      android:layout_height="wrap_content"
-                     android:layout_marginTop="2.5dp"
+                     android:layout_marginTop="4.5dp"
                      android:layout_alignRight="@id/tabs"
                      android:gravity="center_horizontal"/>
 
@@ -52,6 +53,7 @@
                      android:layout_toLeftOf="@id/spacer"
                      android:gravity="center_vertical"
                      android:src="@drawable/menu"
+                     android:contentDescription="@string/menu"
                      android:background="@drawable/action_bar_button"
                      android:paddingLeft="10dip"
                      android:paddingRight="10dip"
@@ -97,6 +99,7 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/reader"
+                         android:contentDescription="@string/reader_mode"
                          android:visibility="gone"/>
 
             <ImageButton android:id="@+id/site_security"
@@ -104,6 +107,7 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/site_security_level"
+                         android:contentDescription="@string/site_security"
                          android:visibility="gone"/>
 
             <ImageButton android:id="@+id/stop"
@@ -111,6 +115,7 @@
                          android:layout_width="24dip"
                          android:layout_height="24dip"
                          android:src="@drawable/urlbar_stop"
+                         android:contentDescription="@string/stop"
                          android:visibility="gone"/>
 
         </LinearLayout>

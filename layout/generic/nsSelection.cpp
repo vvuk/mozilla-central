@@ -88,7 +88,6 @@ static NS_DEFINE_IID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
 static NS_DEFINE_IID(kCSubtreeIteratorCID, NS_SUBTREEITERATOR_CID);
 
 //PROTOTYPES
-class nsSelectionIterator;
 class nsFrameSelection;
 class nsAutoScrollTimer;
 
@@ -144,35 +143,6 @@ public:
   { 
     if (mSelection) mSelection->EndBatchChanges();
   }
-};
-
-class nsSelectionIterator : public nsIBidirectionalEnumerator
-{
-public:
-/*BEGIN nsIEnumerator interfaces
-see the nsIEnumerator for more details*/
-
-  NS_DECL_ISUPPORTS
-
-  NS_DECL_NSIENUMERATOR
-
-  NS_DECL_NSIBIDIRECTIONALENUMERATOR
-
-/*END nsIEnumerator interfaces*/
-/*BEGIN Helper Methods*/
-  nsRange* CurrentItem();
-/*END Helper Methods*/
-private:
-  friend class mozilla::Selection;
-
-  //lame lame lame if delete from document goes away then get rid of this unless its debug
-  friend class nsFrameSelection;
-
-  nsSelectionIterator(Selection*);
-  virtual ~nsSelectionIterator();
-  PRInt32     mIndex;
-  Selection* mDomSelection;
-  SelectionType mType;
 };
 
 class nsAutoScrollTimer : public nsITimerCallback
@@ -1300,7 +1270,8 @@ nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
   const nsRange* anchorFocusRange =
     mDomSelections[index]->GetAnchorFocusRange();
   if (anchorFocusRange) {
-    return anchorFocusRange->CloneRange(getter_AddRefs(mMaintainRange));
+    mMaintainRange = anchorFocusRange->CloneRange();
+    return NS_OK;
   }
 
   mMaintainRange = nsnull;
@@ -4825,11 +4796,7 @@ Selection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   PRInt32 anchorOffset = GetAnchorOffset();
   PRInt32 focusOffset = GetFocusOffset();
 
-  nsRefPtr<nsRange> range;
-  res = mAnchorFocusRange->CloneRange(getter_AddRefs(range));
-  if (NS_FAILED(res))
-    return res;
-  //range = mAnchorFocusRange;
+  nsRefPtr<nsRange> range = mAnchorFocusRange->CloneRange();
 
   nsINode* startNode = range->GetStartParent();
   nsINode* endNode = range->GetEndParent();

@@ -90,21 +90,14 @@ class Bindings
 
     inline Shape *initialShape(JSContext *cx) const;
   public:
-    inline Bindings(JSContext *cx);
+    inline Bindings();
 
     /*
      * Transfers ownership of bindings data from bindings into this fresh
      * Bindings instance. Once such a transfer occurs, the old bindings must
      * not be used again.
      */
-    inline void transfer(JSContext *cx, Bindings *bindings);
-
-    /*
-     * Clones bindings data from bindings, which must be immutable, into this
-     * fresh Bindings instance. A Bindings instance may be cloned multiple
-     * times.
-     */
-    inline void clone(JSContext *cx, Bindings *bindings);
+    inline void transfer(Bindings *bindings);
 
     uint16_t numArgs() const { return nargs; }
     uint16_t numVars() const { return nvars; }
@@ -175,7 +168,8 @@ class Bindings
     }
     bool addDestructuring(JSContext *cx, uint16_t *slotp) {
         *slotp = nargs;
-        return add(cx, RootedAtom(cx), ARGUMENT);
+        Rooted<JSAtom*> atom(cx, NULL);
+        return add(cx, atom, ARGUMENT);
     }
 
     void noteDup() { hasDup_ = true; }
@@ -206,22 +200,14 @@ class Bindings
     bool getLocalNameArray(JSContext *cx, BindingNames *namesp);
 
     /*
-     * Protect stored bindings from mutation.  Subsequent attempts to add
-     * bindings will copy the existing bindings before adding to them, allowing
-     * the original bindings to be safely shared.
-     */
-    void makeImmutable();
-
-    /*
-     * These methods provide direct access to the shape path normally
-     * encapsulated by js::Bindings. These methods may be used to make a
+     * This method provides direct access to the shape path normally
+     * encapsulated by js::Bindings. This method may be used to make a
      * Shape::Range for iterating over the relevant shapes from youngest to
      * oldest (i.e., last or right-most to first or left-most in source order).
      *
      * Sometimes iteration order must be from oldest to youngest, however. For
      * such cases, use js::Bindings::getLocalNameArray.
      */
-    const js::Shape *lastArgument() const;
     const js::Shape *lastVariable() const;
 
     void trace(JSTracer *trc);
@@ -417,7 +403,7 @@ struct JSScript : public js::gc::Cell
   public:
     jsbytecode      *code;      /* bytecodes and their immediate operands */
     uint8_t         *data;      /* pointer to variable-length data array (see
-                                   comment above NewScript() for details) */
+                                   comment above Create() for details) */
 
     const char      *filename;  /* source filename or null */
     js::HeapPtrAtom *atoms;     /* maps immediate index to literal struct */
@@ -513,8 +499,7 @@ struct JSScript : public js::gc::Cell
 
   private:
     // The bits in this field indicate the presence/non-presence of several
-    // optional arrays in |data|.  See the comments above NewScript() for
-    // details.
+    // optional arrays in |data|.  See the comments above Create() for details.
     ArrayBitsT      hasArrayBits;
 
     // 1-bit fields.
@@ -565,24 +550,22 @@ struct JSScript : public js::gc::Cell
     // End of fields.  Start methods.
     //
 
-    /*
-     * Two successively less primitive ways to make a new JSScript.  The first
-     * does *not* call a non-null cx->runtime->newScriptHook -- only the second,
-     * NewScriptFromEmitter, calls this optional debugger hook.
-     *
-     * The NewScript function can't know whether the script it creates belongs
-     * to a function, or is top-level or eval code, but the debugger wants access
-     * to the newly made script's function, if any -- so callers of NewScript
-     * are responsible for notifying the debugger after successfully creating any
-     * kind (function or other) of new JSScript.
-     */
   public:
-    static JSScript *NewScript(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t natoms,
-                               uint32_t nobjects, uint32_t nregexps,
-                               uint32_t ntrynotes, uint32_t nconsts,
-                               uint16_t nClosedArgs, uint16_t nClosedVars, uint32_t nTypeSets,
-                               JSVersion version);
-    static JSScript *NewScriptFromEmitter(JSContext *cx, js::BytecodeEmitter *bce);
+    static JSScript *Create(JSContext *cx, bool savedCallerFun,
+                            JSPrincipals *principals, JSPrincipals *originPrincipals,
+                            bool compileAndGo, bool noScriptRval,
+                            js::GlobalObject *globalObject, JSVersion version,
+                            unsigned staticLevel);
+
+    // Three ways ways to initialize a JSScript.  Callers of partiallyInit()
+    // and fullyInitTrivial() are responsible for notifying the debugger after
+    // successfully creating any kind (function or other) of new JSScript.
+    // However, callers of fullyInitFromEmitter() do not need to do this.
+    bool partiallyInit(JSContext *cx, uint32_t length, uint32_t nsrcnotes, uint32_t natoms,
+                       uint32_t nobjects, uint32_t nregexps, uint32_t ntrynotes, uint32_t nconsts,
+                       uint16_t nClosedArgs, uint16_t nClosedVars, uint32_t nTypeSets);
+    bool fullyInitTrivial(JSContext *cx);  // inits a JSOP_STOP-only script
+    bool fullyInitFromEmitter(JSContext *cx, js::BytecodeEmitter *bce);
 
     void setVersion(JSVersion v) { version = v; }
 
@@ -945,10 +928,11 @@ JS_STATIC_ASSERT(sizeof(JSScript::ArrayBitsT) * 8 >= JSScript::LIMIT);
 JS_STATIC_ASSERT(sizeof(JSScript) % js::gc::Cell::CellSize == 0);
 
 /*
- * New-script-hook calling is factored from NewScriptFromEmitter so that it
- * and callers of XDRScript can share this code.  In the case of callers
- * of XDRScript, the hook should be invoked only after successful decode
- * of any owning function (the fun parameter) or script object (null fun).
+ * New-script-hook calling is factored from JSScript::fullyInitFromEmitter() so
+ * that it and callers of XDRScript() can share this code.  In the case of
+ * callers of XDRScript(), the hook should be invoked only after successful
+ * decode of any owning function (the fun parameter) or script object (null
+ * fun).
  */
 extern JS_FRIEND_API(void)
 js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun);
