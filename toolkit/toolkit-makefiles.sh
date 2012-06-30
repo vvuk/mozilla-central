@@ -868,10 +868,10 @@ if [ "$ENABLE_TESTS" ]; then
     toolkit/content/tests/chrome/rtlchrome/Makefile
     toolkit/content/tests/chrome/rtltest/Makefile
     toolkit/content/tests/widgets/Makefile
+    toolkit/devtools/debugger/tests/Makefile
     toolkit/identity/tests/Makefile
     toolkit/identity/tests/chrome/Makefile
     toolkit/identity/tests/mochitest/Makefile
-    toolkit/devtools/debugger/tests/Makefile
     toolkit/mozapps/downloads/tests/Makefile
     toolkit/mozapps/downloads/tests/chrome/Makefile
     toolkit/mozapps/extensions/test/Makefile
