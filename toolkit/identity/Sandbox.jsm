@@ -83,6 +83,8 @@ Sandbox.prototype = {
 
     // Insert iframe in to create docshell.
     let frame = doc.createElementNS(XHTML_NS, "iframe");
+    frame.setAttribute("mozbrowser", true);
+    frame.setAttribute("type", "content");
     frame.style.visibility = "collapse";
     doc.documentElement.appendChild(frame);
 
