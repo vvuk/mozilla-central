@@ -58,6 +58,19 @@ IdentityProviderService.prototype = {
     this._authenticationFlows = {};
   },
 
+  getProvisionFlow: function getProvisionFlow(aProvId, aErrBack) {
+    let provFlow = this._provisionFlows[aProvId];
+    if (provFlow) {
+      return provFlow;
+    }
+
+    let err = "No provisioning flow found with id " + aProvId;
+    log("ERROR:", err);
+    if (typeof aErrBack === 'function') {
+      aErrBack(err);
+    }
+  },
+
   shutdown: function RP_shutdown() {
     this.reset();
   },
@@ -140,12 +153,7 @@ IdentityProviderService.prototype = {
     log("beginProvisioning:", aCaller.id);
 
     // Expect a flow for this caller already to be underway.
-    let provFlow = this._provisionFlows[aCaller.id];
-    if (!provFlow) {
-      let errStr = "No provisioning flow found with id:" + aCaller.id;
-      log("ERROR: beginProvisioning:", errStr);
-      return aCaller.doError(errStr);
-    }
+    let provFlow = this.getProvisionFlow(aCaller.id, aCaller.doError);
 
     // keep the caller object around
     provFlow.caller = aCaller;
@@ -177,11 +185,7 @@ IdentityProviderService.prototype = {
     reportError("Provisioning failure", aReason);
 
     // look up the provisioning caller and its callback
-    let provFlow = this._provisionFlows[aProvId];
-    if (!provFlow) {
-      reportError("Provisioning failure", "No provisioning flow with id", aProvId);
-      return;
-    }
+    let provFlow = this.getProvisionFlow(aProvId);
 
     // Sandbox is deleted in _cleanUpProvisionFlow in case we re-use it.
 
@@ -207,12 +211,7 @@ IdentityProviderService.prototype = {
    */
   genKeyPair: function genKeyPair(aProvId) {
     // Look up the provisioning caller and make sure it's valid.
-    let provFlow = this._provisionFlows[aProvId];
-
-    if (!provFlow) {
-      log("ERROR: genKeyPair: no provisioning flow found with id:", aProvId);
-      return;
-    }
+    let provFlow = this.getProvisionFlow(aProvId);
 
     if (!provFlow.didBeginProvisioning) {
       let errStr = "ERROR: genKeyPair called before beginProvisioning";
@@ -258,8 +257,9 @@ IdentityProviderService.prototype = {
     log("registerCertificate:", aProvId, aCert);
 
     // look up provisioning caller, make sure it's valid.
-    let provFlow = this._provisionFlows[aProvId];
-    if (!provFlow && provFlow.caller) {
+    let provFlow = this.getProvisionFlow(aProvId);
+
+    if (!provFlow.caller) {
       reportError("registerCertificate", "No provision flow or caller");
       return;
     }
@@ -371,7 +371,7 @@ IdentityProviderService.prototype = {
     delete authFlow['caller'];
     delete this._authenticationFlows[aAuthId];
 
-    let provFlow = this._provisionFlows[provId];
+    let provFlow = this.getProvisionFlow(provId);
     provFlow.didAuthentication = true;
     let subject = {
       rpId: provFlow.rpId,
@@ -402,7 +402,7 @@ IdentityProviderService.prototype = {
     delete authFlow['caller'];
     delete this._authenticationFlows[aAuthId];
 
-    let provFlow = this._provisionFlows[provId];
+    let provFlow = this.getProvisionFlow(provId);
     provFlow.didAuthentication = true;
     Services.obs.notifyObservers(null, "identity-auth-complete", aAuthId);
 
