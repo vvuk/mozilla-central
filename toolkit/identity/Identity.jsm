@@ -38,26 +38,9 @@ function IDService() {
   this._store = IdentityStore;
   this.RP = RelyingParty;
   this.IDP = IdentityProvider;
-
-  this.reset();
 }
 
 IDService.prototype = {
-  /**
-   * Reset the state of the IDService object.
-   */
-  reset: function reset() {
-    log("IN reset - store is  ", this._store);
-    // Forget all identities
-    this._store.reset();
-
-    // Clear RP state
-    this.RP.reset();
-
-    // Clear IDP state
-    this.IDP.reset();
-  },
-
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
 
   observe: function observe(aSubject, aTopic, aData) {
@@ -78,15 +61,21 @@ IDService.prototype = {
     }
   },
 
+  reset: function reset() {
+    // Explicitly call reset() on our RP and IDP classes.
+    // This is here to make testing easier.  When the
+    // quit-application-granted signal is emitted, reset() will be
+    // called here, on RP, on IDP, and on the store.  So you don't
+    // need to use this :)
+    this._store.reset();
+    this.RP.reset();
+    this.IDP.reset();
+  },
+
   shutdown: function shutdown() {
     log("shutdown");
-    this.RP.shutdown();
-
     Services.obs.removeObserver(this, "identity-auth-complete");
     Services.obs.removeObserver(this, "quit-application-granted");
-
-    // Don't leak after shutdown
-    this.reset();
   },
 
   /**

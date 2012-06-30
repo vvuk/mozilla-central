@@ -32,17 +32,27 @@ function reportError(...aMessageArgs) {
 
 
 function IdentityProviderService() {
+  XPCOMUtils.defineLazyModuleGetter(this,
+                                    "_store",
+                                    "resource://gre/modules/identity/IdentityStore.jsm",
+                                    "IdentityStore");
+
   this.reset();
 }
 
 IdentityProviderService.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+  observe: function observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "quit-application-granted":
+        Services.obs.removeObserver(this, "quit-application-granted");
+        this.shutdown();
+        break;
+    }
+  },
 
   reset: function IDP_reset() {
-    XPCOMUtils.defineLazyModuleGetter(this,
-                                      "_store",
-                                      "resource://gre/modules/identity/IdentityStore.jsm",
-                                      "IdentityStore");
-
     // Clear the provisioning flows.  Provision flows contain an
     // identity, idpParams (how to reach the IdP to provision and
     // authenticate), a callback (a completion callback for when things
@@ -73,6 +83,7 @@ IdentityProviderService.prototype = {
 
   shutdown: function RP_shutdown() {
     this.reset();
+    Services.obs.removeObserver(this, "quit-application-granted");
   },
 
   get securityLevel() {

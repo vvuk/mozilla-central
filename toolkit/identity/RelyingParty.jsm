@@ -39,6 +39,17 @@ function IdentityRelyingParty() {
 }
 
 IdentityRelyingParty.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports, Ci.nsIObserver]),
+
+  observe: function observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "quit-application-granted":
+        Services.obs.removeObserver(this, "quit-application-granted");
+        this.shutdown();
+        break;
+
+    }
+  },
 
   reset: function RP_reset() {
     // Forget all documents that call in.  (These are sometimes
@@ -48,6 +59,7 @@ IdentityRelyingParty.prototype = {
 
   shutdown: function RP_shutdown() {
     this.reset();
+    Services.obs.removeObserver(this, "quit-application-granted");
   },
 
   /**
