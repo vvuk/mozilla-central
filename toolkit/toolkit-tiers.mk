@@ -272,6 +272,7 @@ tier_platform_dirs += testing/peptest
 tier_platform_dirs += testing/mozbase
 ifdef MOZ_WEBRTC
 tier_platform_dirs += media/webrtc/signaling/test
+tier_platform_dirs += media/mtransport/test
 endif
 endif
 
