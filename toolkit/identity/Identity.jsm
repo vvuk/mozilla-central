@@ -240,7 +240,7 @@ IDService.prototype = {
       // idpParams includes the pk, authorization url, and
       // provisioning url.
 
-      // XXX TODO follow any authority delegations
+      // XXX bug 769861 follow any authority delegations
       // if no well-known at any point in the delegation
       // fall back to browserid.org as IdP
       return aCallback(err, idpParams);
