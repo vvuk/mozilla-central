@@ -6,6 +6,7 @@
 
 "use strict";
 
+
 const Cu = Components.utils;
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -19,9 +20,10 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "IDLog",
                                   "resource://gre/modules/identity/IdentityStore.jsm");
 
-const IdentityCryptoService
-  = Cc["@mozilla.org/identity/crypto-service;1"]
-      .getService(Ci.nsIIdentityCryptoService);
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "IdentityCryptoService",
+                                   "@mozilla.org/identity/crypto-service;1",
+                                   "nsIIdentityCryptoService");
 
 const EXPORTED_SYMBOLS = ["jwcrypto"];
 
@@ -31,23 +33,16 @@ function log(...aMessageArgs) {
   Logger.log(["jwcrypto"].concat(aMessageArgs));
 }
 
-function keygenerator() {}
-
-keygenerator.prototype = {
-  generateKeyPair: function(aAlgorithmName, aCallback) {
-    log("Generate key pair; alg =", aAlgorithmName);
-    IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, keypair) {
-      return this._generateKeyPairFinished(rv, keypair, aCallback);
-    }.bind(this));
-  },
-
-  _generateKeyPairFinished: function(rv, aKeyPair, aCallback) {
+function generateKeyPair(aAlgorithmName, aCallback) {
+  log("Generate key pair; alg =", aAlgorithmName);
+  
+  IdentityCryptoService.generateKeyPair(aAlgorithmName, function(rv, aKeyPair) {
     if (!Components.isSuccessCode(rv)) {
-      return this.callback("key generation failed");
+      return aCallback("key generation failed");
     }
-
+    
     var publicKey;
-
+    
     switch (aKeyPair.keyType) {
      case ALGORITHMS.RS256:
       publicKey = {
@@ -56,7 +51,7 @@ keygenerator.prototype = {
         modulus:   aKeyPair.hexRSAPublicKeyModulus
       };
       break;
-
+      
      case ALGORITHMS.DS160:
       publicKey = {
         algorithm: "DS",
@@ -66,36 +61,30 @@ keygenerator.prototype = {
         g: aKeyPair.hexDSAGenerator
       };
       break;
-
+      
     default:
-      return this.callback("unknown key type");
+      return aCallback("unknown key type");
     }
-
+    
     let keyWrapper = {
       serializedPublicKey: JSON.stringify(publicKey),
       _kp: aKeyPair
     };
+    
     return aCallback(null, keyWrapper);
-  }
-};
-
-function signer() {
+  });
 }
 
-signer.prototype = {
-  sign: function(aPayload, aKeypair, aCallback) {
-    this.payload = aPayload;
-    this.callback = aCallback;
-    aKeypair._kp.sign(this.payload, function(rv, signature) {
-      if (!Components.isSuccessCode(rv)) {
-        log("ERROR: signer.sign failed");
-        return aCallback("Sign failed");
-      }
-      log("signer.sign: success");
-      return aCallback(null, signature);
-    }.bind(this));
-  }
-};
+function sign(aPayload, aKeypair, aCallback) {
+  aKeypair._kp.sign(aPayload, function(rv, signature) {
+    if (!Components.isSuccessCode(rv)) {
+      log("ERROR: signer.sign failed");
+      return aCallback("Sign failed");
+    }
+    log("signer.sign: success");
+    return aCallback(null, signature);
+  });
+}
 
 function jwcryptoClass()
 {
@@ -103,24 +92,25 @@ function jwcryptoClass()
 
 jwcryptoClass.prototype = {
   isCertValid: function(aCert, aCallback) {
-    // XXX check expiration
+    // XXX check expiration, bug 769850
     aCallback(true);
   },
 
   generateKeyPair: function(aAlgorithmName, aCallback) {
     log("generating");
-    var the_keygenerator = new keygenerator();
-    the_keygenerator.generateKeyPair(aAlgorithmName, aCallback);
+    generateKeyPair(aAlgorithmName, aCallback);
   },
 
   generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
     // for now, we hack the algorithm name
+    // XXX bug 769851
     var header = {"alg": "DS128"};
     var headerBytes = IdentityCryptoService.base64UrlEncode(
                           JSON.stringify(header));
 
     var payload = {
       // expires in 2 minutes
+      // XXX clock skew needs exploration bug 769852
       exp: Date.now() + (2 * 60 * 1000),
       aud: aAudience
     };
@@ -128,8 +118,7 @@ jwcryptoClass.prototype = {
                           JSON.stringify(payload));
 
     log("payload bytes", payload, payloadBytes);
-    var theSigner = new signer();
-    theSigner.sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
+    sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
       if (err)
         return aCallback(err);
 
