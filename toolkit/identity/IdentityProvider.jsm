@@ -155,9 +155,6 @@ IdentityProviderService.prototype = {
 
     // Determine recommended length of cert.
     let duration = this.certDuration;
-    if (!duration) {
-      throw "invalid duration";
-    }
 
     // Make a record that we have begun provisioning.  This is required
     // for genKeyPair.
