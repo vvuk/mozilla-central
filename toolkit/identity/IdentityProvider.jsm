@@ -140,7 +140,7 @@ IdentityProviderService.prototype = {
           },
         };
 
-        log("_provisionIdentity: Created sandbox and provisioning flow with id:", aProvId);
+        log("_provisionIdentity: Created sandbox and provisioning flow with id:", provId);
         // XXX bug 769862 - provisioning flow should timeout after N seconds
 
       }.bind(this));

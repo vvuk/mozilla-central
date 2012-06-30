@@ -124,13 +124,13 @@ Sandbox.prototype = {
         return;
       }
       self._frame.removeEventListener(
-        "DOMContentLoaded", _makeSandboxContentLoaded, true
+        "DOMWindowCreated", _makeSandboxContentLoaded, true
       );
 
       aCallback(self);
     };
 
-    this._frame.addEventListener("DOMContentLoaded",
+    this._frame.addEventListener("DOMWindowCreated",
                                  _makeSandboxContentLoaded,
                                  true);
 

@@ -61,26 +61,26 @@ IdentityLogger.prototype = {
         }
       }
     });
-    return 'Identity ' + aPrefix + ': ' + strings.join(' ');
+    return 'Identity ' + aPrefix + ': ' + strings.join(' : ');
   },
 
   /**
-   * IDLog() - utility function to print a list of arbitrary things
+   * log() - utility function to print a list of arbitrary things
    * Depends on IdentityStore (bottom of this file) for _debug.
    *
    * Enable with about:config pref toolkit.identity.debug
    */
   log: function log(aPrefix, ...args) {
+    if (!this._debug) {
+      return;
+    }
     if (typeof this === 'undefined') {
       for (var frame=Components.stack; frame; frame = frame.caller) {
         dump (frame + "\n");
       }
     }
-    if (!this._debug) {
-      return;
-    }
     let output = this._generateLogMessage(aPrefix, args);
-    dump(output + '\n');
+    dump(output + "\n");
 
     // Additionally, make the output visible in the Error Console
     Services.console.logStringMessage(output);
@@ -88,7 +88,7 @@ IdentityLogger.prototype = {
 
   /**
    * reportError() - report an error through component utils as well as
-   * our IDLog function
+   * our log function
    */
   reportError: function reportError(aPrefix, ...args) {
     let prefix = aPrefix + ' ERROR';

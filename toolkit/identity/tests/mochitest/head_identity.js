@@ -134,7 +134,7 @@ function call_sequentially() {
  * frame would provide in response to DOM calls.
  */
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
-  IDService.init();
+  IDService.reset();
 
   let util = window.QueryInterface(Ci.nsIInterfaceRequestor)
                     .getInterface(Ci.nsIDOMWindowUtils);
@@ -168,8 +168,8 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
 }
 
 function resetState() {
-  get_idstore().init();
-  RelyingParty.init();
+  get_idstore().reset();
+  RelyingParty.reset();
 }
 
 var TESTS = [];
