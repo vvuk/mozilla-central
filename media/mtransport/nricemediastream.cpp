@@ -137,6 +137,30 @@ void NrIceMediaStream::EmitAllCandidates() {
   RFREE(attrs);
 }
 
+std::vector<std::string> NrIceMediaStream::GetCandidates() const {
+  char **attrs = 0;
+  int attrct;
+  int r;
+  std::vector<std::string> ret;
+
+  r = nr_ice_media_stream_get_attributes(stream_,
+                                         &attrs, &attrct);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
+         << name_ << "'");
+    return ret;
+  }
+
+  for (size_t i=0; i<attrct; i++) {
+    ret.push_back(attrs[i]);
+    RFREE(attrs[i]);
+  }
+
+  RFREE(attrs);
+
+  return ret;
+}
+
 nsresult NrIceMediaStream::SendPacket(int component_id,
                                       const unsigned char *data,
                                       size_t len) {
