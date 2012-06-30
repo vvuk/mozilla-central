@@ -151,7 +151,7 @@ Sandbox.prototype = {
   },
 
   _log: function Sandbox__log(...aMessageArgs) {
-    Logger.logger(["Sandbox"].concat(aMessageArgs));
+    Logger.log(["Sandbox"].concat(aMessageArgs));
   },
 
 };
