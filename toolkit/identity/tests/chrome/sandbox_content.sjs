@@ -22,14 +22,14 @@ function handleRequest(request, response) {
       break;
     }
     default: {
-      let contentType = request.queryString;
+      let contentType = decodeURIComponent(request.queryString);
       // set the Content-Type equal to the query string
-      response.setHeader("Content-Type", request.queryString, false);
+      response.setHeader("Content-Type", contentType, false);
       // If any content is loaded, append it's content type in state
       let loaded = getState(loadedStateKey);
       if (loaded)
         loaded += ",";
-      setState(loadedStateKey, loaded + request.queryString);
+      setState(loadedStateKey, loaded + contentType);
       break;
     }
   }

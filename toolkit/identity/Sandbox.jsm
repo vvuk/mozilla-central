@@ -136,15 +136,10 @@ Sandbox.prototype = {
     let webNav = this._frame.contentWindow
                             .QueryInterface(Ci.nsIInterfaceRequestor)
                             .getInterface(Ci.nsIWebNavigation);
-    let docShell = this._frame.contentWindow
-                              .QueryInterface(Ci.nsIInterfaceRequestor)
-                              .getInterface(Ci.nsIWebNavigation)
-                              .QueryInterface(Ci.nsIInterfaceRequestor)
-                              .getInterface(Ci.nsIDocShell);
 
     webNav.loadURI(
       this._url,
-      docShell.LOAD_FLAGS_BYPASS_CACHE,
+      Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE,
       null, // referrer
       null, // postData
       null  // headers

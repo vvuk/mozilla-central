@@ -39,6 +39,7 @@ const TEST_URL_1 = "https://example.com/";
 const TEST_URL_2 = "https://example.com:443";
 
 const TEST_BASE = "http://mochi.test:8888/chrome/toolkit/identity/tests/chrome/"
+const STATE_URL = TEST_BASE + "sandbox_content.sjs"
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -79,6 +80,13 @@ function free_and_check_sandbox(aSandbox) {
   });
 }
 
+function reset_server_state() {
+  // Now reset the server state
+  let resetReq = new XMLHttpRequest();
+  resetReq.open("GET", STATE_URL + "?reset", false);
+  resetReq.send();
+}
+
 function test_creation() {
   new Sandbox(TEST_URL_1, function sandboxCB(aSandbox) {
     check_sandbox(aSandbox, TEST_URL_1);
@@ -111,10 +119,9 @@ function test_url_normalization() {
  * Check with the server's state to see what content was loaded then reset it.
  */
 function check_loaded_content(aNothingShouldLoad, aCallback) {
-  let stateURL = TEST_BASE + "sandbox_content.sjs"
 
   let xhr = new XMLHttpRequest();
-  xhr.open("GET", stateURL + "?get_loaded", true);
+  xhr.open("GET", STATE_URL + "?get_loaded", true);
   xhr.onload = function() {
     is(xhr.status, 200, "Check successful response");
 
@@ -133,10 +140,7 @@ function check_loaded_content(aNothingShouldLoad, aCallback) {
       todo_is(loadedTypes.indexOf("audio/ogg"), -1, "Check ogg was not loaded");
     }
 
-    // Now reset the server state
-    let resetReq = new XMLHttpRequest();
-    resetReq.open("GET", stateURL + "?reset", false);
-    resetReq.send();
+    reset_server_state();
 
     aCallback();
   };
@@ -194,7 +198,7 @@ function WindowObserver(aCallback) {
     Services.ww.unregisterNotification(this);
 
     let domWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    todo(!domWin, "No window should be opened");
+    ok(!domWin, "No window should be opened");
     SimpleTest.executesoon(function() {
       info("Closing opened window");
       domWin.close();
@@ -251,10 +255,37 @@ function test_bad_cert() {
   check_disabled_content(url, /*nothingShouldLoad=*/true);
 }
 
+// Loading a page to check window.top and other permissions.
+function test_frame_perms() {
+  let url = TEST_BASE + "sandbox_content_perms.html";
+  new Sandbox(url, function sandboxCB(aSandbox) {
+    check_sandbox(aSandbox, url);
+
+    // Give the content time to load
+    setTimeout(function() {
+      let xhr = new XMLHttpRequest();
+      xhr.open("GET", STATE_URL + "?get_loaded", true);
+      xhr.responseType = "json";
+      xhr.onload = function() {
+        is(xhr.status, 200, "Check successful response");
+        is(typeof(xhr.response), "object", "Check response is object");
+        is(Object.keys(xhr.response).length, 3, "Check the number of perm. tests");
+        for (let test in xhr.response) {
+          ok(xhr.response[test], "Check result of " + test);
+        }
+
+        reset_server_state();
+        free_and_check_sandbox(aSandbox);
+      };
+      xhr.send();
+    }, 3000);
+  });
+}
+
 let TESTS = [test_creation, test_reload, test_url_normalization];
 TESTS.push(test_disabled_content, test_disabled_content_framed);
 TESTS.push(test_alert, test_popup, test_bad_cert);
-TESTS.push(test_redirect);
+TESTS.push(test_redirect, test_frame_perms);
 
 function run_next_test() {
   if (TESTS.length) {
