@@ -330,14 +330,14 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
 
 
 nsresult NrIceCtx::StartGathering() {
+  this->AddRef();
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
                             this);
-
-  this->AddRef();
   
   if (r && r != R_WOULDBLOCK) {
       MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
+      this->Release();
       return NS_ERROR_FAILURE;
   }
   

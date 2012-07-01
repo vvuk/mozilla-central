@@ -99,9 +99,9 @@ typedef STAILQ_HEAD(nr_ice_stun_id_head_,nr_ice_stun_id_) nr_ice_stun_id_head;
 struct nr_ice_ctx_ {
   UINT4 flags;
   int state;
-#define NR_ICE_STATE_CREATED      1
-#define NR_ICE_STATE_INITIALIZING 2
-#define NR_ICE_STATE_INITIALIZED  3
+#define NR_ICE_STATE_CREATED          1
+#define NR_ICE_STATE_INITIALIZING     2
+#define NR_ICE_STATE_INITIALIZED      3
   char *label;
   
   char *ufrag;

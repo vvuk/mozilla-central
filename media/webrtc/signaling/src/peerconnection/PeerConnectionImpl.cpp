@@ -38,6 +38,7 @@
 #include "PeerConnectionImpl.h"
 #include "MediaSegment.h"
 #include "cpr_socket.h"
+#include "runnable_utils.h"
 
 static const char* logTag = "PeerConnectionImpl";
 
@@ -220,9 +221,16 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
     // one for video
     mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
     mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+    
+    // Start gathering
+    nsresult res;
+    mIceCtx->thread()->Dispatch(WrapRunnableRet(mIceCtx, 
+        &NrIceCtx::StartGathering, &res), NS_DISPATCH_SYNC);
+    PR_ASSERT(NS_SUCCEEDED(res));
+    
 
      // Store under mHandle
-     peerconnections[mHandle] = this;
+    peerconnections[mHandle] = this;
   }
    
    return PC_OK;
