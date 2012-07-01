@@ -42,8 +42,7 @@
 #include "CallControlManager.h"
 #include "PhoneDetailsImpl.h"
 #include "CC_SIPCCService.h"
-
-#include "base/lock.h"
+#include "AutoLockNSPR.h"
 
 
 #include <set>
@@ -111,7 +110,7 @@ namespace CSF
 	private: // Data Storage
 
         // Observers
-		Lock m_lock;;
+		LockNSPR m_lock;;
 		std::set<CC_Observer *> ccObservers;
 		std::set<ECC_Observer *> eccObservers;
 

@@ -57,6 +57,7 @@
 #include "voe_network.h"
 #include "voe_audio_processing.h"
 #include "WebrtcLogging.h"
+#include "AutoLockNSPR.h"
 
 #include "CSFLog.h"
 static const char* logTag = "WebrtcAudioProvider";
@@ -268,7 +269,7 @@ WebrtcAudioProvider::~WebrtcAudioProvider() {
 }
 
 std::vector<std::string> WebrtcAudioProvider::getRecordingDevices() {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	char name[128];
 	char guid[128];
 	int  nRec = 0;
@@ -285,7 +286,7 @@ std::vector<std::string> WebrtcAudioProvider::getRecordingDevices() {
 }
 
 std::vector<std::string> WebrtcAudioProvider::getPlayoutDevices() {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	char name[128];
 	char guid[128];
 	int nPlay = 0;
@@ -301,7 +302,7 @@ std::vector<std::string> WebrtcAudioProvider::getPlayoutDevices() {
 }
 
 bool WebrtcAudioProvider::setRecordingDevice( const std::string& device ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	char name[128];
 	char guid[128];
 	int nRec = 0, nPlay = 0;
@@ -344,7 +345,7 @@ bool WebrtcAudioProvider::setRecordingDevice( const std::string& device ) {
 }
 
 bool WebrtcAudioProvider::setPlayoutDevice( const std::string& device ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	char name[128];
 	char guid[128];
 	int nPlay = 0, nRec = 0;
@@ -387,7 +388,7 @@ bool WebrtcAudioProvider::setPlayoutDevice( const std::string& device ) {
 }
 
 WebrtcAudioStreamPtr WebrtcAudioProvider::getStreamByChannel( int channel ) {
-	AutoLock lock(streamMapMutex);
+	AutoLockNSPR lock(streamMapMutex);
 	for( std::map<int, WebrtcAudioStreamPtr>::const_iterator it = streamMap.begin(); it != streamMap.end(); it++ ) {
 		WebrtcAudioStreamPtr stream = it->second;
 		if(stream->channelId == channel)
@@ -397,7 +398,7 @@ WebrtcAudioStreamPtr WebrtcAudioProvider::getStreamByChannel( int channel ) {
 }
 
 WebrtcAudioStreamPtr WebrtcAudioProvider::getStream( int streamId ) {
-	AutoLock lock(streamMapMutex);
+	AutoLockNSPR lock(streamMapMutex);
 	std::map<int, WebrtcAudioStreamPtr>::const_iterator it = streamMap.find( streamId );
 	return ( it != streamMap.end() ) ? it->second : WebrtcAudioStreamPtr();
 }
@@ -408,12 +409,12 @@ int WebrtcAudioProvider::getChannelForStreamId( int streamId ) {
 }
 
 int WebrtcAudioProvider::getCodecList( CodecRequestType requestType ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	return codecSelector.advertiseCodecs(requestType);
 }
 
 int WebrtcAudioProvider::rxAlloc( int groupId, int streamId, int requestedPort ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "rxAllocAudio: groupId=%d, streamId=%d, requestedPort=%d", groupId, streamId, requestedPort  );
 	int channel = voeBase->CreateChannel();
 	if ( channel == -1 ) {
@@ -450,7 +451,7 @@ int WebrtcAudioProvider::rxAlloc( int groupId, int streamId, int requestedPort )
 			LOG_WEBRTC_DEBUG( logTag, "rxAllocAudio: IPAddr: %d", ipaddr );
 			LOG_WEBRTC_DEBUG( logTag, "rxAllocAudio: Allocated port %d", tryPort );
 			WebrtcAudioStreamPtr stream(new WebrtcAudioStream(streamId, channel)); {
-				AutoLock lock(streamMapMutex);
+				AutoLockNSPR lock(streamMapMutex);
 				streamMap[streamId] = stream;
 			}
 			setVolume(streamId, defaultVolume);
@@ -479,7 +480,7 @@ int WebrtcAudioProvider::rxAlloc( int groupId, int streamId, int requestedPort )
 }
 
 int WebrtcAudioProvider::rxOpen( int groupId, int streamId, int requestedPort, int listenIp, bool isMulticast ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "rxOpenAudio: groupId=%d, streamId=%d", groupId, streamId );
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
@@ -491,7 +492,7 @@ int WebrtcAudioProvider::rxOpen( int groupId, int streamId, int requestedPort, i
 
 int WebrtcAudioProvider::rxStart( int groupId, int streamId, int payloadType, int packPeriod, int localPort,
 		int rfc2833PayloadType, EncryptionAlgorithm algorithm, unsigned char* key, int keyLen, unsigned char* salt, int saltLen, int mode, int party ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "rxStartAudio: groupId=%d, streamId=%d", groupId, streamId );
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
@@ -573,7 +574,7 @@ int WebrtcAudioProvider::rxStart( int groupId, int streamId, int payloadType, in
 }
 
 void WebrtcAudioProvider::rxClose( int groupId, int streamId ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "rxCloseAudio: groupId=%d, streamId=%d", groupId, streamId );
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
@@ -587,13 +588,13 @@ void WebrtcAudioProvider::rxClose( int groupId, int streamId ) {
 
 void WebrtcAudioProvider::rxRelease( int groupId, int streamId, int port )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "rxReleaseAudio: groupId=%d, streamId=%d", groupId, streamId );
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
 		voeBase->StopReceive( channel );
 		voeBase->DeleteChannel( channel ); {
-			AutoLock lock(streamMapMutex);
+			AutoLockNSPR lock(streamMapMutex);
 			streamMap.erase(streamId);
 		}
 		LOG_WEBRTC_DEBUG( logTag, "rxReleaseAudio: Delete channel %d, release port %d", channel, port);
@@ -608,7 +609,7 @@ const unsigned char m_iGQOSServiceType =0x00000003;
 int WebrtcAudioProvider::txStart( int groupId, int streamId, int payloadType, int packPeriod, bool vad, short tos,
 		char* remoteIpAddr, int remotePort, int rfc2833PayloadType, EncryptionAlgorithm algorithm, unsigned char* key, int keyLen,
 		unsigned char* salt, int saltLen, int mode, int party ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "txStartAudio: groupId=%d, streamId=%d", groupId, streamId);
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
@@ -701,7 +702,7 @@ int WebrtcAudioProvider::txStart( int groupId, int streamId, int payloadType, in
 }
 
 void WebrtcAudioProvider::txClose( int groupId, int streamId ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "txCloseAudio: groupId=%d, streamId=%d", groupId, streamId);
 	int channel = getChannelForStreamId( streamId );
 	if ( channel >= 0 ) {
@@ -718,7 +719,7 @@ void WebrtcAudioProvider::txClose( int groupId, int streamId ) {
 }
 
 int WebrtcAudioProvider::toneStart( ToneType type, ToneDirection direction, int alertInfo, int groupId, int streamId, bool useBackup ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "mediaToneStart: tone=%d, direction=%d, groupId=%d, streamId=%d", type, direction, groupId, streamId );
 	if(toneGen != NULL) {
 		LOG_WEBRTC_INFO( logTag, "mediaToneStart: tone already in progress - stop current tone [using dodgy parameters] and replace it." );
@@ -731,7 +732,7 @@ int WebrtcAudioProvider::toneStart( ToneType type, ToneDirection direction, int 
 }
 
 int WebrtcAudioProvider::toneStop( ToneType type, int groupId, int streamId ) {
-	//AutoLock lock(m_lock);
+	//AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "mediaToneStop: tone=%d, groupId=%d, streamId=%d", type, groupId, streamId );
 	if ( voeFile->IsPlayingFileLocally( localToneChannel ) == 1 ) {
 		voeBase->StopPlayout( localToneChannel );
@@ -744,7 +745,7 @@ int WebrtcAudioProvider::toneStop( ToneType type, int groupId, int streamId ) {
 
 int WebrtcAudioProvider::ringStart( int lineId, RingMode mode, bool once )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "mediaRingStart: line=%d, mode=%d, once=%d", lineId, mode, once );
 	if(ringGen != NULL) {
 		LOG_WEBRTC_INFO( logTag, "mediaRingStart: ringing already in progress - do nothing." );
@@ -758,7 +759,7 @@ int WebrtcAudioProvider::ringStart( int lineId, RingMode mode, bool once )
 }
 
 int WebrtcAudioProvider::ringStop( int lineId ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "mediaRingStop: line=%d", lineId );
 	if ( voeFile->IsPlayingFileLocally( localRingChannel ) == 1 ) {
 		voeBase->StopPlayout( localRingChannel );
@@ -770,7 +771,7 @@ int WebrtcAudioProvider::ringStop( int lineId ) {
 }
 
 int WebrtcAudioProvider::sendDtmf( int streamId, int digit) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 
 	int rfc2833Payload=101;
     int channel = getChannelForStreamId( streamId );
@@ -791,7 +792,7 @@ int WebrtcAudioProvider::sendDtmf( int streamId, int digit) {
 // returns -1 on failure
 bool WebrtcAudioProvider::mute( int streamId, bool mute )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "audio mute: streamId=%d, mute=%d", streamId, mute );
     int channel = getChannelForStreamId( streamId );
     bool returnVal = false;
@@ -811,7 +812,7 @@ bool WebrtcAudioProvider::mute( int streamId, bool mute )
 }
 
 bool WebrtcAudioProvider::isMuted( int streamId ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	bool mute=false;
 
 	voeVolumeControl->GetInputMute(getChannelForStreamId(streamId), mute);
@@ -819,18 +820,18 @@ bool WebrtcAudioProvider::isMuted( int streamId ) {
 }
 
 bool WebrtcAudioProvider::setDefaultVolume( int volume ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	defaultVolume = volume;
     return true;
 }
 
 int WebrtcAudioProvider::getDefaultVolume() {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     return defaultVolume;
 }
 
 bool WebrtcAudioProvider::setRingerVolume( int volume ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	LOG_WEBRTC_INFO( logTag, "setRingerVolume: volume=%d", volume );
 	if (voeVolumeControl->SetChannelOutputVolumeScaling(localRingChannel, volume * 0.01f) != -1) {
 		ringerVolume = volume;
@@ -846,7 +847,7 @@ bool WebrtcAudioProvider::setRingerVolume( int volume ) {
 }
 
 int WebrtcAudioProvider::getRingerVolume() {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     return ringerVolume;
 }
 
@@ -871,7 +872,7 @@ bool WebrtcAudioProvider::setVolume( int streamId, int volume ) {
 }
 
 int  WebrtcAudioProvider::getVolume( int streamId ) {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	float voeVolume = 0;
 
 	if(voeVolumeControl->GetChannelOutputVolumeScaling(getChannelForStreamId(streamId), voeVolume) != -1) {

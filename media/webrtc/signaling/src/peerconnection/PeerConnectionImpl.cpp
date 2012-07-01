@@ -262,8 +262,10 @@ void PeerConnectionImpl::AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
   CSFLogDebug(logTag, "AddStream");
   nsRefPtr<LocalSourceStreamInfo> localSourceStream = new LocalSourceStreamInfo(aMediaStream);
   
+#if 0
   // Make it the listener for info from the MediaStream and add it to the list
   aMediaStream->AddListener(localSourceStream);
+#endif
 
   PR_Lock(mLocalSourceStreamsLock);
   mLocalSourceStreams.AppendElement(localSourceStream);

@@ -47,182 +47,18 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_signaling
 
-# We are recreating most of libxul here since libxul.so has most of the stuff we need hidden.
-LIBS = \
-  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
-  $(DEPTH)/layout/media/$(LIB_PREFIX)gkmedias.$(LIB_SUFFIX) \
-  $(DEPTH)/xpcom/glue/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
-  $(DEPTH)/toolkit/xre/$(LIB_PREFIX)xulapp_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)jsipc_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)domipc_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)domplugins_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)mozipc_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)mozipdlgen_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)ipcshell_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)gfxipc_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)hal_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)dombindings_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)xpcom_core.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)ucvutil_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)chromium_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)snappy_s.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)thebes.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)gl.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)ycbcr.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)necko.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)uconv.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)i18n.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)chardet.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)jar50.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)startupcache.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)pref.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)htmlpars.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)imglib2.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)gkgfx.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)gklayout.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)docshell.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)embedcomponents.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)webbrwsr.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)nsappshell.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)txmgr.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)commandlines.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)toolkitcomps.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)pipboot.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)pipnss.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)appcomps.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)jsreflect.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)composer.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)telemetry.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)jsinspector.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)storagecomps.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)rdf.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)windowds.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)jsperf.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)gkplugin.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)places.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)tkautocomplete.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)satchel.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)pippki.$(LIB_SUFFIX) \
-  $(DEPTH)/intl/unicharutil/util/internal/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFIX) \
-  $(DEPTH)/rdf/util/src/$(LIB_PREFIX)rdfutil_external_s.$(LIB_SUFFIX) \
-  $(LIBS_DIR) \
-  $(MOZ_JS_LIBS) \
-  $(NSS_LIBS) \
-  $(MOZ_CAIRO_OSLIBS) \
-  $(MOZ_APP_EXTRA_LIBS) \
-  $(SQLITE_LIBS) \
-  $(MOZ_ALSA_LIBS) \
-  $(MOZ_GTK2_LIBS) \
-  $(MOZ_ZLIB_LIBS) \
-  $(MOZ_DBUS_GLIB_LIBS) \
-  $(NSPR_LIBS) \
-  $(NULL)
-
-ifdef MOZ_ENABLE_PROFILER_SPS
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)profiler.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_windows.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)wdgtos2.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_mac.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_qt.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef ACCESSIBILITY
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)accessibility.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_ENABLE_XREMOTE
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)remoteservice.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_SPELLCHECK
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)spellchecker.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_ZIPWRITER
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)zipwriter.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_DEBUG
-ifdef ENABLE_TESTS
-COMPONENT_LIBS += gkdebug
-endif
-endif
-
-ifdef MOZ_JSDEBUGGER
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)jsdebugger.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_PREF_EXTENSIONS
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)autoconfig.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_AUTH_EXTENSION
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)auth.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_PERMISSIONS
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)cookie.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)permissions.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_UNIVERSALCHARDET
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)universalchardet.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_ENABLE_GTK2
-LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)widget_gtk2.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_ENABLE_GTK2
-ifdef MOZ_X11
-LIBS += \
-  $(DEPTH)/staticlib/$(LIB_PREFIX)gtkxtbin.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-endif
-
+LIBS		= $(EXTRA_DSO_LIBS) \
+		  $(XPCOM_LIBS) \
+		  $(NSPR_LIBS) \
+		  $(NSS_LIBS) \
+		  $(MOZ_ZLIB_LIBS) \
+	          $(DEPTH)/xpcom/glue/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/mtransport/standalone/$(LIB_PREFIX)mtransport_s.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/signalingtest/signaling_ecc/$(LIB_PREFIX)ecc.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/signalingtest/signaling_sipcc/$(LIB_PREFIX)sipcc.$(LIB_SUFFIX) \
+		  $(DEPTH)/layout/media/$(LIB_PREFIX)gkmedias.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
+		  $(NULL)
 
 ifeq ($(OS_ARCH),Linux)
 LIBS += \
@@ -233,8 +69,6 @@ endif
 
 ifeq ($(OS_ARCH),Darwin)
 LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)osxproxy.$(LIB_SUFFIX) \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)imgicon.$(LIB_SUFFIX) \
   -framework AudioToolbox \
   -framework AudioUnit \
   -framework Carbon \

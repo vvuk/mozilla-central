@@ -156,8 +156,9 @@
             'MOZILLA_INTERNAL_API'
           ],
         }], 
-        ['build_for_test==1', {
+        ['build_for_test!=0', {
           'defines' : [
+            'NO_CHROMIUM_LOGGING'
           ],
         }], 
         ['OS=="linux"', {

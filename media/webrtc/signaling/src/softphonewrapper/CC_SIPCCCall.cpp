@@ -195,7 +195,7 @@ bool CC_SIPCCCall::endCall()
 bool CC_SIPCCCall::sendDigit (cc_digit_t digit)
 {
 	AudioTermination * pAudio = VcmSIPCCBinding::getAudioTermination();
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 
     // Convert public digit (as enum or char) to RFC2833 form.
 	int digitId = -1;
@@ -376,7 +376,7 @@ bool CC_SIPCCCall::setAudioMute(bool mute)
 	pMediaData->audioMuteState = mute;
 	// we need to set the mute status of all audio streams in the map
 	{
-		AutoLock lock(m_lock);
+		AutoLockNSPR lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)
@@ -410,7 +410,7 @@ bool CC_SIPCCCall::setVideoMute(bool mute)
 	pMediaData->videoMuteState = mute;
 	// we need to set the mute status of all audio streams in the map
 	{
-		AutoLock lock(m_lock);
+		AutoLockNSPR lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == true)
@@ -442,7 +442,7 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 
 	CSFLogInfoS( logTag, "addStream: " << streamId << "video=" << isVideo << "callhandle=" << callHandle);
 	{
-		AutoLock lock(m_lock);
+		AutoLockNSPR lock(m_lock);
 		pMediaData->streamMap[streamId].isVideo = isVideo;
 	}
 	// The new stream needs to be given any properties that the call has for it. 
@@ -507,7 +507,7 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 
 void CC_SIPCCCall::removeStream(int streamId)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 
 	if ( pMediaData->streamMap.erase(streamId) != 1)
 	{
@@ -521,7 +521,7 @@ bool CC_SIPCCCall::setVolume(int volume)
     
     AudioTermination * pAudio = VcmSIPCCBinding::getAudioTermination();
 	{
-    	AutoLock lock(m_lock);
+    	AutoLockNSPR lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)

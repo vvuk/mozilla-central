@@ -52,6 +52,7 @@
 #include "WebrtcVideoProvider.h"
 #include "WebrtcLogging.h"
 #include "vie_encryption.h"
+#include "AutoLockNSPR.h"
 
 #include "base/lock.h"
 
@@ -286,7 +287,7 @@ void WebrtcVideoProvider::setVideoMode( bool enable )
 void WebrtcVideoProvider::setRenderWindow( int streamId, WebrtcPlatformWindow window )
 {
 	LOG_WEBRTC_DEBUG( logTag, "setRenderWindow: streamId= %d, window=%p", streamId, window);
-	AutoLock lock(streamMapMutex);
+	AutoLockNSPR lock(streamMapMutex);
 	// we always want to erase the old one. If window is non-null, it will be replaced,
 	// otherwise passing in a null window value to this function leads to no mapping for this stream.
 	streamIdToWindow.erase( streamId );
@@ -309,14 +310,14 @@ void WebrtcVideoProvider::setRenderWindow( int streamId, WebrtcPlatformWindow wi
 
 const WebrtcVideoProvider::RenderWindow* WebrtcVideoProvider::getRenderWindow( int streamId )
 {
-	//AutoLock lock(streamMapMutex);
+	//AutoLockNSPR lock(streamMapMutex);
     std::map<int, RenderWindow>::const_iterator it = streamIdToWindow.find( streamId );
     return ( it != streamIdToWindow.end() ) ? &it->second : NULL;
 }
 
 void WebrtcVideoProvider::setPreviewWindow( void* window, int top, int left, int bottom, int right, RenderScaling style )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	if(this->previewWindow != NULL)
 	{
 		//this is the local renderer
@@ -345,14 +346,14 @@ void WebrtcVideoProvider::setPreviewWindow( void* window, int top, int left, int
 
 void WebrtcVideoProvider::setRemoteWindow( int streamId, VideoWindowHandle window)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     setRenderWindow( streamId, (WebrtcPlatformWindow)window);
 }
 
 int WebrtcVideoProvider::setExternalRenderer(int streamId, VideoFormat videoFormat,
 												ExternalRendererHandle renderer)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	int error = 0;
 	LOG_WEBRTC_DEBUG( logTag, "WebrtcVideoProvider:: SetExternalRenderer , streamId: %d", streamId);
     int channel = getChannelForStreamId( streamId );
@@ -371,7 +372,7 @@ int WebrtcVideoProvider::setExternalRenderer(int streamId, VideoFormat videoForm
 
 std::vector<std::string> WebrtcVideoProvider::getCaptureDevices()
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	const unsigned int kMaxDeviceNameLength = 128;
 	const unsigned int kMaxUniqueIdLength = 256;
     char name[kMaxDeviceNameLength];
@@ -392,7 +393,7 @@ bool WebrtcVideoProvider::setCaptureDevice( const std::string& name )
 {
 	LOG_WEBRTC_DEBUG(logTag," WebrtcVideoProvider: setCaptureDevice(): %s",name.c_str());
 	
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	int error = 0;
 	const int kMaxDeviceNameLength = 128;
 	const int kMaxUniqueIdLength = 256;
@@ -437,13 +438,13 @@ bool WebrtcVideoProvider::setCaptureDevice( const std::string& name )
 
 int WebrtcVideoProvider::getCodecList( CodecRequestType requestType )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     return VideoCodecMask_H264;
 }
 
 WebrtcVideoStreamPtr WebrtcVideoProvider::getStreamByChannel( int channel )
 {
-	//AutoLock lock(streamMapMutex);
+	//AutoLockNSPR lock(streamMapMutex);
     for( std::map<int, WebrtcVideoStreamPtr>::const_iterator it = streamMap.begin(); it != streamMap.end(); it++ )
     {
         WebrtcVideoStreamPtr stream = it->second;
@@ -466,7 +467,7 @@ int WebrtcVideoProvider::getChannelForStreamId( int streamId )
 
 WebrtcVideoStreamPtr WebrtcVideoProvider::getStream( int streamId )
 {
-	AutoLock lock(streamMapMutex);
+	AutoLockNSPR lock(streamMapMutex);
 	std::map<int, WebrtcVideoStreamPtr>::const_iterator it = streamMap.find( streamId );
 	return ( it != streamMap.end() ) ? it->second : WebrtcVideoStreamPtr();
 }
@@ -499,7 +500,7 @@ void WebrtcVideoProvider::setTxInitiatedForStreamId( int streamId, bool txInitia
 
 int WebrtcVideoProvider::rxAlloc( int groupId, int streamId, int requestedPort )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "rxAllocVideo: groupId=%d, streamId=%d, requestedPort=%d", groupId, streamId, requestedPort  );
 	int channel = -1;
     int error = vieBase->CreateChannel(channel);
@@ -565,7 +566,7 @@ int WebrtcVideoProvider::rxAlloc( int groupId, int streamId, int requestedPort )
             LOG_WEBRTC_DEBUG( logTag, "rxAllocVideo: Allocated port %d", tryPort );
 			WebrtcVideoStreamPtr stream(new WebrtcVideoStream(streamId, channel));
 			{
-				AutoLock lock(streamMapMutex);
+				AutoLockNSPR lock(streamMapMutex);
 				streamMap[streamId] = stream;
 				LOG_WEBRTC_DEBUG( logTag, "rxAllocVideo: created stream" );
 			}
@@ -595,7 +596,7 @@ int WebrtcVideoProvider::rxAlloc( int groupId, int streamId, int requestedPort )
 
 int WebrtcVideoProvider::rxOpen( int groupId, int streamId, int requestedPort, int listenIp, bool isMulticast )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_ERROR( logTag, "rxOpen: groupId=%d, streamId=%d", groupId, streamId);
 
     int channel = getChannelForStreamId( streamId );
@@ -622,7 +623,7 @@ int WebrtcVideoProvider::rxOpen( int groupId, int streamId, int requestedPort, i
 int WebrtcVideoProvider::rxStart ( int groupId, int streamId, int payloadType, int packPeriod, int localPort, int rfc2833PayloadType,
                                  EncryptionAlgorithm algorithm, unsigned char* key, int keyLen, unsigned char* salt, int saltLen, int mode, int party )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "rxStartVideo: groupId=%d, streamId=%d, pt=%d", groupId, streamId, payloadType );
 
 	int error = 0;
@@ -762,7 +763,7 @@ void WebrtcVideoProvider::setRenderWindowForStreamIdFromMap(int streamId)
 
 void WebrtcVideoProvider::rxClose( int groupId, int streamId)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "rxCloseVideo: groupId=%d, streamId=%d", groupId, streamId);
     int channel = getChannelForStreamId( streamId );
     if ( channel >= 0 )
@@ -775,7 +776,7 @@ void WebrtcVideoProvider::rxClose( int groupId, int streamId)
 
 void WebrtcVideoProvider::rxRelease( int groupId, int streamId, int port )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "rxReleaseVideo: groupId=%d, streamId=%d", groupId, streamId);
     int channel = getChannelForStreamId( streamId );
     if ( channel >= 0 )
@@ -785,7 +786,7 @@ void WebrtcVideoProvider::rxRelease( int groupId, int streamId, int port )
 		vieRender->RemoveRenderer(channel);
         vieBase->DeleteChannel( channel );
         {
-        	AutoLock lock(streamMapMutex);
+        	AutoLockNSPR lock(streamMapMutex);
         	streamMap.erase(streamId);
         }
         LOG_WEBRTC_DEBUG( logTag, "rxReleaseVideo: Delete channel %d, release port %d", channel, port);
@@ -796,7 +797,7 @@ int WebrtcVideoProvider::txStart( int groupId, int streamId, int payloadType, in
                                 char* remoteIpAddr, int remotePort, int rfc2833PayloadType, EncryptionAlgorithm algorithm,
                                 unsigned char* key, int keyLen, unsigned char* salt, int saltLen, int mode, int party  )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "txStartVideo: groupId=%d, streamId=%d, pt=%d", groupId, streamId, payloadType );
     int channel = getChannelForStreamId( streamId );
 	
@@ -847,7 +848,7 @@ int WebrtcVideoProvider::txStart( int groupId, int streamId, int payloadType, in
 
 void WebrtcVideoProvider::txClose( int groupId, int streamId )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "txCloseVideo: groupId=%d, streamId=%d", groupId, streamId );
     int channel = getChannelForStreamId( streamId );
     if ( channel >= 0 )
@@ -863,7 +864,7 @@ void WebrtcVideoProvider::txClose( int groupId, int streamId )
 
 bool WebrtcVideoProvider::mute(int streamId, bool muteVideo)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     int channel = getChannelForStreamId( streamId );
     bool returnVal = false;
 	WebrtcVideoStreamPtr stream = getStream(streamId);
@@ -917,7 +918,7 @@ bool WebrtcVideoProvider::mute(int streamId, bool muteVideo)
 
 bool WebrtcVideoProvider::isMuted(int streamId)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	WebrtcVideoStreamPtr stream = getStream(streamId);
 	bool returnVal = false;
 
@@ -931,7 +932,7 @@ bool WebrtcVideoProvider::isMuted(int streamId)
 
 bool WebrtcVideoProvider::setFullScreen(int streamId, bool fullScreen)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	int returnVal = -1;
 	LOG_WEBRTC_INFO(logTag," setFullScreen: Operation not supported ");
 #ifdef WIN32
@@ -953,7 +954,7 @@ bool WebrtcVideoProvider::setFullScreen(int streamId, bool fullScreen)
 
 void WebrtcVideoProvider::sendIFrame( int streamId )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     LOG_WEBRTC_INFO( logTag, "Remote end requested I-frame %d: " ,streamId );
     int channel = getChannelForStreamId( streamId );
     if ( channel >= 0 )

@@ -47,6 +47,7 @@
 #include <sstream>
 
 #include "common/Wrapper.h"
+#include "AutoLockNSPR.h"
 #include "base/lock.h"
 
 namespace CSF
@@ -70,7 +71,7 @@ namespace CSF
         VideoWindowHandle remoteWindow; 
 		ExternalRendererHandle extRenderer;
 		VideoFormat videoFormat;	
-        Lock streamMapMutex;
+        LockNSPR streamMapMutex;
         StreamMapType streamMap;
         bool audioMuteState;
         bool videoMuteState; 
@@ -146,7 +147,7 @@ namespace CSF
         virtual bool setAudioMute(bool mute);
         virtual bool setVideoMute(bool mute);
 
-        Lock m_lock;
+        LockNSPR m_lock;
     };
 
 }
