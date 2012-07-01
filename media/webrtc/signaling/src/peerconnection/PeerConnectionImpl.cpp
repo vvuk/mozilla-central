@@ -198,8 +198,31 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
     mCCM->addCCObserver(this);
     mDevice = mCCM->getActiveDevice();	
     mCall = mDevice->createCall();
+    
+    // Generate a handle from our pointer.
+    unsigned char handle_bin[8];
+    PeerConnectionImpl *handle = this;
+    PR_ASSERT(sizeof(handle_bin) <= sizeof(handle));
 
-    mCall->setPeerConnection("abc");
+    memcpy(handle_bin, &handle, sizeof(handle));
+    for (size_t i = 0; i<sizeof(handle_bin); i++) {
+      char hex[3];
+      
+      snprintf(hex, 3, "%.2x", handle_bin[i]);
+      mHandle += hex;
+    }
+
+    // TODO(ekr@rtfm.com): need some way to set not offerer later
+    // Looks like a bug in the NrIceCtx API.
+    mIceCtx = NrIceCtx::Create("PC", true);
+
+    // Create two streams to start with, assume one for audio and
+    // one for video
+    mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+    mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+
+     // Store under mHandle
+     peerconnections[mHandle] = this;
   }
    
    return PC_OK;

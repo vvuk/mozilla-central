@@ -94,9 +94,12 @@ LOCAL_INCLUDES += \
  -I. \
  -I$(topsrcdir)/media/webrtc/trunk/testing/gtest/include \
  -I$(topsrcdir)/ipc/chromium/src \
+ -I$(topsrcdir)/media/mtransport \
+ -I$(topsrcdir)/media/mtransport/test \
  -I$(topsrcdir)/media/webrtc/signaling/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \
+ -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
  $(NULL)
 
 CPP_UNIT_TESTS = \

@@ -48,12 +48,17 @@ using namespace std;
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
 #include "nspr.h"
+#include "nss.h"
+#include "ssl.h"
 #include "prthread.h"
 
 #include "nsDOMMediaStream.h"
 #include "MediaStreamGraph.h"
 #include "FakeMediaSegment.h"
 #include "PeerConnectionImpl.h"
+
+#include "mtransport_test_utils.h"
+MtransportTestUtils test_utils;
 
 namespace {
 
@@ -406,6 +411,10 @@ TEST_F(SignalingTest, CreateOfferNoHints)
 
 int main(int argc, char **argv)
 {
+  test_utils.InitServices();
+  NSS_NoDB_Init(NULL);
+  NSS_SetDomesticPolicy();
+
   ::testing::InitGoogleTest(&argc, argv);
 
   int result = RUN_ALL_TESTS();

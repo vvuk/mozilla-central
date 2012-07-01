@@ -42,10 +42,12 @@
         '../../../ipc/chromium/src/base/third_party/nspr',
         '../../../xpcom/base',
         '$(DEPTH)/dist/include',
+        '../../../media/mtransport',
         '../trunk/src',
         '../trunk/src/video_engine/include',
         '../trunk/src/voice_engine/main/interface',
         '../trunk/src/peerconnection',
+        '../trunk/third_party/libjingle/source',
       ],	
 	  
       #
@@ -230,6 +232,7 @@
         './src/sipcc/core/gsm/h',
         './src/sipcc/plat/common',
         '../../../nsprpub/pr/include',
+        '../../../media/mtransport',
       ],
       
       #

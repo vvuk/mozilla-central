@@ -34,6 +34,10 @@
 #include <vector>
 #include <map>
 
+#include "mozilla/RefPtr.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
+
 #include "prlock.h"
 #include "PeerConnection.h"
 #include "CallControlManager.h"
@@ -43,7 +47,8 @@
 
 namespace sipcc {
 
-class LocalSourceStreamInfo : public mozilla::MediaStreamListener
+class LocalSourceStreamInfo : public mozilla::MediaStreamListener,
+                              public sigslot::has_slots<>
 {
 public:
   LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream);
@@ -135,6 +140,11 @@ private:
 
   // A handle to refer to this PC with
   std::string mHandle;
+
+  // ICE objects
+  mozilla::RefPtr<NrIceCtx> mIceCtx;
+  std::vector<mozilla::RefPtr<NrIceMediaStream> > mIceStreams;
+  bool mIceReady;
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
