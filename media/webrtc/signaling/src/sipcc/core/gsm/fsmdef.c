@@ -110,6 +110,7 @@ static sm_rcs_t fsmdef_ev_createoffer(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_createanswer(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setlocaldesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setremotedesc(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_setpeerconnection(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_localdesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_remotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default(sm_event_t *event);
@@ -212,7 +213,10 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_CREATEOFFER      */ fsmdef_ev_createoffer,
     /* FSMDEF_E_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
-    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc
+    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection  
     },
 
 /* FSMDEF_S_COLLECT_INFO ---------------------------------------------------- */
@@ -238,7 +242,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_CREATEOFFER      */ fsmdef_ev_createoffer,
     /* FSMDEF_E_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
-    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc    
+    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     },
 
 /* FSMDEF_S_CALL_SENT ------------------------------------------------------- */
@@ -266,7 +270,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_OUTGOING_PROCEEDING --------------------------------------------- */
@@ -294,7 +298,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_KPML_COLLECT_INFO ----------------------------------------------- */
@@ -322,7 +326,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_OUTGOING_ALERTING ----------------------------------------------- */
@@ -350,7 +354,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_INCOMING_ALERTING ----------------------------------------------- */
@@ -378,7 +382,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTING ------------------------------------------------------ */
@@ -406,7 +410,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_JOINING --------------------------------------------------------- */
@@ -434,7 +438,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTED ------------------------------------------------------- */
@@ -462,7 +466,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTED_MEDIA_PEND  ------------------------------------------- */
@@ -490,7 +494,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_RELEASING ------------------------------------------------------- */
@@ -518,7 +522,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_HOLD_PENDING ---------------------------------------------------- */
@@ -546,7 +550,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_HOLDING --------------------------------------------------------- */
@@ -574,7 +578,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_RESUME_PENDING -------------------------------------------------- */
@@ -602,7 +606,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc       
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_PRESERVED  ------------------------------------------------------ */
@@ -630,7 +634,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     }
 };
 
@@ -3176,10 +3180,10 @@ fsmdef_ev_localdesc(sm_event_t *event) {
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     if (sdpmode == FALSE) {
-        
         return (SM_RC_END);
     } 
-
+    
+    
 
 
 	return (SM_RC_END);
@@ -3207,6 +3211,55 @@ fsmdef_ev_remotedesc(sm_event_t *event) {
 
 
 	return (SM_RC_END);
+}
+
+
+static sm_rcs_t 
+fsmdef_ev_setpeerconnection(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    cc_feature_t        *msg = (cc_feature_t *) event->msg;
+    callid_t            call_id = msg->call_id;
+    int                 sdpmode = 0;
+    line_t              line = msg->line;
+    cc_causes_t         lsm_rc;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setpeerconnection"));
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+        return (SM_RC_END);
+    } 
+    
+//    cpr_assert(msg);
+    if (!msg)
+      return SM_RC_END;
+
+//    cpr_assert(msg->data_valid);
+    if (!msg->data_valid)
+      return SM_RC_END;
+    
+    if (dcb == NULL) {
+      dcb = fsmdef_get_new_dcb(call_id);
+      if (dcb == NULL) {
+        return CC_CAUSE_NO_RESOURCE;
+      }    
+    
+      lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
+      if (lsm_rc != CC_CAUSE_OK) {
+        /* TODO (ekr@rtfm.com): check the return code? */
+      }    
+
+      fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_NONE, NULL, line, fcb);
+      /* TODO(ekr@rtfm.com: error check */
+      fsm_set_fcb_dcbs(dcb);
+    }
+
+//    cpr_assert(strlen(msg->data.pc.pc_handle) < PC_HANDLE_SIZE);
+    strncpy(dcb->peerconnection, msg->data.pc.pc_handle, PC_HANDLE_SIZE);
+    dcb->peerconnection_set = TRUE;
+    
+    return (SM_RC_END);
 }
 
 

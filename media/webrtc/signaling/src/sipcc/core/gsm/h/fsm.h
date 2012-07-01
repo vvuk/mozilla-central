@@ -423,6 +423,8 @@ typedef struct {
     sdp_direction_e  video_pref;
     unsigned int callref;      /* Callref (CI) from CUCM */
 
+    char peerconnection[PC_HANDLE_SIZE];  /* A handle to the peerconnection */
+    boolean peerconnection_set;
 } fsmdef_dcb_t;
 
 typedef enum fsm_types_t_ {
