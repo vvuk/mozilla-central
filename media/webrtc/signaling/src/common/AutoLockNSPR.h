@@ -11,31 +11,24 @@
 
 class LockNSPR {
  public:
-  LockNSPR() : lock_(NULL), acquired_(false) {
+  LockNSPR() : lock_(NULL) {
     lock_ = PR_NewLock();
     PR_ASSERT(lock_);
   }
   ~LockNSPR() {
-    if (acquired_)
-      Release();
     PR_DestroyLock(lock_);
   }
   
   void Acquire() {
-    PR_ASSERT(!acquired_);
     PR_Lock(lock_);
-    acquired_ = true;
   }
   
   void Release() {
-    PR_ASSERT(acquired_);
-    acquired_ = false;
     PR_Unlock(lock_);
   }
   
  private:
   PRLock *lock_;
-  bool acquired_;
 };
 
 class AutoLockNSPR {

@@ -159,6 +159,7 @@ PeerConnectionImpl::PeerConnectionImpl() :
                          
 PeerConnectionImpl::~PeerConnectionImpl() 
 {
+  peerconnections.erase(mHandle);
   Shutdown();  
   PR_DestroyLock(mLocalSourceStreamsLock);
 }
@@ -228,8 +229,8 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
         &NrIceCtx::StartGathering, &res), NS_DISPATCH_SYNC);
     PR_ASSERT(NS_SUCCEEDED(res));
     
-
      // Store under mHandle
+    mCall->setPeerConnection(mHandle);
     peerconnections[mHandle] = this;
   }
    
@@ -440,10 +441,14 @@ void PeerConnectionImpl::ChangeSipccState(PeerConnectionInterface::SipccState si
 }
 
 PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
-  return NULL;
+  if (peerconnections.find(handle) == peerconnections.end())
+    return NULL;
+
+  // TODO(ekr@rtfm.com): Lock the PC
+  return peerconnections[handle];
 }
 
-void PeerConnectionImpl::ReleaseInstance(PeerConnectionImpl *) {
+void PeerConnectionImpl::ReleaseInstance() {
   ;
 }
  

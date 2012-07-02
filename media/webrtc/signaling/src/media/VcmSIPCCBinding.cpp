@@ -500,27 +500,108 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
     CSFLogDebug( logTag, "vcmRxAllocPort(): group_id=%d stream_id=%d call_handle=%d port_requested = %d",
         group_id, stream_id, call_handle, port_requested);
 
+    // Not in SDP/PeerConnection mode
     int port = -1;
     bool isVideo = false;
     if(CC_IS_AUDIO(mcap_id))
     {
-    	isVideo = false;
-        if ( VcmSIPCCBinding::getAudioTermination() != NULL )
-            port = VcmSIPCCBinding::getAudioTermination()->rxAlloc( group_id, stream_id, port_requested );
+      isVideo = false;
+      if ( VcmSIPCCBinding::getAudioTermination() != NULL )
+        port = VcmSIPCCBinding::getAudioTermination()->rxAlloc( group_id, stream_id, port_requested );
     }
-	else if(CC_IS_VIDEO(mcap_id))
-	{
-		isVideo = true;
-        if ( VcmSIPCCBinding::getVideoTermination() != NULL )
-            port = VcmSIPCCBinding::getVideoTermination()->rxAlloc( group_id, stream_id, port_requested );
+    else if(CC_IS_VIDEO(mcap_id))
+    {
+      isVideo = true;
+      if ( VcmSIPCCBinding::getVideoTermination() != NULL )
+        port = VcmSIPCCBinding::getVideoTermination()->rxAlloc( group_id, stream_id, port_requested );
     }
 
     StreamObserver* obs = VcmSIPCCBinding::getStreamObserver();
     if(obs != NULL)
-    	obs->registerStream(call_handle, stream_id, isVideo);
+      obs->registerStream(call_handle, stream_id, isVideo);
 
     CSFLogDebug( logTag, "vcmRxAllocPort(): allocated port %d", port);
     *port_allocated = port;
+}
+
+
+/**
+ *  Gets the ICE parameters for a stream. Called "alloc" for style consistency
+ *
+ *  @param[in]  mcap_id - Media Capability ID
+ *  @param[in]  group_id - group identifier to which stream belongs.
+ *  @param[in]  stream_id - stream identifier
+ *  @param[in]  call_handle  - call identifier
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] default_addrp - the ICE default addr
+ *  @param[out] port_allocatedp - the ICE default port
+ *  @param[out] candidatesp - the ICE candidate array
+ *  @param[out] candidate_ctp length of the array 
+ *
+ *  @return    void
+ *
+ */
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        char **default_addrp, /* Out */
+        int *default_portp, /* Out */
+        char ***candidatesp, /* Out */
+        int *candidate_ctp /* Out */
+)
+{
+  *default_portp = -1;
+
+  CSFLogDebug( logTag, "vcmRxAllocICE(): group_id=%d stream_id=%d call_handle=%d PC = %s",
+    group_id, stream_id, call_handle, peerconnection);
+
+  // Note: we don't acquire any media resources here, and we assume that the
+  // ICE streams already exist, so we're just acquiring them. Any logic
+  // to make them on demand is elsewhere.
+  CSFLogDebug( logTag, "vcmRxAllocPort(): acquiring peerconnection %s", peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  if (!pc) {
+    // TODO(emannion): handle error
+  }
+    
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", stream_id);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(stream_id-1);
+  PR_ASSERT(stream.get());
+
+  std::vector<std::string> candidates = stream->GetCandidates();
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Got %d candidates", candidates.size());
+
+  std::string default_addr;
+  int default_port;
+
+  nsresult res = stream->GetDefaultCandidate(1, &default_addr, &default_port);
+  PR_ASSERT(NS_SUCCEEDED(res));
+    
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Got default candidates %s:%d",
+    default_addr.c_str(), default_port);
+  
+  // Note: this leaks memory if we are out of memory. Oh well.
+  *candidatesp = (char **)malloc(candidates.size() * sizeof(char *));
+  if (!(*candidatesp))
+    return;
+  
+  for (size_t i=0; i<candidates.size(); i++) {
+    (*candidatesp)[i] = (char *)malloc(candidates[i].size() + 1);
+    strncpy((*candidatesp)[i], candidates[i].c_str(), candidates[i].size() + 1);
+  }
+  *candidate_ctp = candidates.size();
+
+  // Copy the default address
+  *default_addrp = (char *)malloc(default_addr.size() + 1);
+  if (!*default_addrp)
+    return;
+  strncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
+  *default_portp = default_port; /* This is the signal that things are cool */
+
+  pc->ReleaseInstance();
 }
 
 /**

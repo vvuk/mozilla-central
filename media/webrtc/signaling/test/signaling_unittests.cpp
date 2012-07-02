@@ -422,10 +422,4 @@ int main(int argc, char **argv)
   return result;
 }
 
-// Defining this here, usually generated for libxul
-// should not be needed by these tests
-const mozilla::Module *const *const kPStaticModules[] = {
-  NULL
-};
-
 

@@ -438,6 +438,18 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
         cc_uint16_t port_requested,
         int *port_allocated);
 
+
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        char **default_addr, /* Out */
+        int *default_port, /* Out */
+        char ***candidates, /* Out */
+        int *candidate_ct /* Out */
+);
+
 /*!
  *  Release the allocated port
  * @param[in] mcap_id   - media capability id (0 is audio)

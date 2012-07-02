@@ -394,8 +394,8 @@ void lsm_update_gcid (callid_t call_id, char * gcid)
             sstrncpy(lcb->gcid, gcid, CC_GCID_LEN);
         }
     }
-}
 
+}
 /**
  * This function will be invoked by DEF SM.
  * it will check if there is a RINGIN call
@@ -648,7 +648,6 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
         roapproxy = 0;
     	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
     	if (roapproxy == FALSE) {
-
     		//Todo IPv6: Add interface call for IPv6
     		(void) vcmRxOpen(media->cap_index, dcb->group_id, media->refid,
     						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
@@ -673,16 +672,35 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
         sdpmode = 0;
     	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
     	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-
-    	if (roapproxy == FALSE && sdpmode == FALSE) {
-
-    		vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
-    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
+        
+    	if (roapproxy == FALSE) {
+          /* TODO(enda): this is the wrong test, but you don't have sdpmode set */
+          if (!strlen(dcb->peerconnection)) {
+              vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
+    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+                                                data->port,                                                        
     						&port_allocated);
     		if (port_allocated != -1) {
     			data->port = (uint16_t)port_allocated;
     			rc = CC_RC_SUCCESS;
     		}
+          }
+          else {
+              char **candidates;
+              int candidate_ct;
+              char *default_addr;
+
+              vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
+    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+                                                dcb->peerconnection,
+                                                &default_addr, &port_allocated,
+                                                &candidates, &candidate_ct);
+
+    		if (port_allocated != -1) {
+    			data->port = (uint16_t)port_allocated;
+    			rc = CC_RC_SUCCESS;
+    		}
+          }
     	} else {
     		if (CC_AUDIO_1 == media->cap_index )
     			data->port = gROAPSDP.audioPort;

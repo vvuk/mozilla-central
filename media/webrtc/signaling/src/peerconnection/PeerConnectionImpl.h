@@ -110,8 +110,18 @@ public:
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
 
   static PeerConnectionImpl *AcquireInstance(const std::string& handle);
-  virtual void ReleaseInstance(PeerConnectionImpl *);
+  virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
+
+  mozilla::RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
+  mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
+    // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
+    // make one.
+    if (i >= mIceStreams.size())
+      return NULL;
+             
+    return mIceStreams[i];
+  }
 
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
