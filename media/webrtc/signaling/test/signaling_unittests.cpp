@@ -228,7 +228,7 @@ class SignalingAgent {
     ASSERT_TRUE(pObserver);
 
     ASSERT_EQ(pc->Initialize(pObserver), PC_OK);
-    ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kStarted);
+    ASSERT_TRUE_WAIT(pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted, 1000);
  
     cout << "Init Complete" << endl;
   }
@@ -268,6 +268,7 @@ class SignalingAgent {
     //pc->AddStream(mediaStream);
 
     // Now call CreateOffer as JS would
+    pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, 1000);
     SDPSanityCheck(pObserver->lastString, true, true);
