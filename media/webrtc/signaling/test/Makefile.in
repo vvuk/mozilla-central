@@ -62,7 +62,6 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 
 ifeq ($(OS_ARCH),Linux)
 LIBS += \
-  $(DEPTH)/staticlib/components/$(LIB_PREFIX)unixproxy.$(LIB_SUFFIX) \
   -lgthread-2.0 \
   $(NULL)
 endif
