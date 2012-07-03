@@ -92,14 +92,13 @@ IdentityLogger.prototype = {
    * reportError() - report an error through component utils as well as
    * our log function
    */
-  reportError: function reportError(aPrefix, ...args) {
+  reportError: function reportError(aPrefix, ...aArgs) {
     let prefix = aPrefix + ' ERROR';
 
     // Report the error in the browser
-    Cu.reportError("Identity: " + this._generateLogMessage(prefix));
-
-    // And also log to the console, if logging is enabled
-    this.log(prefix, args);
+    let output = this._generateLogMessage(aPrefix, aArgs);
+    Cu.reportError("Identity: " + output);
+    dump(output + "\n");
   }
 
 };
