@@ -46,6 +46,8 @@ IdentityLogger.prototype = {
     // create a string representation of a list of arbitrary things
     let strings = [];
 
+    // XXX bug 770418 - args look like flattened array, not list of strings
+
     args.forEach(function(arg) {
       if (typeof arg === 'string') {
         strings.push(arg);
