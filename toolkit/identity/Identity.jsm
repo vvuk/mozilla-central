@@ -144,63 +144,62 @@ IDService.prototype = {
         self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
 
-      } else {
-        // Need to provision an identity first.  Begin by discovering
-        // the user's IdP.
-        self._discoverIdentityProvider(aIdentity, function gotIDP(err, idpParams) {
+      }
+      // Need to provision an identity first.  Begin by discovering
+      // the user's IdP.
+      self._discoverIdentityProvider(aIdentity, function gotIDP(err, idpParams) {
+        if (err) {
+          rp.doError(err);
+          return;
+        }
+
+        // The idpParams tell us where to go to provision and authenticate
+        // the identity.
+        self.IDP._provisionIdentity(aIdentity, idpParams, provId, function gotID(err, aProvId) {
+
+          // Provision identity may have created a new provision flow
+          // for us.  To make it easier to relate provision flows with
+          // RP callers, we cross index the two here.
+          rp.provId = aProvId;
+          self.IDP._provisionFlows[aProvId].rpId = aRPId;
+
+          // At this point, we already have a cert.  If the user is also
+          // already authenticated with the IdP, then we can try again
+          // to generate an assertion and login.
           if (err) {
-            rp.doError(err);
+            // We are not authenticated.  If we have already tried to
+            // authenticate and failed, then this is a "hard fail" and
+            // we give up.  Otherwise we try to authenticate with the
+            // IdP.
+
+            if (self.IDP._provisionFlows[aProvId].didAuthentication) {
+              self.IDP._cleanUpProvisionFlow(aProvId);
+              self.RP._cleanUpProvisionFlow(aRPId, aProvId);
+              log("ERROR: selectIdentity: authentication hard fail");
+              rp.doError("Authentication fail.");
+              return;
+            }
+            // Try to authenticate with the IdP.  Note that we do
+            // not clean up the provision flow here.  We will continue
+            // to use it.
+            self.IDP._doAuthentication(aProvId, idpParams);
             return;
           }
 
-          // The idpParams tell us where to go to provision and authenticate
-          // the identity.
-          self.IDP._provisionIdentity(aIdentity, idpParams, provId, function gotID(err, aProvId) {
-
-            // Provision identity may have created a new provision flow
-            // for us.  To make it easier to relate provision flows with
-            // RP callers, we cross index the two here.
-            rp.provId = aProvId;
-            self.IDP._provisionFlows[aProvId].rpId = aRPId;
-
-            // At this point, we already have a cert.  If the user is also
-            // already authenticated with the IdP, then we can try again
-            // to generate an assertion and login.
+          // Provisioning flows end when a certificate has been registered.
+          // Thus IdentityProvider's registerCertificate() cleans up the
+          // current provisioning flow.  We only do this here on error.
+          self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
             if (err) {
-              // We are not authenticated.  If we have already tried to
-              // authenticate and failed, then this is a "hard fail" and
-              // we give up.  Otherwise we try to authenticate with the
-              // IdP.
-
-              if (self.IDP._provisionFlows[aProvId].didAuthentication) {
-                self.IDP._cleanUpProvisionFlow(aProvId);
-                self.RP._cleanUpProvisionFlow(aRPId, aProvId);
-                log("ERROR: selectIdentity: authentication hard fail");
-                rp.doError("Authentication fail.");
-                return;
-              }
-              // Try to authenticate with the IdP.  Note that we do
-              // not clean up the provision flow here.  We will continue
-              // to use it.
-              self.IDP._doAuthentication(aProvId, idpParams);
+              rp.doError(err);
               return;
             }
-
-            // Provisioning flows end when a certificate has been registered.
-            // Thus IdentityProvider's registerCertificate() cleans up the
-            // current provisioning flow.  We only do this here on error.
-            self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
-              if (err) {
-                rp.doError(err);
-                return;
-              }
-              self.RP._doLogin(rp, rpLoginOptions, assertion);
-              self.RP._cleanUpProvisionFlow(aRPId, aProvId);
-              return;
-            });
+            self.RP._doLogin(rp, rpLoginOptions, assertion);
+            self.RP._cleanUpProvisionFlow(aRPId, aProvId);
+            return;
           });
         });
-      }
+      });
     });
   },
 
