@@ -22,10 +22,6 @@ function IDServiceStore() {
   this.reset();
 }
 
-IDServiceStore.prototype._identities = null;
-
-IDServiceStore.prototype._loginStates = null;
-
 // Note: eventually these methods may be async, but we haven no need for this
 // for now, since we're not storing to disk.
 IDServiceStore.prototype = {
