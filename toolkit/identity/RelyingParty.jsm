@@ -170,7 +170,6 @@ IdentityRelyingParty.prototype = {
 
     let state = this._store.getLoginState(aOptions.origin) || {};
 
-    // XXX add tests for state change
     state.isLoggedIn = false;
     this._notifyLoginStateChanged(aRpCaller.id, null);
 
