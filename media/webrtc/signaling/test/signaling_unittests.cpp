@@ -218,6 +218,15 @@ private:
 class SignalingAgent {
  public:
   SignalingAgent() {
+    Init();
+  }
+  
+  ~SignalingAgent() {
+    Shutdown();
+  }
+
+  void Init()
+  {
     size_t found = 2;
     ASSERT_TRUE(found > 0);
 
@@ -231,9 +240,11 @@ class SignalingAgent {
     ASSERT_TRUE_WAIT(pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted, 1000);
  
     cout << "Init Complete" << endl;
+
   }
-  
-  ~SignalingAgent() {
+
+  void Shutdown()
+  {
     cout << "Shutdown" << endl;
     pc->Shutdown();
     // Shutdown is synchronous evidently.
