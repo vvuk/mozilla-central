@@ -6,7 +6,7 @@
 
 #include "nsIIdentityCryptoService.h"
 #include "mozilla/ModuleUtils.h"
-#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
 #include "nsNSSShutDown.h"
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
@@ -219,7 +219,7 @@ public:
   {
     nsresult rv;
     nsCOMPtr<nsISupports> dummyUsedToEnsureNSSIsInitialized
-      = do_CreateInstance("@mozilla.org/security/keyobjectfactory;1", &rv);
+      = do_GetService("@mozilla.org/psm;1");
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;
@@ -261,8 +261,8 @@ IdentityCryptoService::Base64UrlEncode(const nsACString & utf8Input,
 }
 
 KeyPair::KeyPair(SECKEYPrivateKey * privateKey, SECKEYPublicKey * publicKey)
-  : mPrivateKey(SECKEY_CopyPrivateKey(privateKey))
-  , mPublicKey(SECKEY_CopyPublicKey(publicKey))
+  : mPrivateKey(privateKey)
+  , mPublicKey(publicKey)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 }
@@ -378,6 +378,8 @@ GenerateKeyPair(PK11SlotInfo * slot,
     return PRErrorCode_to_nsresult(PR_GetError());
   }
   if (!*publicKey) {
+	SECKEY_DestroyPrivateKey(*privateKey);
+	*privateKey = NULL;
     MOZ_NOT_REACHED("PK11_GnerateKeyPair returned private key without public "
                     "key");
     return NS_ERROR_UNEXPECTED;
@@ -496,11 +498,9 @@ KeyGenRunnable::Run()
         if (NS_SUCCEEDED(mRv)) {
           MOZ_ASSERT(privk);
           MOZ_ASSERT(pubk);
+		  // mKeyPair will take over ownership of privk and pubk
           mKeyPair = new KeyPair(privk, pubk);
         }
-
-        SECKEY_DestroyPrivateKey(privk);
-        SECKEY_DestroyPublicKey(pubk);
       }
     }
 
@@ -531,13 +531,16 @@ SignRunnable::Run()
       mRv = NS_ERROR_NOT_AVAILABLE;
     } else {
       // We need the output in PKCS#11 format, not DER encoding, so we must use
-      // PK11_HashBuf & PK11_Sign instead of SEC_SignData.
+      // PK11_HashBuf and PK11_Sign instead of SEC_SignData.
 
       SECItem sig = { siBuffer, NULL, 0 };
-      if (!SECITEM_AllocItem(NULL, &sig, PK11_SignatureLen(mPrivateKey))) {
+      int sigLength = PK11_SignatureLen(mPrivateKey);
+      if (sigLength <= 0) {
+        mRv = PRErrorCode_to_nsresult(PR_GetError());
+      } else if (!SECITEM_AllocItem(NULL, &sig, sigLength)) {
         mRv = PRErrorCode_to_nsresult(PR_GetError());
       } else {
-        PRUint8 hash[256 / BITS_PER_BYTE]; // big enough for SHA-1 or SHA-256
+        PRUint8 hash[32]; // big enough for SHA-1 or SHA-256
         SECOidTag hashAlg = mPrivateKey->keyType == dsaKey ? SEC_OID_SHA1
                                                            : SEC_OID_SHA256;
         SECItem hashItem = { siBuffer, hash,
@@ -545,7 +548,7 @@ SignRunnable::Run()
 
         mRv = MapSECStatus(PK11_HashBuf(hashAlg, hash,
                     const_cast<PRUint8*>(reinterpret_cast<const PRUint8 *>(
-                                            mTextToSign.BeginReading())),
+                                            mTextToSign.get())),
                                       mTextToSign.Length()));
         if (NS_SUCCEEDED(mRv)) {
           mRv = MapSECStatus(PK11_Sign(mPrivateKey, &sig, &hashItem));
