@@ -90,6 +90,7 @@ namespace CSF
         cc_call_handle_t callHandle;
         CC_SIPCCCall (cc_call_handle_t aCallHandle);
         CC_SIPCCCallMediaDataPtr  pMediaData;
+        std::string peerconnection;  // The peerconnection handle
 
     public:
         virtual inline std::string toString() {
@@ -141,6 +142,7 @@ namespace CSF
         virtual void addIceCandidate(const std::string& strCandidate);
         virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks);
         virtual void setPeerConnection(const std::string& handle);
+        virtual const std::string& getPeerConnection() const;
         virtual CC_SIPCCCallMediaDataPtr getMediaData();
 
     private:
