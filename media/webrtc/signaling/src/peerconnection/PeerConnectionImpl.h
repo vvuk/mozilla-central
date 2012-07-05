@@ -78,7 +78,7 @@ private:
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
   
-class PeerConnectionImpl : public PeerConnectionInterface, CSF::CC_Observer {
+class PeerConnectionImpl : public PeerConnectionInterface {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
@@ -104,11 +104,10 @@ public:
   
   virtual void Shutdown();
   
-  virtual void onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info);
-  virtual void onFeatureEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_FeatureInfoPtr feature_info) {}
-  virtual void onLineEvent(ccapi_line_event_e lineEvent, CSF::CC_LinePtr line, CSF::CC_LineInfoPtr info) {}
+  // Implementation of the only observer we need
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
 
+  // Handle system to allow weak references to be passed through C code
   static PeerConnectionImpl *AcquireInstance(const std::string& handle);
   virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
@@ -125,17 +124,12 @@ public:
 
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
-  void ChangeSipccState(PeerConnectionInterface::SipccState sipcc_state);
-        
+
   PeerConnectionImpl(const PeerConnectionImpl&rhs);  
   PeerConnectionImpl& operator=(PeerConnectionImpl);   
-  std::string mAddr;
-  CSF::CallControlManagerPtr mCCM;
-  CSF::CC_DevicePtr mDevice; 
   CSF::CC_CallPtr mCall;  
   PeerConnectionObserver* mPCObserver;
   ReadyState mReadyState;
-  SipccState mSipccState;
 
   // The SDP sent in from JS - here for debugging.
   std::string mLocalRequestedSDP;

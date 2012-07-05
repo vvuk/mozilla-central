@@ -130,6 +130,8 @@
         './src/softphonewrapper/CC_SIPCCLineInfo.h',
         './src/softphonewrapper/CC_SIPCCService.h',
         # PeerConnection
+        './src/peerconnection/PeerConnectionCtx.cpp',
+        './src/peerconnection/PeerConnectionCtx.h',
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
 

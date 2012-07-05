@@ -552,6 +552,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         int *candidate_ctp /* Out */
 )
 {
+  // TODO(ekr@rtfm.com): handle errors cleanly
   *default_portp = -1;
 
   CSFLogDebug( logTag, "vcmRxAllocICE(): group_id=%d stream_id=%d call_handle=%d PC = %s",
@@ -563,13 +564,19 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
   CSFLogDebug( logTag, "vcmRxAllocPort(): acquiring peerconnection %s", peerconnection);
   sipcc::PeerConnectionImpl *pc =
     sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
   if (!pc) {
     // TODO(emannion): handle error
+    
   }
     
   CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", stream_id);      
   mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(stream_id-1);
   PR_ASSERT(stream.get());
+  if (!stream.get()) {
+    pc->ReleaseInstance();
+    return;
+  }
 
   std::vector<std::string> candidates = stream->GetCandidates();
   CSFLogDebug( logTag, "vcmRxAllocPort(): Got %d candidates", candidates.size());
@@ -579,6 +586,10 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
 
   nsresult res = stream->GetDefaultCandidate(1, &default_addr, &default_port);
   PR_ASSERT(NS_SUCCEEDED(res));
+  if (!NS_SUCCEEDED(res)) {
+    pc->ReleaseInstance();
+    return;
+  }
     
   CSFLogDebug( logTag, "vcmRxAllocPort(): Got default candidates %s:%d",
     default_addr.c_str(), default_port);

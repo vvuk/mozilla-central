@@ -249,7 +249,7 @@ class SignalingAgent {
     pc->Shutdown();
     // Shutdown is synchronous evidently.
     // ASSERT_TRUE(pObserver->WaitForObserverCall());
-    ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
+    // ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
 
     delete pc;
     delete pObserver;
@@ -350,7 +350,7 @@ class SignalingTest : public ::testing::Test {
 
  private:
   SignalingAgent a1_;  // Canonically "caller"
-  //  SignalingAgent a2_;  // Canonically "callee"
+  SignalingAgent a2_;  // Canonically "callee"
 };
 
 

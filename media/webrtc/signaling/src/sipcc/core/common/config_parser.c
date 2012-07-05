@@ -488,36 +488,37 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
     compare_or_set_int_value(CFGID_DSCP_AUDIO, gDscpForAudio, (const unsigned char *) "dscpForAudio");
     compare_or_set_int_value(CFGID_DSCP_VIDEO, gDscpVideo, (const unsigned char *) "dscpVideo");
     compare_or_set_int_value(CFGID_INTER_DIGIT_TIMER, gT302Timer, (const unsigned char *) "T302Timer");
- 	compare_or_set_int_value(CFGID_LINE_INDEX + line, gLineIndex, (const unsigned char *)"lineIndex");
-    compare_or_set_int_value(CFGID_LINE_FEATURE + line, gFeatureID, (const unsigned char *) "featureID");
-    compare_or_set_string_value(CFGID_PROXY_ADDRESS + line, gProxy, (const unsigned char *) "proxy");
-    compare_or_set_int_value(CFGID_PROXY_PORT + line, gPort, (const unsigned char *) "port");
 
-    if ( apply_config == FALSE )  {
-         ccsnap_set_line_label(line+1, "LINELABEL");
+    for(line = 1; line <= MAX_REG_LINES; line++) {
+
+ 	    compare_or_set_int_value(CFGID_LINE_INDEX + line, gLineIndex, (const unsigned char *)"lineIndex");
+        compare_or_set_int_value(CFGID_LINE_FEATURE + line, gFeatureID, (const unsigned char *) "featureID");
+        compare_or_set_string_value(CFGID_PROXY_ADDRESS + line, gProxy, (const unsigned char *) "proxy");
+        compare_or_set_int_value(CFGID_PROXY_PORT + line, gPort, (const unsigned char *) "port");
+
+        if ( apply_config == FALSE )  {
+            ccsnap_set_line_label(line+1, "LINELABEL");
+        }
+
+        compare_or_set_string_value(CFGID_LINE_NAME + line, sipUser, (const unsigned char *) "name");
+        compare_or_set_string_value(CFGID_LINE_DISPLAYNAME + line, gDisplayName, (const unsigned char *) "displayName");
+        compare_or_set_string_value(CFGID_LINE_MESSAGES_NUMBER + line, gMessagesNumber, (const unsigned char *) "messagesNumber");
+        compare_or_set_boolean_value(CFGID_LINE_FWD_CALLER_NAME_DIPLAY + line, gCallerName, (const unsigned char *) "callerName");
+        compare_or_set_boolean_value(CFGID_LINE_FWD_CALLER_NUMBER_DIPLAY + line, gCallerNumber, (const unsigned char *) "callerNumber");
+        compare_or_set_boolean_value(CFGID_LINE_FWD_REDIRECTED_NUMBER_DIPLAY + line, gRedirectedNumber, (const unsigned char *) "redirectedNumber");
+        compare_or_set_boolean_value(CFGID_LINE_FWD_DIALED_NUMBER_DIPLAY + line, gDialedNumber, (const unsigned char *) "dialedNumber");
+        compare_or_set_byte_value(CFGID_LINE_MSG_WAITING_LAMP + line, gMessageWaitingLampPolicy, (const unsigned char *) "messageWaitingLampPolicy");
+        compare_or_set_byte_value(CFGID_LINE_MESSAGE_WAITING_AMWI + line, gMessageWaitingAMWI, (const unsigned char *) "messageWaitingAMWI");
+        compare_or_set_byte_value(CFGID_LINE_RING_SETTING_IDLE + line, gRingSettingIdle, (const unsigned char *) "ringSettingIdle");
+        compare_or_set_byte_value(CFGID_LINE_RING_SETTING_ACTIVE + line, gRingSettingActive, (const unsigned char *) "ringSettingActive");
+        compare_or_set_string_value(CFGID_LINE_CONTACT + line, sipUser, (const unsigned char *) "contact");
+        compare_or_set_int_value(CFGID_LINE_MAXNUMCALLS + line, gMaxNumCalls, (const unsigned char *) "maxNumCalls");
+        compare_or_set_int_value(CFGID_LINE_BUSY_TRIGGER + line, gBusyTrigger, (const unsigned char *) "busyTrigger");
+        compare_or_set_byte_value(CFGID_LINE_AUTOANSWER_ENABLED + line, gAutoAnswerEnabled, (const unsigned char *) "autoAnswerEnabled");
+        compare_or_set_byte_value(CFGID_LINE_CALL_WAITING + line, gCallWaiting, (const unsigned char *) "callWaiting");
+        compare_or_set_string_value(CFGID_LINE_AUTHNAME + line, sipUser, (const unsigned char *)"authName");
+        compare_or_set_string_value(CFGID_LINE_PASSWORD + line, sipPassword, (const unsigned char *)"authPassword");
     }
-
-    compare_or_set_string_value(CFGID_LINE_NAME + line, sipUser, (const unsigned char *) "name");
-    compare_or_set_string_value(CFGID_LINE_DISPLAYNAME + line, gDisplayName, (const unsigned char *) "displayName");
-    compare_or_set_string_value(CFGID_LINE_MESSAGES_NUMBER + line, gMessagesNumber, (const unsigned char *) "messagesNumber");
-    compare_or_set_boolean_value(CFGID_LINE_FWD_CALLER_NAME_DIPLAY + line, gCallerName, (const unsigned char *) "callerName");
-    compare_or_set_boolean_value(CFGID_LINE_FWD_CALLER_NUMBER_DIPLAY + line, gCallerNumber, (const unsigned char *) "callerNumber");
-    compare_or_set_boolean_value(CFGID_LINE_FWD_REDIRECTED_NUMBER_DIPLAY + line, gRedirectedNumber, (const unsigned char *) "redirectedNumber");
-    compare_or_set_boolean_value(CFGID_LINE_FWD_DIALED_NUMBER_DIPLAY + line, gDialedNumber, (const unsigned char *) "dialedNumber");
-    compare_or_set_byte_value(CFGID_LINE_MSG_WAITING_LAMP + line, gMessageWaitingLampPolicy, (const unsigned char *) "messageWaitingLampPolicy");
-    compare_or_set_byte_value(CFGID_LINE_MESSAGE_WAITING_AMWI + line, gMessageWaitingAMWI, (const unsigned char *) "messageWaitingAMWI");
-    compare_or_set_byte_value(CFGID_LINE_RING_SETTING_IDLE + line, gRingSettingIdle, (const unsigned char *) "ringSettingIdle");
-    compare_or_set_byte_value(CFGID_LINE_RING_SETTING_ACTIVE + line, gRingSettingActive, (const unsigned char *) "ringSettingActive");
-    compare_or_set_string_value(CFGID_LINE_CONTACT + line, sipUser, (const unsigned char *) "contact");
-    compare_or_set_int_value(CFGID_LINE_MAXNUMCALLS + line, gMaxNumCalls, (const unsigned char *) "maxNumCalls");
-    compare_or_set_int_value(CFGID_LINE_BUSY_TRIGGER + line, gBusyTrigger, (const unsigned char *) "busyTrigger");
-    compare_or_set_byte_value(CFGID_LINE_AUTOANSWER_ENABLED + line, gAutoAnswerEnabled, (const unsigned char *) "autoAnswerEnabled");
-    compare_or_set_byte_value(CFGID_LINE_CALL_WAITING + line, gCallWaiting, (const unsigned char *) "callWaiting");
-
-
-    compare_or_set_string_value(CFGID_LINE_AUTHNAME + line, sipUser, (const unsigned char *)"authName");
-    compare_or_set_string_value(CFGID_LINE_PASSWORD + line, sipPassword, (const unsigned char *)"authPassword");
-
 
     compare_or_set_int_value(CFGID_CCM1_SEC_LEVEL, gDeviceSecurityMode,(const unsigned char *)"deviceSecurityMode");
     compare_or_set_int_value(CFGID_CCM1_SIP_PORT, gCcm1_sip_port,(const unsigned char *)"ccm1_sip_port");
