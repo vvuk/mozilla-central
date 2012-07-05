@@ -4086,6 +4086,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
          */
         data.open_rcv.media_type = media->type;
         data.open_rcv.media_refid = media->refid;
+
         if (cc_call_action(dcb_p->call_id, dcb_p->line,
                            CC_ACTION_OPEN_RCV,
                            &data) != CC_RC_SUCCESS) {

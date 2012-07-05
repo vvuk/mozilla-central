@@ -546,6 +546,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
+        uint16_t level,
         char **default_addrp, /* Out */
         int *default_portp, /* Out */
         char ***candidatesp, /* Out */
@@ -570,8 +571,8 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
     
   }
     
-  CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", stream_id);      
-  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(stream_id-1);
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", level);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(level-1);
   PR_ASSERT(stream.get());
   if (!stream.get()) {
     pc->ReleaseInstance();

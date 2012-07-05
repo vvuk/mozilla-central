@@ -444,6 +444,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         cc_streamid_t stream_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
+        uint16_t level,  
         char **default_addr, /* Out */
         int *default_port, /* Out */
         char ***candidates, /* Out */
