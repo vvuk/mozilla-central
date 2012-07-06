@@ -350,7 +350,9 @@ class SignalingTest : public ::testing::Test {
 
  private:
   SignalingAgent a1_;  // Canonically "caller"
+#if 0
   SignalingAgent a2_;  // Canonically "callee"
+#endif
 };
 
 
