@@ -36,7 +36,7 @@ const XPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm").XPCOMUtils
 const IDService = Cu.import("resource://gre/modules/identity/Identity.jsm").IdentityService;
 const IdentityProvider = Cu.import("resource://gre/modules/identity/IdentityProvider.jsm").IdentityProvider;
 
-const identity = navigator.mozId;
+const identity = navigator.id || navigator.mozId;
 
 function do_check_null(aVal, aMsg) {
   is(aVal, null, aMsg);

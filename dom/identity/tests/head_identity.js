@@ -17,7 +17,7 @@ let util = window.QueryInterface(Ci.nsIInterfaceRequestor)
                  .getInterface(Ci.nsIDOMWindowUtils);
 let outerWinId = util.outerWindowID;
 
-const identity = window.navigator.mozId;
+const identity = navigator.id || navigator.mozId;
 
 let index = 0;
 
