@@ -1573,7 +1573,7 @@ ContentPermissionPrompt.prototype = {
     var mainAction = {
       label: browserBundle.GetStringFromName("geolocation.shareLocation"),
       accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-      callback: function(notification) {
+      callback: function() {
         request.allow();
       },
     };
