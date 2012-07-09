@@ -1315,6 +1315,99 @@ gsmsdp_set_sdp_direction (fsmdef_media_t *media,
 }
 
 /*
+ * gsmsdp_get_ice_attributes
+ *
+ * Description:
+ *
+ * Returns the ice attribute strings at a given level
+ *
+ * Parameters:
+ *
+ * session         - true = session level attributes, false = media line attribs
+ * level           - The media level of the SDP where the media attribute exists.
+ * sdp_p           - Pointer to the SDP whose ice candidates are being searched.
+ * ice_attribs     - return ice attribs at this level in an array
+ * attributes_ctp  - count of array of media line attributes
+ */
+
+static boolean
+gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char ***ice_attribs, int *attributes_ctp)
+{
+    uint16_t        num_a_lines = 0;
+    uint16_t        i;
+    sdp_result_e    result;
+    char*           ice_attrib;
+
+    result = sdp_attr_num_instances(sdp_p, level, 0, sdp_attr, &num_a_lines);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("enumerating ICE attributes failed\n");
+        return FALSE;
+    }
+
+    if (num_a_lines < 1) {
+    	GSM_ERR_MSG("enumerating ICE attributes returned 0 attributes\n");
+    	return TRUE;
+    }
+
+    *ice_attribs = (char **)cpr_malloc(num_a_lines * sizeof(char *));
+
+    if (!(*ice_attribs))
+      return FALSE;
+
+    *attributes_ctp = 0;
+
+    for (i = 0; i < num_a_lines; i++) {
+        result = sdp_attr_get_ice_attribute (sdp_p, level, 0, sdp_attr, (uint16_t) (i + 1),
+          &ice_attrib);
+        if (result != SDP_SUCCESS) {
+    		GSM_ERR_MSG("Failed to retrieve ICE attribute\n");
+    		cpr_free(ice_attribs);
+    		return FALSE;
+    	}
+        (*ice_attribs)[i] = (char *) cpr_malloc(strlen(ice_attrib) + 1);
+        if(!(*ice_attribs)[i])
+        	return FALSE;
+
+        strncpy((*ice_attribs)[i], ice_attrib, strlen(ice_attrib) + 1);
+        (*attributes_ctp)++;
+    }
+
+    return TRUE;
+}
+
+/*
+ * gsmsdp_set_attributes
+ *
+ * Description:
+ *
+ * Adds an ice attribute attributes to the specified SDP.
+ *
+ * Parameters:
+ *
+ * session      - true = session level attribute, false = media line attribute
+ * level        - The media level of the SDP where the media attribute exists.
+ * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
+ * ice_attrib   - ice attribute to set
+ */
+static void
+gsmsdp_set_ice_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char *ice_attrib)
+{
+    uint16_t      a_instance = 0;
+    sdp_result_e  result;
+
+    result = sdp_add_new_attr(sdp_p, level, 0, sdp_attr, &a_instance);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to add attribute\n");
+        return;
+    }
+
+    result = sdp_attr_set_ice_attribute(sdp_p, level, 0, sdp_attr, a_instance, ice_attrib);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to set attribute\n");
+    }
+}
+
+/*
  * gsmsdp_remove_sdp_direction
  *
  * Description:
@@ -3511,7 +3604,7 @@ gsmsdp_negotiate_remove_media_line (fsmdef_dcb_t *dcb_p,
  * offer - Boolean indicating if the remote SDP came in an OFFER.
  *
  */
-static cc_causes_t
+cc_causes_t
 gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                              boolean initial_offer, boolean offer)
 {
@@ -3534,7 +3627,10 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
     fsmdef_media_t *media;
     uint8_t         cap_index;
     sdp_direction_e remote_direction;
+    boolean         result;
     int             sdpmode = 0;
+
+    char           *session_pwd;
 
     num_m_lines = sdp_get_num_media_lines(sdp_p->dest_sdp);
     if (num_m_lines == 0) {
@@ -3552,6 +3648,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                   DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname));
         return (CC_CAUSE_NO_MEDIA);
     }
+
 
     /*
      * Process each media line in the remote SDP
@@ -3773,6 +3870,17 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                 unsupported_line = TRUE;
                 update_local_ret_value = TRUE;
             }
+
+            if (!unsupported_line) {
+              int j;
+
+              /* Set ICE */
+              for (j=0; j<media->candidate_ct; j++) {
+                gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, media->level,
+                                          sdp_p->src_sdp, media->candidatesp[j]);
+              }
+            }
+
             break;
             
         default:
@@ -3839,8 +3947,11 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
          */
         config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
         if (sdpmode == TRUE) {
+        	/* <emannion>  need to look at adding remote streams closer before
+        	 *             finishing this implementation
             ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
             		dcb_p->caller_id.call_instance_id);
+            */
         }
     }
     /*
@@ -4043,6 +4154,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
     static const char fname[] = "gsmsdp_add_media_line";
     cc_action_data_t  data;
     fsmdef_media_t   *media = NULL;
+    int               i=0;
 
     switch (media_cap->type) {
     case SDP_MEDIA_AUDIO:
@@ -4121,11 +4233,18 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
         gsmsdp_init_sdp_media_transport(dcb_p, dcb_p->sdp->src_sdp, media); 
        
 
-            gsmsdp_update_local_sdp_media(dcb_p, dcb_p->sdp, TRUE, media,
+        gsmsdp_update_local_sdp_media(dcb_p, dcb_p->sdp, TRUE, media,
                                           media->transport);
 
 
         gsmsdp_set_local_sdp_direction(dcb_p, media, media->direction);
+
+        /*
+         * <emannion>  wait until here to set ICE candidates as SDP is now initialized
+         */
+        for (i=0; i<media->candidate_ct; i++) {
+        	gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, level, dcb_p->sdp->src_sdp, media->candidatesp[i]);
+        }
 
         /*
          * Since we are initiating an initial offer and opening a
@@ -4171,9 +4290,12 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p)
     uint8_t         cap_index;
     fsmdef_media_t  *media;
     boolean         has_audio;
+    int             sdpmode = 0;
 
     if ( CC_CAUSE_OK != gsmsdp_init_local_sdp(&(dcb_p->sdp)) )
       return CC_CAUSE_ERROR;
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     dcb_p->src_sdp_version = 0;
 
@@ -4235,20 +4357,34 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p)
     }
 
     /*
-     * Ensure that there is at least one audio line.
+     * <emannion>
+     * I think this is a suitable place to add ice ufrag and pwd to the SDP
      */
-    has_audio = FALSE;
-    GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
-        if (media->type == SDP_MEDIA_AUDIO) { 
-            has_audio = TRUE; /* found one audio line, done */
-            break;
+
+    if (dcb_p->ice_ufrag)
+        gsmsdp_set_ice_attribute (SDP_ATTR_ICE_UFRAG, SDP_SESSION_LEVEL, dcb_p->sdp->src_sdp, dcb_p->ice_ufrag);
+    if (dcb_p->ice_pwd)
+        gsmsdp_set_ice_attribute (SDP_ATTR_ICE_PWD, SDP_SESSION_LEVEL, dcb_p->sdp->src_sdp, dcb_p->ice_pwd);
+
+
+    if (sdpmode == FALSE) {
+
+       /*
+        * Ensure that there is at least one audio line.
+        */
+        has_audio = FALSE;
+        GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
+            if (media->type == SDP_MEDIA_AUDIO) {
+                has_audio = TRUE; /* found one audio line, done */
+                break;
+            }
         }
-    }
-    if (!has_audio) {
-        /* No audio, do not allow */
-        GSM_ERR_MSG(GSM_L_C_F_PREFIX"no audio media line for SDP\n", 
+        if (!has_audio) {
+            /* No audio, do not allow */
+            GSM_ERR_MSG(GSM_L_C_F_PREFIX"no audio media line for SDP\n",
                     dcb_p->line, dcb_p->call_id, fname);
-        return (CC_CAUSE_ERROR);
+            return (CC_CAUSE_ERROR);
+        }
     }
     
     return CC_CAUSE_OK;
@@ -5203,6 +5339,9 @@ gsmsdp_negotiate_answer_sdp (fsm_fcb_t *fcb_p, cc_msgbody_info_t *msg_body)
     return (status);
 }
 
+
+
+
 /*
  * gsmsdp_negotiate_offer_sdp
  *
@@ -5220,9 +5359,45 @@ gsmsdp_negotiate_answer_sdp (fsm_fcb_t *fcb_p, cc_msgbody_info_t *msg_body)
  */
 cc_causes_t
 gsmsdp_negotiate_offer_sdp (fsm_fcb_t *fcb_p,
-                           cc_msgbody_info_t *msg_body, boolean init)
+  cc_msgbody_info_t *msg_body, boolean init)
 {
-    static const char fname[] = "gsmsdp_negotiate_offer_sdp";
+    cc_causes_t status;
+    fsmdef_dcb_t *dcb_p = fcb_p->dcb;
+
+    status = gsmsdp_process_offer_sdp(fcb_p, msg_body, init);
+    if (status != CC_CAUSE_OK)
+       return status;
+
+    /*
+     * If a new error code has been added to sdp processing please make sure
+     * the sip side is aware of it
+     */
+    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, init, TRUE);
+    return (status);
+}
+
+
+/*
+ * gsmsdp_process_offer_sdp
+ *
+ * Description:
+ *
+ * Interface function used to process an OFFER SDP.
+ * Does not negotiate.
+ *
+ * Parameters:
+ *
+ * fcb_p - Pointer to the FCB containing the DCB whose local SDP is being negotiated.
+ * msg_body - Pointer to remote SDP body infostructure.
+ * init - Boolean indicating if the local SDP should be initialized as if this is the
+ *        first local SDP of this session.
+ *
+ */
+cc_causes_t
+gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
+  cc_msgbody_info_t *msg_body, boolean init)
+{
+    static const char fname[] = "gsmsdp_process_offer_sdp";
     fsmdef_dcb_t *dcb_p = fcb_p->dcb;
     cc_causes_t   status;
     cc_msgbody_t *sdp_bodies[CC_MAX_BODY_PARTS];
@@ -5289,13 +5464,90 @@ gsmsdp_negotiate_offer_sdp (fsm_fcb_t *fcb_p,
 
     gsmsdp_set_remote_sdp(dcb_p, dcb_p->sdp);
 
-    /*
-     * If a new error code has been added to sdp processing please make sure
-     * the sip side is aware of it
-     */
-    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, init, TRUE);
     return (status);
 }
+
+/*
+ * gsmsdp_install_peer_ice_attributes(
+ *
+ * fcb_p - pointer to the fcb
+ *
+ */
+cc_causes_t
+gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
+{
+    char            *ufrag;
+    char            *pwd;
+    char            **candidates;
+    int             candidate_ct;
+    sdp_result_e    sdp_res;
+    short           vcm_res;
+    fsmdef_dcb_t    *dcb_p = fcb_p->dcb;
+    cc_sdp_t        *sdp_p = dcb_p->sdp;
+    fsmdef_media_t  *media; 
+    int             level;
+    short           result;
+
+    /* TODO(ekr@rtfm.com): Tolerate missing ufrag/pwd b/c it might be
+       at the media level */
+    sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, SDP_SESSION_LEVEL, 0,
+      SDP_ATTR_ICE_UFRAG, 1, &ufrag);
+    if (sdp_res != SDP_SUCCESS)
+      ufrag = NULL;
+    
+    sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, SDP_SESSION_LEVEL, 0,
+      SDP_ATTR_ICE_PWD, 1, &pwd);
+    if (sdp_res != SDP_SUCCESS)
+      pwd = NULL;
+    
+    vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd);
+    if (vcm_res) 
+      return (CC_CAUSE_ERROR);
+    
+    
+    /* Now process all the media lines */
+    GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
+      if (!GSMSDP_MEDIA_ENABLED(media))
+        continue;
+      
+      sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, media->level, 0,
+        SDP_ATTR_ICE_UFRAG, 1, &ufrag);
+      if (sdp_res != SDP_SUCCESS)
+        ufrag = NULL;
+    
+      sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, media->level, 0,
+        SDP_ATTR_ICE_PWD, 1, &pwd);
+      if (sdp_res != SDP_SUCCESS)
+        pwd = NULL;
+
+      candidate_ct = 0;
+      result = gsmsdp_get_ice_attributes (SDP_ATTR_ICE_CANDIDATE, media->level, sdp_p->dest_sdp,
+                                          &candidates, &candidate_ct);
+      if(!result)
+        return (CC_CAUSE_ERROR);
+      
+      vcm_res = vcmSetIceMediaParams(dcb_p->peerconnection, media->level, ufrag, pwd, 
+                                    candidates, candidate_ct);
+
+      /* Clean up */
+      if(candidates) {
+        int i;
+
+        for (i=0; i<candidate_ct; i++) {
+          if (candidates[i])
+            cpr_free(candidates[i]);
+        }
+        cpr_free(candidates);
+      }      
+
+      if (vcm_res)
+        return (CC_CAUSE_ERROR);
+      
+    }
+    
+    return CC_CAUSE_OK;
+}
+
 
 /*
  * gsmsdp_free

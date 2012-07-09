@@ -797,11 +797,12 @@ MediaTrackTable*  CCAPI_CallInfo_getMediaTrackTable(cc_callinfo_ref_t handle) {
 
   if ( data != NULL){
 	  // TODO for now just do this for one track
+	  /*
 	  media_track_tbl = data->media_track_tbl;
 	  stream->stream_id = media_track_tbl->stream_id;
 	  stream->track[0].ref_id = media_track_tbl->track[0].ref_id;
 	  stream->track[0].video = media_track_tbl->track[0].video;
-
+	*/
      return stream;
   }
 

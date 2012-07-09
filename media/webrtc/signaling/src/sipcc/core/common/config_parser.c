@@ -489,7 +489,12 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
     compare_or_set_int_value(CFGID_DSCP_VIDEO, gDscpVideo, (const unsigned char *) "dscpVideo");
     compare_or_set_int_value(CFGID_INTER_DIGIT_TIMER, gT302Timer, (const unsigned char *) "T302Timer");
 
-    for(line = 1; line <= MAX_REG_LINES; line++) {
+    // TODO(emannion): You had line=1; line<= .... 
+    // Debugging suggests that alghouth *line* is 1-indexed, the config entries
+    // are 1-indexed. See. config_get_line_id().
+    // You may want to rewrite this in terms of config_get_line_id().
+    // Please check -- EKR
+    for(line = 0; line < MAX_REG_LINES; line++) {
 
  	    compare_or_set_int_value(CFGID_LINE_INDEX + line, gLineIndex, (const unsigned char *)"lineIndex");
         compare_or_set_int_value(CFGID_LINE_FEATURE + line, gFeatureID, (const unsigned char *) "featureID");

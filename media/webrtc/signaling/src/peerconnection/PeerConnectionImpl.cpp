@@ -28,6 +28,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <string>
+#include <iostream>
 
 #include "CSFLog.h"
 #include "ccapi_call_info.h"
@@ -145,7 +146,10 @@ PeerConnectionImpl::PeerConnectionImpl() :
   mCall(NULL), 
   mPCObserver(NULL), 
   mReadyState(kNew), 
-  mLocalSourceStreamsLock(PR_NewLock()) 
+  mLocalSourceStreamsLock(PR_NewLock()),
+  mIceCtx(NULL),
+  mIceStreams(NULL),
+  mIceState(kIceGathering)
 {
 }
 
@@ -153,7 +157,7 @@ PeerConnectionImpl::PeerConnectionImpl() :
 PeerConnectionImpl::~PeerConnectionImpl() 
 {
   peerconnections.erase(mHandle);
-  Shutdown();  
+  Shutdown();
   PR_DestroyLock(mLocalSourceStreamsLock);
 }
 
@@ -185,12 +189,18 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
   mIceCtx = NrIceCtx::Create("PC", true);
-
+  mIceCtx->SignalGatheringCompleted.connect(this, &PeerConnectionImpl::IceGatheringCompleted);
+  mIceCtx->SignalCompleted.connect(this, &PeerConnectionImpl::IceCompleted);
+  
   // Create two streams to start with, assume one for audio and
   // one for video
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
-    
+
+  for (int i=0; i<mIceStreams.size(); i++) {
+    mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);
+  }
+
   // Start gathering
   nsresult res;
   mIceCtx->thread()->Dispatch(WrapRunnableRet(mIceCtx, 
@@ -317,68 +327,81 @@ void PeerConnectionImpl::Shutdown() {
 }
 
 void PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info)  {
-	
   if(CCAPI_CALL_EV_CREATED == callEvent) {	
-    if (CREATEOFFER == info->getCallState()) {
-    
-      std::string sdpstr = info->getSDP();
+    std::string sdpstr;
+    StatusCode code;
+    MediaTrackTable* stream;
+
+    switch (info->getCallState()) {
+      case CREATEOFFER:
+        sdpstr = info->getSDP();
         if (mPCObserver)
           mPCObserver->OnCreateOfferSuccess(sdpstr);
-          
-    } else if (CREATEANSWER == info->getCallState()) {
-    
-      std::string sdpstr = info->getSDP();
-      if (mPCObserver)
-        mPCObserver->OnCreateAnswerSuccess(sdpstr);
-        
-    } else if (CREATEOFFERERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnCreateOfferError(code);
-        
-    } else if (CREATEANSWERERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnCreateAnswerError(code);
-        
-    } else if (SETLOCALDESC == info->getCallState()) {
-    
-      mLocalSDP = mLocalRequestedSDP;
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetLocalDescriptionSuccess(code);
+        break;
 
-    } else if (SETREMOTEDESC == info->getCallState()) {
-    
-      mRemoteSDP = mRemoteRequestedSDP;
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetRemoteDescriptionSuccess(code);
-        
-    }  else if (SETLOCALDESCERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetLocalDescriptionError(code);
+      case CREATEANSWER:
+        sdpstr = info->getSDP();
+        if (mPCObserver)
+          mPCObserver->OnCreateAnswerSuccess(sdpstr);
+        break;
 
-    } else if (SETREMOTEDESCERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetRemoteDescriptionError(code);
-        
-    } else if (REMOTESTREAMADD == info->getCallState()) {
+      case CREATEOFFERERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnCreateOfferError(code);
+        break;
 
-      MediaTrackTable* stream = info->getMediaTracks();
-      if (mPCObserver)
-        mPCObserver->OnAddStream(stream);
+      case CREATEANSWERERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnCreateAnswerError(code);
+        break;
+        
+      case SETLOCALDESC:
+        mLocalSDP = mLocalRequestedSDP;
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetLocalDescriptionSuccess(code);
+        break;
+
+      case SETREMOTEDESC:
+        mRemoteSDP = mRemoteRequestedSDP;
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetRemoteDescriptionSuccess(code);
+        break;
+        
+      case SETLOCALDESCERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetLocalDescriptionError(code);
+        break;    
+
+      case SETREMOTEDESCERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetRemoteDescriptionError(code);
+        break;
+        
+      case REMOTESTREAMADD:
+        stream = info->getMediaTracks();
+        if (mPCObserver)
+          mPCObserver->OnAddStream(stream);
+        break;
+
+      default:
+    	// for now print states to learn activity, in time handle correctly
+    	cc_call_state_t state = info->getCallState();
+    	std::cerr << mHandle << ": **** CALL CREATED STATE NOW " << state << std::endl;
+        break;
     }
+  } else if(CCAPI_CALL_EV_STATE == callEvent) {	
+      cc_call_state_t state = info->getCallState();
+      
+      std::cerr << mHandle << ": **** CALL STATE NOW " << state << std::endl;
   }
 }
-      
-
+  
 void PeerConnectionImpl::ChangeReadyState(PeerConnectionInterface::ReadyState ready_state) {
   mReadyState = ready_state;
   if (mPCObserver)
@@ -388,18 +411,43 @@ void PeerConnectionImpl::ChangeReadyState(PeerConnectionInterface::ReadyState re
 PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
   if (peerconnections.find(handle) == peerconnections.end())
     return NULL;
+  
+  PeerConnectionImpl *impl = peerconnections[handle];
+  impl->AddRef();
 
-  // TODO(ekr@rtfm.com): Lock the PC
-  return peerconnections[handle];
+  return impl;
 }
 
 void PeerConnectionImpl::ReleaseInstance() {
-  ;
+  Release();
 }
  
 const std::string& PeerConnectionImpl::GetHandle() {
   return mHandle;
 }
 
+void PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx) {
+  CSFLogDebug(logTag, "ICE gathering complete");
+  mIceState = kIceWaiting;
+  if (mPCObserver) {
+    mPCObserver->OnStateChange(PeerConnectionObserver::kIceState);
+  }
+}
+
+void PeerConnectionImpl::IceCompleted(NrIceCtx *ctx) {
+  CSFLogDebug(logTag, "ICE completed");
+  mIceState = kIceConnected;
+  if (mPCObserver) {
+    mPCObserver->OnStateChange(PeerConnectionObserver::kIceState);
+  }
+}
+
+void PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
+  CSFLogDebug(logTag, "ICE stream ready : %s", stream->name().c_str());
+}
+
+PeerConnectionInterface::IceState PeerConnectionImpl::ice_state() {
+  return mIceState;
+}
 
 }  // end sipcc namespace

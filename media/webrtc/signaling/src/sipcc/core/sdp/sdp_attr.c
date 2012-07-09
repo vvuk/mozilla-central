@@ -5128,3 +5128,40 @@ sdp_result_e sdp_parse_attr_srtpcontext (sdp_t *sdp_p, sdp_attr_t *attr_p,
     return sdp_parse_attr_srtp(sdp_p, attr_p, ptr, 
                                SDP_ATTR_SRTP_CONTEXT);    
 }
+
+
+sdp_result_e sdp_build_attr_from_str (sdp_t *sdp_p, const char *str,
+                                      char **ptr, u16 len)
+{
+    *ptr += snprintf(*ptr, len, "a=%s\r\n", str);
+
+    return (SDP_SUCCESS);
+}
+
+sdp_result_e sdp_build_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p,
+                                          char **ptr, u16 len) {
+    return sdp_build_attr_from_str(sdp_p, attr_p->attr.ice_attr, ptr, len);
+}
+
+
+sdp_result_e sdp_parse_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, char *ptr) {
+    sdp_result_e  result;
+    char tmp[SDP_MAX_STRING_LEN];
+
+    ptr = sdp_getnextstrtok(ptr, tmp, "\r\n", &result);
+    if (result != SDP_SUCCESS){
+ 	/* return success just means attribute not found */
+      /* TODO(emannion): is this really right? how can this happen? */
+      attr_p->attr.ice_attr[0] = 0;
+      return (SDP_SUCCESS);
+    }
+    
+    /* We need the attr= here. This is pretty gross. */
+    snprintf(attr_p->attr.ice_attr, sizeof(attr_p->attr.ice_attr),
+      "%s:%s", sdp_get_attr_name(attr_p->type), tmp);
+    
+    if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
+      SDP_PRINT("%s Parsed a=%s, %s", sdp_p->debug_str, sdp_get_attr_name(attr_p->type), tmp);
+    }
+    return (SDP_SUCCESS);
+}

@@ -47,9 +47,7 @@
 
 namespace sipcc {
 
-class LocalSourceStreamInfo : public mozilla::MediaStreamListener,
-                              public sigslot::has_slots<>
-{
+class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
   LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream);
   ~LocalSourceStreamInfo();
@@ -78,7 +76,8 @@ private:
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
   
-class PeerConnectionImpl : public PeerConnectionInterface {
+class PeerConnectionImpl : public PeerConnectionInterface,
+                           public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
@@ -101,6 +100,7 @@ public:
 
   virtual ReadyState ready_state();
   virtual SipccState sipcc_state();
+  virtual IceState ice_state();
   
   virtual void Shutdown();
   
@@ -112,6 +112,11 @@ public:
   virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
 
+  // ICE events
+  void IceGatheringCompleted(NrIceCtx *ctx);
+  void IceCompleted(NrIceCtx *ctx);
+  void IceStreamReady(NrIceMediaStream *stream);
+
   mozilla::RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
   mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
     // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
@@ -122,6 +127,8 @@ public:
     return mIceStreams[i];
   }
 
+
+  
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
 
@@ -148,7 +155,7 @@ private:
   // ICE objects
   mozilla::RefPtr<NrIceCtx> mIceCtx;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > mIceStreams;
-  bool mIceReady;
+  IceState mIceState;
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;

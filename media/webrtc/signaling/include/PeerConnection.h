@@ -86,7 +86,7 @@ public:
   virtual void OnSetRemoteDescriptionSuccess(StatusCode code) = 0;
   virtual void OnSetLocalDescriptionError(StatusCode code) = 0;
   virtual void OnSetRemoteDescriptionError(StatusCode code) = 0;    
-
+  
   // Notification of one of several types of state changed
   virtual void OnStateChange(StateType state_changed) = 0;
 
@@ -100,7 +100,6 @@ public:
   // It should hook back into the media transport to notify it of ICE candidates listed in the SDP
   // PeerConnectionImpl does not parse ICE candidates, just pulls them out of the SDP.
   virtual void FoundIceCandidate(const std::string& strCandidate) = 0;
-
 
 protected:
   ~PeerConnectionObserver() {}
@@ -122,6 +121,15 @@ public:
     kIdle,
     kStarting,
     kStarted
+  };
+
+  // TODO(ekr@rtfm.com): make this conform to the specifications
+  enum IceState {
+    kIceGathering,
+    kIceWaiting,
+    kIceChecking,
+    kIceConnected,
+    kIceFailed
   };
 
 public:
@@ -160,11 +168,16 @@ public:
   // The state of the SIPCC engine, e.g. 'Started'
   virtual SipccState sipcc_state() = 0;
   
+  // ICE state
+  virtual IceState ice_state() = 0;
+
   // puts the SIPCC engine back to 'kIdle', shuts down threads, deletes state, etc.
   virtual void Shutdown() = 0;
   
   virtual ~PeerConnectionInterface() {};
 
+protected:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(PeerConnectionInterface);
 };
 
 }  // end sipcc namespace

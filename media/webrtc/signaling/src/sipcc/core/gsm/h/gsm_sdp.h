@@ -80,6 +80,12 @@ cc_causes_t gsmsdp_negotiate_answer_sdp(fsm_fcb_t *fcb,
 cc_causes_t gsmsdp_negotiate_offer_sdp(fsm_fcb_t *fcb,
                                        cc_msgbody_info_t *msg_body,
                                        boolean init);
+cc_causes_t gsmsdp_process_offer_sdp(fsm_fcb_t *fcb,
+                                     cc_msgbody_info_t *msg_body,
+                                     boolean init);
+cc_causes_t
+gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
+                              boolean initial_offer, boolean offer);
 boolean gsmsdp_sdp_differs_from_previous_sdp(boolean rcv_only,
                                              fsmdef_media_t *media);
 cc_causes_t gsmsdp_encode_sdp(cc_sdp_t *sdp_p, cc_msgbody_info_t *msg_body);
@@ -136,6 +142,7 @@ extern boolean gsmsdp_update_local_sdp_media_capability(fsmdef_dcb_t *dcb_p,
 boolean is_gsmsdp_media_ip_updated_to_latest( fsmdef_dcb_t * dcb );
 
 void gsmsdp_add_track(fsmdef_dcb_t * dcb, fsmdef_media_t *media);
+cc_causes_t gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p);
 
 #endif
 

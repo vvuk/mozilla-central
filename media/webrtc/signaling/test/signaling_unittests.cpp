@@ -62,6 +62,7 @@ using namespace std;
 #include "mtransport_test_utils.h"
 MtransportTestUtils test_utils;
 
+static int kDefaultTimeout = 1000;
 namespace {
 
 static const std::string strSampleSdpAudioVideoNoIce =  
@@ -69,6 +70,8 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "o=Cisco-SIPUA 4949 0 IN IP4 10.86.255.143\r\n"
   "s=SIP Call\r\n"
   "t=0 0\r\n"
+  "a=ice-ufrag:qkEP\r\n"
+  "a=ice-pwd:ed6f9GuHjLcoCN6sC/Eh7fVl\r\n"
   "m=audio 16384 RTP/AVP 0 8 9 101\r\n"
   "c=IN IP4 10.86.255.143\r\n"
   "a=rtpmap:0 PCMU/8000\r\n"
@@ -77,11 +80,15 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "a=rtpmap:101 telephone-event/8000\r\n"
   "a=fmtp:101 0-15\r\n"
   "a=sendrecv\r\n"
+  "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n"
+  "a=candidate:2 2 UDP 2130706431 192.168.2.2 50006 typ host\r\n"
   "m=video 1024 RTP/AVP 97\r\n"
   "c=IN IP4 10.86.255.143\r\n"
   "a=rtpmap:97 H264/90000\r\n"
   "a=fmtp:97 profile-level-id=42E00C\r\n"
-  "a=sendrecv\r\n";
+  "a=sendrecv\r\n"
+  "a=candidate:1 1 UDP 2130706431 192.168.2.3 50007 typ host\r\n"
+  "a=candidate:2 2 UDP 2130706431 192.168.2.4 50008 typ host\r\n";
 
 
 class TestObserver : public sipcc::PeerConnectionObserver
@@ -114,6 +121,7 @@ public:
   void OnCreateAnswerSuccess(const std::string& answer) 
   {
     state = stateSuccess;
+    cout << "onCreateAnswerSuccess = " << answer << endl;
     lastString = answer;
   }
 
@@ -155,7 +163,7 @@ public:
       cout << "Ready State: " << pc->ready_state() << endl;
       break;
     case kIceState:
-      cout << "ICE State: " << endl;
+      cout << "ICE State: " << pc->ice_state() << endl;
       break;
     case kSdpState:
       cout << "SDP State: " << endl;
@@ -237,8 +245,9 @@ class SignalingAgent {
     ASSERT_TRUE(pObserver);
 
     ASSERT_EQ(pc->Initialize(pObserver), PC_OK);
-    ASSERT_TRUE_WAIT(pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted, 1000);
- 
+    ASSERT_TRUE_WAIT(pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted,
+                     kDefaultTimeout);
+    ASSERT_TRUE_WAIT(pc->ice_state() == sipcc::PeerConnectionInterface::kIceWaiting, 5000);
     cout << "Init Complete" << endl;
 
   }
@@ -251,13 +260,13 @@ class SignalingAgent {
     // ASSERT_TRUE(pObserver->WaitForObserverCall());
     // ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
 
-    delete pc;
     delete pObserver;
   }
 
+  const std::string offer() const { return offer_; }
+  const std::string answer() const { return answer_; }
+
   void CreateOffer(const std::string hints) {
-    std::string strHints(hints);
- 
     // Create a media stream as if it came from GUM
     // Looks like we have to GetInstance() this so it can be created
     // FIX - this does not start all of the event threads needed to run the MediaGraph
@@ -280,15 +289,41 @@ class SignalingAgent {
 
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
-    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, 1000);
+    ASSERT_EQ(pc->CreateOffer(hints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
     SDPSanityCheck(pObserver->lastString, true, true);
+    offer_ = pObserver->lastString;
   }
 
   void CreateOfferExpectError(const std::string hints) {
     std::string strHints(hints);
     ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
-    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateError, 1000);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateError, kDefaultTimeout);
+  }
+
+  void CreateAnswer(const std::string offer, const std::string hints) {
+    pObserver->state = TestObserver::stateNoResponse;
+    ASSERT_EQ(pc->CreateAnswer(offer, hints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+    SDPSanityCheck(pObserver->lastString, true, true);
+    answer_ = pObserver->lastString;
+  }
+
+
+  void SetRemote(sipcc::Action action, std::string remote) {
+    pObserver->state = TestObserver::stateNoResponse;    
+    ASSERT_EQ(pc->SetRemoteDescription(action, remote), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+  }
+
+  void SetLocal(sipcc::Action action, std::string local) {
+    pObserver->state = TestObserver::stateNoResponse;    
+    ASSERT_EQ(pc->SetLocalDescription(action, local), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+  }
+
+  bool IceCompleted() {
+    return pc->ice_state() == sipcc::PeerConnectionInterface::kIceConnected;
   }
 
 #if 0
@@ -317,8 +352,11 @@ class SignalingAgent {
 #endif
 
 public:
-  sipcc::PeerConnectionInterface *pc;
+  mozilla::RefPtr<sipcc::PeerConnectionInterface> pc;
   TestObserver *pObserver;
+  std::string offer_;
+  std::string answer_;
+
   
 private:
   void SDPSanityCheck(const std::string& sdp, bool shouldHaveAudio, bool shouldHaveVideo)
@@ -329,14 +367,11 @@ private:
     if (shouldHaveAudio)
     {
       ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:8 PCMA/8000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:9 G722/8000"), std::string::npos);
     }
     
     if (shouldHaveVideo)
     {
       ASSERT_NE(sdp.find("a=rtpmap:97 H264/90000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:120 VP8/90000"), std::string::npos);
     }
   }
 };
@@ -348,11 +383,25 @@ class SignalingTest : public ::testing::Test {
     a1_.CreateOffer(hints);
   }
 
+  void CreateSetOffer(std::string hints) {
+    a1_.CreateOffer(hints);
+    a1_.SetLocal(sipcc::OFFER, a1_.offer());
+  }
+
+  void OfferAnswer(std::string ahints, std::string bhints) {
+    a1_.CreateOffer(ahints);
+    a1_.SetLocal(sipcc::OFFER, a1_.offer());
+    a2_.SetRemote(sipcc::OFFER, a1_.offer());
+    a2_.CreateAnswer(a1_.offer(), bhints);
+    a2_.SetLocal(sipcc::ANSWER, a2_.answer());
+    a1_.SetRemote(sipcc::ANSWER, a2_.answer());
+    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, 10000);
+    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, 10000);
+  }
+
  private:
   SignalingAgent a1_;  // Canonically "caller"
-#if 0
   SignalingAgent a2_;  // Canonically "callee"
-#endif
 };
 
 
@@ -363,6 +412,16 @@ TEST_F(SignalingTest, JustInit)
 TEST_F(SignalingTest, CreateOfferNoHints)
 {
   CreateOffer("");
+}
+
+TEST_F(SignalingTest, CreateSetOffer)
+{
+  CreateSetOffer("");
+}
+
+TEST_F(SignalingTest, OfferAnswer)
+{
+  OfferAnswer("", "");
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)
@@ -395,6 +454,13 @@ int main(int argc, char **argv)
   NSS_SetDomesticPolicy();
 
   ::testing::InitGoogleTest(&argc, argv);
+
+  for(int i=0; i<argc; i++) {
+    if (!strcmp(argv[i],"-t")) {
+      kDefaultTimeout = 20000;
+    }
+
+  }
 
   int result = RUN_ALL_TESTS();
 

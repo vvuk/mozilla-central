@@ -47,6 +47,7 @@
 #include "VcmSIPCCBinding.h"
 #include "csf_common.h"
 #include "PeerConnectionImpl.h"
+#include "runnable_utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -615,6 +616,198 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
 
   pc->ReleaseInstance();
 }
+
+
+/* Get ICE global parameters (ufrag and pwd)
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] ufragp - where to put the ufrag
+ *  @param[out] pwdp - where to put the pwd
+ *
+ *  @return void
+ */
+void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
+{
+  CSFLogDebug( logTag, "vcmRxGetIceParams: PC = %s", peerconnection);
+
+  *ufragp = *pwdp = NULL;
+
+ // Note: we don't acquire any media resources here, and we assume that the
+  // ICE streams already exist, so we're just acquiring them. Any logic
+  // to make them on demand is elsewhere.
+  CSFLogDebug( logTag, "vcmGetIceParams: acquiring peerconnection %s", peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return;
+  }
+
+  std::vector<std::string> attrs = pc->ice_ctx()->GetGlobalAttributes();
+ 
+  // Now fish through these looking for a ufrag and passwd
+  char *ufrag = NULL;
+  char *pwd = NULL;
+ 
+  for (size_t i=0; i<attrs.size(); i++) {
+    if (attrs[i].compare(0, 9, "ice-ufrag") == 0) {
+      if (!ufrag) {
+        ufrag = (char *)malloc(attrs[i].size() + 1);
+        if (!ufrag)
+          return;
+        strncpy(ufrag, attrs[i].c_str(), attrs[i].size());
+        ufrag[attrs[i].size()] = 0;
+      }
+    }
+
+    if (attrs[i].compare(0, 7, "ice-pwd") == 0) {
+      pwd = (char *)malloc(attrs[i].size() + 1);
+      if (!pwd)
+        return;
+      strncpy(pwd, attrs[i].c_str(), attrs[i].size());
+      pwd[attrs[i].size()] = 0;
+    }
+
+  }
+  if (!ufrag || !pwd) {
+    PR_ASSERT(PR_FALSE);
+    if (ufrag)
+      free(ufrag);
+    if (pwd)
+      free(pwd);
+    CSFLogDebug( logTag, "vcmRxAllocPort(): no ufrag/passwd");
+    return;
+  }
+  
+  *ufragp = ufrag;
+  *pwdp = pwd;
+
+  return;
+}
+
+
+
+/* Set remote ICE global parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  std::vector<std::string> attributes;
+
+  if (ufrag)
+    attributes.push_back(ufrag);
+  if (pwd)
+    attributes.push_back(pwd);
+  
+  nsresult res = pc->ice_ctx()->ParseGlobalAttributes(attributes);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
+/* Start ICE checks
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @return 0 success, error failure
+ */
+short vcmStartIceChecks(const char *peerconnection)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  nsresult res;
+  pc->ice_ctx()->thread()->Dispatch(
+      WrapRunnableRet(pc->ice_ctx(), &NrIceCtx::StartChecks, &res),
+      NS_DISPATCH_SYNC);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't start ICE checks", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
+
+/* Set remote ICE media-level parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  level - the m-line
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *  @param[in]  candidates - the candidates
+ *  @param[i]   candidate_ct - the number of candidates
+ *  @return 0 success, error failure
+ */
+short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, char *pwd,
+                      char **candidates, int candidate_ct)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(level-1);
+  if (!stream.get())
+    return VCM_ERROR;
+
+  std::vector<std::string> attributes;
+
+  if (ufrag)
+    attributes.push_back(ufrag);
+  if (pwd)
+    attributes.push_back(pwd);
+  
+  for (int i; i<candidate_ct; i++) {
+    attributes.push_back(candidates[i]);
+  }
+
+  nsresult res = stream->ParseCandidates(attributes);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
 
 /**
  *   Should we remove this from external API
