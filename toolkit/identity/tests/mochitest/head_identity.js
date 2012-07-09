@@ -26,8 +26,8 @@ const TEST_IDPPARAMS = {
 const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
 
 // Set the debug pref before loading other modules
-Services.prefs.setBoolPref("toolkit.identity.debug", true);
-Services.prefs.setBoolPref("dom.identity.enabled", true);
+SpecialPowers.setBoolPref("toolkit.identity.debug", true);
+SpecialPowers.setBoolPref("dom.identity.enabled", true);
 
 const jwcrypto = Cu.import("resource://gre/modules/identity/jwcrypto.jsm").jwcrypto;
 const IdentityStore = Cu.import("resource://gre/modules/identity/IdentityStore.jsm").IdentityStore;
@@ -180,8 +180,8 @@ function run_next_test() {
     info(test.name);
     test();
   } else {
-    Services.prefs.clearUserPref("toolkit.identity.debug");
-    Services.prefs.clearUserPref("dom.identity.enabled");
+    SpecialPowers.clearUserPref("toolkit.identity.debug");
+    SpecialPowers.clearUserPref("dom.identity.enabled");
     SimpleTest.finish();
   }
 }
