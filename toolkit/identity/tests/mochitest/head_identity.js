@@ -148,8 +148,8 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
         doneProvisioningCallback(err);
     },
     sandbox: {
-	// Emulate the free() method on the iframe sandbox
-	free: function() {}
+      // Emulate the free() method on the iframe sandbox
+      free: function() {}
     }
   };
 
@@ -172,16 +172,31 @@ function resetState() {
   RelyingParty.reset();
 }
 
+function cleanup() {
+  SpecialPowers.clearUserPref("toolkit.identity.debug");
+  SpecialPowers.clearUserPref("dom.identity.enabled");
+}
+
 var TESTS = [];
 
 function run_next_test() {
+  if (!identity) {
+    todo(false, "DOM API is not available. Skipping tests.");
+    cleanup();
+    SimpleTest.finish();
+    return;
+  }
   if (TESTS.length) {
     let test = TESTS.shift();
     info(test.name);
-    test();
+    try {
+      test();
+    } catch (ex) {
+      ok(false, ex);
+    }
   } else {
-    SpecialPowers.clearUserPref("toolkit.identity.debug");
-    SpecialPowers.clearUserPref("dom.identity.enabled");
+    cleanup();
+    info("all done");
     SimpleTest.finish();
   }
 }

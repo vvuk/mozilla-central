@@ -56,6 +56,11 @@ function expectException(aFunc, msg, aErrorType="Error") {
 }
 
 function next() {
+  if (!identity) {
+    todo(false, "DOM API is not available. Skipping tests.");
+    finish_tests();
+    return;
+  }
   if (index >= steps.length) {
     ok(false, "Shouldn't get here!");
     return;
