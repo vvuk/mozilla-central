@@ -47,7 +47,7 @@ MediaEngineDefaultVideoSource::Allocate()
   }
 
   mState = kAllocated;
-  return nsDOMMediaStream::CreateInputStream();
+  return nsDOMMediaStream::CreateInputStream(nsDOMMediaStream::HINT_CONTENTS_VIDEO);
 }
 
 nsresult
@@ -216,7 +216,7 @@ MediaEngineDefaultAudioSource::Allocate()
     return NULL;
   }
   mState = kAllocated;
-  return nsDOMMediaStream::CreateInputStream();
+  return nsDOMMediaStream::CreateInputStream(nsDOMMediaStream::HINT_CONTENTS_AUDIO);
 }
 
 nsresult

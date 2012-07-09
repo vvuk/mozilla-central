@@ -39,22 +39,25 @@
 #include "PeerConnection.h"
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
-#include "MediaSegment.h"
+#include "nsThreadUtils.h"
 #include "runnable_utils.h"
+
+#ifndef USE_FAKE_MEDIA_STREAMS
+#include "MediaSegment.h"
+#endif
 
 static const char* logTag = "PeerConnectionImpl";
 
 namespace sipcc {
 
 // LocalSourceStreamInfo
-LocalSourceStreamInfo::LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream) :
+LocalSourceStreamInfo::LocalSourceStreamInfo(nsRefPtr<nsDOMMediaStream>& aMediaStream) :
   mMediaStream(aMediaStream)  
 {  
 }
   
 LocalSourceStreamInfo:: ~LocalSourceStreamInfo()
 {
-  mMediaStream->Release();  
 }
 
 // We get this callback in order to find out which tracks are audio and which are video
@@ -115,11 +118,27 @@ void LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   }
 }
 
-nsRefPtr<mozilla::MediaStream> LocalSourceStreamInfo::GetMediaStream()
+nsRefPtr<nsDOMMediaStream> LocalSourceStreamInfo::GetMediaStream()
 {
   return mMediaStream;
 }
-  
+
+// If the ExpectAudio hint is on we will add a track at the default first
+// audio track ID (0)
+// FIX - Do we need to iterate over the tracks instead of taking these expect hints?
+void LocalSourceStreamInfo::ExpectAudio()
+{
+  mAudioTracks.AppendElement(0);
+} 
+
+// If the ExpectVideo hint is on we will add a track at the default first
+// video track ID (1).
+// FIX - Do we need to iterate over the tracks instead of taking these expect hints?
+void LocalSourceStreamInfo::ExpectVideo()
+{
+  mVideoTracks.AppendElement(1);
+}
+
 unsigned LocalSourceStreamInfo::AudioTrackCount()
 {
   return mAudioTracks.Length();  
@@ -172,6 +191,8 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
     return PC_INTERNAL_ERROR;
     
   mCall = pcctx->createCall();
+  if (!mCall.get())
+    return PC_INTERNAL_ERROR;
     
   // Generate a handle from our pointer.
   unsigned char handle_bin[sizeof(void*)];
@@ -266,22 +287,37 @@ const std::string& PeerConnectionImpl::remoteDescription() const {
   return mRemoteSDP;
 }
 
-void PeerConnectionImpl::AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
+void PeerConnectionImpl::AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream)
 {
   CSFLogDebug(logTag, "AddStream");
   nsRefPtr<LocalSourceStreamInfo> localSourceStream = new LocalSourceStreamInfo(aMediaStream);
   
-#if 0
+  // Adding tracks here based on nsDOMMediaStream expectation settings
+  PRUint32 hints = aMediaStream->GetHintContents();
+  if (hints & nsDOMMediaStream::HINT_CONTENTS_AUDIO)
+  {
+    localSourceStream->ExpectAudio();
+  }
+
+  if (hints & nsDOMMediaStream::HINT_CONTENTS_VIDEO)
+  {
+    localSourceStream->ExpectVideo();
+  }
+
   // Make it the listener for info from the MediaStream and add it to the list
-  aMediaStream->AddListener(localSourceStream);
-#endif
+  mozilla::MediaStream *plainMediaStream = aMediaStream->GetStream();
+
+  if (plainMediaStream)
+  {
+    plainMediaStream->AddListener(localSourceStream);
+  }
 
   PR_Lock(mLocalSourceStreamsLock);
   mLocalSourceStreams.AppendElement(localSourceStream);
   PR_Unlock(mLocalSourceStreamsLock);
 }
   
-void PeerConnectionImpl::RemoveStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
+void PeerConnectionImpl::RemoveStream(nsRefPtr<nsDOMMediaStream>& aMediaStream)
 {
   CSFLogDebug(logTag, "RemoveStream");
 

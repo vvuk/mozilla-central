@@ -34,7 +34,13 @@
 #include <string>
 
 #include "nsTArray.h"
-#include "MediaStreamGraph.h"
+
+#ifdef USE_FAKE_MEDIA_STREAMS
+#include "FakeMediaStreams.h"
+#else
+#include "nsDOMMediaStream.h"
+#endif
+
 #include "peer_connection_types.h"
 
 namespace sipcc {
@@ -153,8 +159,8 @@ public:
   virtual const std::string& remoteDescription() const = 0;
 
   // Adds the stream created by GetUserMedia
-  virtual void AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream) = 0;
-  virtual void RemoveStream(nsRefPtr<mozilla::MediaStream>& aMediaStream) = 0;
+  virtual void AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream) = 0;
+  virtual void RemoveStream(nsRefPtr<nsDOMMediaStream>& aMediaStream) = 0;
   virtual void CloseStreams() = 0;
 
   // As the ICE candidates roll in this one should be called each time

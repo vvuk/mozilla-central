@@ -161,8 +161,12 @@
           ],
         }], 
         ['build_for_test!=0', {
+          'include_dirs': [
+            './test'
+          ],
           'defines' : [
-            'NO_CHROMIUM_LOGGING'
+            'NO_CHROMIUM_LOGGING',
+            'USE_FAKE_MEDIA_STREAMS'
           ],
         }], 
         ['OS=="linux"', {

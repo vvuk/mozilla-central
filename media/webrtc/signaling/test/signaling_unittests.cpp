@@ -54,9 +54,9 @@ using namespace std;
 #include "ssl.h"
 #include "prthread.h"
 
-#include "nsDOMMediaStream.h"
-#include "MediaStreamGraph.h"
-#include "FakeMediaSegment.h"
+// Typedefs all mediastream types to Fake_ versions
+#define USE_FAKE_MEDIA_STREAMS
+
 #include "PeerConnectionImpl.h"
 
 #include "mtransport_test_utils.h"
@@ -268,24 +268,11 @@ class SignalingAgent {
 
   void CreateOffer(const std::string hints) {
     // Create a media stream as if it came from GUM
-    // Looks like we have to GetInstance() this so it can be created
-    // FIX - this does not start all of the event threads needed to run the MediaGraph
-    //mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
-
-    //nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
-    //nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
+    nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+    // Pretend GUM got both audio and video.
+    domMediaStream->SetHintContents(nsDOMMediaStream::HINT_CONTENTS_AUDIO | nsDOMMediaStream::HINT_CONTENTS_VIDEO); 
       
-    // Add fake audio track
-    //FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
-    //sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
-
-    // Add fake video track
-    //FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
-    //sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
-
-    // Call AddStream as JS would after GetUserMedia()
-    //nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
-    //pc->AddStream(mediaStream);
+    pc->AddStream(domMediaStream);
 
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;

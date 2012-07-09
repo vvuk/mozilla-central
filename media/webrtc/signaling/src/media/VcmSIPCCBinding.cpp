@@ -47,6 +47,7 @@
 #include "VcmSIPCCBinding.h"
 #include "csf_common.h"
 #include "PeerConnectionImpl.h"
+#include "nsThreadUtils.h"
 #include "runnable_utils.h"
 
 #include <stdlib.h>
