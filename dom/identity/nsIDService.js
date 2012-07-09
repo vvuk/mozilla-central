@@ -26,8 +26,6 @@ IDService.prototype = {
         // Startup DOMIdentity.jsm
         Cu.import("resource://gre/modules/DOMIdentity.jsm");
         DOMIdentity._init();
-        // Configure message manager listening on the hidden window
-        DOMIdentity._configureMessages(Services.appShell.hiddenDOMWindow, true);
         break;
     }
   }
