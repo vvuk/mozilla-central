@@ -176,7 +176,7 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
   // Generate a handle from our pointer.
   unsigned char handle_bin[8];
   PeerConnectionImpl *handle = this;
-  PR_ASSERT(sizeof(handle_bin) <= sizeof(handle));
+  PR_ASSERT(sizeof(handle_bin) >= sizeof(handle));
 
   memcpy(handle_bin, &handle, sizeof(handle));
   for (size_t i = 0; i<sizeof(handle_bin); i++) {
