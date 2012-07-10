@@ -47,6 +47,7 @@
 #include "VcmSIPCCBinding.h"
 #include "csf_common.h"
 #include "PeerConnectionImpl.h"
+#include "runnable_utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -500,28 +501,313 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
     CSFLogDebug( logTag, "vcmRxAllocPort(): group_id=%d stream_id=%d call_handle=%d port_requested = %d",
         group_id, stream_id, call_handle, port_requested);
 
+    // Not in SDP/PeerConnection mode
     int port = -1;
     bool isVideo = false;
     if(CC_IS_AUDIO(mcap_id))
     {
-    	isVideo = false;
-        if ( VcmSIPCCBinding::getAudioTermination() != NULL )
-            port = VcmSIPCCBinding::getAudioTermination()->rxAlloc( group_id, stream_id, port_requested );
+      isVideo = false;
+      if ( VcmSIPCCBinding::getAudioTermination() != NULL )
+        port = VcmSIPCCBinding::getAudioTermination()->rxAlloc( group_id, stream_id, port_requested );
     }
-	else if(CC_IS_VIDEO(mcap_id))
-	{
-		isVideo = true;
-        if ( VcmSIPCCBinding::getVideoTermination() != NULL )
-            port = VcmSIPCCBinding::getVideoTermination()->rxAlloc( group_id, stream_id, port_requested );
+    else if(CC_IS_VIDEO(mcap_id))
+    {
+      isVideo = true;
+      if ( VcmSIPCCBinding::getVideoTermination() != NULL )
+        port = VcmSIPCCBinding::getVideoTermination()->rxAlloc( group_id, stream_id, port_requested );
     }
 
     StreamObserver* obs = VcmSIPCCBinding::getStreamObserver();
     if(obs != NULL)
-    	obs->registerStream(call_handle, stream_id, isVideo);
+      obs->registerStream(call_handle, stream_id, isVideo);
 
     CSFLogDebug( logTag, "vcmRxAllocPort(): allocated port %d", port);
     *port_allocated = port;
 }
+
+
+/**
+ *  Gets the ICE parameters for a stream. Called "alloc" for style consistency
+ *
+ *  @param[in]  mcap_id - Media Capability ID
+ *  @param[in]  group_id - group identifier to which stream belongs.
+ *  @param[in]  stream_id - stream identifier
+ *  @param[in]  call_handle  - call identifier
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] default_addrp - the ICE default addr
+ *  @param[out] port_allocatedp - the ICE default port
+ *  @param[out] candidatesp - the ICE candidate array
+ *  @param[out] candidate_ctp length of the array 
+ *
+ *  @return    void
+ *
+ */
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        uint16_t level,
+        char **default_addrp, /* Out */
+        int *default_portp, /* Out */
+        char ***candidatesp, /* Out */
+        int *candidate_ctp /* Out */
+)
+{
+  // TODO(ekr@rtfm.com): handle errors cleanly
+  *default_portp = -1;
+
+  CSFLogDebug( logTag, "vcmRxAllocICE(): group_id=%d stream_id=%d call_handle=%d PC = %s",
+    group_id, stream_id, call_handle, peerconnection);
+
+  // Note: we don't acquire any media resources here, and we assume that the
+  // ICE streams already exist, so we're just acquiring them. Any logic
+  // to make them on demand is elsewhere.
+  CSFLogDebug( logTag, "vcmRxAllocPort(): acquiring peerconnection %s", peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    // TODO(emannion): handle error
+    
+  }
+    
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", level);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(level-1);
+  PR_ASSERT(stream.get());
+  if (!stream.get()) {
+    pc->ReleaseInstance();
+    return;
+  }
+
+  std::vector<std::string> candidates = stream->GetCandidates();
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Got %d candidates", candidates.size());
+
+  std::string default_addr;
+  int default_port;
+
+  nsresult res = stream->GetDefaultCandidate(1, &default_addr, &default_port);
+  PR_ASSERT(NS_SUCCEEDED(res));
+  if (!NS_SUCCEEDED(res)) {
+    pc->ReleaseInstance();
+    return;
+  }
+    
+  CSFLogDebug( logTag, "vcmRxAllocPort(): Got default candidates %s:%d",
+    default_addr.c_str(), default_port);
+  
+  // Note: this leaks memory if we are out of memory. Oh well.
+  *candidatesp = (char **)malloc(candidates.size() * sizeof(char *));
+  if (!(*candidatesp))
+    return;
+  
+  for (size_t i=0; i<candidates.size(); i++) {
+    (*candidatesp)[i] = (char *)malloc(candidates[i].size() + 1);
+    strncpy((*candidatesp)[i], candidates[i].c_str(), candidates[i].size() + 1);
+  }
+  *candidate_ctp = candidates.size();
+
+  // Copy the default address
+  *default_addrp = (char *)malloc(default_addr.size() + 1);
+  if (!*default_addrp)
+    return;
+  strncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
+  *default_portp = default_port; /* This is the signal that things are cool */
+
+  pc->ReleaseInstance();
+}
+
+
+/* Get ICE global parameters (ufrag and pwd)
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] ufragp - where to put the ufrag
+ *  @param[out] pwdp - where to put the pwd
+ *
+ *  @return void
+ */
+void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
+{
+  CSFLogDebug( logTag, "vcmRxGetIceParams: PC = %s", peerconnection);
+
+  *ufragp = *pwdp = NULL;
+
+ // Note: we don't acquire any media resources here, and we assume that the
+  // ICE streams already exist, so we're just acquiring them. Any logic
+  // to make them on demand is elsewhere.
+  CSFLogDebug( logTag, "vcmGetIceParams: acquiring peerconnection %s", peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return;
+  }
+
+  std::vector<std::string> attrs = pc->ice_ctx()->GetGlobalAttributes();
+ 
+  // Now fish through these looking for a ufrag and passwd
+  char *ufrag = NULL;
+  char *pwd = NULL;
+ 
+  for (size_t i=0; i<attrs.size(); i++) {
+    if (attrs[i].compare(0, 9, "ice-ufrag") == 0) {
+      if (!ufrag) {
+        ufrag = (char *)malloc(attrs[i].size() + 1);
+        if (!ufrag)
+          return;
+        strncpy(ufrag, attrs[i].c_str(), attrs[i].size());
+        ufrag[attrs[i].size()] = 0;
+      }
+    }
+
+    if (attrs[i].compare(0, 7, "ice-pwd") == 0) {
+      pwd = (char *)malloc(attrs[i].size() + 1);
+      if (!pwd)
+        return;
+      strncpy(pwd, attrs[i].c_str(), attrs[i].size());
+      pwd[attrs[i].size()] = 0;
+    }
+
+  }
+  if (!ufrag || !pwd) {
+    PR_ASSERT(PR_FALSE);
+    if (ufrag)
+      free(ufrag);
+    if (pwd)
+      free(pwd);
+    CSFLogDebug( logTag, "vcmRxAllocPort(): no ufrag/passwd");
+    return;
+  }
+  
+  *ufragp = ufrag;
+  *pwdp = pwd;
+
+  return;
+}
+
+
+
+/* Set remote ICE global parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  std::vector<std::string> attributes;
+
+  if (ufrag)
+    attributes.push_back(ufrag);
+  if (pwd)
+    attributes.push_back(pwd);
+  
+  nsresult res = pc->ice_ctx()->ParseGlobalAttributes(attributes);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
+/* Start ICE checks
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @return 0 success, error failure
+ */
+short vcmStartIceChecks(const char *peerconnection)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  nsresult res;
+  pc->ice_ctx()->thread()->Dispatch(
+      WrapRunnableRet(pc->ice_ctx(), &NrIceCtx::StartChecks, &res),
+      NS_DISPATCH_SYNC);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't start ICE checks", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
+
+/* Set remote ICE media-level parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  level - the m-line
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *  @param[in]  candidates - the candidates
+ *  @param[i]   candidate_ct - the number of candidates
+ *  @return 0 success, error failure
+ */
+short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, char *pwd,
+                      char **candidates, int candidate_ct)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  sipcc::PeerConnectionImpl *pc =
+    sipcc::PeerConnectionImpl::AcquireInstance(peerconnection);
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->ice_media_stream(level-1);
+  if (!stream.get())
+    return VCM_ERROR;
+
+  std::vector<std::string> attributes;
+
+  if (ufrag)
+    attributes.push_back(ufrag);
+  if (pwd)
+    attributes.push_back(pwd);
+  
+  for (int i; i<candidate_ct; i++) {
+    attributes.push_back(candidates[i]);
+  }
+
+  nsresult res = stream->ParseCandidates(attributes);
+
+  pc->ReleaseInstance();
+  
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
 
 /**
  *   Should we remove this from external API

@@ -46,6 +46,7 @@
 #include "CSFAudioControl.h"
 #include "CSFAudioTermination.h"
 #include "WebrtcAudioCodecSelector.h"
+#include "AutoLockNSPR.h"
 
 #include "voe_base.h"
 #include "voe_file.h"
@@ -179,11 +180,11 @@ namespace CSF
         // Synchronisation (to avoid data corruption and worse given that so many threads call the media provider)
         // Never use this mutex in a callback from Webrtc - high probability of deadlock.
 
-        Lock m_lock;
+        LockNSPR m_lock;
         // This mutex is to be held only for the narrowest possible scope while accessing the stream map
         // (but not while inspecting or changing a stream object).
         // Might be used in northbound and southbound calls.
-        Lock streamMapMutex;
+        LockNSPR streamMapMutex;
         bool stopping;
     };
     const unsigned short targetLeveldBOvdefault =3 ;

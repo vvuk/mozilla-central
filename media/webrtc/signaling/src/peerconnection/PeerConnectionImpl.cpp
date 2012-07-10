@@ -28,6 +28,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <string>
+#include <iostream>
 
 #include "CSFLog.h"
 #include "ccapi_call_info.h"
@@ -35,9 +36,11 @@
 #include "ccapi_device_info.h"
 #include "CC_SIPCCDeviceInfo.h"
 #include "vcm.h"
+#include "PeerConnection.h"
+#include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
 #include "MediaSegment.h"
-#include "cpr_socket.h"
+#include "runnable_utils.h"
 
 static const char* logTag = "PeerConnectionImpl";
 
@@ -129,10 +132,6 @@ unsigned LocalSourceStreamInfo::VideoTrackCount()
   
 
 
-// Signatures for address
-std::string GetLocalActiveInterfaceAddressSDP();
-std::string NetAddressToStringSDP(const struct sockaddr* net_address,
-                               socklen_t address_len);
             
 PeerConnectionInterface* PeerConnectionInterface::CreatePeerConnection() 
 {
@@ -140,64 +139,79 @@ PeerConnectionInterface* PeerConnectionInterface::CreatePeerConnection()
   return pc;
 }
   
+std::map<const std::string, PeerConnectionImpl *> 
+   PeerConnectionImpl::peerconnections;
+
 PeerConnectionImpl::PeerConnectionImpl() : 
-  mAddr(""), 
-  mCCM(NULL), 
-  mDevice(NULL), 
   mCall(NULL), 
   mPCObserver(NULL), 
   mReadyState(kNew), 
-  mSipccState(kIdle),
-  mLocalSourceStreamsLock(PR_NewLock()) 
+  mLocalSourceStreamsLock(PR_NewLock()),
+  mIceCtx(NULL),
+  mIceStreams(NULL),
+  mIceState(kIceGathering)
 {
 }
 
                          
 PeerConnectionImpl::~PeerConnectionImpl() 
 {
-  Shutdown();  
+  peerconnections.erase(mHandle);
+  Shutdown();
   PR_DestroyLock(mLocalSourceStreamsLock);
 }
 
 StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
-  if (kIdle == mSipccState) {
-    if (!observer)
-    	return PC_NO_OBSERVER;	
+  if (!observer)
+    return PC_NO_OBSERVER;	
+
+  mPCObserver = observer;
     
-    mPCObserver = observer;
-    ChangeSipccState(kStarting);
-    mAddr = GetLocalActiveInterfaceAddressSDP();
-    mCCM = CSF::CallControlManager::create();
-    mCCM->setLocalIpAddressAndGateway(mAddr,"");
+  PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
+  if (!pcctx)
+    return PC_INTERNAL_ERROR;
+    
+  mCall = pcctx->createCall();
+    
+  // Generate a handle from our pointer.
+  unsigned char handle_bin[8];
+  PeerConnectionImpl *handle = this;
+  PR_ASSERT(sizeof(handle_bin) <= sizeof(handle));
 
-    // Add the local audio codecs
-    // FIX - Get this list from MediaEngine instead
-    // Turning them all on for now
-    int codecMask = 0;
-    codecMask |= VCM_CODEC_RESOURCE_G711;
-    codecMask |= VCM_CODEC_RESOURCE_LINEAR;
-    codecMask |= VCM_CODEC_RESOURCE_G722;
-    codecMask |= VCM_CODEC_RESOURCE_iLBC;
-    codecMask |= VCM_CODEC_RESOURCE_iSAC;
-    mCCM->setAudioCodecs(codecMask);
-
-    //Add the local video codecs
-    // FIX - Get this list from MediaEngine instead
-    // Turning them all on for now
-    codecMask = 0;
-    codecMask |= VCM_CODEC_RESOURCE_H263;
-    codecMask |= VCM_CODEC_RESOURCE_H264;
-    codecMask |= VCM_CODEC_RESOURCE_VP8;
-    codecMask |= VCM_CODEC_RESOURCE_I420;
-    mCCM->setVideoCodecs(codecMask);
-
-    mCCM->startSDPMode();
-    mCCM->addCCObserver(this);
-    mDevice = mCCM->getActiveDevice();	
-    mCall = mDevice->createCall();
+  memcpy(handle_bin, &handle, sizeof(handle));
+  for (size_t i = 0; i<sizeof(handle_bin); i++) {
+    char hex[3];
+      
+    snprintf(hex, 3, "%.2x", handle_bin[i]);
+    mHandle += hex;
   }
+
+  // TODO(ekr@rtfm.com): need some way to set not offerer later
+  // Looks like a bug in the NrIceCtx API.
+  mIceCtx = NrIceCtx::Create("PC", true);
+  mIceCtx->SignalGatheringCompleted.connect(this, &PeerConnectionImpl::IceGatheringCompleted);
+  mIceCtx->SignalCompleted.connect(this, &PeerConnectionImpl::IceCompleted);
+  
+  // Create two streams to start with, assume one for audio and
+  // one for video
+  mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+  mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+
+  for (int i=0; i<mIceStreams.size(); i++) {
+    mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);
+  }
+
+  // Start gathering
+  nsresult res;
+  mIceCtx->thread()->Dispatch(WrapRunnableRet(mIceCtx, 
+      &NrIceCtx::StartGathering, &res), NS_DISPATCH_SYNC);
+  PR_ASSERT(NS_SUCCEEDED(res));
+    
+  // Store under mHandle
+  mCall->setPeerConnection(mHandle);
+  peerconnections[mHandle] = this;
    
-   return PC_OK;
+  return PC_OK;
 }
 
 /*
@@ -257,8 +271,10 @@ void PeerConnectionImpl::AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream)
   CSFLogDebug(logTag, "AddStream");
   nsRefPtr<LocalSourceStreamInfo> localSourceStream = new LocalSourceStreamInfo(aMediaStream);
   
+#if 0
   // Make it the listener for info from the MediaStream and add it to the list
   aMediaStream->AddListener(localSourceStream);
+#endif
 
   PR_Lock(mLocalSourceStreamsLock);
   mLocalSourceStreams.AppendElement(localSourceStream);
@@ -302,164 +318,136 @@ PeerConnectionInterface::ReadyState PeerConnectionImpl::ready_state() {
 }
 
 PeerConnectionInterface::SipccState PeerConnectionImpl::sipcc_state() {
-  return mSipccState;
+  PeerConnectionCtx* pcctx = PeerConnectionCtx::GetInstance();
+  return pcctx ? pcctx->sipcc_state() : kIdle;
 }
 
 void PeerConnectionImpl::Shutdown() {
-  if (kStarting == mSipccState || kStarted == mSipccState) {
-    mCall->endCall();
-    mCCM->removeCCObserver(this);
-    mCCM->destroy();
-    mCCM.reset();
-    ChangeSipccState(kIdle);
-  }
+  mCall->endCall();
 }
 
 void PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info)  {
-	
   if(CCAPI_CALL_EV_CREATED == callEvent) {	
-    if (CREATEOFFER == info->getCallState()) {
-    
-      std::string sdpstr = info->getSDP();
+    std::string sdpstr;
+    StatusCode code;
+    MediaTrackTable* stream;
+
+    switch (info->getCallState()) {
+      case CREATEOFFER:
+        sdpstr = info->getSDP();
         if (mPCObserver)
           mPCObserver->OnCreateOfferSuccess(sdpstr);
-          
-    } else if (CREATEANSWER == info->getCallState()) {
-    
-      std::string sdpstr = info->getSDP();
-      if (mPCObserver)
-        mPCObserver->OnCreateAnswerSuccess(sdpstr);
-        
-    } else if (CREATEOFFERERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnCreateOfferError(code);
-        
-    } else if (CREATEANSWERERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnCreateAnswerError(code);
-        
-    } else if (SETLOCALDESC == info->getCallState()) {
-    
-      mLocalSDP = mLocalRequestedSDP;
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetLocalDescriptionSuccess(code);
+        break;
 
-    } else if (SETREMOTEDESC == info->getCallState()) {
-    
-      mRemoteSDP = mRemoteRequestedSDP;
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetRemoteDescriptionSuccess(code);
-        
-    }  else if (SETLOCALDESCERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetLocalDescriptionError(code);
+      case CREATEANSWER:
+        sdpstr = info->getSDP();
+        if (mPCObserver)
+          mPCObserver->OnCreateAnswerSuccess(sdpstr);
+        break;
 
-    } else if (SETREMOTEDESCERROR == info->getCallState()) {
-    
-      StatusCode code = (StatusCode)info->getStatusCode();
-      if (mPCObserver)
-        mPCObserver->OnSetRemoteDescriptionError(code);
-        
-    } else if (REMOTESTREAMADD == info->getCallState()) {
+      case CREATEOFFERERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnCreateOfferError(code);
+        break;
 
-      MediaTrackTable* stream = info->getMediaTracks();
-      if (mPCObserver)
-        mPCObserver->OnAddStream(stream);
+      case CREATEANSWERERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnCreateAnswerError(code);
+        break;
+        
+      case SETLOCALDESC:
+        mLocalSDP = mLocalRequestedSDP;
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetLocalDescriptionSuccess(code);
+        break;
+
+      case SETREMOTEDESC:
+        mRemoteSDP = mRemoteRequestedSDP;
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetRemoteDescriptionSuccess(code);
+        break;
+        
+      case SETLOCALDESCERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetLocalDescriptionError(code);
+        break;    
+
+      case SETREMOTEDESCERROR:
+        code = (StatusCode)info->getStatusCode();
+        if (mPCObserver)
+          mPCObserver->OnSetRemoteDescriptionError(code);
+        break;
+        
+      case REMOTESTREAMADD:
+        stream = info->getMediaTracks();
+        if (mPCObserver)
+          mPCObserver->OnAddStream(stream);
+        break;
+
+      default:
+    	// for now print states to learn activity, in time handle correctly
+    	cc_call_state_t state = info->getCallState();
+    	std::cerr << mHandle << ": **** CALL CREATED STATE NOW " << state << std::endl;
+        break;
     }
+  } else if(CCAPI_CALL_EV_STATE == callEvent) {	
+      cc_call_state_t state = info->getCallState();
+      
+      std::cerr << mHandle << ": **** CALL STATE NOW " << state << std::endl;
   }
 }
   
-void PeerConnectionImpl::onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info ) {
-
-  cc_service_state_t state = info->getServiceState();
-	
-  if (CC_STATE_INS == state) {	        
-    // SIPCC is up	
-    if (kStarting == mSipccState || kIdle == mSipccState) {
-      ChangeSipccState(kStarted);
-    }
-  }
-}  
- 
 void PeerConnectionImpl::ChangeReadyState(PeerConnectionInterface::ReadyState ready_state) {
   mReadyState = ready_state;
   if (mPCObserver)
     mPCObserver->OnStateChange(PeerConnectionObserver::kReadyState);
 }
- 
-void PeerConnectionImpl::ChangeSipccState(PeerConnectionInterface::SipccState sipcc_state) {
-  mSipccState = sipcc_state;
-  if (mPCObserver)
-    mPCObserver->OnStateChange(PeerConnectionObserver::kSipccState);  
+
+PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
+  if (peerconnections.find(handle) == peerconnections.end())
+    return NULL;
+  
+  PeerConnectionImpl *impl = peerconnections[handle];
+  impl->AddRef();
+
+  return impl;
 }
 
-
-#include <sys/socket.h>
-#include <errno.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netdb.h>
-
-// POSIX Only Implementation
-std::string GetLocalActiveInterfaceAddressSDP() 
-{
-	std::string local_ip_address = "0.0.0.0";
-#ifndef WIN32
-	int sock_desc_ = INVALID_SOCKET;
-	sock_desc_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	struct sockaddr_in proxy_server_client;
- 	proxy_server_client.sin_family = AF_INET;
-	proxy_server_client.sin_addr.s_addr	= inet_addr("10.0.0.1");
-	proxy_server_client.sin_port = 12345;
-	fcntl(sock_desc_,F_SETFL,  O_NONBLOCK);
-	int ret = connect(sock_desc_, reinterpret_cast<sockaddr*>(&proxy_server_client),
-                    sizeof(proxy_server_client));
-
-	if(ret == SOCKET_ERROR)
-	{
-	}
+void PeerConnectionImpl::ReleaseInstance() {
+  Release();
+}
  
-	struct sockaddr_storage source_address;
-	socklen_t addrlen = sizeof(source_address);
-	ret = getsockname(
-			sock_desc_, reinterpret_cast<struct sockaddr*>(&source_address),&addrlen);
-
-	
-	//get the  ip address 
-	local_ip_address = NetAddressToStringSDP(
-						reinterpret_cast<const struct sockaddr*>(&source_address),
-						sizeof(source_address));
-	close(sock_desc_);
-#else
-	hostent* localHost;
-	localHost = gethostbyname("");
-	local_ip_v4_address_ = inet_ntoa (*(struct in_addr *)*localHost->h_addr_list);
-#endif
-	return local_ip_address;
+const std::string& PeerConnectionImpl::GetHandle() {
+  return mHandle;
 }
 
-//Only POSIX Complaint as of 7/6/11
-#ifndef WIN32
-std::string NetAddressToStringSDP(const struct sockaddr* net_address,
-                               socklen_t address_len) {
-
-  // This buffer is large enough to fit the biggest IPv6 string.
-  char buffer[128];
-  int result = getnameinfo(net_address, address_len, buffer, sizeof(buffer),
-                           NULL, 0, NI_NUMERICHOST);
-  if (result != 0) {
-    buffer[0] = '\0';
+void PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx) {
+  CSFLogDebug(logTag, "ICE gathering complete");
+  mIceState = kIceWaiting;
+  if (mPCObserver) {
+    mPCObserver->OnStateChange(PeerConnectionObserver::kIceState);
   }
-  return std::string(buffer);
 }
-#endif
+
+void PeerConnectionImpl::IceCompleted(NrIceCtx *ctx) {
+  CSFLogDebug(logTag, "ICE completed");
+  mIceState = kIceConnected;
+  if (mPCObserver) {
+    mPCObserver->OnStateChange(PeerConnectionObserver::kIceState);
+  }
+}
+
+void PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
+  CSFLogDebug(logTag, "ICE stream ready : %s", stream->name().c_str());
+}
+
+PeerConnectionInterface::IceState PeerConnectionImpl::ice_state() {
+  return mIceState;
+}
 
 }  // end sipcc namespace

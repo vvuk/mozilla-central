@@ -656,8 +656,10 @@ void CC_SIPCCService::endAllActiveCalls()
 
 		if(!calls.empty())
 		{
+#ifdef MOZILLA_INTERNAL_API
 			// If we had any calls, allow a short time for the SIP messaging to go out
 			PlatformThread::Sleep(500);
+#endif
 		}
     }
 }
@@ -779,7 +781,7 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
 
 void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS( logTag, "NULL value for \"observer\" passed to addCCObserver().");
@@ -791,14 +793,14 @@ void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
 
 void CC_SIPCCService::removeCCObserver ( CC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     ccObservers.erase(observer);
 }
 
 //Notify Observers
 void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -808,7 +810,7 @@ void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType
 
 void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -818,7 +820,7 @@ void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventTyp
 
 void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -828,7 +830,7 @@ void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC
 
 void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -896,7 +898,7 @@ void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
     {
     	CC_SIPCCCallMediaDataPtr pMediaData = (*it)->getMediaData();
 
-    	AutoLock lock(pMediaData->streamMapMutex);
+    	AutoLockNSPR lock(pMediaData->streamMapMutex);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)
@@ -1001,7 +1003,7 @@ void CC_SIPCCService::onKeyFrameRequested( int stream )
     {
     	CC_SIPCCCallMediaDataPtr pMediaData = (*it)->getMediaData();
 
-    	AutoLock lock(pMediaData->streamMapMutex);
+    	AutoLockNSPR lock(pMediaData->streamMapMutex);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if ((entry->first==stream) && (entry->second.isVideo == true))

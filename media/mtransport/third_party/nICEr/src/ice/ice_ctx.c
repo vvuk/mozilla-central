@@ -375,7 +375,8 @@ int nr_ice_initialize(nr_ice_ctx *ctx, NR_async_cb done_cb, void *cb_arg)
 
     if(ctx->uninitialized_candidates)
       ABORT(R_WOULDBLOCK);
-
+    
+    
     _status=0;
   abort:
     return(_status);

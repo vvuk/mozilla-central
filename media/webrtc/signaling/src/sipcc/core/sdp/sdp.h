@@ -1277,6 +1277,9 @@ extern sdp_result_e sdp_attr_set_x_confid (void *sdp_ptr, u16 level,
                                    u8 cap_num, u16 inst_num,
                                    const char *confid);
 
+extern sdp_result_e sdp_attr_set_ice_candidate(void *sdp_ptr, u16 level,
+                              u8 cap_num, u16 inst_num, const char *ice_candidate);
+
 extern u16 sdp_get_group_num_id(void *sdp_ptr, u16 level, 
                                 u8 cap_num, u16 inst_num);
 extern sdp_result_e sdp_set_group_num_id(void *sdp_ptr, u16 level,
@@ -1435,5 +1438,8 @@ sdp_attr_set_sdescriptions_salt_size(void *sdp_ptr,
 				     u16 inst_num, 
 				     unsigned char salt_size);
 
-
+sdp_result_e
+sdp_attr_get_ice_attribute (void *sdp_ptr, u16 level,
+                           u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num,
+                           char **out);
 #endif /* _SDP_H_ */

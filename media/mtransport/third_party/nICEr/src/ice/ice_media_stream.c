@@ -207,6 +207,60 @@ int nr_ice_media_stream_get_attributes(nr_ice_media_stream *stream, char ***attr
     return(_status);
   }
 
+
+/* Get a default candidate per 4.1.4 */
+int nr_ice_media_stream_get_default_candidate(nr_ice_media_stream *stream, int component, nr_ice_candidate **candp)
+  {
+    int r, _status;
+    nr_ice_component *comp;
+    nr_ice_candidate *cand;
+    nr_ice_candidate *best_cand = NULL;
+
+    comp=STAILQ_FIRST(&stream->components);
+    while(comp){
+      if (comp->component_id == component)
+        break;
+      
+      comp=STAILQ_NEXT(comp,entry);
+    }
+    
+    if (!comp)
+      ABORT(R_NOT_FOUND);
+
+    /* We have the component. Now find the "best" candidate, making 
+       use of the fact that more "reliable" candidate types have
+       higher numbers. So, we sort by type and then priority within
+       type
+    */
+    cand=TAILQ_FIRST(&comp->candidates);
+    while(cand){
+      if (!best_cand) {
+        best_cand = cand;
+      }
+      else {
+        if (best_cand->type < cand->type) {
+          best_cand = cand;
+        } else if (best_cand->type == cand->type) { 
+          if (best_cand->priority < cand->priority)
+            best_cand = cand;
+        }
+      }
+
+      cand=TAILQ_NEXT(cand,entry_comp);
+    }
+    
+    /* No candidates */
+    if (!best_cand)
+      ABORT(R_NOT_FOUND);
+
+    *candp = best_cand;
+
+    _status=0;
+  abort:
+    return(_status);
+  }
+
+
 int nr_ice_media_stream_pair_candidates(nr_ice_peer_ctx *pctx,nr_ice_media_stream *lstream,nr_ice_media_stream *pstream)
   {
     int r,_status;

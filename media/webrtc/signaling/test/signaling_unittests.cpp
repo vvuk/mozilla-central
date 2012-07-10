@@ -47,7 +47,11 @@ using namespace std;
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
+#include "gtest_utils.h"
+
 #include "nspr.h"
+#include "nss.h"
+#include "ssl.h"
 #include "prthread.h"
 
 #include "nsDOMMediaStream.h"
@@ -55,6 +59,10 @@ using namespace std;
 #include "FakeMediaSegment.h"
 #include "PeerConnectionImpl.h"
 
+#include "mtransport_test_utils.h"
+MtransportTestUtils test_utils;
+
+static int kDefaultTimeout = 1000;
 namespace {
 
 static const std::string strSampleSdpAudioVideoNoIce =  
@@ -62,6 +70,8 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "o=Cisco-SIPUA 4949 0 IN IP4 10.86.255.143\r\n"
   "s=SIP Call\r\n"
   "t=0 0\r\n"
+  "a=ice-ufrag:qkEP\r\n"
+  "a=ice-pwd:ed6f9GuHjLcoCN6sC/Eh7fVl\r\n"
   "m=audio 16384 RTP/AVP 0 8 9 101\r\n"
   "c=IN IP4 10.86.255.143\r\n"
   "a=rtpmap:0 PCMU/8000\r\n"
@@ -70,11 +80,15 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "a=rtpmap:101 telephone-event/8000\r\n"
   "a=fmtp:101 0-15\r\n"
   "a=sendrecv\r\n"
+  "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n"
+  "a=candidate:2 2 UDP 2130706431 192.168.2.2 50006 typ host\r\n"
   "m=video 1024 RTP/AVP 97\r\n"
   "c=IN IP4 10.86.255.143\r\n"
   "a=rtpmap:97 H264/90000\r\n"
   "a=fmtp:97 profile-level-id=42E00C\r\n"
-  "a=sendrecv\r\n";
+  "a=sendrecv\r\n"
+  "a=candidate:1 1 UDP 2130706431 192.168.2.3 50007 typ host\r\n"
+  "a=candidate:2 2 UDP 2130706431 192.168.2.4 50008 typ host\r\n";
 
 
 class TestObserver : public sipcc::PeerConnectionObserver
@@ -84,38 +98,10 @@ public:
   TestObserver(sipcc::PeerConnectionInterface *peerConnection) :
     state(stateNoResponse),
     onAddStreamCalled(false),
-    pLock(PR_NewLock()),
-    pCondVar(PR_NewCondVar(pLock)),
-    pc(peerConnection)  
-  {
+    pc(peerConnection) {
   }
 
-  virtual ~TestObserver()
-  {
-    PR_DestroyCondVar(pCondVar);
-    PR_DestroyLock(pLock);
-  }
-
-  bool WaitForObserverCall()
-  {
-    PR_Lock(pLock);
-    cout << "WAITING" << endl;
-    PRStatus status = PR_WaitCondVar(pCondVar, PR_SecondsToInterval(observerWaitTimeout));
-    cout << "DONE WAITING" << endl;
-    PR_Unlock(pLock);
-
-    return (status == PR_SUCCESS);
-  }
-  
-  bool NotifyObserverCalled()
-  {
-    PR_Lock(pLock);
-    cout << "NOTIFYING" << endl;
-    PRStatus status = PR_NotifyCondVar(pCondVar);
-    PR_Unlock(pLock);
-
-    return (status == PR_SUCCESS);
-  }
+  virtual ~TestObserver() {}
 
   // PeerConnectionObserver
   void OnCreateOfferSuccess(const std::string& offer) 
@@ -123,51 +109,52 @@ public:
     state = stateSuccess;
     cout << "onCreateOfferSuccess = " << offer << endl;
     lastString = offer;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnCreateOfferError(StatusCode code) 
   {
     state = stateError;
     cout << "onCreateOfferError" << endl;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnCreateAnswerSuccess(const std::string& answer) 
   {
     state = stateSuccess;
+    cout << "onCreateAnswerSuccess = " << answer << endl;
     lastString = answer;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnCreateAnswerError(StatusCode code) 
   {
     state = stateError;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnSetLocalDescriptionSuccess(StatusCode code)
   {
     state = stateSuccess;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnSetRemoteDescriptionSuccess(StatusCode code)
   { 
     state = stateSuccess;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnSetLocalDescriptionError(StatusCode code) 
   {
     state = stateError;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnSetRemoteDescriptionError(StatusCode code) 
   {
     state = stateError;
     lastStatusCode = code;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
+
   void OnStateChange(StateType state_type) 
   {
     switch (state_type)
@@ -176,17 +163,13 @@ public:
       cout << "Ready State: " << pc->ready_state() << endl;
       break;
     case kIceState:
-      cout << "ICE State: " << endl;
+      cout << "ICE State: " << pc->ice_state() << endl;
       break;
     case kSdpState:
       cout << "SDP State: " << endl;
       break;
     case kSipccState:
       cout << "SIPCC State: " << pc->sipcc_state() << endl;
-      if (pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted)
-      {
-        ASSERT_TRUE(NotifyObserverCalled());
-      }
       break;
     default:
        // Unknown State
@@ -200,25 +183,21 @@ public:
   {
     state = stateSuccess;
     onAddStreamCalled = true;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
   
   void OnRemoveStream()
   {
     state = stateSuccess;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
   
   void OnAddTrack()
   {
     state = stateSuccess;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
   
   void OnRemoveTrack()
   {
     state = stateSuccess;
-    ASSERT_TRUE(NotifyObserverCalled());
   }
   
   void FoundIceCandidate(const std::string& strCandidate)
@@ -240,91 +219,115 @@ public:
   bool onAddStreamCalled;
   
 private:
-  static const int observerWaitTimeout = 30; // In seconds
-  PRLock *pLock;
-  PRCondVar *pCondVar;
   sipcc::PeerConnectionInterface *pc;
-  
 };
 
-class SignalingTest : public ::testing::Test 
-{
-  public:
-    SignalingTest() {}
-    ~SignalingTest() {}
 
-    void SetUp() 
-    {
-      size_t found = 2;
-      ASSERT_TRUE(found > 0);
+class SignalingAgent {
+ public:
+  SignalingAgent() {
+    Init();
+  }
+  
+  ~SignalingAgent() {
+    Shutdown();
+  }
 
-      pc = sipcc::PeerConnectionInterface::CreatePeerConnection();
-      ASSERT_TRUE(pc);
+  void Init()
+  {
+    size_t found = 2;
+    ASSERT_TRUE(found > 0);
 
-      pObserver = new TestObserver(pc);
-      ASSERT_TRUE(pObserver);
+    pc = sipcc::PeerConnectionInterface::CreatePeerConnection();
+    ASSERT_TRUE(pc);
 
-      ASSERT_EQ(pc->Initialize(pObserver), PC_OK);
+    pObserver = new TestObserver(pc);
+    ASSERT_TRUE(pObserver);
 
-      ASSERT_TRUE(pObserver->WaitForObserverCall());
-      ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kStarted);
- 
-      cout << "Init Complete" << endl;
-    }
+    ASSERT_EQ(pc->Initialize(pObserver), PC_OK);
+    ASSERT_TRUE_WAIT(pc->sipcc_state() == sipcc::PeerConnectionInterface::kStarted,
+                     kDefaultTimeout);
+    ASSERT_TRUE_WAIT(pc->ice_state() == sipcc::PeerConnectionInterface::kIceWaiting, 5000);
+    cout << "Init Complete" << endl;
 
-    void TearDown()
-    {
-      cout << "Shutdown" << endl;
-      pc->Shutdown();
-      // Shutdown is synchronous evidently.
-      // ASSERT_TRUE(pObserver->WaitForObserverCall());
-      ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
+  }
 
-      delete pc;
-      delete pObserver;
-    }
+  void Shutdown()
+  {
+    cout << "Shutdown" << endl;
+    pc->Shutdown();
+    // Shutdown is synchronous evidently.
+    // ASSERT_TRUE(pObserver->WaitForObserverCall());
+    // ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
 
-    void CreateOffer(const char* hints)
-    {
-      std::string strHints(hints);
- 
-      // Create a media stream as if it came from GUM
-      // Looks like we have to GetInstance() this so it can be created
-      // FIX - this does not start all of the event threads needed to run the MediaGraph
-      //mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
+    delete pObserver;
+  }
 
-      //nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
-      //nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
+  const std::string offer() const { return offer_; }
+  const std::string answer() const { return answer_; }
+
+  void CreateOffer(const std::string hints) {
+    // Create a media stream as if it came from GUM
+    // Looks like we have to GetInstance() this so it can be created
+    // FIX - this does not start all of the event threads needed to run the MediaGraph
+    //mozilla::MediaStreamGraph *graph = mozilla::MediaStreamGraph::GetInstance();
+
+    //nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+    //nsRefPtr<mozilla::SourceMediaStream> sourceMediaStream = new mozilla::SourceMediaStream(domMediaStream);
       
-      // Add fake audio track
-      //FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
-      //sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
+    // Add fake audio track
+    //FakeMediaSegment *fakeAudioMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::AUDIO);      
+    //sourceMediaStream->AddTrack(0, 1, 0, fakeAudioMediaSegment);
 
-      // Add fake video track
-      //FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
-      //sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
+    // Add fake video track
+    //FakeMediaSegment *fakeVideoMediaSegment = new FakeMediaSegment(mozilla::MediaSegment::VIDEO);      
+    //sourceMediaStream->AddTrack(1, 1, 0, fakeVideoMediaSegment);
 
-      // Call AddStream as JS would after GetUserMedia()
-      //nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
-      //pc->AddStream(mediaStream);
+    // Call AddStream as JS would after GetUserMedia()
+    //nsRefPtr<mozilla::MediaStream> mediaStream = (mozilla::MediaStream *) sourceMediaStream;
+    //pc->AddStream(mediaStream);
 
-      // Now call CreateOffer as JS would
-      ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
-      ASSERT_TRUE(pObserver->WaitForObserverCall());
-      ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
-      SDPSanityCheck(pObserver->lastString, true, true);
-    }
+    // Now call CreateOffer as JS would
+    pObserver->state = TestObserver::stateNoResponse;
+    ASSERT_EQ(pc->CreateOffer(hints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+    SDPSanityCheck(pObserver->lastString, true, true);
+    offer_ = pObserver->lastString;
+  }
 
-    void CreateOfferExpectError(const char* hints)
-    {
-      std::string strHints(hints);
-      ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
-      ASSERT_TRUE(pObserver->WaitForObserverCall());
-      ASSERT_EQ(pObserver->state, TestObserver::stateError);
-    }
+  void CreateOfferExpectError(const std::string hints) {
+    std::string strHints(hints);
+    ASSERT_EQ(pc->CreateOffer(strHints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateError, kDefaultTimeout);
+  }
 
-    void CreateOfferSetLocal(const char* hints)
-    {
+  void CreateAnswer(const std::string offer, const std::string hints) {
+    pObserver->state = TestObserver::stateNoResponse;
+    ASSERT_EQ(pc->CreateAnswer(offer, hints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+    SDPSanityCheck(pObserver->lastString, true, true);
+    answer_ = pObserver->lastString;
+  }
+
+
+  void SetRemote(sipcc::Action action, std::string remote) {
+    pObserver->state = TestObserver::stateNoResponse;    
+    ASSERT_EQ(pc->SetRemoteDescription(action, remote), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+  }
+
+  void SetLocal(sipcc::Action action, std::string local) {
+    pObserver->state = TestObserver::stateNoResponse;    
+    ASSERT_EQ(pc->SetLocalDescription(action, local), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+  }
+
+  bool IceCompleted() {
+    return pc->ice_state() == sipcc::PeerConnectionInterface::kIceConnected;
+  }
+
+#if 0
+  void CreateOfferSetLocal(const char* hints) {
       CreateOffer(hints);
 
       pObserver->state = TestObserver::stateNoResponse;
@@ -346,9 +349,14 @@ class SignalingTest : public ::testing::Test
       ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
       SDPSanityCheck(pObserver->lastString, true, true);
     }
+#endif
+
 public:
-  sipcc::PeerConnectionInterface *pc;
+  mozilla::RefPtr<sipcc::PeerConnectionInterface> pc;
   TestObserver *pObserver;
+  std::string offer_;
+  std::string answer_;
+
   
 private:
   void SDPSanityCheck(const std::string& sdp, bool shouldHaveAudio, bool shouldHaveVideo)
@@ -359,18 +367,43 @@ private:
     if (shouldHaveAudio)
     {
       ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:8 PCMA/8000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:9 G722/8000"), std::string::npos);
     }
     
     if (shouldHaveVideo)
     {
       ASSERT_NE(sdp.find("a=rtpmap:97 H264/90000"), std::string::npos);
-      ASSERT_NE(sdp.find("a=rtpmap:120 VP8/90000"), std::string::npos);
     }
   }
-    
 };
+
+
+class SignalingTest : public ::testing::Test {
+ public:
+  void CreateOffer(std::string hints) {
+    a1_.CreateOffer(hints);
+  }
+
+  void CreateSetOffer(std::string hints) {
+    a1_.CreateOffer(hints);
+    a1_.SetLocal(sipcc::OFFER, a1_.offer());
+  }
+
+  void OfferAnswer(std::string ahints, std::string bhints) {
+    a1_.CreateOffer(ahints);
+    a1_.SetLocal(sipcc::OFFER, a1_.offer());
+    a2_.SetRemote(sipcc::OFFER, a1_.offer());
+    a2_.CreateAnswer(a1_.offer(), bhints);
+    a2_.SetLocal(sipcc::ANSWER, a2_.answer());
+    a1_.SetRemote(sipcc::ANSWER, a2_.answer());
+    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, 10000);
+    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, 10000);
+  }
+
+ private:
+  SignalingAgent a1_;  // Canonically "caller"
+  SignalingAgent a2_;  // Canonically "callee"
+};
+
 
 TEST_F(SignalingTest, JustInit)
 {
@@ -379,6 +412,16 @@ TEST_F(SignalingTest, JustInit)
 TEST_F(SignalingTest, CreateOfferNoHints)
 {
   CreateOffer("");
+}
+
+TEST_F(SignalingTest, CreateSetOffer)
+{
+  CreateSetOffer("");
+}
+
+TEST_F(SignalingTest, OfferAnswer)
+{
+  OfferAnswer("", "");
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)
@@ -406,17 +449,22 @@ TEST_F(SignalingTest, CreateOfferNoHints)
 
 int main(int argc, char **argv)
 {
+  test_utils.InitServices();
+  NSS_NoDB_Init(NULL);
+  NSS_SetDomesticPolicy();
+
   ::testing::InitGoogleTest(&argc, argv);
+
+  for(int i=0; i<argc; i++) {
+    if (!strcmp(argv[i],"-t")) {
+      kDefaultTimeout = 20000;
+    }
+
+  }
 
   int result = RUN_ALL_TESTS();
 
   return result;
 }
-
-// Defining this here, usually generated for libxul
-// should not be needed by these tests
-const mozilla::Module *const *const kPStaticModules[] = {
-  NULL
-};
 
 

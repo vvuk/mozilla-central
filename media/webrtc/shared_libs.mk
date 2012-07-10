@@ -48,7 +48,7 @@ SHARED_LIBRARY_LIBS += \
 
 ifneq ($(OS_TARGET),WINNT)
 SHARED_LIBRARY_LIBS += \
-	$(call EXPAND_LIBNAME_PATH,sipcc,$(DEPTH)/media/webrtc/signaling/signaling_sipcc) \
-	$(call EXPAND_LIBNAME_PATH,ecc,$(DEPTH)/media/webrtc/signaling/signaling_ecc) \
+		  $(DEPTH)/media/mtransport/third_party/nICEr/nicer_nicer/$(LIB_PREFIX)nicer.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/mtransport/third_party/nrappkit/nrappkit_nrappkit/$(LIB_PREFIX)nrappkit.$(LIB_SUFFIX) \
 	$(NULL)
 endif

@@ -438,6 +438,52 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
         cc_uint16_t port_requested,
         int *port_allocated);
 
+
+void vcmRxAllocICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        uint16_t level,  
+        char **default_addr, /* Out */
+        int *default_port, /* Out */
+        char ***candidates, /* Out */
+        int *candidate_ct /* Out */
+);
+
+
+/* Set remote ICE global parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd);
+
+
+/* Set remote ICE media-level parameters.
+ * 
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  level - the m-line
+ *  @param[in]  ufrag - the ufrag
+ *  @param[in]  pwd - the pwd
+ *  @param[in]  candidates - the candidates
+ *  @param[i]   candidate_ct - the number of candidates
+ *  @return 0 success, error failure
+ */
+short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, char *pwd,
+                      char **candidates, int candidate_ct);
+
+/* Start ICE checks
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  level - the m-line
+ *  @return 0 success, error failure
+ */
+short vcmStartIceChecks(const char *peerconnection);
+  
+
 /*!
  *  Release the allocated port
  * @param[in] mcap_id   - media capability id (0 is audio)
@@ -448,7 +494,6 @@ void vcmRxAllocPort(cc_mcapid_t mcap_id,
  *
  * @return void
  */
-
 void vcmRxReleasePort(cc_mcapid_t mcap_id,
         cc_groupid_t group_id,
         cc_streamid_t stream_id,

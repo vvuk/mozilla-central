@@ -314,6 +314,10 @@ namespace CSF
         virtual void addIceCandidate(const std::string& strCandidate) = 0;
 
         virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks) = 0;
+
+        virtual void setPeerConnection(const std::string& handle) = 0;
+
+        virtual const std::string& getPeerConnection() const = 0;
     };
 }
 

@@ -440,6 +440,7 @@ typedef struct sdp_attr {
         tinybool              boolean_val;
         u32                   u32_val;
         char                  string_val[SDP_MAX_STRING_LEN+1];
+        char                  ice_attr[SDP_MAX_STRING_LEN+1];
         sdp_fmtp_t            fmtp;
         sdp_qos_t             qos;
         sdp_curr_t            curr;
@@ -719,6 +720,12 @@ extern sdp_result_e sdp_parse_attr_rtcp_unicast(
     sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr);
 extern sdp_result_e sdp_build_attr_rtcp_unicast(
     sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr, u16 len);
+
+extern sdp_result_e sdp_build_attr_ice_attr (
+	sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr, u16 len);
+extern sdp_result_e sdp_parse_attr_ice_attr (
+	sdp_t *sdp_p, sdp_attr_t *attr_p, char *ptr);
+
 
 /* sdp_attr_access.c */
 extern void sdp_free_attr(sdp_attr_t *attr_p);

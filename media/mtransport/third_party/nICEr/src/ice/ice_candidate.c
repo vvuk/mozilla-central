@@ -313,7 +313,8 @@ int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, vo
           ABORT(r);
         cand->osock=cand->isock->sock;
         cand->state=NR_ICE_CAND_STATE_INITIALIZED;
-        ready_cb(0,0,cb_arg);
+        // Post this so that it doesn't happen in-line
+        NR_ASYNC_SCHEDULE(ready_cb,cb_arg);
         break;
 #ifdef USE_TURN
       case RELAYED:

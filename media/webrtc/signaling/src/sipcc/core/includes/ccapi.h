@@ -57,7 +57,9 @@ typedef int cc_causes_t;
 #define  CC_CALL_FORWARDED  CC_CALL_TYPE_FORWARDED
 #define  CC_CALL_NONE       CC_CALL_TYPE_NONE
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
-#define  SDP_SIZE			1024   // must increase this
+#define  SDP_SIZE           1024   /* must increase this */
+#define  PC_HANDLE_SIZE     (1 + (sizeof(void *) * 2))
+#define  ICE_STRING_SIZE    81
 
 #include "sessionConstants.h"
 
@@ -135,7 +137,8 @@ typedef enum {
     CC_FEATURE_SETLOCALDESC,
     CC_FEATURE_SETREMOTEDESC,
     CC_FEATURE_LOCALDESC,
-    CC_FEATURE_REMOTEDESC,        
+    CC_FEATURE_REMOTEDESC,
+    CC_FEATURE_SETPEERCONNECTION,
     CC_FEATURE_MAX
 } group_cc_feature_t;
 
@@ -197,6 +200,7 @@ typedef enum cc_msgs_t_ {
     CC_MSG_SETREMOTEDESC,  
     CC_MSG_REMOTEDESC,
     CC_MSG_LOCALDESC,
+    CC_MSG_SETPEERCONNECTION,
     CC_MSG_AUDIT_ACK,
     CC_MSG_OPTIONS,
     CC_MSG_OPTIONS_ACK,
@@ -747,6 +751,10 @@ typedef struct cc_feature_data_cancel_t_ {
     callid_t    target_call_id;
 } cc_feature_data_cancel_t;
 
+typedef struct cc_feature_data_pc_t_ {
+  char pc_handle[PC_HANDLE_SIZE];
+} cc_feature_data_pc_t;
+
 typedef union cc_feature_data_t {
     cc_feature_data_newcall_t   newcall;
     cc_feature_data_xfer_t      xfer;
@@ -768,6 +776,7 @@ typedef union cc_feature_data_t {
     cc_feature_data_cnf_t       cnf;
     cc_feature_data_b2bcnf_t    cancel;
     cc_media_cap_t              caps;
+    cc_feature_data_pc_t        pc;
 } cc_feature_data_t;
 
 typedef struct cc_setup_t_ {
@@ -1078,7 +1087,8 @@ void cc_int_release_complete(cc_srcs_t src_id, cc_srcs_t dst_id,
                              callid_t call_id, line_t line, cc_causes_t cause,
                              cc_kfact_t *kfactor);
 
-void cc_int_feature(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
+void cc_int_feature2(cc_msgs_t msg_id, cc_srcs_t src_id, cc_srcs_t dst_id,
+                    callid_t call_id,
                     line_t line, cc_features_t feature_id,
                     cc_feature_data_t *data);
 
@@ -1166,7 +1176,8 @@ void cc_int_fail_fallback(cc_srcs_t src_id, cc_srcs_t dst_id, int rsp_type,
 #define cc_release(a, b, c, d, e, f)     cc_int_release(a, CC_SRC_GSM, b, c, d, e, f)
 #define cc_release_complete(a, b, c, d, e) \
         cc_int_release_complete(a, CC_SRC_GSM, b, c, d, e)
-#define cc_feature(a, b, c, d, e)     cc_int_feature(a, CC_SRC_GSM, b, c, d, e)
+#define cc_feature(a, b, c, d, e)     cc_int_feature2(CC_MSG_FEATURE, a, CC_SRC_GSM, b, c, d, e)
+#define cc_int_feature(a, b, c, d, e, f)     cc_int_feature2(CC_MSG_FEATURE, a, b, c, d, e, f)
 #define cc_feature_ack(a, b, c, d, e, f) \
         cc_int_feature_ack(a, CC_SRC_GSM, b, c, d, e, f)
 #define cc_offhook(a, b, c)           cc_int_offhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, NULL, CC_MONITOR_NONE,CFWDALL_NONE)

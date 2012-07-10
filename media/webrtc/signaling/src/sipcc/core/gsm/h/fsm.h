@@ -245,6 +245,10 @@ typedef struct fsmdef_media_t_ {
     int32_t         profile_level;
 
     void *video;
+
+    char **candidatesp;
+    int candidate_ct;
+
 } fsmdef_media_t;
 
 struct fsm_fcb_t_;
@@ -422,6 +426,12 @@ typedef struct {
     uint8_t cur_video_avail;
     sdp_direction_e  video_pref;
     unsigned int callref;      /* Callref (CI) from CUCM */
+
+    char peerconnection[PC_HANDLE_SIZE];  /* A handle to the peerconnection */
+    boolean peerconnection_set;
+
+    char ice_ufrag[ICE_STRING_SIZE];  /* <emannion> got to check array size */
+    char ice_pwd[ICE_STRING_SIZE];
 
 } fsmdef_dcb_t;
 

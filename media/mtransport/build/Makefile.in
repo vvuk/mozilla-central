@@ -35,12 +35,15 @@
 # ***** END LICENSE BLOCK *****
 
 
-DEPTH = ../..
+DEPTH = ../../..
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
+include $(srcdir)/../objs.mk
+
+EXTRA_DEPS += $(srcdir)/../objs.mk
 
 MODULE = mtransport
 LIBRARY_NAME = mtransport
@@ -49,74 +52,34 @@ ifeq (WINNT,$(OS_TARGET))
 VISIBILITY_FLAGS =
 endif
 
-DEFINES += -DHAVE_STRDUP -DNR_SOCKET='void *' \
-	$(NULL)
+LIBXUL_LIBRARY=1
 
-LOCAL_INCLUDES += \
- -I. \
- -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
- -I$(topsrcdir)/media/mtransport/third_party/ \
- -I$(topsrcdir)/media/mtransport/third_party/ \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/crypto \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/ice \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/net \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/stun \
- -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/util \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/share \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/util/libekr \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/log \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/registry \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
- -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
- $(NULL)
-
-# TODO: need to expand for other platforms
-ifeq ($(OS_ARCH), Darwin)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
-endif
-
-ifeq ($(OS_ARCH), Linux)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include
-endif
+SRCS_IN_OBJDIR	= 1
 
 EXPORTS_NAMESPACES = mtransport
 
 EXPORTS_mtransport = \
-  dtlsidentity.h \
-  nricectx.h \
-  nricemediastream.h \
-  transportflow.h \
-  transportlayer.h \
-  transportlayerdtls.h \
-  transportlayerice.h \
-  transportlayerlog.h \
-  transportlayerloopback.h \
-  transportlayerprsock.h \
+  ../dtlsidentity.h \
+  ../nricectx.h \
+  ../nricemediastream.h \
+  ../transportflow.h \
+  ../transportlayer.h \
+  ../transportlayerdtls.h \
+  ../transportlayerice.h \
+  ../transportlayerlog.h \
+  ../transportlayerloopback.h \
+  ../transportlayerprsock.h \
   $(NULL)
 
 CPPSRCS = \
-  dtlsidentity.cpp \
-  nricectx.cpp \
-  nricemediastream.cpp \
-  nr_socket_prsock.cpp \
-  nr_timer.cpp \
-  transportflow.cpp \
-  transportlayer.cpp \
-  transportlayerice.cpp \
-  transportlayerdtls.cpp \
-  transportlayerlog.cpp \
-  transportlayerloopback.cpp \
-  transportlayerprsock.cpp \
-  $(NULL)
+	$(MTRANSPORT_LCPPSRCS) \
+	$(NULL)
 
-DIRS = \
-  third_party \
-  test \
-  $(NULL)
 
-#CPP_UNIT_TESTS = \
-#  transport_unittests$(BIN_SUFFIX) \
-#  $(NULL)
+export:: $(MTRANSPORT_CPPSRCS)
+	$(INSTALL) $^ .
+
+
+include $(srcdir)/../objs.mk
 
 include $(topsrcdir)/config/rules.mk

@@ -500,6 +500,7 @@ typedef enum {
 	CC_CAUSE_RESP_TIMEOUT,
 	CC_CAUSE_SERV_ERR_UNAVAIL,
     CC_CAUSE_REMOTE_DISCONN_REQ_PLAYTONE,
+    CC_CAUSE_OUT_OF_MEM,
 	CC_CAUSE_MAX
 } cc_cause_t;
 
@@ -562,6 +563,7 @@ typedef enum {
   JSEP_PRANSWER
 } cc_jsep_action_t;
 
+typedef cc_string_t cc_peerconnection_t;
 
 
 #endif /* _CC_CONSTANTS_H_ */

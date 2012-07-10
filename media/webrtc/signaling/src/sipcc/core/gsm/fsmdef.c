@@ -110,6 +110,7 @@ static sm_rcs_t fsmdef_ev_createoffer(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_createanswer(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setlocaldesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setremotedesc(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_setpeerconnection(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_localdesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_remotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default(sm_event_t *event);
@@ -212,7 +213,10 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_CREATEOFFER      */ fsmdef_ev_createoffer,
     /* FSMDEF_E_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
-    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc
+    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection  
     },
 
 /* FSMDEF_S_COLLECT_INFO ---------------------------------------------------- */
@@ -238,7 +242,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_CREATEOFFER      */ fsmdef_ev_createoffer,
     /* FSMDEF_E_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
-    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc    
+    /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     },
 
 /* FSMDEF_S_CALL_SENT ------------------------------------------------------- */
@@ -266,7 +270,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_OUTGOING_PROCEEDING --------------------------------------------- */
@@ -294,7 +298,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_KPML_COLLECT_INFO ----------------------------------------------- */
@@ -322,7 +326,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_OUTGOING_ALERTING ----------------------------------------------- */
@@ -350,7 +354,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_INCOMING_ALERTING ----------------------------------------------- */
@@ -378,7 +382,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTING ------------------------------------------------------ */
@@ -406,7 +410,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_JOINING --------------------------------------------------------- */
@@ -434,7 +438,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTED ------------------------------------------------------- */
@@ -462,7 +466,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_CONNECTED_MEDIA_PEND  ------------------------------------------- */
@@ -490,7 +494,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_RELEASING ------------------------------------------------------- */
@@ -518,7 +522,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_HOLD_PENDING ---------------------------------------------------- */
@@ -546,7 +550,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_HOLDING --------------------------------------------------------- */
@@ -574,7 +578,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc    
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_RESUME_PENDING -------------------------------------------------- */
@@ -602,7 +606,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc       
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     },
 
 /* FSMDEF_S_PRESERVED  ------------------------------------------------------ */
@@ -630,7 +634,7 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
-    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc        
+    /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     }
 };
 
@@ -2813,6 +2817,8 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     callid_t            call_id = msg->call_id;
     cc_causes_t         lsm_rc;
     int                 sdpmode = 0;
+    char                *ufrag = NULL;
+    char                *ice_pwd = NULL;
 
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
     
@@ -2841,7 +2847,22 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     	    return (fsmdef_release(fcb, cause, FALSE));
         }
     }
- 
+    
+    
+    vcmGetIceParams(dcb->peerconnection, &ufrag, &ice_pwd);
+    if (!ufrag || !ice_pwd) {
+      ui_create_offer(evCreateOfferError, line, call_id, dcb->caller_id.call_instance_id, NULL);
+      return (fsmdef_release(fcb, cause, FALSE));
+    }
+
+    strncpy(dcb->ice_ufrag, ufrag, sizeof(dcb->ice_ufrag));
+    dcb->ice_ufrag[sizeof(dcb->ice_ufrag)-1] = 0;
+    free(ufrag);
+
+    strncpy(dcb->ice_pwd, ice_pwd, sizeof(dcb->ice_pwd));
+    dcb->ice_pwd[sizeof(dcb->ice_pwd)-1] = 0;
+    free(ice_pwd);
+
     cause = gsmsdp_create_local_sdp(dcb);
     if (cause != CC_CAUSE_OK) {
         ui_create_offer(evCreateOfferError, line, call_id, dcb->caller_id.call_instance_id, NULL);
@@ -2856,7 +2877,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
         return (fsmdef_release(fcb, cause, FALSE));
     }     
 	
-    // Pass offer SDP back to UI
+    /* Pass offer SDP back to UI */
     ui_create_offer(evCreateOffer, line, call_id, dcb->caller_id.call_instance_id, msg_body.parts[0].body);
 	
     return (SM_RC_END);
@@ -2886,6 +2907,8 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     cc_causes_t         lsm_rc;	
     cc_msgbody_t        *part;
     uint32_t            body_length;
+    char                *ufrag = NULL;
+    char                *ice_pwd = NULL;
 
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_createanswer"));
     
@@ -2926,8 +2949,26 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     part->content_disposition.required_handling = FALSE;
     part->content_disposition.disposition = cc_disposition_session;
     part->content_id = NULL;	
-    
-    /*  May need to uncomment this
+
+    vcmGetIceParams(dcb->peerconnection, &ufrag, &ice_pwd);
+    if (!ufrag || !ice_pwd) {
+      ui_create_offer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);
+      return (fsmdef_release(fcb, cause, FALSE));
+    }
+
+    strncpy(dcb->ice_ufrag, ufrag, sizeof(dcb->ice_ufrag));
+    dcb->ice_ufrag[sizeof(dcb->ice_ufrag)-1] = 0;
+    free(ufrag);
+
+    strncpy(dcb->ice_pwd, ice_pwd, sizeof(dcb->ice_pwd));
+    dcb->ice_pwd[sizeof(dcb->ice_pwd)-1] = 0;
+    free(ice_pwd);
+
+
+    /*
+     * The sdp member of the dcb has local and remote sdp
+     * this next function fills in the local part
+     */
     cause = gsmsdp_create_local_sdp(dcb);
     if (cause != CC_CAUSE_OK) {
         ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);
@@ -2935,9 +2976,12 @@ fsmdef_ev_createanswer (sm_event_t *event) {
         // Force clean up call without sending release 
         return (fsmdef_release(fcb, cause, FALSE));	
     }
-    */
-    
-    cause = gsmsdp_negotiate_offer_sdp(fcb, &msg_body, TRUE);
+
+    /* TODO(ekr@rtfm.com): The second true is because we are acting as if we are
+       processing an offer. The first, however, is for an initial offer and we may
+       want to set that conditionally. */
+    cause = gsmsdp_negotiate_media_lines(fcb, dcb->sdp, TRUE, TRUE);
+
     if (cause != CC_CAUSE_OK) {
     	ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);	
         return (fsmdef_release(fcb, cause, FALSE));
@@ -2949,8 +2993,8 @@ fsmdef_ev_createanswer (sm_event_t *event) {
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         return (fsmdef_release(fcb, cause, FALSE));	
     }     
-
-    // Pass SDP back to UI	
+    
+    /* Pass SDP back to UI */
     ui_create_answer(evCreateAnswer, line, call_id, dcb->caller_id.call_instance_id, msg_body.parts[0].body);
 	
     return (SM_RC_END);
@@ -2984,6 +3028,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
     } 
 
     if (dcb == NULL) {
+        /* TODO(emannion): how can this happen? shouldn't createoffer/createanswer have made the dcb? */
     	dcb = fsmdef_get_new_dcb(call_id);
         if (dcb == NULL) {
             return CC_CAUSE_NO_RESOURCE;
@@ -3004,32 +3049,32 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
 
     if (JSEP_OFFER == action) {
         
-        cause = gsmsdp_encode_sdp_and_update_version(dcb, &msg_body);
+        cause = gsmsdp_encode_sdp(dcb->sdp, &msg_body);
         if (cause != CC_CAUSE_OK) {
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETLOCALDESCERROR);
             return (SM_RC_END);	
         }     
         
-        //compare and fail if different
+        /*compare and fail if different */
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
         	ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SDPCHANGED);
         	return (SM_RC_END);
         }
-    	
+        
         fsm_change_state(fcb, __LINE__, FSMDEF_S_CALL_SENT);
 
     } else if (JSEP_ANSWER == action) {
     
-    	// compare SDP generated from CreateAnswer
-        cause = gsmsdp_encode_sdp_and_update_version(dcb, &msg_body);
+    	/* compare SDP generated from CreateAnswer */
+        cause = gsmsdp_encode_sdp(dcb->sdp, &msg_body);
         if (cause != CC_CAUSE_OK) {
             FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
             ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETLOCALDESCERROR);
             return (SM_RC_END);
         }     
         
-        //compare and fail if different
+        /* compare and fail if different */
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
             ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SDPCHANGED);
             return (SM_RC_END);
@@ -3037,14 +3082,21 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
 
         FSM_SET_FLAGS(dcb->msgs_sent, FSMDEF_MSG_CONNECTED);
 
+        
         cc_call_state(dcb->call_id, dcb->line, CC_STATE_ANSWERED,
         	          FSMDEF_CC_CALLER_ID);
 
         fsm_change_state(fcb, __LINE__, FSMDEF_S_CONNECTING);
-    
     	
-        // taken from fsmdef_ev_connected_ack
-        // start rx and tx
+        /* Now that we have negotiated the media, time to
+           set up ICE */
+        cause = gsmsdp_install_peer_ice_attributes(fcb);
+        if (cause != CC_CAUSE_OK) {
+            ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SDPCHANGED);
+            return (SM_RC_END);
+        }
+
+        /* taken from fsmdef_ev_connected_ack start rx and tx  */
         cc_call_state(dcb->call_id, dcb->line, CC_STATE_CONNECTED,
                   FSMDEF_CC_CALLER_ID);
         /*
@@ -3055,9 +3107,10 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             return (SM_RC_END);
         }    	
     	
-        // we may want to use the functionality in the following method
-        // to handle media capability changes, needs discussion
-        //fsmdef_transition_to_connected(fcb);    	
+        /* we may want to use the functionality in the following method
+         *  to handle media capability changes, needs discussion
+         * fsmdef_transition_to_connected(fcb);
+         */
         fsm_change_state(fcb, __LINE__, FSMDEF_S_CONNECTED);    	
 
     }
@@ -3129,13 +3182,20 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
     	
     if (JSEP_OFFER == action) { 	
 	
-		//ToDo
-		//create remote streams
-		//send remote streams to UI via onAddStream
-		
-    	
+		/* ToDo
+		 * create remote streams
+		 * send remote streams to UI via onAddStream
+         * dcb->send_release = TRUE;   - was in setup [EKR]
+         */
+      
+        cause = gsmsdp_process_offer_sdp(fcb, &msg_body, TRUE);
+        if (cause != CC_CAUSE_OK) {
+            ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
+            return (SM_RC_END);
+        }
+        
         fsm_change_state(fcb, __LINE__, FSMDEF_S_INCOMING_ALERTING);
-    			
+
     } else if (JSEP_ANSWER == action) {   	
     
     	cause = gsmsdp_negotiate_answer_sdp(fcb, &msg_body);
@@ -3144,12 +3204,22 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
             return (SM_RC_END);
         }
 		  
+        /* Now that we have negotiated the media, time to
+           set up ICE */
+        cause = gsmsdp_install_peer_ice_attributes(fcb);
+    	if (cause != CC_CAUSE_OK) {
+            ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
+            return (SM_RC_END);
+        }
+        
         cc_call_state(dcb->call_id, dcb->line, CC_STATE_CONNECTED, FSMDEF_CC_CALLER_ID);
 		
-        // we may want to use the functionality in the following method
-        // to handle media capability changes, needs discussion
-        //fsmdef_transition_to_connected(fcb);
-		
+        /* we may want to use the functionality in the following method
+         * to handle media capability changes, needs discussion
+         * fsmdef_transition_to_connected(fcb);
+         * fsmdef_transition_to_connected(fcb);
+		 */
+
         fsm_change_state(fcb, __LINE__, FSMDEF_S_CONNECTED);
     }
     
@@ -3176,10 +3246,10 @@ fsmdef_ev_localdesc(sm_event_t *event) {
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     if (sdpmode == FALSE) {
-        
         return (SM_RC_END);
     } 
-
+    
+    
 
 
 	return (SM_RC_END);
@@ -3207,6 +3277,55 @@ fsmdef_ev_remotedesc(sm_event_t *event) {
 
 
 	return (SM_RC_END);
+}
+
+
+static sm_rcs_t 
+fsmdef_ev_setpeerconnection(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    cc_feature_t        *msg = (cc_feature_t *) event->msg;
+    callid_t            call_id = msg->call_id;
+    int                 sdpmode = 0;
+    line_t              line = msg->line;
+    cc_causes_t         lsm_rc;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setpeerconnection"));
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+        return (SM_RC_END);
+    } 
+    
+//    cpr_assert(msg);
+    if (!msg)
+      return SM_RC_END;
+
+//    cpr_assert(msg->data_valid);
+    if (!msg->data_valid)
+      return SM_RC_END;
+    
+    if (dcb == NULL) {
+      dcb = fsmdef_get_new_dcb(call_id);
+      if (dcb == NULL) {
+        return CC_CAUSE_NO_RESOURCE;
+      }    
+    
+      lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
+      if (lsm_rc != CC_CAUSE_OK) {
+        /* TODO (ekr@rtfm.com): check the return code? */
+      }    
+
+      fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_NONE, NULL, line, fcb);
+      /* TODO(ekr@rtfm.com: error check */
+      fsm_set_fcb_dcbs(dcb);
+    }
+
+//    cpr_assert(strlen(msg->data.pc.pc_handle) < PC_HANDLE_SIZE);
+    strncpy(dcb->peerconnection, msg->data.pc.pc_handle, PC_HANDLE_SIZE);
+    dcb->peerconnection_set = TRUE;
+
+    return (SM_RC_END);
 }
 
 
@@ -5003,7 +5122,7 @@ fsmdef_remote_media (fsm_fcb_t *fcb, cc_feature_t *msg)
          * to have all codecs included. This is to re-advertise the 
          * capabilities again.
          */
-        (void) gsmsdp_negotiate_offer_sdp(fcb, NULL, FALSE);
+         (void) gsmsdp_negotiate_offer_sdp(fcb, NULL, FALSE);
 
         /* 
          * Update the media direction based on whether each media

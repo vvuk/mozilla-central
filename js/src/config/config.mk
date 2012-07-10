@@ -737,7 +737,7 @@ EXPAND_LIBS_GEN = $(PYTHON) $(topsrcdir)/config/pythonpath.py -I$(DEPTH)/config 
 EXPAND_AR = $(EXPAND_LIBS_EXEC) --extract -- $(AR)
 EXPAND_CC = $(EXPAND_LIBS_EXEC) --uselist -- $(CC)
 EXPAND_CCC = $(EXPAND_LIBS_EXEC) --uselist -- $(CCC)
-EXPAND_LD = $(EXPAND_LIBS_EXEC) --uselist -- $(LD)
+EXPAND_LD = $(EXPAND_LIBS_EXEC) --uselist --verbose -- $(LD)
 EXPAND_MKSHLIB_ARGS = --uselist
 ifdef SYMBOL_ORDER
 EXPAND_MKSHLIB_ARGS += --symbol-order $(SYMBOL_ORDER)

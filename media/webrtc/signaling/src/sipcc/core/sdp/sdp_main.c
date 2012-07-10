@@ -187,7 +187,13 @@ const sdp_attrarray_t sdp_attr[SDP_MAX_ATTR_TYPES] =
     {"label", sizeof("label"),
       sdp_parse_attr_simple_string, sdp_build_attr_simple_string },
     {"framerate", sizeof("framerate"),
-      sdp_parse_attr_simple_u32, sdp_build_attr_simple_u32 }       
+      sdp_parse_attr_simple_u32, sdp_build_attr_simple_u32 },
+    {"candidate", sizeof("candidate"),
+      sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr },
+    {"ice-ufrag", sizeof("ice-ufrag"),
+      sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr },
+    {"ice-pwd", sizeof("ice-pwd"),
+      sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr}
 };
 
 /* Note: These *must* be in the same order as the enum types. */

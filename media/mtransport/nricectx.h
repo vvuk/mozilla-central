@@ -54,7 +54,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/Scoped.h"
-#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
 
@@ -101,12 +101,14 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   // Finalize the ICE negotiation. I.e., there will be no
   // more forking.
   nsresult Finalize();
-  
+
   // Signals to indicate events. API users can (and should)
   // register for these.
   sigslot::signal1<NrIceCtx *> SignalGatheringCompleted;  // Done gathering
   sigslot::signal1<NrIceCtx *> SignalCompleted;  // Done handshaking
 
+  // The thread to direct method calls to
+  nsCOMPtr<nsIEventTarget> thread() { return sts_target_; }
 
  private:
   NrIceCtx(const std::string& name, bool offerer) 
@@ -149,6 +151,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   nr_ice_peer_ctx *peer_;
   nr_ice_handler_vtbl* ice_handler_vtbl_;  // Must be pointer
   nr_ice_handler* ice_handler_;  // Must be pointer
+  nsCOMPtr<nsIEventTarget> sts_target_; // The thread to run on
 };
 
 

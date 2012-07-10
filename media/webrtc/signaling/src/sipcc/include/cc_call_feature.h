@@ -194,6 +194,8 @@ cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_
 
 cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, const char* sdp);
 
+cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc);
+
 /**
  * Initiate a speed dial.
  * @param call_handle call handle

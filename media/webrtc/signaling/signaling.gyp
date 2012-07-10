@@ -42,10 +42,12 @@
         '../../../ipc/chromium/src/base/third_party/nspr',
         '../../../xpcom/base',
         '$(DEPTH)/dist/include',
+        '../../../media/mtransport',
         '../trunk/src',
         '../trunk/src/video_engine/include',
         '../trunk/src/voice_engine/main/interface',
         '../trunk/src/peerconnection',
+        '../trunk/third_party/libjingle/source',
       ],	
 	  
       #
@@ -128,6 +130,8 @@
         './src/softphonewrapper/CC_SIPCCLineInfo.h',
         './src/softphonewrapper/CC_SIPCCService.h',
         # PeerConnection
+        './src/peerconnection/PeerConnectionCtx.cpp',
+        './src/peerconnection/PeerConnectionCtx.h',
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
 
@@ -156,8 +160,9 @@
             'MOZILLA_INTERNAL_API'
           ],
         }], 
-        ['build_for_test==1', {
+        ['build_for_test!=0', {
           'defines' : [
+            'NO_CHROMIUM_LOGGING'
           ],
         }], 
         ['OS=="linux"', {
@@ -229,6 +234,7 @@
         './src/sipcc/core/gsm/h',
         './src/sipcc/plat/common',
         '../../../nsprpub/pr/include',
+        '../../../media/mtransport',
       ],
       
       #

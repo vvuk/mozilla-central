@@ -47,6 +47,7 @@
 #include <sstream>
 
 #include "common/Wrapper.h"
+#include "AutoLockNSPR.h"
 #include "base/lock.h"
 
 namespace CSF
@@ -70,7 +71,7 @@ namespace CSF
         VideoWindowHandle remoteWindow; 
 		ExternalRendererHandle extRenderer;
 		VideoFormat videoFormat;	
-        Lock streamMapMutex;
+        LockNSPR streamMapMutex;
         StreamMapType streamMap;
         bool audioMuteState;
         bool videoMuteState; 
@@ -89,6 +90,7 @@ namespace CSF
         cc_call_handle_t callHandle;
         CC_SIPCCCall (cc_call_handle_t aCallHandle);
         CC_SIPCCCallMediaDataPtr  pMediaData;
+        std::string peerconnection;  // The peerconnection handle
 
     public:
         virtual inline std::string toString() {
@@ -139,14 +141,15 @@ namespace CSF
         virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);		
         virtual void addIceCandidate(const std::string& strCandidate);
         virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks);
-
+        virtual void setPeerConnection(const std::string& handle);
+        virtual const std::string& getPeerConnection() const;
         virtual CC_SIPCCCallMediaDataPtr getMediaData();
 
     private:
         virtual bool setAudioMute(bool mute);
         virtual bool setVideoMute(bool mute);
 
-        Lock m_lock;
+        LockNSPR m_lock;
     };
 
 }

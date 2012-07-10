@@ -394,8 +394,8 @@ void lsm_update_gcid (callid_t call_id, char * gcid)
             sstrncpy(lcb->gcid, gcid, CC_GCID_LEN);
         }
     }
-}
 
+}
 /**
  * This function will be invoked by DEF SM.
  * it will check if there is a RINGIN call
@@ -648,7 +648,6 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
         roapproxy = 0;
     	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
     	if (roapproxy == FALSE) {
-
     		//Todo IPv6: Add interface call for IPv6
     		(void) vcmRxOpen(media->cap_index, dcb->group_id, media->refid,
     						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
@@ -673,16 +672,38 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
         sdpmode = 0;
     	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
     	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-
-    	if (roapproxy == FALSE && sdpmode == FALSE) {
-
-    		vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
-    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
+        
+    	if (roapproxy == FALSE) {
+          /* TODO(enda): this is the wrong test, but you don't have sdpmode set */
+          if (!strlen(dcb->peerconnection)) {
+              vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
+    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+                                                data->port,                                                        
     						&port_allocated);
     		if (port_allocated != -1) {
     			data->port = (uint16_t)port_allocated;
     			rc = CC_RC_SUCCESS;
     		}
+          }
+          else {
+              char **candidates;
+              int candidate_ct;
+              char *default_addr;
+
+              vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
+    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+                                                dcb->peerconnection,
+                                                media->level,
+                                                &default_addr, &port_allocated,
+                                                &candidates, &candidate_ct);
+
+    		if (port_allocated != -1) {
+    			data->port = (uint16_t)port_allocated;
+    			media->candidate_ct = candidate_ct;
+    			media->candidatesp = candidates;
+    			rc = CC_RC_SUCCESS;
+    		}
+          }
     	} else {
     		if (CC_AUDIO_1 == media->cap_index )
     			data->port = gROAPSDP.audioPort;
@@ -1026,24 +1047,27 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
 
                     roapproxy = 0;
                 	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
-                	if (roapproxy == FALSE) {
-
-                		ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
-                                        	lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                                        	vcmRtpToMediaPayload(media->payload,
-                                                                 media->local_dynamic_payload_type_value,
-                                                                 media->mode),
-                                                                 media->is_multicast ? &media->dest_addr:&media->src_addr,
-                                        		port,
-                                        	FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                                        	FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
-                                        	&attrs);
-                    	if (ret_val == -1) {
-                    		dcb->dsp_out_of_resources = TRUE;
-                        	return;
-                    	}
+                        if (dcb->peerconnection) {
+                          fprintf(stderr, "******** THIS IS WHERE MEDIA WOULD START ******** \n");
+                          ret_val = CC_RC_SUCCESS;
+                        }
+                        else if (roapproxy == FALSE) {
+                          ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
+                            lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                            vcmRtpToMediaPayload(media->payload,
+                              media->local_dynamic_payload_type_value,
+                              media->mode),
+                            media->is_multicast ? &media->dest_addr:&media->src_addr,
+                            port,
+                            FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                            FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
+                            &attrs);
+                          if (ret_val == -1) {
+                            dcb->dsp_out_of_resources = TRUE;
+                            return;
+                          }
                 	} else {
-                		ret_val = CC_RC_SUCCESS;
+                          ret_val = CC_RC_SUCCESS;
                 	}
 
                 lsm_update_dscp_value(dcb);
@@ -3929,6 +3953,7 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
     int ringSettingBusyStationPolicy;
     boolean tone_stop_bool = TRUE;
     int             sdpmode = 0;
+    boolean         start_ice = FALSE;
     
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
@@ -3958,6 +3983,12 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
 			tone_stop_bool = FALSE;
     }
 
+    /* Don't try to start ICE unless this is the first time connecting.
+     *  TODO(ekr@rtfm.com): Is this the right ICE start logic? What about restarts
+    */
+    if (strlen(dcb->peerconnection) && lcb->state != LSM_S_CONNECTED)
+      start_ice = TRUE;
+
     lsm_change_state(lcb, __LINE__, LSM_S_CONNECTED);
     
     if (sdpmode == FALSE) {
@@ -3965,11 +3996,20 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
 		    (void) lsm_stop_tone(lcb, NULL);
     }
     
+    /* Start ICE */
+    if (start_ice) {
+      short res = vcmStartIceChecks(dcb->peerconnection);
+      /* TODO(emannion): Set state to dead here. */
+      if (res)
+        return CC_RC_SUCCESS;
+    }
+    
     /*
      * Open the RTP receive channel.
      */
     lsm_call_state_media(lcb, line, cc_state_name(CC_STATE_CONNECTED));
 
+    
     if (sdpmode == FALSE) {
         vcmEnableSidetone(YES);
 

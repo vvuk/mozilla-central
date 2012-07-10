@@ -91,6 +91,8 @@ cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle, cc_sdp_direction_
 
 cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, cc_string_t sdp);
 
+cc_return_t CCAPI_SetPeerConnection(cc_call_handle_t handle, cc_peerconnection_t pc);
+
 
 /**
  * Send digits on the call - can be invoked either to dial additional digits or send DTMF

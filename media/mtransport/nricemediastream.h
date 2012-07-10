@@ -35,6 +35,12 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
   // The name of the stream
   const std::string& name() const { return name_; }
 
+  // Get all the candidates
+  std::vector<std::string> GetCandidates() const;
+
+  // Get the default candidate as host and port
+  nsresult GetDefaultCandidate(int component, std::string *host, int *port);
+  
   // Parse remote candidates
   nsresult ParseCandidates(std::vector<std::string>& candidates);
 

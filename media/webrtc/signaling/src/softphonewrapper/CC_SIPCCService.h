@@ -66,6 +66,7 @@ extern "C" {
 
 #include <vector>
 #include <set>
+#include "AutoLockNSPR.h"
 
 namespace CSF
 {
@@ -171,7 +172,7 @@ namespace CSF
 	    // SIPCC lifecycle
         bool bCreated;
         bool bStarted;
-        Lock m_lock;
+        LockNSPR m_lock;
 
         // Media Lifecycle
         VcmSIPCCBinding vcmMediaBridge;

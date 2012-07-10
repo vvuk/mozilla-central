@@ -216,6 +216,9 @@ typedef enum {
     SDP_ATTR_SDESCRIPTIONS,  /* version 9 sdescriptions */
     SDP_ATTR_LABEL,
     SDP_ATTR_FRAMERATE,
+    SDP_ATTR_ICE_CANDIDATE,
+    SDP_ATTR_ICE_UFRAG,
+    SDP_ATTR_ICE_PWD,
     SDP_MAX_ATTR_TYPES,
     SDP_ATTR_INVALID
 } sdp_attr_e;

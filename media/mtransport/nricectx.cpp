@@ -38,7 +38,6 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
 #include <string>
 #include <vector>
 
@@ -78,7 +77,6 @@ extern "C" {
 #include "logging.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
-
 
 MLOG_INIT("mtransport");
 
@@ -262,7 +260,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet6", 236);
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet7", 235);
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
-
+    NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
 
   }
 
@@ -303,6 +301,12 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     return NULL;
   }
 
+  nsresult rv;
+  ctx->sts_target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+
+  if (!NS_SUCCEEDED(rv))
+    return NULL;
+  
   return ctx;
 }
 
@@ -326,14 +330,14 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
 
 
 nsresult NrIceCtx::StartGathering() {
+  this->AddRef();
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
                             this);
-
-  this->AddRef();
   
   if (r && r != R_WOULDBLOCK) {
       MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
+      this->Release();
       return NS_ERROR_FAILURE;
   }
   

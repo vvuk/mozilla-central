@@ -74,18 +74,20 @@
 #include "SharedPtr.h"
 #include "base/lock.h"
 
+#include "AutoLockNSPR.h"
+
 template <class T>
 class Wrapper
 {
 private:
     typedef std::map<typename T::Handle, typename T::Ptr>      	HandleMapType;
 	HandleMapType 	handleMap;
-	Lock 		handleMapMutex;
+	LockNSPR	handleMapMutex;
 
 public:
 	typename T::Ptr wrap(typename T::Handle handle)
 	{
-		AutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -101,7 +103,7 @@ public:
 
 	bool changeHandle(typename T::Handle oldHandle, typename T::Handle newHandle)
 	{
-		AutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(oldHandle);
 		if(it != handleMap.end())
 		{
@@ -118,7 +120,7 @@ public:
 
 	bool release(typename T::Handle handle)
 	{
-		AutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -133,7 +135,7 @@ public:
 
 	void reset()
 	{
-		AutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		handleMap.clear();
 	}
 };

@@ -46,6 +46,7 @@
 #include "CallControlManagerImpl.h"
 #include "CSFLogStream.h"
 #include "csf_common.h"
+#include "AutoLockNSPR.h"
 
 extern "C"
 {
@@ -59,9 +60,9 @@ static std::string logDestination = "CallControl.log";
 using namespace std;
 using namespace CSFUnified;
 
-
 namespace CSF
 {
+
 
 CallControlManagerImpl::CallControlManagerImpl()
 : multiClusterMode(false),
@@ -92,7 +93,7 @@ bool CallControlManagerImpl::destroy()
 // Observers
 void CallControlManagerImpl::addCCObserver ( CC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addCCObserver().");
@@ -104,13 +105,13 @@ void CallControlManagerImpl::addCCObserver ( CC_Observer * observer )
 
 void CallControlManagerImpl::removeCCObserver ( CC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     ccObservers.erase(observer);
 }
 
 void CallControlManagerImpl::addECCObserver ( ECC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addECCObserver().");
@@ -122,7 +123,7 @@ void CallControlManagerImpl::addECCObserver ( ECC_Observer * observer )
 
 void CallControlManagerImpl::removeECCObserver ( ECC_Observer * observer )
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     eccObservers.erase(observer);
 }
 
@@ -182,6 +183,7 @@ AuthenticationStatusEnum::AuthenticationStatus CallControlManagerImpl::getAuthen
 {
     return authenticationStatus;
 }
+
 
 bool CallControlManagerImpl::registerUser( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain )
 {
@@ -331,6 +333,7 @@ bool CallControlManagerImpl::startROAPProxy( const std::string& deviceName, cons
     return bStarted;
 }
 
+
 bool CallControlManagerImpl::disconnect()
 {
     CSFLogInfoS(logTag, "disconnect()");
@@ -379,7 +382,7 @@ CC_DevicePtr CallControlManagerImpl::getActiveDevice()
 // All known devices
 PhoneDetailsVtrPtr CallControlManagerImpl::getAvailablePhoneDetails()
 {
-    PhoneDetailsVtrPtr result = PhoneDetailsVtrPtr(new PhoneDetailsVtr());
+  PhoneDetailsVtrPtr result = PhoneDetailsVtrPtr(new PhoneDetailsVtr());
     for(PhoneDetailsMap::iterator it = phoneDetailsMap.begin(); it != phoneDetailsMap.end(); it++)
     {
         PhoneDetailsPtr details = it->second;
@@ -387,6 +390,7 @@ PhoneDetailsVtrPtr CallControlManagerImpl::getAvailablePhoneDetails()
     }
     return result;
 }
+
 PhoneDetailsPtr CallControlManagerImpl::getAvailablePhoneDetails(const std::string& deviceName)
 {
     PhoneDetailsMap::iterator it = phoneDetailsMap.find(deviceName);
@@ -396,7 +400,6 @@ PhoneDetailsPtr CallControlManagerImpl::getAvailablePhoneDetails(const std::stri
     }
     return PhoneDetailsPtr();
 }
-
 // Media setup
 VideoControlPtr CallControlManagerImpl::getVideoControl()
 {
@@ -413,6 +416,8 @@ AudioControlPtr CallControlManagerImpl::getAudioControl()
 
     return AudioControlPtr();
 }
+
+
 
 bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyKeys key, std::string& value)
 {
@@ -552,7 +557,7 @@ void CallControlManagerImpl::onCallEvent(ccapi_call_event_e callEvent,     CC_Ca
 
 void CallControlManagerImpl::notifyDeviceEventObservers (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -562,7 +567,7 @@ void CallControlManagerImpl::notifyDeviceEventObservers (ccapi_device_event_e de
 
 void CallControlManagerImpl::notifyFeatureEventObservers (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -572,7 +577,7 @@ void CallControlManagerImpl::notifyFeatureEventObservers (ccapi_device_event_e d
 
 void CallControlManagerImpl::notifyLineEventObservers (ccapi_line_event_e lineEvent, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -582,7 +587,7 @@ void CallControlManagerImpl::notifyLineEventObservers (ccapi_line_event_e lineEv
 
 void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEvent, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -593,7 +598,7 @@ void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEv
 void CallControlManagerImpl::notifyAvailablePhoneEvent (AvailablePhoneEventType::AvailablePhoneEvent event,
         const PhoneDetailsPtr availablePhoneDetails)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
@@ -603,7 +608,7 @@ void CallControlManagerImpl::notifyAvailablePhoneEvent (AvailablePhoneEventType:
 
 void CallControlManagerImpl::notifyAuthenticationStatusChange (AuthenticationStatusEnum::AuthenticationStatus status)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
@@ -613,7 +618,7 @@ void CallControlManagerImpl::notifyAuthenticationStatusChange (AuthenticationSta
 
 void CallControlManagerImpl::notifyConnectionStatusChange(ConnectionStatusEnum::ConnectionStatus status)
 {
-	AutoLock lock(m_lock);
+	AutoLockNSPR lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
@@ -626,5 +631,4 @@ void CallControlManagerImpl::setConnectionState(ConnectionStatusEnum::Connection
 	connectionState = status;
 	notifyConnectionStatusChange(status);
 }
-
 }

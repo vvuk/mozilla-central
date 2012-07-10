@@ -34,6 +34,10 @@
 #include <vector>
 #include <map>
 
+#include "mozilla/RefPtr.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
+
 #include "prlock.h"
 #include "PeerConnection.h"
 #include "CallControlManager.h"
@@ -43,8 +47,7 @@
 
 namespace sipcc {
 
-class LocalSourceStreamInfo : public mozilla::MediaStreamListener
-{
+class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
   LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream);
   ~LocalSourceStreamInfo();
@@ -73,7 +76,8 @@ private:
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
   
-class PeerConnectionImpl : public PeerConnectionInterface, CSF::CC_Observer {
+class PeerConnectionImpl : public PeerConnectionInterface,
+                           public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
@@ -96,27 +100,43 @@ public:
 
   virtual ReadyState ready_state();
   virtual SipccState sipcc_state();
+  virtual IceState ice_state();
   
   virtual void Shutdown();
   
-  virtual void onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info);
-  virtual void onFeatureEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_FeatureInfoPtr feature_info) {}
-  virtual void onLineEvent(ccapi_line_event_e lineEvent, CSF::CC_LinePtr line, CSF::CC_LineInfoPtr info) {}
+  // Implementation of the only observer we need
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
+
+  // Handle system to allow weak references to be passed through C code
+  static PeerConnectionImpl *AcquireInstance(const std::string& handle);
+  virtual void ReleaseInstance();
+  virtual const std::string& GetHandle();
+
+  // ICE events
+  void IceGatheringCompleted(NrIceCtx *ctx);
+  void IceCompleted(NrIceCtx *ctx);
+  void IceStreamReady(NrIceMediaStream *stream);
+
+  mozilla::RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
+  mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
+    // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
+    // make one.
+    if (i >= mIceStreams.size())
+      return NULL;
+             
+    return mIceStreams[i];
+  }
+
+
   
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
-  void ChangeSipccState(PeerConnectionInterface::SipccState sipcc_state);
-        
+
   PeerConnectionImpl(const PeerConnectionImpl&rhs);  
   PeerConnectionImpl& operator=(PeerConnectionImpl);   
-  std::string mAddr;
-  CSF::CallControlManagerPtr mCCM;
-  CSF::CC_DevicePtr mDevice; 
   CSF::CC_CallPtr mCall;  
   PeerConnectionObserver* mPCObserver;
   ReadyState mReadyState;
-  SipccState mSipccState;
 
   // The SDP sent in from JS - here for debugging.
   std::string mLocalRequestedSDP;
@@ -129,6 +149,16 @@ private:
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
 
+  // A handle to refer to this PC with
+  std::string mHandle;
+
+  // ICE objects
+  mozilla::RefPtr<NrIceCtx> mIceCtx;
+  std::vector<mozilla::RefPtr<NrIceMediaStream> > mIceStreams;
+  IceState mIceState;
+
+  // Singleton list of all the PeerConnections
+  static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 };
  
 }  // end sipcc namespace

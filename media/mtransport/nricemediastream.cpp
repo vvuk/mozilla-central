@@ -137,6 +137,60 @@ void NrIceMediaStream::EmitAllCandidates() {
   RFREE(attrs);
 }
 
+nsresult NrIceMediaStream::GetDefaultCandidate(int component,
+                                               std::string *addrp,
+                                               int *portp) {
+  nr_ice_candidate *cand;
+  int r;
+
+  r = nr_ice_media_stream_get_default_candidate(stream_,
+                                                component, &cand);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't get default ICE candidate for '"
+         << name_ << "'");
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  char addr[64];
+  r = nr_transport_addr_get_addrstring(&cand->addr,addr,sizeof(addr));
+  if (r) 
+    return NS_ERROR_FAILURE;
+
+  int port;
+  r=nr_transport_addr_get_port(&cand->addr,&port);
+  if (r) 
+    return NS_ERROR_FAILURE;
+
+  *addrp = addr;
+  *portp = port;
+
+  return NS_OK;
+}
+
+std::vector<std::string> NrIceMediaStream::GetCandidates() const {
+  char **attrs = 0;
+  int attrct;
+  int r;
+  std::vector<std::string> ret;
+
+  r = nr_ice_media_stream_get_attributes(stream_,
+                                         &attrs, &attrct);
+  if (r) {
+    MLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
+         << name_ << "'");
+    return ret;
+  }
+
+  for (size_t i=0; i<attrct; i++) {
+    ret.push_back(attrs[i]);
+    RFREE(attrs[i]);
+  }
+
+  RFREE(attrs);
+
+  return ret;
+}
+
 nsresult NrIceMediaStream::SendPacket(int component_id,
                                       const unsigned char *data,
                                       size_t len) {
