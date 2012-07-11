@@ -20,7 +20,7 @@ XPCOMUtils.defineLazyModuleGetter(this,
                                   "resource://gre/modules/identity/LogUtils.jsm");
 
 function log(...aMessageArgs) {
-  Logger.log(["DOMIdentity"].concat(aMessageArgs));
+  Logger.log.apply(Logger, ["DOMIdentity"].concat(aMessageArgs));
 }
 
 function IDDOMMessage(aID) {
