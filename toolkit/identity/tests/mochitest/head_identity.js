@@ -168,11 +168,11 @@ function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallba
 }
 
 function resetState() {
-  get_idstore().reset();
-  RelyingParty.reset();
+  IDService.reset();
 }
 
 function cleanup() {
+  resetState();
   SpecialPowers.clearUserPref("toolkit.identity.debug");
   SpecialPowers.clearUserPref("dom.identity.enabled");
 }

@@ -86,55 +86,29 @@ function test_complete_authentication_flow() {
   // The result of authentication should be a successful login
   IDService.reset();
 
-  setup_test_identity(id, TEST_CERT, function() {
-    // When we authenticate, our ready callback will be fired.
-    // At the same time, a separate topic will be sent up to the
-    // the observer in the UI.  The test is complete when both
-    // events have occurred.
-    let mockedDoc = mock_watch(null, call_sequentially(
-      function(action, params) {
-        is(action, 'ready');
-        is(params, undefined);
+  let mockedDoc = mock_watch(null, call_sequentially(
+    function(action, params) {
+      is(action, 'ready');
+      is(params, undefined);
+    }
+  ));
 
-        // if notification already received by observer, test is done
-        callbacksFired = true;
-        if (topicObserved) {
-          run_next_auth_test();
-        }
-      }
-    ));
-
-    makeObserver("identity-login-state-changed", function (aSubject, aTopic, aData) {
-      info("identity-login-state-changed");
-      isnot(aSubject, null);
-
-      //is(aSubject.wrappedJSObject.rpId, mockedDoc.id);
-      is(aData, null);
-
-      // if callbacks in caller doc already fired, test is done.
-      topicObserved = true;
-      if (callbacksFired) {
-        run_next_auth_test();
-      }
-    });
-
-    identity.watch(mockedDoc);
-  });
+  identity.watch(mockedDoc);
 
   // A mock calling context
   let authCaller = {
-    doBeginAuthenticationCallback: function doBeginAuthenticationCallback(aIdentity) {
+    doBeginAuthenticationCallback: function doBeginAuthCallback(aIdentity) {
       is(aIdentity, TEST_USER);
-
       identity.completeAuthentication();
     },
 
     doError: function(err) {
-      ok(false, "OW! My doError callback hurts!: " + err);
+      ok(false, "doError called: " + err);
     },
   };
 
   makeObserver("identity-auth-complete", function (aSubject, aTopic, aData) {
+    info("identity-auth-complete");
     is(aSubject.wrappedJSObject.identity, TEST_USER);
 
     run_next_test();
@@ -145,29 +119,38 @@ function test_complete_authentication_flow() {
     TEST_USER,
     function(provFlow) {
       _provId = provFlow.id;
-
+      info("after setup: " + _provId);
       identity.beginProvisioning(provFlow.beginProvisioningCallback);
-    }, function() {},
+    },
+    function() {
+      info("doneProvisioningCallback");
+
+      // let's say this user needs to authenticate
+      IDService.IDP._doAuthentication(_provId, TEST_IDPPARAMS);
+
+      // test_begin_authentication_flow verifies that the right
+      // message is sent to the UI.  So that works.  Moving on,
+      // the UI calls setAuthenticationFlow ...
+      _authId = outerWinId;
+      IDService.IDP.setAuthenticationFlow(_authId, _provId);
+      IDService.IDP._provisionFlows[_provId].rpId = outerWinId;
+
+      // ... then the UI calls beginAuthentication ...
+      authCaller.id = _authId;
+      IDService.IDP._provisionFlows[_provId].caller = authCaller;
+      identity.beginAuthentication(function bac() {
+        info("beginAuthentication callback");
+        identity.completeAuthentication();
+      });
+    },
     {
       beginProvisioningCallback: function(email, duration_s) {
-        // let's say this user needs to authenticate
-        IDService.IDP._doAuthentication(_provId, TEST_IDPPARAMS);
+        info("beginProvisioningCallback");
 
-        // test_begin_authentication_flow verifies that the right
-        // message is sent to the UI.  So that works.  Moving on,
-        // the UI calls setAuthenticationFlow ...
-        _authId = outerWinId;
-        IDService.IDP.setAuthenticationFlow(_authId, _provId);
-
-        // ... then the UI calls beginAuthentication ...
-        authCaller.id = _authId;
-        IDService.IDP._provisionFlows[_provId].caller = authCaller;
-        identity.beginAuthentication(function bac() {
-          info("beginAuthentication callback");
-          identity.completeAuthentication();
-        });
+        identity.raiseProvisioningFailure("Prov. failed");
       }
-  });
+    }
+  );
 }
 
 TESTS.push(test_begin_authentication_flow);
