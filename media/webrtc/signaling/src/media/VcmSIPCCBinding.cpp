@@ -792,7 +792,7 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
   if (pwd)
     attributes.push_back(pwd);
   
-  for (int i; i<candidate_ct; i++) {
+  for (int i = 0; i<candidate_ct; i++) {
     attributes.push_back(candidates[i]);
   }
 
