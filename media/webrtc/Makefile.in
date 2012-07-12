@@ -17,8 +17,8 @@ DIRS = \
 ifneq ($(OS_TARGET),WINNT)
 DIRS += \
         signaling \
+        signalingtest \
         $(NULL)
-#        signalingtest \
 
 endif
 
