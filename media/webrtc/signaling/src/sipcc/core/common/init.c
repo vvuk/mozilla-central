@@ -527,7 +527,7 @@ send_task_unload_msg(cc_srcs_t dest_id)
             SIPTaskPostShutdown(SIP_EXTERNAL, CC_CAUSE_SHUTDOWN, "");
             /* allow unRegister msg to sent out and shutdown to complete */
 
-            if (sdpmode == FALSE) {
+            if (!sdpmode) {
                 cprSleep(2000);
             }
             /* send a unload message to the SIP Task to kill sip thread*/

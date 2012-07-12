@@ -59,7 +59,6 @@ typedef int cc_causes_t;
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
 #define  SDP_SIZE           1024   /* must increase this */
 #define  PC_HANDLE_SIZE     (1 + (sizeof(void *) * 2))
-#define  ICE_STRING_SIZE    81
 
 #include "sessionConstants.h"
 
@@ -67,19 +66,6 @@ typedef int  cc_features_t;
 typedef unsigned int softkey_events;
 typedef unsigned int cc_call_priority_e;
 extern cc_reg_state_t ccapp_get_state();
-
-
-//  global sdp structure
-typedef struct cc_global_sdp_ {
-	char			offerSDP[SDP_SIZE];
-	char			answerSDP[SDP_SIZE];
-	char			remoteOfferSDP[SDP_SIZE];
-	char			offerAddress[MAX_IPADDR_STR_LEN];
-	int				audioPort;
-	int				videoPort;
-} cc_global_sdp_t;
-
-extern cc_global_sdp_t  gROAPSDP;
 
 
 typedef enum {

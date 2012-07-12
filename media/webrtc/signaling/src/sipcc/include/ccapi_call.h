@@ -80,16 +80,16 @@ cc_lineid_t CCAPI_Call_getLine(cc_call_handle_t call_handle);
  * @param [in] digits - digits to be dialed. can be empty then this API simply goes offhook
  * @return SUCCESS or FAILURE
  */
-cc_return_t CCAPI_Call_originateCall(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_string_t digits, char* ipAddress, int audioPort, int videoPort);
+cc_return_t CCAPI_Call_originateCall(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_string_t digits);
 
 
-cc_return_t CCAPI_CreateOffer(cc_call_handle_t handle, cc_sdp_direction_t video_pref, int audioPort, int videoPort);
+cc_return_t CCAPI_CreateOffer(cc_call_handle_t handle);
 
-cc_return_t CCAPI_CreateAnswer(cc_call_handle_t handle, cc_sdp_direction_t video_pref, const char* offersdp, int audioPort, int videoPort);
+cc_return_t CCAPI_CreateAnswer(cc_call_handle_t handle, cc_string_t offersdp);
 
-cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, cc_string_t sdp);
+cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle, cc_jsep_action_t action, cc_string_t sdp);
 
-cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, cc_string_t sdp);
+cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_jsep_action_t action, cc_string_t sdp);
 
 cc_return_t CCAPI_SetPeerConnection(cc_call_handle_t handle, cc_peerconnection_t pc);
 

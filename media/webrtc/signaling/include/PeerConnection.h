@@ -178,7 +178,7 @@ public:
   virtual IceState ice_state() = 0;
 
   // puts the SIPCC engine back to 'kIdle', shuts down threads, deletes state, etc.
-  virtual void Shutdown() = 0;
+  virtual void Close() = 0;
   
   virtual ~PeerConnectionInterface() {};
 

@@ -139,7 +139,7 @@ cc_return_t CCAPI_Service_stop() {
     CCAPP_ERROR("CCAPI_Service_stop - calling registration stop \n");
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         if (is_action_to_be_deferred(STOP_ACTION) == TRUE) {
             return CC_SUCCESS;
         }

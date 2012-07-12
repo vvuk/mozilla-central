@@ -486,14 +486,7 @@ void bind_clear_keyword(const char *cmd, clear_callback func)
 {
     return;
 }
-//void debugif_add_keyword(const char *, const char *)
-//{
-//    return;
-//}
-//int debugif_printf(const char *_format, ...)
-//{
-//    return 0;
-//}
+
 void ci_bind_cmd(const char *cmd, ci_callback func, ci_cmd_block_t *blk)
 {
     return;

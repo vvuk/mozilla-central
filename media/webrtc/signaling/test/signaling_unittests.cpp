@@ -230,7 +230,7 @@ class SignalingAgent {
   }
   
   ~SignalingAgent() {
-    Shutdown();
+    Close();
   }
 
   void Init()
@@ -252,10 +252,10 @@ class SignalingAgent {
 
   }
 
-  void Shutdown()
+  void Close()
   {
-    cout << "Shutdown" << endl;
-    pc->Shutdown();
+    cout << "Close" << endl;
+    pc->Close();
     // Shutdown is synchronous evidently.
     // ASSERT_TRUE(pObserver->WaitForObserverCall());
     // ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
@@ -363,6 +363,12 @@ private:
   }
 };
 
+class SignalingEnvironment : public ::testing::Environment {
+ public:
+  void TearDown() {
+    sipcc::PeerConnectionImpl::Shutdown();
+  }
+};
 
 class SignalingTest : public ::testing::Test {
  public:
@@ -440,6 +446,7 @@ int main(int argc, char **argv)
   NSS_NoDB_Init(NULL);
   NSS_SetDomesticPolicy();
 
+  ::testing::AddGlobalTestEnvironment(new SignalingEnvironment);
   ::testing::InitGoogleTest(&argc, argv);
 
   for(int i=0; i<argc; i++) {

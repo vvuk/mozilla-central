@@ -186,13 +186,13 @@ cc_return_t CC_CallFeature_backSpace(cc_call_handle_t call_handle);
  */
 cc_return_t CC_CallFeature_dial(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, const cc_string_t numbers);
 
-cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref);
+cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle);
 
-cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, const char* sdp);
+cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, const char* sdp);
 
-cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, const char* sdp);
+cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, const char* sdp);
 
-cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, const char* sdp);
+cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, const char* sdp);
 
 cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc);
 

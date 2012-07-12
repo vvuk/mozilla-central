@@ -1442,4 +1442,8 @@ sdp_result_e
 sdp_attr_get_ice_attribute (void *sdp_ptr, u16 level,
                            u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num,
                            char **out);
+sdp_result_e
+sdp_attr_set_ice_attribute(void *sdp_ptr, u16 level,
+                           u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num, const char *ice_attrib);
+
 #endif /* _SDP_H_ */

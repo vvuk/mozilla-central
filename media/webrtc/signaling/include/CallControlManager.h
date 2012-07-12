@@ -139,9 +139,6 @@ namespace CSF
         /* SDP MODE */
         virtual bool startSDPMode() = 0;        
 
-        /* ROAP Proxy Mode */
-        virtual bool startROAPProxy( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain ) = 0;
-
         /**
          * Obtain the device object, from which call control can be done.
          * getAvailablePhoneDetails lists all known devices which the user is likely to be able to control.

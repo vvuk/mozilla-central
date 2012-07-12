@@ -83,12 +83,16 @@ MediaProvider * MediaProvider::create( )
     WebrtcMediaProvider* mediaProvider = new WebrtcMediaProvider();
     LOG_WEBRTC_DEBUG( logTag, "MediaProvider::create new instance");
 
+#if 0
+ // <emannion> Part of media provider removal
+
     if ( mediaProvider->init() != 0)
     {
         LOG_WEBRTC_ERROR( logTag, "cannot initialize WebrtcMediaProvider");
         delete mediaProvider;
         return NULL;
     }
+#endif
 
     return mediaProvider;
 }
@@ -97,6 +101,10 @@ MediaProvider * MediaProvider::create( )
 
 WebrtcMediaProvider::WebrtcMediaProvider( )
 {
+
+#if 0
+ // <emannion> Part of media provider removal
+
     pAudio = new WebrtcAudioProvider( this );
     if (pAudio->init() != 0)
     {
@@ -109,14 +117,23 @@ WebrtcMediaProvider::WebrtcMediaProvider( )
 #else
     pVideo = NULL;
 #endif
+
+#endif
 }
 
 WebrtcMediaProvider::~WebrtcMediaProvider()
 {
+
+#if 0
+ // <emannion> Part of media provider removal
+
 #ifndef NO_WEBRTC_VIDEO
     delete pVideo;
 #endif
     delete pAudio;
+
+#endif
+
 }
 
 int WebrtcMediaProvider::init()
@@ -209,13 +226,17 @@ webrtc::VoiceEngine* WebrtcMediaProvider::getWebrtcVoiceEngine () {
 
 AudioTermination* WebrtcMediaProvider::getAudioTermination()
 {
-    return pAudio ? pAudio->getAudioTermination() : NULL;
+    // <emannion> return pAudio ? pAudio->getAudioTermination() : NULL;
+	// part of media provider removal
+	return NULL;
 }
 
 VideoTermination* WebrtcMediaProvider::getVideoTermination()
 {
 #ifndef NO_WEBRTC_VIDEO
-    return pVideo ? pVideo->getMediaTermination() : NULL;
+    // <emannion> return pVideo ? pVideo->getMediaTermination() : NULL;
+	// part of media provider removal
+	return NULL;
 #else
     return NULL;
 #endif

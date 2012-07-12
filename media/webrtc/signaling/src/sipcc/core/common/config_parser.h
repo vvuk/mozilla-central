@@ -178,17 +178,6 @@ void config_setup_p2p_mode(const cc_boolean is_p2p);
  */
 void config_setup_sdp_mode(const cc_boolean is_sdp);
 
-/*
- * set ROAP proxy mode on or off
- */
-void config_setup_roap_proxy_mode(const cc_boolean is_roap_proxy);
-
-/*
- * set ROAP client mode on or off
- */
-void config_setup_roap_client_mode(const cc_boolean is_roap_client);
-
-
 /**
 * config_minimum_check:
 *

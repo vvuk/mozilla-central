@@ -137,13 +137,13 @@ MediaProviderObserver * VcmSIPCCBinding::getMediaProviderObserver()
 
 void VcmSIPCCBinding::setAudioCodecs(int codecMask)
 {
-  printf("SETTING AUDIO %X", codecMask);
+  CSFLogDebugS(logTag, "SETTING AUDIO: " << codecMask);
   VcmSIPCCBinding::mAudioCodecMask = codecMask;
 }
 
 void VcmSIPCCBinding::setVideoCodecs(int codecMask)
 {
-  printf("SETTING VIDEO %X", codecMask);
+  CSFLogDebugS(logTag, "SETTING VIDEO: " << codecMask);
   VcmSIPCCBinding::mVideoCodecMask = codecMask;
 }
 
@@ -188,7 +188,9 @@ AudioControl * VcmSIPCCBinding::getAudioControl()
         return NULL;
     }
 
-    return _pSelf->pMediaProvider->getAudioControl();
+    // <emannion> return _pSelf->pMediaProvider->getAudioControl();
+    // commenting as part of media provider removal
+    return NULL;
 }
 
 /* static */
@@ -199,7 +201,9 @@ VideoControl * VcmSIPCCBinding::getVideoControl()
         return NULL;
     }
 
-    return _pSelf->pMediaProvider->getVideoControl();
+    // <emannion> return _pSelf->pMediaProvider->getVideoControl();
+    // commenting as part of media provider removal
+    return NULL;
 }
 
 /*
@@ -265,6 +269,7 @@ struct h264_video
     int        tias_bw;
 };
 
+#if 0
 static RingMode
 map_ring_mode (vcm_ring_mode_t mode)
 {
@@ -295,6 +300,7 @@ map_ring_mode (vcm_ring_mode_t mode)
         return RingMode_INSIDE_RING;
     }
 }
+#endif
 
 /**
  *  start/stop ringing
@@ -318,6 +324,9 @@ void vcmControlRinger (vcm_ring_mode_t ringMode,
     CSFLogDebug( logTag, "%s: ringMode=%d once=%d", fname, ringMode, once);
 
     /* we need to pass the line parameter for this */
+
+#if 0
+     // <emannion> part of media provider removal
     if ( ringMode == VCM_RING_OFF )
     {
         //call media_ring_stop
@@ -330,6 +339,7 @@ void vcmControlRinger (vcm_ring_mode_t ringMode,
     {
         CSFLogDebug( logTag, "%s: mediaRingStart failed", fname);
     }
+#endif
 }
 
 /**
@@ -1433,6 +1443,7 @@ void vcmTxClose(cc_mcapid_t mcap_id,
     }
 }
 
+#if 0
 static CodecRequestType
 map_codec_request_type( int request_type )
 {
@@ -1445,6 +1456,7 @@ map_codec_request_type( int request_type )
     case cip_sipcc_CodecMask_DSP_FULLDUPLEX: return CodecRequestType_FULLDUPLEX;
     }
 }
+#endif
 
 /**
  * Get current list of audio codec that could be used

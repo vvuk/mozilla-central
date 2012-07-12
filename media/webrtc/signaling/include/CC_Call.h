@@ -75,7 +75,7 @@ namespace CSF
 
            @return true or false.
          */
-        virtual bool originateCall (cc_sdp_direction_t video_pref, const std::string & digits, char* sdp, int audioPort, int videoPort) = 0;
+        virtual bool originateCall (cc_sdp_direction_t video_pref, const std::string & digits) = 0;
 
         /**
            Use this function to answer an incoming call.
@@ -303,13 +303,13 @@ namespace CSF
          */
         virtual bool originateP2PCall (cc_sdp_direction_t video_pref, const std::string & digits, const std::string & ip) = 0;
         
-        virtual int createOffer (cc_sdp_direction_t video_pref, const std::string & hints) = 0;
+        virtual int createOffer (const std::string & hints) = 0;
         
-        virtual int createAnswer(cc_sdp_direction_t video_pref, const std::string & hints, const std::string & offersdp) = 0;
+        virtual int createAnswer(const std::string & hints, const std::string & offersdp) = 0;
         
-        virtual int setLocalDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp) = 0;
+        virtual int setLocalDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
         
-        virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp) = 0;
+        virtual int setRemoteDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
 
         virtual void addIceCandidate(const std::string& strCandidate) = 0;
 

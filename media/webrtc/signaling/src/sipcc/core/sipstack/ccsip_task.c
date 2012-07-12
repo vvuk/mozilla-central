@@ -467,7 +467,6 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
          */
     }
 
-    p2psip = 0;
 	config_get_value(CFGID_P2PSIP, &p2psip, sizeof(p2psip));
 	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
@@ -494,8 +493,10 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
 
         sip_mode_quiet = FALSE;
 
-        // If P2P do not register with SIP Server
-        if (p2psip == FALSE && sdpmode == FALSE)
+        /*
+         * If P2P or SDP only do not register with SIP Server
+         */
+        if (!p2psip && !sdpmode)
         	sip_platform_init();
         else
         	ui_set_sip_registration_state(CC_ALL_LINES, TRUE);

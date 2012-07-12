@@ -104,7 +104,8 @@ public:
   virtual SipccState sipcc_state();
   virtual IceState ice_state();
   
-  virtual void Shutdown();
+  virtual void Close();
+  static void Shutdown();
   
   // Implementation of the only observer we need
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
