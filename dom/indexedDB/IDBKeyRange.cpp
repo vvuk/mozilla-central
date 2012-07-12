@@ -10,7 +10,6 @@
 
 #include "nsIXPConnect.h"
 
-#include "nsDOMClassInfo.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
@@ -21,6 +20,7 @@
 #include "mozilla/dom/indexedDB/PIndexedDBObjectStore.h"
 
 USING_INDEXEDDB_NAMESPACE
+using namespace mozilla::dom::indexedDB::ipc;
 
 namespace {
 
@@ -89,9 +89,7 @@ ThrowException(JSContext* aCx,
                nsresult aErrorCode)
 {
   NS_ASSERTION(NS_FAILED(aErrorCode), "Not an error code!");
-  if (!JS_IsExceptionPending(aCx)) {
-    nsDOMClassInfo::ThrowJSException(aCx, aErrorCode);
-  }
+  xpc::Throw(aCx, aErrorCode);
 }
 
 inline
@@ -315,14 +313,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBKeyRange)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBKeyRange)
-  if (JSVAL_IS_GCTHING(tmp->mCachedLowerVal)) {
-    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedLowerVal);
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing, "mCachedLowerVal")
-  }
-  if (JSVAL_IS_GCTHING(tmp->mCachedUpperVal)) {
-    void *gcThing = JSVAL_TO_GCTHING(tmp->mCachedUpperVal);
-    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(gcThing, "mCachedUpperVal")
-  }
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCachedLowerVal)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCachedUpperVal)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBKeyRange)
@@ -419,17 +411,17 @@ IDBKeyRange::GetUpperOpen(bool* aUpperOpen)
 
 // Explicitly instantiate for all our key range types... Grumble.
 template already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange<ipc::FIXME_Bug_521898_objectstore::KeyRange>
-(const ipc::FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
+IDBKeyRange::FromSerializedKeyRange<FIXME_Bug_521898_objectstore::KeyRange>
+(const FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
 
 template already_AddRefed<IDBKeyRange>
-IDBKeyRange::FromSerializedKeyRange<ipc::FIXME_Bug_521898_index::KeyRange>
-(const ipc::FIXME_Bug_521898_index::KeyRange& aKeyRange);
+IDBKeyRange::FromSerializedKeyRange<FIXME_Bug_521898_index::KeyRange>
+(const FIXME_Bug_521898_index::KeyRange& aKeyRange);
 
 template void
-IDBKeyRange::ToSerializedKeyRange<ipc::FIXME_Bug_521898_objectstore::KeyRange>
-(ipc::FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
+IDBKeyRange::ToSerializedKeyRange<FIXME_Bug_521898_objectstore::KeyRange>
+(FIXME_Bug_521898_objectstore::KeyRange& aKeyRange);
 
 template void
-IDBKeyRange::ToSerializedKeyRange<ipc::FIXME_Bug_521898_index::KeyRange>
-(ipc::FIXME_Bug_521898_index::KeyRange& aKeyRange);
+IDBKeyRange::ToSerializedKeyRange<FIXME_Bug_521898_index::KeyRange>
+(FIXME_Bug_521898_index::KeyRange& aKeyRange);

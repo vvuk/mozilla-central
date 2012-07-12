@@ -165,9 +165,7 @@
 
 #include "nsIGlobalHistory2.h"
 
-#ifdef DEBUG_DOCSHELL_FOCUS
 #include "nsEventStateManager.h"
-#endif
 
 #include "nsIFrame.h"
 
@@ -650,6 +648,7 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_NORMAL_REPLACE:
     case LOAD_LINK:
     case LOAD_STOP_CONTENT:
+    case LOAD_REPLACE_BYPASS_CACHE:
         result = nsIDOMPerformanceNavigation::TYPE_NAVIGATE;
         break;
     case LOAD_HISTORY:
@@ -788,7 +787,7 @@ nsDocShell::nsDocShell():
   // We're counting the number of |nsDocShells| to help find leaks
   ++gNumberOfDocShells;
   if (!PR_GetEnv("MOZ_QUIET")) {
-      printf("++DOCSHELL %p == %ld [id = %ld]\n", (void*) this,
+      printf("++DOCSHELL %p == %ld [id = %llu]\n", (void*) this,
              gNumberOfDocShells, mHistoryID);
   }
 #endif
@@ -817,7 +816,7 @@ nsDocShell::~nsDocShell()
     // We're counting the number of |nsDocShells| to help find leaks
     --gNumberOfDocShells;
     if (!PR_GetEnv("MOZ_QUIET")) {
-        printf("--DOCSHELL %p == %ld [id = %ld]\n", (void*) this,
+        printf("--DOCSHELL %p == %ld [id = %llu]\n", (void*) this,
                gNumberOfDocShells, mHistoryID);
     }
 #endif
@@ -1143,6 +1142,9 @@ ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType)
     case nsIDocShellLoadInfo::loadPushState:
         loadType = LOAD_PUSHSTATE;
         break;
+    case nsIDocShellLoadInfo::loadReplaceBypassCache:
+        loadType = LOAD_REPLACE_BYPASS_CACHE;
+        break;
     default:
         NS_NOTREACHED("Unexpected nsDocShellInfoLoadType value");
     }
@@ -1210,6 +1212,9 @@ nsDocShell::ConvertLoadTypeToDocShellLoadInfo(PRUint32 aLoadType)
         break;
     case LOAD_PUSHSTATE:
         docShellLoadType = nsIDocShellLoadInfo::loadPushState;
+        break;
+    case LOAD_REPLACE_BYPASS_CACHE:
+        docShellLoadType = nsIDocShellLoadInfo::loadReplaceBypassCache;
         break;
     default:
         NS_NOTREACHED("Unexpected load type value");
@@ -1401,6 +1406,17 @@ nsDocShell::LoadURI(nsIURI * aURI,
 #endif
 
         return LoadHistoryEntry(shEntry, loadType);
+    }
+
+    // On history navigation via Back/Forward buttons, don't execute
+    // automatic JavaScript redirection such as |location.href = ...| or
+    // |window.open()|
+    //
+    // LOAD_NORMAL:        window.open(...) etc.
+    // LOAD_STOP_CONTENT:  location.href = ..., location.assign(...)
+    if ((loadType == LOAD_NORMAL || loadType == LOAD_STOP_CONTENT) &&
+        ShouldBlockLoadingForBackButton()) {
+        return NS_OK;
     }
 
     // Perform the load...
@@ -2565,6 +2581,37 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
         }
     }
 
+    return NS_OK;
+}
+
+static PLDHashOperator
+CloneSessionStorages(nsCStringHashKey::KeyType aKey, nsIDOMStorage* aStorage,
+                     void* aUserArg)
+{
+    nsIDocShell *docShell = static_cast<nsIDocShell*>(aUserArg);
+    nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(aStorage);
+
+    if (pistorage) {
+        nsCOMPtr<nsIDOMStorage> storage = pistorage->Clone();
+        docShell->AddSessionStorage(pistorage->Principal(), storage);
+    }
+
+    return PL_DHASH_NEXT;
+}
+
+NS_IMETHODIMP
+nsDocShell::CloneSessionStoragesTo(nsIDocShell* aDocShell)
+{
+    aDocShell->ClearSessionStorages();
+    mStorages.EnumerateRead(CloneSessionStorages, aDocShell);
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocShell::ClearSessionStorages()
+{
+    mStorages.Clear();
     return NS_OK;
 }
 
@@ -5914,6 +5961,7 @@ nsDocShell::Embed(nsIContentViewer * aContentViewer,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
+    case LOAD_REPLACE_BYPASS_CACHE:
         updateHistory = false;
         break;
     default:
@@ -7919,10 +7967,10 @@ nsDocShell::CheckLoadingPermissions()
         }
 
         // Compare origins
-        bool equal;
-        sameOrigin = subjPrincipal->Equals(p, &equal);
+        bool subsumes;
+        sameOrigin = subjPrincipal->Subsumes(p, &subsumes);
         if (NS_SUCCEEDED(sameOrigin)) {
-            if (equal) {
+            if (subsumes) {
                 // Same origin, permit load
 
                 return sameOrigin;
@@ -8046,6 +8094,23 @@ private:
     bool mFirstParty;
 };
 
+/**
+ * Returns true if we started an asynchronous load (i.e., from the network), but
+ * the document we're loading there hasn't yet become this docshell's active
+ * document.
+ *
+ * When JustStartedNetworkLoad is true, you should be careful about modifying
+ * mLoadType and mLSHE.  These are both set when the asynchronous load first
+ * starts, and the load expects that, when it eventually runs InternalLoad,
+ * mLoadType and mLSHE will have their original values.
+ */
+bool
+nsDocShell::JustStartedNetworkLoad()
+{
+    return mDocumentRequest &&
+           mDocumentRequest != GetCurrentDocChannel();
+}
+
 NS_IMETHODIMP
 nsDocShell::InternalLoad(nsIURI * aURI,
                          nsIURI * aReferrer,
@@ -8128,8 +8193,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     }
 
     // XXXbz would be nice to know the loading principal here... but we don't
-    nsCOMPtr<nsIPrincipal> loadingPrincipal;
-    if (aReferrer) {
+    nsCOMPtr<nsIPrincipal> loadingPrincipal = do_QueryInterface(aOwner);
+    if (!loadingPrincipal && aReferrer) {
         nsCOMPtr<nsIScriptSecurityManager> secMan =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -8137,7 +8202,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         rv = secMan->GetCodebasePrincipal(aReferrer,
                                           getter_AddRefs(loadingPrincipal));
     }
-    
+
     rv = NS_CheckContentLoadPolicy(contentType,
                                    aURI,
                                    loadingPrincipal,
@@ -8462,7 +8527,16 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             // See bug 737307.
             AutoRestore<PRUint32> loadTypeResetter(mLoadType);
 
-            mLoadType = aLoadType;
+            // If a non-short-circuit load (i.e., a network load) is pending,
+            // make this a replacement load, so that we don't add a SHEntry here
+            // and the network load goes into the SHEntry it expects to.
+            if (JustStartedNetworkLoad() && (aLoadType & LOAD_CMD_NORMAL)) {
+                mLoadType = LOAD_NORMAL_REPLACE;
+            }
+            else {
+                mLoadType = aLoadType;
+            }
+
             mURIResultedInDocument = true;
 
             /* we need to assign mLSHE to aSHEntry right here, so that on History loads,
@@ -9191,6 +9265,7 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
+    case LOAD_REPLACE_BYPASS_CACHE:
         loadFlags |= nsIRequest::LOAD_BYPASS_CACHE |
                      nsIRequest::LOAD_FRESH_CONNECTION;
         break;
@@ -9662,6 +9737,16 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     nsresult rv;
 
+    // Don't clobber the load type of an existing network load.
+    AutoRestore<PRUint32> loadTypeResetter(mLoadType);
+
+    // pushState effectively becomes replaceState when we've started a network
+    // load but haven't adopted its document yet.  This mirrors what we do with
+    // changes to the hash at this stage of the game.
+    if (JustStartedNetworkLoad()) {
+        aReplace = true;
+    }
+
     nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
     NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
@@ -9805,17 +9890,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     } // end of same-origin check
 
-    nsCOMPtr<nsISHistory> sessionHistory = mSessionHistory;
-    if (!sessionHistory) {
-        // Get the handle to SH from the root docshell
-        GetRootSessionHistory(getter_AddRefs(sessionHistory));
-    }
-    NS_ENSURE_TRUE(sessionHistory, NS_ERROR_FAILURE);
-
-    nsCOMPtr<nsISHistoryInternal> shInternal =
-        do_QueryInterface(sessionHistory, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     // Step 3: Create a new entry in the session history. This will erase
     // all SHEntries after the new entry and make this entry the current
     // one.  This operation may modify mOSHE, which we need later, so we
@@ -9944,7 +10018,7 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
     // should just do a spec compare, rather than two gets of the scheme and
     // then the path.  -Gagan
     nsresult rv;
-    nsCAutoString buf;
+    nsCAutoString buf, pref;
 
     rv = aURI->GetScheme(buf);
     if (NS_FAILED(rv))
@@ -9959,7 +10033,14 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
             return false;
         }
     }
-    return true;
+
+    rv = aURI->GetSpec(buf);
+    NS_ENSURE_SUCCESS(rv, true);
+
+    rv = Preferences::GetDefaultCString("browser.newtab.url", &pref);
+    NS_ENSURE_SUCCESS(rv, true);
+
+    return !buf.Equals(pref);
 }
 
 nsresult
@@ -10521,7 +10602,7 @@ nsDocShell::SetHistoryEntry(nsCOMPtr<nsISHEntry> *aPtr, nsISHEntry *aEntry)
                 nsDocShell *rootDocShell = static_cast<nsDocShell*>
                                                       (rootIDocShell);
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
                 nsresult rv =
 #endif
                 SetChildHistoryEntry(oldRootEntry, rootDocShell,
@@ -11530,6 +11611,16 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
     return NS_OK;
   }
 
+  // On history navigation through Back/Forward buttons, don't execute
+  // automatic JavaScript redirection such as |anchorElement.click()| or
+  // |formElement.submit()|.
+  //
+  // XXX |formElement.submit()| bypasses this checkpoint because it calls
+  //     nsDocShell::OnLinkClickSync(...) instead.
+  if (ShouldBlockLoadingForBackButton()) {
+    return NS_OK;
+  }
+
   if (aContent->IsEditable()) {
     return NS_OK;
   }
@@ -11572,6 +11663,13 @@ nsDocShell::OnLinkClickSync(nsIContent *aContent,
   }
 
   if (!IsOKToLoadURI(aURI)) {
+    return NS_OK;
+  }
+
+  // XXX When the linking node was HTMLFormElement, it is synchronous event.
+  //     That is, the caller of this method is not |OnLinkClickEvent::Run()|
+  //     but |nsHTMLFormElement::SubmitSubmission(...)|.
+  if (nsGkAtoms::form == aContent->Tag() && ShouldBlockLoadingForBackButton()) {
     return NS_OK;
   }
 
@@ -11722,6 +11820,20 @@ nsDocShell::OnLeaveLink()
                                     EmptyString().get());
   }
   return rv;
+}
+
+bool
+nsDocShell::ShouldBlockLoadingForBackButton()
+{
+  if (!(mLoadType & LOAD_CMD_HISTORY) ||
+      nsEventStateManager::IsHandlingUserInput() ||
+      !Preferences::GetBool("accessibility.blockjsredirection")) {
+    return false;
+  }
+
+  bool canGoForward = false;
+  GetCanGoForward(&canGoForward);
+  return canGoForward;
 }
 
 //----------------------------------------------------------------------
@@ -11915,7 +12027,7 @@ nsDocShell::SetIsBrowserFrame(bool aValue)
   // docshell-marked-as-browser-frame would have to distinguish between
   // newly-created browser frames and frames which went from true to false back
   // to true.)
-  NS_ENSURE_STATE(!mIsBrowserFrame);
+  NS_ENSURE_STATE(!mIsBrowserFrame || aValue);
 
   bool wasBrowserFrame = mIsBrowserFrame;
   mIsBrowserFrame = aValue;

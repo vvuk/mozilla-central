@@ -19,8 +19,9 @@ class nsPIDOMWindow;
 #include "nsString.h"
 #include "nsWeakPtr.h"
 #include "nsInterfaceHashtable.h"
+#include "mozilla/Attributes.h"
 
-class nsDOMDeviceStorage : public nsIDOMDeviceStorage
+class nsDOMDeviceStorage MOZ_FINAL : public nsIDOMDeviceStorage
 {
 public:
   NS_DECL_ISUPPORTS
@@ -39,7 +40,8 @@ private:
 
 
   nsresult GetInternal(const JS::Value & aName, JSContext* aCx, nsIDOMDOMRequest * *_retval NS_OUTPARAM, bool aEditable);
-  nsresult EnumerateInternal(const nsAString & aName, nsIDOMDeviceStorageCursor * *_retval NS_OUTPARAM, bool aEditable);
+
+  nsresult EnumerateInternal(const JS::Value & aName, const JS::Value & aOptions, JSContext* aCx, PRUint8 aArgc, bool aEditable, nsIDOMDeviceStorageCursor** aRetval);
 
   PRInt32 mStorageType;
   nsCOMPtr<nsIFile> mFile;

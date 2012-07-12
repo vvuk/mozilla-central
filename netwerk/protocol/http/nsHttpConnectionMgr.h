@@ -18,6 +18,7 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "nsISocketTransportService.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/Attributes.h"
 
 #include "nsIObserver.h"
 #include "nsITimer.h"
@@ -198,6 +199,10 @@ public:
 
     void ReportFailedToProcess(nsIURI *uri);
 
+    // Causes a large amount of connection diagnostic information to be
+    // printed to the javascript console
+    void PrintDiagnostics();
+
     //-------------------------------------------------------------------------
     // NOTE: functions below may be called only on the socket thread.
     //-------------------------------------------------------------------------
@@ -357,10 +362,10 @@ private:
     // nsHalfOpenSocket is used to hold the state of an opening TCP socket
     // while we wait for it to establish and bind it to a connection
 
-    class nsHalfOpenSocket : public nsIOutputStreamCallback,
-                             public nsITransportEventSink,
-                             public nsIInterfaceRequestor,
-                             public nsITimerCallback
+    class nsHalfOpenSocket MOZ_FINAL : public nsIOutputStreamCallback,
+                                       public nsITransportEventSink,
+                                       public nsIInterfaceRequestor,
+                                       public nsITimerCallback
     {
     public:
         NS_DECL_ISUPPORTS
@@ -391,6 +396,7 @@ private:
 
         bool HasConnected() { return mHasConnected; }
 
+        void PrintDiagnostics(nsCString &log);
     private:
         nsConnectionEntry              *mEnt;
         nsRefPtr<nsAHttpTransaction>   mTransaction;
@@ -600,6 +606,13 @@ private:
     static PLDHashOperator ReadTimeoutTickCB(const nsACString &key,
                                              nsAutoPtr<nsConnectionEntry> &ent,
                                              void *closure);
+
+    // For diagnostics
+    void OnMsgPrintDiagnostics(PRInt32, void *);
+    static PLDHashOperator PrintDiagnosticsCB(const nsACString &key,
+                                              nsAutoPtr<nsConnectionEntry> &ent,
+                                              void *closure);
+    nsCString mLogData;
 };
 
 #endif // !nsHttpConnectionMgr_h__

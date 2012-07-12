@@ -404,7 +404,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
         return true;
     }
 
-    if (cx->runtime->gcRunning || cx->runtime->noGCOrAllocationCheck) {
+    if (cx->runtime->isHeapBusy() || cx->runtime->noGCOrAllocationCheck) {
         char *source = JS_sprintf_append(NULL, "<value>");
         if (!source)
             return false;
@@ -423,7 +423,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             Shape::Range::AutoRooter root(cx, &r);
 
             while (!r.empty()) {
-                Rooted<const Shape*> shape(cx, &r.front());
+                Rooted<Shape*> shape(cx, &r.front());
                 JSAtom *atom = JSID_IS_INT(shape->propid())
                                ? cx->runtime->atomState.emptyAtom
                                : JSID_TO_ATOM(shape->propid());
@@ -1762,7 +1762,7 @@ static const char *
 GetLocalInSlot(SprintStack *ss, int i, int slot, JSObject *obj)
 {
     for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
-        const Shape &shape = r.front();
+        Shape &shape = r.front();
 
         if (shape.shortid() == slot) {
             /* Ignore the empty destructuring dummy. */
@@ -1849,16 +1849,18 @@ GetLocal(SprintStack *ss, int i)
 static bool
 IsVarSlot(JSPrinter *jp, jsbytecode *pc, JSAtom **varAtom, int *localSlot)
 {
+    *localSlot = -1;
+
     if (JOF_OPTYPE(*pc) == JOF_SCOPECOORD) {
         *varAtom = ScopeCoordinateName(jp->sprinter.context->runtime, jp->script, pc);
-        LOCAL_ASSERT_RV(*varAtom, NULL);
+        LOCAL_ASSERT_RV(*varAtom, false);
         return true;
     }
 
     unsigned slot = GET_SLOTNO(pc);
     if (slot < jp->script->nfixed) {
         *varAtom = GetArgOrVarAtom(jp, jp->fun->nargs + slot);
-        LOCAL_ASSERT_RV(*varAtom, NULL);
+        LOCAL_ASSERT_RV(*varAtom, false);
         return true;
     }
 
@@ -2319,7 +2321,7 @@ GetBlockNames(JSContext *cx, StaticBlockObject &blockObj, AtomVector *atoms)
 
     unsigned i = numAtoms;
     for (Shape::Range r = blockObj.lastProperty()->all(); !r.empty(); r.popFront()) {
-        const Shape &shape = r.front();
+        Shape &shape = r.front();
         LOCAL_ASSERT(shape.hasShortID());
         --i;
         LOCAL_ASSERT((unsigned)shape.shortid() == i);
@@ -5107,15 +5109,19 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
               {
                 JSBool isFirst;
                 const char *maybeComma;
+                const char *maybeSpread;
 
               case JSOP_INITELEM:
+              case JSOP_INITELEM_INC:
+              case JSOP_SPREAD:
+                JS_ASSERT(ss->top >= 3);
                 isFirst = IsInitializerOp(ss->opcodes[ss->top - 3]);
 
                 /* Turn off most parens. */
                 rval = PopStr(ss, JSOP_SETNAME, &rvalpc);
 
                 /* Turn off all parens for xval and lval, which we control. */
-                xval = PopStr(ss, JSOP_NOP);
+                xval = PopStr(ss, JSOP_NOP, &xvalpc);
                 lval = PopStr(ss, JSOP_NOP, &lvalpc);
                 sn = js_GetSrcNote(jp->script, pc);
 
@@ -5124,8 +5130,18 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     goto do_initprop;
                 }
                 maybeComma = isFirst ? "" : ", ";
-                todo = Sprint(&ss->sprinter, "%s%s", lval, maybeComma);
+                maybeSpread = op == JSOP_SPREAD ? "..." : "";
+                todo = Sprint(&ss->sprinter, "%s%s%s", lval, maybeComma, maybeSpread);
                 SprintOpcode(ss, rval, rvalpc, pc, todo);
+                if (op != JSOP_INITELEM && todo != -1) {
+                    if (!UpdateDecompiledText(ss, pushpc, todo))
+                        return NULL;
+                    if (!PushOff(ss, todo, saveop, pushpc))
+                        return NULL;
+                    if (!PushStr(ss, "", JSOP_NOP))
+                        return NULL;
+                    todo = -2;
+                }
                 break;
 
               case JSOP_INITPROP:
@@ -5405,7 +5421,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
 
 static JSBool
 DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, unsigned len,
-              unsigned pcdepth)
+              unsigned pcdepth, unsigned initialStackDepth = 0)
 {
     JSContext *cx = jp->sprinter.context;
 
@@ -5437,6 +5453,11 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, unsigned len,
         }
     }
 
+    for (unsigned i = 0; i < initialStackDepth; i++) {
+        if (!PushStr(&ss, "", JSOP_NOP))
+            return false;
+    }
+
     /* Call recursive subroutine to do the hard work. */
     JSScript *oldscript = jp->script;
     jp->script = script;
@@ -5444,11 +5465,11 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, unsigned len,
     jp->script = oldscript;
 
     /* If the given code didn't empty the stack, do it now. */
-    if (ok && ss.top) {
+    if (ok && ss.top - initialStackDepth) {
         const char *last;
         do {
             last = ss.sprinter.stringAt(PopOff(&ss, JSOP_POP));
-        } while (ss.top > pcdepth);
+        } while (ss.top - initialStackDepth > pcdepth);
         js_printf(jp, "%s", last);
     }
 
@@ -5645,7 +5666,7 @@ js_DecompileFunction(JSPrinter *jp)
                 jsbytecode *caseend = defbegin + ((i < nformal - 1) ? TABLE_OFF(i - defstart + 1) : deflen);
 #undef TABLE_OFF
                 unsigned exprlength = caseend - casestart - js_CodeSpec[JSOP_POP].length;
-                if (!DecompileCode(jp, script, casestart, exprlength, 0))
+                if (!DecompileCode(jp, script, casestart, exprlength, 0, fun->hasRest()))
                     return JS_FALSE;
             } else if (!QuoteString(&jp->sprinter, param, 0)) {
                 ok = JS_FALSE;

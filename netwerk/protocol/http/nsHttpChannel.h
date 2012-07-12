@@ -27,7 +27,7 @@
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsITimedChannel.h"
-#include "nsILocalFile.h"
+#include "nsIFile.h"
 #include "nsDNSPrefetch.h"
 #include "TimingStruct.h"
 #include "AutoClose.h"
@@ -223,7 +223,6 @@ private:
     nsresult UpdateExpirationTime();
     nsresult CheckCache();
     bool ShouldUpdateOfflineCacheEntry();
-    nsresult StartBufferingCachedEntity(bool usingSSL);
     nsresult ReadFromCache(bool alreadyMarkedValid);
     void     CloseCacheEntry(bool doomOnFailure);
     void     CloseOfflineCacheEntry();
@@ -275,6 +274,13 @@ private:
                 (tmpHost1 == tmpHost2));
     }
 
+    inline static bool DoNotRender3xxBody(nsresult rv) {
+        return rv == NS_ERROR_REDIRECT_LOOP         ||
+               rv == NS_ERROR_CORRUPTED_CONTENT     ||
+               rv == NS_ERROR_UNKNOWN_PROTOCOL      ||
+               rv == NS_ERROR_MALFORMED_URI;
+    }
+
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;
     nsCOMPtr<nsICancelable>           mProxyRequest;
@@ -287,8 +293,8 @@ private:
     // cache specific data
     nsRefPtr<HttpCacheQuery>          mCacheQuery;
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
-    // We must close mCacheAsyncInputStream explicitly to avoid leaks.
-    AutoClose<nsIAsyncInputStream>    mCacheAsyncInputStream;
+    // We must close mCacheInputStream explicitly to avoid leaks.
+    AutoClose<nsIInputStream>         mCacheInputStream;
     nsRefPtr<nsInputStreamPump>       mCachePump;
     nsAutoPtr<nsHttpResponseHead>     mCachedResponseHead;
     nsCOMPtr<nsISupports>             mCachedSecurityInfo;
@@ -303,9 +309,10 @@ private:
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
+    PRUint32                          mOfflineCacheLastModifiedTime;
     nsCString                         mOfflineCacheClientID;
 
-    nsCOMPtr<nsILocalFile>            mProfileDirectory;
+    nsCOMPtr<nsIFile>                 mProfileDirectory;
 
     // auth specific data
     nsCOMPtr<nsIHttpChannelAuthProvider> mAuthProvider;
@@ -368,12 +375,6 @@ protected:
     virtual void DoNotifyListenerCleanup();
 
 private: // cache telemetry
-    enum {
-        kCacheHit = 1,
-        kCacheHitViaReval = 2,
-        kCacheMissedViaReval = 3,
-        kCacheMissed = 4
-    };
     bool mDidReval;
 };
 

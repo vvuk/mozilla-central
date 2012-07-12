@@ -115,12 +115,9 @@ nsWSRunObject::PrepareToDeleteNode(nsHTMLEditor *aHTMLEd,
                                    nsIDOMNode *aNode)
 {
   NS_ENSURE_TRUE(aNode && aHTMLEd, NS_ERROR_NULL_POINTER);
-  nsresult res = NS_OK;
   
-  nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
-  res = aHTMLEd->GetNodeLocation(aNode, address_of(parent), &offset);
-  NS_ENSURE_SUCCESS(res, res);
+  nsCOMPtr<nsIDOMNode> parent = aHTMLEd->GetNodeLocation(aNode, &offset);
   
   nsWSRunObject leftWSObj(aHTMLEd, parent, offset);
   nsWSRunObject rightWSObj(aHTMLEd, parent, offset+1);
@@ -1171,7 +1168,7 @@ nsWSRunObject::GetPreviousWSNode(DOMPoint aPoint,
 
 nsresult 
 nsWSRunObject::GetPreviousWSNode(nsIDOMNode *aStartNode,
-                                 PRInt16 aOffset, 
+                                 PRInt32 aOffset,
                                  nsIDOMNode *aBlockParent, 
                                  nsCOMPtr<nsIDOMNode> *aPriorNode)
 {
@@ -1279,7 +1276,7 @@ nsWSRunObject::GetNextWSNode(DOMPoint aPoint,
 
 nsresult 
 nsWSRunObject::GetNextWSNode(nsIDOMNode *aStartNode,
-                             PRInt16 aOffset, 
+                             PRInt32 aOffset,
                              nsIDOMNode *aBlockParent, 
                              nsCOMPtr<nsIDOMNode> *aNextNode)
 {

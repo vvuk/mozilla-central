@@ -26,10 +26,7 @@ pref("toolkit.browser.contentViewExpire", 3000);
 pref("toolkit.defaultChromeURI", "chrome://browser/content/browser.xul");
 pref("browser.chromeURL", "chrome://browser/content/");
 
-pref("browser.tabs.warnOnClose", true);
 pref("browser.tabs.remote", false);
-
-pref("toolkit.screen.lock", false);
 
 // From libpref/src/init/all.js, extended to allow a slightly wider zoom range.
 pref("zoom.minPercent", 20);
@@ -89,10 +86,10 @@ pref("network.http.pipelining.ssl", true);
 pref("network.http.proxy.pipelining", true);
 pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
-pref("network.http.max-connections", 6);
-pref("network.http.max-connections-per-server", 4);
-pref("network.http.max-persistent-connections-per-server", 4);
-pref("network.http.max-persistent-connections-per-proxy", 4);
+pref("network.http.max-connections", 20);
+pref("network.http.max-connections-per-server", 15);
+pref("network.http.max-persistent-connections-per-server", 6);
+pref("network.http.max-persistent-connections-per-proxy", 8);
 #ifdef MOZ_PLATFORM_MAEMO
 pref("network.autodial-helper.enabled", true);
 #endif
@@ -169,6 +166,9 @@ pref("browser.formfill.enable", true);
 
 /* spellcheck */
 pref("layout.spellcheckDefault", 0);
+
+/* new html5 forms */
+pref("dom.experimental_forms", true);
 
 /* extension manager and xpinstall */
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
@@ -438,7 +438,10 @@ pref("dom.ipc.plugins.enabled", true);
 #endif
 
 pref("plugins.click_to_play", true);
-pref("plugins.use_placeholder", 1);
+// Disabled because of thread safety problem
+// in getting the bits from the surface.
+// Bug 756253
+pref("plugins.use_placeholder", 0);
 
 // process priority
 // higher values give content process less CPU time
@@ -519,7 +522,11 @@ pref("app.update.auto", false);
 pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
 pref("app.update.mode", 1);
 pref("app.update.silent", false);
+#ifdef MOZ_PKG_SPECIAL
+pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%-@MOZ_PKG_SPECIAL@/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
+#else
 pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
+#endif
 pref("app.update.promptWaitTime", 43200);
 pref("app.update.idletime", 60);
 pref("app.update.showInstalledUI", false);
@@ -690,9 +697,6 @@ pref("direct-texture.force.disabled", false);
 // show checkerboard pattern on android; we use background colour instead
 pref("gfx.show_checkerboard_pattern", true);
 
-pref("remote-debugger.enabled", false);
-pref("remote-debugger.port", 6000);
-
 // This fraction in 1000ths of velocity remains after every animation frame when the velocity is low.
 pref("ui.scrolling.friction_slow", -1);
 // This fraction in 1000ths of velocity remains after every animation frame when the velocity is high.
@@ -716,6 +720,20 @@ pref("ui.zooming.animation_frames", "");
 
 // Enable accessibility mode if platform accessibility is enabled.
 pref("accessibility.accessfu.activate", 2);
+// Enable explore by touch if it is enabled in the platform
+pref("accessibility.accessfu.explorebytouch", 2);
 
 // Mobile manages state by autodetection
 pref("network.manage-offline-status", true);
+
+// increase the timeout clamp for background tabs to 15 minutes
+pref("dom.min_background_timeout_value", 900000);
+
+// The default of font size in reader (1-7)
+pref("reader.font_size", 4);
+
+// The default of margin size in reader (5%-25%)
+pref("reader.margin_size", 5);
+
+// The default color scheme in reader (light, dark, sepia)
+pref("reader.color_scheme", "light");

@@ -41,7 +41,7 @@ const ContextFormat ContextFormat::BasicRGBA32Format(ContextFormat::BasicRGBA32)
 #define MAX_SYMBOL_LENGTH 128
 #define MAX_SYMBOL_NAMES 5
 
-// should match the order of GLExtensions
+// should match the order of GLExtensions, and be null-terminated.
 static const char *sExtensionNames[] = {
     "GL_EXT_framebuffer_object",
     "GL_ARB_framebuffer_object",
@@ -66,6 +66,9 @@ static const char *sExtensionNames[] = {
     "GL_OES_standard_derivatives",
     "GL_EXT_texture_filter_anisotropic",
     "GL_EXT_texture_compression_s3tc",
+    "GL_EXT_texture_compression_dxt1",
+    "GL_ANGLE_texture_compression_dxt3",
+    "GL_ANGLE_texture_compression_dxt5",
     "GL_EXT_framebuffer_blit",
     "GL_ANGLE_framebuffer_blit",
     "GL_EXT_framebuffer_multisample",
@@ -74,7 +77,9 @@ static const char *sExtensionNames[] = {
     "GL_ARB_robustness",
     "GL_EXT_robustness",
     "GL_ARB_sync",
-    NULL
+    "GL_OES_EGL_image",
+    "GL_OES_EGL_sync",
+    nsnull
 };
 
 /*
@@ -260,6 +265,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 { (PRFuncPtr*) &mSymbols.fReadBuffer, { "ReadBuffer", NULL } },
                 { (PRFuncPtr*) &mSymbols.fMapBuffer, { "MapBuffer", NULL } },
                 { (PRFuncPtr*) &mSymbols.fUnmapBuffer, { "UnmapBuffer", NULL } },
+                { (PRFuncPtr*) &mSymbols.fPointParameterf, { "PointParameterf", NULL } },
                 { NULL, { NULL } },
             };
 
@@ -311,10 +317,24 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         }
     }
 
+#ifdef DEBUG
+    if (PR_GetEnv("MOZ_GL_DEBUG"))
+        sDebugMode |= DebugEnabled;
+
+    // enables extra verbose output, informing of the start and finish of every GL call.
+    // useful e.g. to record information to investigate graphics system crashes/lockups
+    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
+        sDebugMode |= DebugTrace;
+
+    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
+    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
+        sDebugMode |= DebugAbortOnError;
+#endif
+
     if (mInitialized) {
 #ifdef DEBUG
         static bool once = false;
-        if (!once) {
+        if (DebugMode() && !once) {
             const char *vendors[VendorOther] = {
                 "Intel",
                 "NVIDIA",
@@ -447,6 +467,20 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 mSymbols.fGetSynciv = nsnull;
             }
         }
+
+        if (IsExtensionSupported(OES_EGL_image)) {
+            SymLoadStruct imageSymbols[] = {
+                { (PRFuncPtr*) &mSymbols.fImageTargetTexture2D, { "EGLImageTargetTexture2DOES", nsnull } },
+                { nsnull, { nsnull } },
+            };
+
+            if (!LoadSymbols(&imageSymbols[0], trygl, prefix)) {
+                NS_ERROR("GL supports OES_EGL_image without supplying its functions.");
+
+                MarkExtensionUnsupported(OES_EGL_image);
+                mSymbols.fImageTargetTexture2D = nsnull;
+            }
+        }
        
         // Load developer symbols, don't fail if we can't find them.
         SymLoadStruct auxSymbols[] = {
@@ -486,20 +520,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         UpdateActualFormat();
     }
 
-#ifdef DEBUG
-    if (PR_GetEnv("MOZ_GL_DEBUG"))
-        sDebugMode |= DebugEnabled;
-
-    // enables extra verbose output, informing of the start and finish of every GL call.
-    // useful e.g. to record information to investigate graphics system crashes/lockups
-    if (PR_GetEnv("MOZ_GL_DEBUG_VERBOSE"))
-        sDebugMode |= DebugTrace;
-
-    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
-    if (PR_GetEnv("MOZ_GL_DEBUG_ABORT_ON_ERROR"))
-        sDebugMode |= DebugAbortOnError;
-#endif
-
     if (mInitialized)
         reporter.SetSuccessful();
     else {
@@ -515,50 +535,25 @@ void
 GLContext::InitExtensions()
 {
     MakeCurrent();
-    const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
+    const char* extensions = (const char*)fGetString(LOCAL_GL_EXTENSIONS);
     if (!extensions)
         return;
 
-    char *exts = strdup((char *)extensions);
-
 #ifdef DEBUG
-    static bool once = false;
+    // If DEBUG, then be verbose the first time we're run.
+    static bool firstVerboseRun = true;
 #else
-    const bool once = true;
+    // Non-DEBUG, so never spew.
+    const bool firstVerboseRun = false;
 #endif
 
-    if (!once) {
-        printf_stderr("GL extensions: %s\n", exts);
-    }
-
-    char *s = exts;
-    bool done = false;
-    while (!done) {
-        char *space = strchr(s, ' ');
-        if (space) {
-            *space = '\0';
-        } else {
-            done = true;
-        }
-
-        for (int i = 0; sExtensionNames[i]; ++i) {
-            if (strcmp(s, sExtensionNames[i]) == 0) {
-                if (!once) {
-                    printf_stderr("Found extension %s\n", s);
-                }
-                mAvailableExtensions[i] = 1;
-            }
-        }
-
-        s = space+1;
-    }
-
-    free(exts);
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstVerboseRun);
 
 #ifdef DEBUG
-    once = true;
+    firstVerboseRun = false;
 #endif
 }
+
 
 // Take texture data in a given buffer and copy it into a larger buffer,
 // padding out the edge pixels for filtering if necessary
@@ -1284,7 +1279,12 @@ GLContext::ChooseGLFormats(ContextFormat& aCF)
     GLFormats formats;
 
     if (aCF.alpha) {
-        formats.texColor = LOCAL_GL_RGBA;
+        if (mIsGLES2 && IsExtensionSupported(EXT_texture_format_BGRA8888)) {
+            formats.texColor = LOCAL_GL_BGRA;
+        } else {
+            formats.texColor = LOCAL_GL_RGBA;
+        }
+
         if (mIsGLES2 && !IsExtensionSupported(OES_rgb8_rgba8)) {
             formats.rbColor = LOCAL_GL_RGBA4;
             aCF.red = aCF.green = aCF.blue = aCF.alpha = 4;
@@ -1505,7 +1505,9 @@ GLContext::AssembleOffscreenFBOs(const GLuint colorMSRB,
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("DrawFBO: Incomplete");
   #ifdef DEBUG
-        printf_stderr("Framebuffer status: %X\n", status);
+        if (DebugMode()) {
+            printf_stderr("Framebuffer status: %X\n", status);
+        }
   #endif
         isComplete = false;
     }
@@ -1515,7 +1517,9 @@ GLContext::AssembleOffscreenFBOs(const GLuint colorMSRB,
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         NS_WARNING("ReadFBO: Incomplete");
   #ifdef DEBUG
-        printf_stderr("Framebuffer status: %X\n", status);
+        if (DebugMode()) {
+            printf_stderr("Framebuffer status: %X\n", status);
+        }
   #endif
         isComplete = false;
     }
@@ -1768,7 +1772,7 @@ already_AddRefed<gfxImageSurface>
 GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader)
 {
     MakeCurrent();
-    fFinish();
+    GuaranteeResolve();
     fActiveTexture(LOCAL_GL_TEXTURE0);
     fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
 
@@ -2260,7 +2264,6 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
     }
 
     GLenum format;
-    GLenum internalformat;
     GLenum type;
     PRInt32 pixelSize = gfxASurface::BytePerPixelFromFormat(imageSurface->Format());
     ShaderProgramType shader;
@@ -2298,8 +2301,6 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
 
     PRInt32 stride = imageSurface->Stride();
 
-    internalformat = mIsGLES2 ? format : LOCAL_GL_RGBA;
-
     nsIntRegionRectIterator iter(paintRegion);
     const nsIntRect *iterRect;
 
@@ -2331,7 +2332,7 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
         } else {
             TexImage2D(LOCAL_GL_TEXTURE_2D,
                        0,
-                       internalformat,
+                       format,
                        iterRect->width,
                        iterRect->height,
                        stride,
@@ -2368,7 +2369,7 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
 {
     if (mIsGLES2) {
 
-        NS_ASSERTION(format == internalformat,
+        NS_ASSERTION(format == (GLenum)internalformat,
                     "format and internalformat not the same for glTexImage2D on GLES2");
 
         if (!CanUploadNonPowerOfTwo()
@@ -2949,11 +2950,9 @@ RemoveNamesFromArray(GLContext *aOrigin, GLsizei aCount, GLuint *aNames, nsTArra
         if (name == 0)
             continue;
 
-        bool found = false;
         for (PRUint32 i = 0; i < aArray.Length(); ++i) {
             if (aArray[i].name == name) {
                 aArray.RemoveElementAt(i);
-                found = true;
                 break;
             }
         }
@@ -3038,19 +3037,21 @@ ReportArrayContents(const nsTArray<GLContext::NamedResource>& aArray)
 void
 GLContext::ReportOutstandingNames()
 {
-    printf_stderr("== GLContext %p ==\n", this);
-    printf_stderr("Outstanding Textures:\n");
-    ReportArrayContents(mTrackedTextures);
-    printf_stderr("Outstanding Buffers:\n");
-    ReportArrayContents(mTrackedBuffers);
-    printf_stderr("Outstanding Programs:\n");
-    ReportArrayContents(mTrackedPrograms);
-    printf_stderr("Outstanding Shaders:\n");
-    ReportArrayContents(mTrackedShaders);
-    printf_stderr("Outstanding Framebuffers:\n");
-    ReportArrayContents(mTrackedFramebuffers);
-    printf_stderr("Outstanding Renderbuffers:\n");
-    ReportArrayContents(mTrackedRenderbuffers);
+    if (DebugMode()) {
+        printf_stderr("== GLContext %p ==\n", this);
+        printf_stderr("Outstanding Textures:\n");
+        ReportArrayContents(mTrackedTextures);
+        printf_stderr("Outstanding Buffers:\n");
+        ReportArrayContents(mTrackedBuffers);
+        printf_stderr("Outstanding Programs:\n");
+        ReportArrayContents(mTrackedPrograms);
+        printf_stderr("Outstanding Shaders:\n");
+        ReportArrayContents(mTrackedShaders);
+        printf_stderr("Outstanding Framebuffers:\n");
+        ReportArrayContents(mTrackedFramebuffers);
+        printf_stderr("Outstanding Renderbuffers:\n");
+        ReportArrayContents(mTrackedRenderbuffers);
+    }
 }
 
 #endif /* DEBUG */

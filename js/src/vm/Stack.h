@@ -8,13 +8,12 @@
 #ifndef Stack_h__
 #define Stack_h__
 
+#include "jsapi.h"
 #include "jsfun.h"
 #include "jsautooplen.h"
 
 struct JSContext;
 struct JSCompartment;
-
-extern void js_DumpStackFrame(JSContext *, js::StackFrame *);
 
 namespace js {
 
@@ -36,9 +35,10 @@ class ScriptFrameIter;
 class AllFramesIter;
 
 class ArgumentsObject;
-class ScopeCoordinate;
 class ScopeObject;
 class StaticBlockObject;
+
+struct ScopeCoordinate;
 
 #ifdef JS_METHODJIT
 namespace mjit {
@@ -54,10 +54,6 @@ typedef mjit::CallSite InlinedSite;
 struct InlinedSite {};
 #endif
 typedef size_t FrameRejoinState;
-
-namespace detail {
-    struct OOMCheck;
-}
 
 /*****************************************************************************/
 
@@ -114,7 +110,7 @@ namespace detail {
  *
  * A call to a native (C++) function does not push a frame. Instead, an array
  * of values is passed to the native. The layout of this array is abstracted by
- * js::CallArgs. With respect to the StackSegment layout above, the args to a
+ * JS::CallArgs. With respect to the StackSegment layout above, the args to a
  * native call are inserted anywhere there can be values. A sample memory layout
  * looks like:
  *
@@ -160,98 +156,6 @@ namespace detail {
 
 /*****************************************************************************/
 
-class CallReceiver
-{
-  protected:
-#ifdef DEBUG
-    mutable bool usedRval_;
-    void setUsedRval() const { usedRval_ = true; }
-    void clearUsedRval() const { usedRval_ = false; }
-#else
-    void setUsedRval() const {}
-    void clearUsedRval() const {}
-#endif
-    Value *argv_;
-  public:
-    friend CallReceiver CallReceiverFromVp(Value *);
-    friend CallReceiver CallReceiverFromArgv(Value *);
-    Value *base() const { return argv_ - 2; }
-    JSObject &callee() const { JS_ASSERT(!usedRval_); return argv_[-2].toObject(); }
-    Value &calleev() const { JS_ASSERT(!usedRval_); return argv_[-2]; }
-    Value &thisv() const { return argv_[-1]; }
-
-    Value &rval() const {
-        setUsedRval();
-        return argv_[-2];
-    }
-
-    Value *spAfterCall() const {
-        setUsedRval();
-        return argv_ - 1;
-    }
-
-    void setCallee(Value calleev) {
-        clearUsedRval();
-        this->calleev() = calleev;
-    }
-};
-
-JS_ALWAYS_INLINE CallReceiver
-CallReceiverFromArgv(Value *argv)
-{
-    CallReceiver receiver;
-    receiver.clearUsedRval();
-    receiver.argv_ = argv;
-    return receiver;
-}
-
-JS_ALWAYS_INLINE CallReceiver
-CallReceiverFromVp(Value *vp)
-{
-    return CallReceiverFromArgv(vp + 2);
-}
-
-/*****************************************************************************/
-
-class CallArgs : public CallReceiver
-{
-  protected:
-    unsigned argc_;
-  public:
-    friend CallArgs CallArgsFromVp(unsigned, Value *);
-    friend CallArgs CallArgsFromArgv(unsigned, Value *);
-    friend CallArgs CallArgsFromSp(unsigned, Value *);
-    Value &operator[](unsigned i) const { JS_ASSERT(i < argc_); return argv_[i]; }
-    Value *array() const { return argv_; }
-    unsigned length() const { return argc_; }
-    Value *end() const { return argv_ + argc_; }
-    bool hasDefined(unsigned i) const { return i < argc_ && !argv_[i].isUndefined(); }
-};
-
-JS_ALWAYS_INLINE CallArgs
-CallArgsFromArgv(unsigned argc, Value *argv)
-{
-    CallArgs args;
-    args.clearUsedRval();
-    args.argv_ = argv;
-    args.argc_ = argc;
-    return args;
-}
-
-JS_ALWAYS_INLINE CallArgs
-CallArgsFromVp(unsigned argc, Value *vp)
-{
-    return CallArgsFromArgv(argc, vp + 2);
-}
-
-JS_ALWAYS_INLINE CallArgs
-CallArgsFromSp(unsigned argc, Value *sp)
-{
-    return CallArgsFromArgv(argc, sp - argc);
-}
-
-/*****************************************************************************/
-
 /*
  * For calls to natives, the InvokeArgsGuard object provides a record of the
  * call for the debugger's callstack. For this to work, the InvokeArgsGuard
@@ -259,7 +163,7 @@ CallArgsFromSp(unsigned argc, Value *sp)
  * InvokeArgsGuard can be pushed long before and popped long after the actual
  * call, during which time many stack-observing things can happen).
  */
-class CallArgsList : public CallArgs
+class CallArgsList : public JS::CallArgs
 {
     friend class StackSegment;
     CallArgsList *prev_;
@@ -356,7 +260,10 @@ class StackFrame
         LOWERED_CALL_APPLY   = 0x200000,  /* Pushed by a lowered call/apply */
 
         /* Debugger state */
-        PREV_UP_TO_DATE    =   0x400000   /* see DebugScopes::updateLiveScopes */
+        PREV_UP_TO_DATE    =   0x400000,  /* see DebugScopes::updateLiveScopes */
+
+        /* Used in tracking calls and profiling (see vm/SPSProfiler.cpp) */
+        HAS_PUSHED_SPS_FRAME = 0x800000  /* SPS was notified of enty */
     };
 
   private:
@@ -410,12 +317,10 @@ class StackFrame
     friend class CallObject;
     friend class ClonedBlockObject;
     friend class ArgumentsObject;
-    friend void ::js_DumpStackFrame(JSContext *, StackFrame *);
-    friend void ::js_ReportIsNotFunction(JSContext *, const js::Value *, unsigned);
 #ifdef JS_METHODJIT
     friend class mjit::CallCompiler;
     friend class mjit::GetPropCompiler;
-    friend class mjit::ic::GetElementIC;
+    friend struct mjit::ic::GetElementIC;
 #endif
 
     /*
@@ -590,7 +495,7 @@ class StackFrame
 
     bool hasArgs() const { return isNonEvalFunctionFrame(); }
     inline Value &unaliasedFormal(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
-    inline Value &unaliasedActual(unsigned i);
+    inline Value &unaliasedActual(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
     template <class Op> inline void forEachUnaliasedActual(Op op);
 
     inline unsigned numFormalArgs() const;
@@ -705,26 +610,24 @@ class StackFrame
     }
 
     /*
-     * Get the frame's current bytecode, assuming |this| is in |cx|. next is
-     * frame whose prev == this, NULL if not known or if this == cx->fp().
-     * If the frame is inside an inline call made within the pc, the pc will
-     * be that of the outermost call and the state of any inlined frame(s) is
-     * returned through pinlined.
-     *
-     * Beware, as the name implies, pcQuadratic can lead to quadratic behavior
-     * in loops such as:
+     * Get the frame's current bytecode, assuming 'this' is in 'stack'. Beware,
+     * as the name implies, pcQuadratic can lead to quadratic behavior in loops
+     * such as:
      *
      *   for ( ...; fp; fp = fp->prev())
      *     ... fp->pcQuadratic(cx->stack);
      *
-     * Using next can avoid this, but in most cases prefer ScriptFrameIter;
-     * it is amortized O(1).
+     * This can be avoided in three ways:
+     *  - use ScriptFrameIter, it has O(1) iteration
+     *  - if you know the next frame (i.e., next s.t. next->prev == fp
+     *  - pcQuadratic will only iterate maxDepth frames (before giving up and
+     *    returning fp->script->code), making it O(1), but incorrect.
      */
 
-    jsbytecode *pcQuadratic(const ContextStack &stack, StackFrame *next = NULL,
-                            InlinedSite **pinlined = NULL);
+    jsbytecode *pcQuadratic(const ContextStack &stack, size_t maxDepth = SIZE_MAX);
 
-    jsbytecode *prevpc(InlinedSite **pinlined) {
+    /* Return the previous frame's pc. Unlike pcQuadratic, this is O(1). */
+    jsbytecode *prevpc(InlinedSite **pinlined = NULL) {
         if (flags_ & HAS_PREVPC) {
             if (pinlined)
                 *pinlined = prevInline_;
@@ -895,6 +798,14 @@ class StackFrame
         flags_ |= HAS_HOOK_DATA;
     }
 
+    bool hasPushedSPSFrame() {
+        return !!(flags_ & HAS_PUSHED_SPS_FRAME);
+    }
+
+    void setPushedSPSFrame() {
+        flags_ |= HAS_PUSHED_SPS_FRAME;
+    }
+
     /* Return value */
 
     bool hasReturnValue() const {
@@ -977,9 +888,9 @@ class StackFrame
         DoPostBarrier = true,
         NoPostBarrier = false
     };
-    template <class T, class U, TriggerPostBarriers doPostBarrier>
-    void copyFrameAndValues(JSContext *cx, StackFrame *fp, T *vp,
-                            StackFrame *otherfp, U *othervp, Value *othersp);
+    template <TriggerPostBarriers doPostBarrier>
+    void copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
+                            const Value *othervp, Value *othersp);
 
     JSGenerator *maybeSuspendedGenerator(JSRuntime *rt);
 
@@ -1011,9 +922,22 @@ class StackFrame
         return !!(flags_ & CONSTRUCTING);
     }
 
+    /*
+     * These two queries should not be used in general: the presence/absence of
+     * the call/args object is determined by the static(ish) properties of the
+     * JSFunction/JSScript. These queries should only be performed when probing
+     * a stack frame that may be in the middle of the prologue (during which
+     * time the call/args object are created).
+     */
+
     bool hasCallObj() const {
         JS_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
         return flags_ & HAS_CALL_OBJ;
+    }
+
+    bool hasArgsObj() const {
+        JS_ASSERT(script()->needsArgsObj());
+        return flags_ & HAS_ARGS_OBJ;
     }
 
     /*
@@ -1127,12 +1051,6 @@ class StackFrame
 };
 
 static const size_t VALUES_PER_STACK_FRAME = sizeof(StackFrame) / sizeof(Value);
-
-static inline unsigned
-ToReportFlags(InitialFrameFlags initial)
-{
-    return unsigned(initial & StackFrame::CONSTRUCTING);
-}
 
 static inline StackFrame::Flags
 ToFrameFlags(InitialFrameFlags initial)
@@ -1360,7 +1278,7 @@ class StackSegment
     bool contains(const FrameRegs *regs) const;
     bool contains(const CallArgsList *call) const;
 
-    StackFrame *computeNextFrame(const StackFrame *fp) const;
+    StackFrame *computeNextFrame(const StackFrame *fp, size_t maxDepth) const;
 
     Value *end() const;
 
@@ -1576,6 +1494,14 @@ class ContextStack
     inline bool hasfp() const { return seg_ && seg_->maybeRegs(); }
 
     /*
+     * Return the spindex value for 'vp' which can be used to call
+     * DecompileValueGenerator. (The spindex is either the negative offset of
+     * 'vp' from 'sp', if 'vp' points to a value in the innermost scripted
+     * stack frame, otherwise it is JSDVG_SEARCH_STACK.)
+     */
+    ptrdiff_t spIndexOf(const Value *vp);
+
+    /*
      * Return the most recent script activation's registers with the same
      * caveat as hasfp regarding JS_SaveFrameChain.
      */
@@ -1648,7 +1574,6 @@ class ContextStack
 
     /* Get the topmost script and optional pc on the stack. */
     inline JSScript *currentScript(jsbytecode **pc = NULL) const;
-    inline JSScript *currentScriptWithDiagnostics(jsbytecode **pc = NULL) const;
 
     /* Get the scope chain for the topmost scripted call on the stack. */
     inline HandleObject currentScriptedScopeChain() const;
@@ -1765,14 +1690,13 @@ class StackIter
   private:
     SavedOption  savedOption_;
 
-    enum State { DONE, SCRIPTED, NATIVE, IMPLICIT_NATIVE };
+    enum State { DONE, SCRIPTED, NATIVE };
     State        state_;
 
     StackFrame   *fp_;
     CallArgsList *calls_;
 
     StackSegment *seg_;
-    Value        *sp_;
     jsbytecode   *pc_;
     JSScript     *script_;
     CallArgs     args_;
@@ -1795,13 +1719,9 @@ class StackIter
     bool operator!=(const StackIter &rhs) const { return !(*this == rhs); }
 
     bool isScript() const { JS_ASSERT(!done()); return state_ == SCRIPTED; }
-    bool isImplicitNativeCall() const {
-        JS_ASSERT(!done());
-        return state_ == IMPLICIT_NATIVE;
-    }
     bool isNativeCall() const {
         JS_ASSERT(!done());
-        return state_ == NATIVE || state_ == IMPLICIT_NATIVE;
+        return state_ == NATIVE;
     }
 
     bool isFunctionFrame() const;
@@ -1810,7 +1730,6 @@ class StackIter
     bool isConstructing() const;
 
     StackFrame *fp() const { JS_ASSERT(isScript()); return fp_; }
-    Value      *sp() const { JS_ASSERT(isScript()); return sp_; }
     jsbytecode *pc() const { JS_ASSERT(isScript()); return pc_; }
     JSScript   *script() const { JS_ASSERT(isScript()); return script_; }
     JSFunction *callee() const;

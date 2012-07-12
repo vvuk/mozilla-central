@@ -53,7 +53,7 @@
 #include "nsHTMLParts.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
-#include "nsTypedSelection.h"
+#include "mozilla/Selection.h"
 #include "nsLayoutCID.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMRange.h"
@@ -229,7 +229,7 @@ struct RangePaintInfo {
 
 // ----------------------------------------------------------------------
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 // Set the environment variable GECKO_VERIFY_REFLOW_FLAGS to one or
 // more of the following flags (comma separated) for handy debug
 // output.
@@ -511,7 +511,7 @@ bool PresShell::sDisableNonTestMouseEvents = false;
 PRLogModuleInfo* PresShell::gLog;
 #endif
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 static void
 VerifyStyleTree(nsPresContext* aPresContext, nsFrameManager* aFrameManager)
 {
@@ -530,7 +530,7 @@ static bool gVerifyReflowEnabled;
 bool
 nsIPresShell::GetVerifyReflowEnable()
 {
-#ifdef NS_DEBUG
+#ifdef DEBUG
   static bool firstTime = true;
   if (firstTime) {
     firstTime = false;
@@ -872,6 +872,9 @@ PresShell::Init(nsIDocument* aDocument,
   // Get our activeness from the docShell.
   QueryIsActive();
 
+  // Setup our font inflation preferences.
+  SetupFontInflation();
+
   return NS_OK;
 }
 
@@ -1140,7 +1143,7 @@ nsresult PresShell::ClearPreferenceStyleRules(void)
     if (mStyleSet) {
       // remove the sheet from the styleset: 
       // - note that we have to check for success by comparing the count before and after...
-#ifdef NS_DEBUG
+#ifdef DEBUG
       PRInt32 numBefore = mStyleSet->SheetCount(nsStyleSet::eUserSheet);
       NS_ASSERTION(numBefore > 0, "no user stylesheets in styleset, but we have one!");
 #endif
@@ -1590,7 +1593,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
   mDidInitialReflow = true;
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
   if (VERIFY_REFLOW_NOISY_RC & gVerifyReflowFlags) {
     if (mDocument) {
       nsIURI *uri = mDocument->GetDocumentURI();
@@ -1943,7 +1946,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
       mCurrentEventFrame = nsnull;
     }
 
-  #ifdef NS_DEBUG
+  #ifdef DEBUG
     if (aFrame == mDrawEventTargetFrame) {
       mDrawEventTargetFrame = nsnull;
     }
@@ -2513,6 +2516,8 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
     if (aIntrinsicDirty == eStyleChange) {
       // Mark all descendants dirty (using an nsTArray stack rather than
       // recursion).
+      // Note that nsHTMLReflowState::InitResizeFlags has some similar
+      // code; see comments there for how and why it differs.
       nsAutoTArray<nsIFrame*, 32> stack;
       stack.AppendElement(subtreeRoot);
 
@@ -3093,7 +3098,9 @@ static void ScrollToShowRect(nsIScrollableFrame*      aScrollFrame,
                              PRUint32                 aFlags)
 {
   nsPoint scrollPt = aScrollFrame->GetScrollPosition();
-  nsRect visibleRect(scrollPt, aScrollFrame->GetScrollPortRect().Size());
+  nsRect visibleRect(scrollPt,
+                     aScrollFrame->GetScrollPositionClampingScrollPortSize());
+
   nsSize lineSize;
   // Don't call GetLineScrollAmount unless we actually need it. Not only
   // does this save time, but it's not safe to call GetLineScrollAmount
@@ -4073,9 +4080,10 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
     oldNextSibling = nsnull;
   }
   
-  if (aContainer)
+  if (aContainer && aContainer->IsElement()) {
     mFrameConstructor->RestyleForRemove(aContainer->AsElement(), aChild,
                                         oldNextSibling);
+  }
 
   bool didReconstruct;
   mFrameConstructor->ContentRemoved(aContainer, aChild, oldNextSibling,
@@ -6015,7 +6023,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
       rv = HandleEventInternal(aEvent, aEventStatus);
     }
   
-#ifdef NS_DEBUG
+#ifdef DEBUG
     ShowEventTargetDebug();
 #endif
     PopCurrentEventInfo();
@@ -6067,7 +6075,7 @@ PresShell::GetTouchEventTargetDocument()
 }
 #endif
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 void
 PresShell::ShowEventTargetDebug()
 {
@@ -6131,7 +6139,7 @@ PresShell::HandlePositionedEvent(nsIFrame*      aTargetFrame,
     rv = HandleEventInternal(aEvent, aEventStatus);
   }
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
   ShowEventTargetDebug();
 #endif
   PopCurrentEventInfo();
@@ -6380,7 +6388,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
     rv = manager->PreHandleEvent(mPresContext, aEvent, mCurrentEventFrame, aStatus);
 
     // 2. Give event to the DOM for third party and JS use.
-    if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
+    if (NS_SUCCEEDED(rv)) {
       bool wasHandlingKeyBoardEvent =
         nsContentUtils::IsHandlingKeyBoardEvent();
       if (aEvent->eventStructType == NS_KEY_EVENT) {
@@ -6401,8 +6409,10 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         }
         else {
           nsCOMPtr<nsIContent> targetContent;
-          rv = mCurrentEventFrame->GetContentForEvent(aEvent,
-                                                      getter_AddRefs(targetContent));
+          if (mCurrentEventFrame) {
+            rv = mCurrentEventFrame->GetContentForEvent(aEvent,
+                                                        getter_AddRefs(targetContent));
+          }
           if (NS_SUCCEEDED(rv) && targetContent) {
             nsEventDispatcher::Dispatch(targetContent, mPresContext, aEvent,
                                         nsnull, aStatus, &eventCB);
@@ -7744,7 +7754,7 @@ nsIPresShell::RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
 
 // Start of DEBUG only code
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 #include "nsIURL.h"
 #include "nsILinkHandler.h"
 
@@ -8036,7 +8046,7 @@ DumpToPNG(nsIPresShell* shell, nsAString& name) {
                         imgIEncoder::INPUT_FORMAT_HOSTARGB, EmptyString());
 
   // XXX not sure if this is the right way to write to a file
-  nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+  nsCOMPtr<nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
   NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
   rv = file->InitWithPath(name);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -8918,13 +8928,15 @@ PresShell::GetRootPresShell()
 
 void
 PresShell::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                               size_t *aArenasSize,
+                               nsArenaMemoryStats *aArenaObjectsSize,
+                               size_t *aPresShellSize,
                                size_t *aStyleSetsSize,
                                size_t *aTextRunsSize,
-                               size_t *aPresContextSize) const
+                               size_t *aPresContextSize)
 {
-  *aArenasSize = aMallocSizeOf(this);
-  *aArenasSize += mFrameArena.SizeOfExcludingThis(aMallocSizeOf);
+  mFrameArena.SizeOfExcludingThis(aMallocSizeOf, aArenaObjectsSize);
+  *aPresShellSize = aMallocSizeOf(this);
+  *aPresShellSize += aArenaObjectsSize->mOther;
 
   *aStyleSetsSize = StyleSet()->SizeOfIncludingThis(aMallocSizeOf);
 
@@ -8953,7 +8965,29 @@ PresShell::SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const
 void
 nsIPresShell::SetScrollPositionClampingScrollPortSize(nscoord aWidth, nscoord aHeight)
 {
-  mScrollPositionClampingScrollPortSizeSet = true;
-  mScrollPositionClampingScrollPortSize.width = aWidth;
-  mScrollPositionClampingScrollPortSize.height = aHeight;
+  if (!mScrollPositionClampingScrollPortSizeSet ||
+      mScrollPositionClampingScrollPortSize.width != aWidth ||
+      mScrollPositionClampingScrollPortSize.height != aHeight) {
+    mScrollPositionClampingScrollPortSizeSet = true;
+    mScrollPositionClampingScrollPortSize.width = aWidth;
+    mScrollPositionClampingScrollPortSize.height = aHeight;
+
+    // Reflow fixed position children.
+    nsIFrame* rootFrame = mFrameConstructor->GetRootFrame();
+    if (rootFrame) {
+      const nsFrameList& childList = rootFrame->GetChildList(nsIFrame::kFixedList);
+      for (nsIFrame* child = childList.FirstChild(); child;
+           child = child->GetNextSibling()) {
+        FrameNeedsReflow(child, eResize, NS_FRAME_IS_DIRTY);
+      }
+    }
+  }
+}
+
+void
+PresShell::SetupFontInflation()
+{
+  mFontSizeInflationEmPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
+  mFontSizeInflationMinTwips = nsLayoutUtils::FontSizeInflationMinTwips();
+  mFontSizeInflationLineThreshold = nsLayoutUtils::FontSizeInflationLineThreshold();
 }

@@ -60,7 +60,6 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     private final GestureDetector mGestureDetector;
     private final SimpleScaleGestureDetector mScaleGestureDetector;
     private final PanZoomController mPanZoomController;
-    private final GestureDetector.OnDoubleTapListener mDoubleTapListener;
 
     // the queue of events that we are holding on to while waiting for a preventDefault
     // notification
@@ -135,8 +134,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
         mListenerTimeoutProcessor = new ListenerTimeoutProcessor();
         mDispatchEvents = true;
 
-        mDoubleTapListener = controller.getDoubleTapListener();
-        setDoubleTapEnabled(true);
+        mGestureDetector.setOnDoubleTapListener(controller.getDoubleTapListener());
 
         Tabs.registerOnTabsChangedListener(this);
     }
@@ -147,6 +145,12 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
         // and be done with it, no extra work needed.
         if (mOnTouchListener == null) {
             dispatchEvent(event);
+            return true;
+        }
+
+        // if this is a hover event just notify gecko, we don't have any interest in the java layer.
+        if (isHoverEvent(event)) {
+            mOnTouchListener.onTouch(mView, event);
             return true;
         }
 
@@ -163,18 +167,20 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
                 // other blocks waiting in the queue, then we should let the pan/zoom controller
                 // know we are waiting for the touch listeners to run
                 if (mEventQueue.isEmpty()) {
-                    mPanZoomController.waitingForTouchListeners(event);
+                    mPanZoomController.startingNewEventBlock(event, true);
                 }
-                // if we're holding the events in the queue, set the timeout so that
-                // we dispatch these events if we don't get a default-prevented notification
-                mView.postDelayed(mListenerTimeoutProcessor, EVENT_LISTENER_TIMEOUT);
             } else {
-                // if we're not holding these events, then we still need to pretend like
-                // we did and had a ListenerTimeoutProcessor fire so that when we get
-                // the default-prevented notification for this block, it doesn't accidentally
-                // act upon some other block
-                mProcessingBalance++;
+                // we're not going to be holding this block of events in the queue, but we need
+                // a marker of some sort so that the processEventBlock loop deals with the blocks
+                // in the right order as notifications come in. we use a single null event in
+                // the queue as a placeholder for a block of events that has already been dispatched.
+                mEventQueue.add(null);
+                mPanZoomController.startingNewEventBlock(event, false);
             }
+
+            // set the timeout so that we dispatch these events and update mProcessingBalance
+            // if we don't get a default-prevented notification
+            mView.postDelayed(mListenerTimeoutProcessor, EVENT_LISTENER_TIMEOUT);
         }
 
         // if we need to hold the events, add it to the queue. if we need to dispatch
@@ -217,11 +223,6 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     }
 
     /* This function MUST be called on the UI thread. */
-    public void setDoubleTapEnabled(boolean aValue) {
-        mGestureDetector.setOnDoubleTapListener(aValue ? mDoubleTapListener : null);
-    }
-
-    /* This function MUST be called on the UI thread. */
     public void setWaitForTouchListeners(boolean aValue) {
         mWaitForTouchListeners = aValue;
     }
@@ -229,6 +230,11 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     /* This function MUST be called on the UI thread. */
     public void setOnTouchListener(OnTouchListener onTouchListener) {
         mOnTouchListener = onTouchListener;
+    }
+
+    private boolean isHoverEvent(MotionEvent event) {
+        int action = (event.getAction() & MotionEvent.ACTION_MASK);
+        return (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE || action == MotionEvent.ACTION_HOVER_EXIT);
     }
 
     private boolean isDownEvent(MotionEvent event) {
@@ -246,16 +252,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
      */
     private void dispatchEvent(MotionEvent event) {
         if (mGestureDetector.onTouchEvent(event)) {
-            // An up/cancel event should get passed to both detectors, in
-            // case it comes from a pointer the scale detector is tracking.
-            switch (event.getAction() & MotionEvent.ACTION_MASK) {
-                case MotionEvent.ACTION_POINTER_UP:
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    break;
-                default:
-                    return;
-            }
+            return;
         }
         mScaleGestureDetector.onTouchEvent(event);
         if (mScaleGestureDetector.isInProgress()) {
@@ -276,6 +273,11 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
             dispatchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0, 0, 0));
         }
 
+        if (mEventQueue.isEmpty()) {
+            Log.e(LOGTAG, "Unexpected empty event queue in processEventBlock!", new Exception());
+            return;
+        }
+
         // the odd loop condition is because the first event in the queue will
         // always be a DOWN or POINTER_DOWN event, and we want to process all
         // the events in the queue starting at that one, up to but not including
@@ -283,15 +285,19 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
         MotionEvent event = mEventQueue.poll();
         while (true) {
-            // for each event we process, only dispatch it if the block hasn't been
-            // default-prevented.
-            if (allowDefaultAction) {
-                dispatchEvent(event);
-            } else if (touchFinished(event)) {
-                mPanZoomController.preventedTouchFinished();
+            // event being null here is valid and represents a block of events
+            // that has already been dispatched.
+
+            if (event != null) {
+                // for each event we process, only dispatch it if the block hasn't been
+                // default-prevented.
+                if (allowDefaultAction) {
+                    dispatchEvent(event);
+                } else if (touchFinished(event)) {
+                    mPanZoomController.preventedTouchFinished();
+                }
             }
-            event = mEventQueue.peek();
-            if (event == null) {
+            if (mEventQueue.isEmpty()) {
                 // we have processed the backlog of events, and are all caught up.
                 // now we can set clear the hold flag and set the dispatch flag so
                 // that the handleEvent() function can do the right thing for all
@@ -301,10 +307,13 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
                 mDispatchEvents = allowDefaultAction;
                 break;
             }
-            if (isDownEvent(event)) {
+            event = mEventQueue.peek();
+            if (event == null || isDownEvent(event)) {
                 // we have finished processing the block we were interested in.
                 // now we wait for the next call to processEventBlock
-                mPanZoomController.waitingForTouchListeners(event);
+                if (event != null) {
+                    mPanZoomController.startingNewEventBlock(event, true);
+                }
                 break;
             }
             // pop the event we peeked above, as it is still part of the block and
@@ -329,7 +338,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
     // Tabs.OnTabsChangedListener implementation
 
-    public void onTabChanged(Tab tab, Tabs.TabEvents msg) {
+    public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         if ((Tabs.getInstance().isSelectedTab(tab) && msg == Tabs.TabEvents.STOP) || msg == Tabs.TabEvents.SELECTED) {
             mWaitForTouchListeners = tab.getHasTouchListeners();
         }

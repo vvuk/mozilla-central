@@ -16,13 +16,16 @@
   padding: 0;
 }
 
+#scripts {
+  max-width: 350px;
+}
+
 /**
  * Lists and headers
  */
 
 .list-item {
   padding: 2px;
-  font: -moz-list;
 }
 
 .list-item.selected {
@@ -48,6 +51,7 @@
 }
 
 .dbg-stackframe-name {
+  -moz-padding-end: 4px;
   font-weight: 600;
 }
 
@@ -65,7 +69,6 @@
 
 .details {
   -moz-margin-start: 10px;
-  font: -moz-list;
 }
 
 /**
@@ -75,7 +78,6 @@
 .scope > .title {
   text-shadow: 0 1px #222;
   color: #fff;
-  font: -moz-list;
 }
 
 .scope > .title > .arrow {
@@ -101,17 +103,17 @@
   margin-top: 2px;
   border-bottom: 1px dotted #ddd;
   border-radius: 8px;
-  -moz-transition: background 1s ease-in-out;
+  transition: background 1s ease-in-out;
   background: #fff;
 }
 
 .variable[changed] {
-  -moz-transition-duration: 0.4s;
+  transition-duration: 0.4s;
   background: rgba(255, 255, 0, 0.65);
 }
 
 .variable[added] {
-  -moz-transition-duration: 0.4s;
+  transition-duration: 0.4s;
   background: rgba(0, 255, 0, 0.15);
 }
 
@@ -164,6 +166,16 @@
   height: 16px;
   background: url("chrome://browser/skin/identity-icons-https.png") no-repeat;
   opacity: 0.5;
+}
+
+#element-tooltip > label {
+  margin: 0 2px 0 2px;
+}
+
+#element-tooltip > label[non-enumerable],
+#element-tooltip > label[non-configurable],
+#element-tooltip > label[non-writable]{
+  text-decoration: line-through;
 }
 
 /**
@@ -263,10 +275,6 @@
 
 #step-out {
   list-style-image: url("chrome://browser/skin/devtools/debugger-step-out.png");
-}
-
-#step-over {
-  list-style-image: url("chrome://browser/skin/devtools/debugger-step-over.png");
 }
 
 #debugger-controls > toolbarbutton {

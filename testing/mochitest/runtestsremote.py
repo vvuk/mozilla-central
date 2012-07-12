@@ -62,12 +62,12 @@ class RemoteOptions(MochitestOptions):
 
         self.add_option("--http-port", action = "store",
                     type = "string", dest = "httpPort",
-                    help = "ip address where the remote web server is hosted at")
+                    help = "http port of the remote web server")
         defaults["httpPort"] = automation.DEFAULT_HTTP_PORT
 
         self.add_option("--ssl-port", action = "store",
                     type = "string", dest = "sslPort",
-                    help = "ip address where the remote web server is hosted at")
+                    help = "ssl port of the remote web server")
         defaults["sslPort"] = automation.DEFAULT_SSL_PORT
 
         self.add_option("--pidfile", action = "store",
@@ -421,6 +421,7 @@ def main():
         fHandle.write("profile=%s\n" % (mochitest.remoteProfile))
         fHandle.write("logfile=%s\n" % (options.remoteLogFile))
         fHandle.write("host=http://mochi.test:8888/tests\n")
+        fHandle.write("rawhost=http://%s:%s/tests\n" % (options.remoteWebServer, options.httpPort))
         fHandle.close()
         deviceRoot = dm.getDeviceRoot()
       
@@ -439,6 +440,7 @@ def main():
 
         appname = options.app
         retVal = None
+        logcat = []
         for test in robocop_tests:
             if options.testPath and options.testPath != test['name']:
                 continue
@@ -449,7 +451,9 @@ def main():
             options.browserArgs.append("org.mozilla.roboexample.test/android.test.InstrumentationTestRunner")
 
             try:
+                dm.recordLogcat()
                 retVal = mochitest.runTests(options)
+                logcat = dm.getLogcat()
                 mochitest.addLogData()
             except:
                 print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
@@ -464,10 +468,12 @@ def main():
             print "No tests run. Did you pass an invalid TEST_PATH?"
             retVal = 1
 
-        retVal = mochitest.printLog() 
+        retVal = mochitest.printLog()
     else:
       try:
+        dm.recordLogcat()
         retVal = mochitest.runTests(options)
+        logcat = dm.getLogcat()
       except:
         print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
         mochitest.stopWebServer(options)
@@ -478,6 +484,7 @@ def main():
             pass
         sys.exit(1)
 
+    print ''.join(logcat[-500:-1])
     sys.exit(retVal)
         
 if __name__ == "__main__":

@@ -16,12 +16,10 @@
 
 #include "nsIAtom.h"
 #include "nsIDOMDocument.h"
-#include "nsISelection.h"
-#include "nsRange.h"
-#include "nsTypedSelection.h"
+#include "mozilla/Selection.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIPrivateTextRange.h"
-#include "nsITransactionManager.h"
+#include "nsTransactionManager.h"
 #include "nsIComponentManager.h"
 #include "nsCOMArray.h"
 #include "nsIEditActionListener.h"
@@ -43,7 +41,7 @@ class nsIPresShell;
 class ChangeAttributeTxn;
 class CreateElementTxn;
 class InsertElementTxn;
-class DeleteElementTxn;
+class DeleteNodeTxn;
 class InsertTextTxn;
 class DeleteTextTxn;
 class SplitElementTxn;
@@ -178,6 +176,13 @@ public:
                                            nsIDOMNode ** aNewNode);
 
   /* helper routines for node/parent manipulations */
+  nsresult DeleteNode(nsINode* aNode);
+  nsresult ReplaceContainer(nsINode* inNode,
+                            mozilla::dom::Element** outNode,
+                            const nsAString& aNodeType,
+                            const nsAString* aAttribute = nsnull,
+                            const nsAString* aValue = nsnull,
+                            bool aCloneAttributes = false);
   nsresult ReplaceContainer(nsIDOMNode *inNode, 
                             nsCOMPtr<nsIDOMNode> *outNode, 
                             const nsAString &aNodeType,
@@ -187,6 +192,11 @@ public:
 
   nsresult RemoveContainer(nsINode* aNode);
   nsresult RemoveContainer(nsIDOMNode *inNode);
+  nsresult InsertContainerAbove(nsIContent* aNode,
+                                mozilla::dom::Element** aOutNode,
+                                const nsAString& aNodeType,
+                                const nsAString* aAttribute = nsnull,
+                                const nsAString* aValue = nsnull);
   nsresult InsertContainerAbove(nsIDOMNode *inNode, 
                                 nsCOMPtr<nsIDOMNode> *outNode, 
                                 const nsAString &aNodeType,
@@ -201,13 +211,14 @@ public:
       nsString& aTag          - tag you want
       nsIContent** aContent   - returned Content that was created with above namespace.
   */
-  nsresult CreateHTMLContent(const nsAString& aTag, nsIContent** aContent);
+  nsresult CreateHTMLContent(const nsAString& aTag,
+                             mozilla::dom::Element** aContent);
 
   // IME event handlers
   virtual nsresult BeginIMEComposition();
   virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
                                         nsIPrivateTextRangeList *aTextRange)=0;
-  nsresult EndIMEComposition();
+  void EndIMEComposition();
 
   void SwitchTextDirectionTo(PRUint32 aDirection);
 
@@ -241,24 +252,23 @@ protected:
                                        PRInt32      aOffset,
                                        InsertElementTxn ** aTxn);
 
-  /** create a transaction for removing aElement from its parent.
+  /** create a transaction for removing aNode from its parent.
     */
-  NS_IMETHOD CreateTxnForDeleteElement(nsIDOMNode * aElement,
-                                       DeleteElementTxn ** aTxn);
+  nsresult CreateTxnForDeleteNode(nsINode* aNode, DeleteNodeTxn** aTxn);
 
 
-  NS_IMETHOD CreateTxnForDeleteSelection(EDirection aAction,
-                                         EditAggregateTxn ** aTxn,
-                                         nsIDOMNode ** aNode,
-                                         PRInt32 *aOffset,
-                                         PRInt32 *aLength);
+  nsresult CreateTxnForDeleteSelection(EDirection aAction,
+                                       EditAggregateTxn** aTxn,
+                                       nsINode** aNode,
+                                       PRInt32* aOffset,
+                                       PRInt32* aLength);
 
-  NS_IMETHOD CreateTxnForDeleteInsertionPoint(nsIDOMRange         *aRange, 
-                                              EDirection aAction, 
-                                              EditAggregateTxn *aTxn,
-                                              nsIDOMNode ** aNode,
-                                              PRInt32 *aOffset,
-                                              PRInt32 *aLength);
+  nsresult CreateTxnForDeleteInsertionPoint(nsRange* aRange, 
+                                            EDirection aAction, 
+                                            EditAggregateTxn* aTxn,
+                                            nsINode** aNode,
+                                            PRInt32* aOffset,
+                                            PRInt32* aLength);
 
 
   /** create a transaction for inserting aStringToInsert into aTextNode
@@ -286,15 +296,15 @@ protected:
 
 //  NS_IMETHOD DeleteRange(nsIDOMRange *aRange);
 
-  NS_IMETHOD CreateTxnForDeleteText(nsIDOMCharacterData *aElement,
-                                    PRUint32             aOffset,
-                                    PRUint32             aLength,
-                                    DeleteTextTxn      **aTxn);
+  nsresult CreateTxnForDeleteText(nsIDOMCharacterData* aElement,
+                                  PRUint32             aOffset,
+                                  PRUint32             aLength,
+                                  DeleteTextTxn**      aTxn);
 
-  nsresult CreateTxnForDeleteCharacter(nsIDOMCharacterData  *aData,
-                                       PRUint32              aOffset,
-                                       nsIEditor::EDirection aDirection,
-                                       DeleteTextTxn       **aTxn);
+  nsresult CreateTxnForDeleteCharacter(nsIDOMCharacterData* aData,
+                                       PRUint32             aOffset,
+                                       EDirection           aDirection,
+                                       DeleteTextTxn**      aTxn);
 	
   NS_IMETHOD CreateTxnForSplitNode(nsIDOMNode *aNode,
                                    PRUint32    aOffset,
@@ -304,15 +314,22 @@ protected:
                                   nsIDOMNode  *aRightNode,
                                   JoinElementTxn **aTxn);
 
-  NS_IMETHOD DeleteSelectionAndPrepareToCreateNode(nsCOMPtr<nsIDOMNode> &parentSelectedNode, 
-                                                   PRInt32& offsetOfNewNode);
+  /**
+   * This method first deletes the selection, if it's not collapsed.  Then if
+   * the selection lies in a CharacterData node, it splits it.  If the
+   * selection is at this point collapsed in a CharacterData node, it's
+   * adjusted to be collapsed right before or after the node instead (which is
+   * always possible, since the node was split).
+   */
+  nsresult DeleteSelectionAndPrepareToCreateNode();
+
 
   // called after a transaction is done successfully
-  NS_IMETHOD DoAfterDoTransaction(nsITransaction *aTxn);
+  void DoAfterDoTransaction(nsITransaction *aTxn);
   // called after a transaction is undone successfully
-  NS_IMETHOD DoAfterUndoTransaction();
+  void DoAfterUndoTransaction();
   // called after a transaction is redone successfully
-  NS_IMETHOD DoAfterRedoTransaction();
+  void DoAfterRedoTransaction();
 
   typedef enum {
     eDocumentCreated,
@@ -338,9 +355,10 @@ protected:
    */
   NS_IMETHOD ScrollSelectionIntoView(bool aScrollToAnchor);
 
+  // Convenience method; forwards to IsBlockNode(nsINode*).
+  bool IsBlockNode(nsIDOMNode* aNode);
   // stub.  see comment in source.                     
-  virtual bool IsBlockNode(nsIDOMNode *aNode);
-  virtual bool IsBlockNode(nsINode *aNode);
+  virtual bool IsBlockNode(nsINode* aNode);
   
   // helper for GetPriorNode and GetNextNode
   nsIContent* FindNextLeafNode(nsINode  *aCurrentNode,
@@ -418,20 +436,18 @@ public:
                          bool        aNodeToKeepIsFirst);
 
   /**
-   *  Set aOffset to the offset of aChild in aParent.  
-   *  Returns an error if aChild is not an immediate child of aParent.
+   * Return the offset of aChild in aParent.  Asserts fatally if parent or
+   * child is null, or parent is not child's parent.
    */
-  static nsresult GetChildOffset(nsIDOMNode *aChild, 
-                                 nsIDOMNode *aParent, 
-                                 PRInt32    &aOffset);
+  static PRInt32 GetChildOffset(nsIDOMNode *aChild,
+                                nsIDOMNode *aParent);
 
   /**
-   *  Set aParent to the parent of aChild.
-   *  Set aOffset to the offset of aChild in aParent.  
+   *  Set outOffset to the offset of aChild in the parent.
+   *  Returns the parent of aChild.
    */
-  static nsresult GetNodeLocation(nsIDOMNode *aChild, 
-                                 nsCOMPtr<nsIDOMNode> *aParent, 
-                                 PRInt32    *aOffset);
+  static already_AddRefed<nsIDOMNode> GetNodeLocation(nsIDOMNode* aChild,
+                                                      PRInt32* outOffset);
 
   /** returns the number of things inside aNode in the out-param aCount.  
     * @param  aNode is the node to get the length of.  
@@ -523,14 +539,6 @@ public:
     return GetTag(aNode) == aTag;
   }
 
-  // we should get rid of this method if we can
-  static inline bool NodeIsTypeString(nsIDOMNode *aNode, const nsAString &aTag)
-  {
-    nsIAtom *nodeAtom = GetTag(aNode);
-    return nodeAtom && nodeAtom->Equals(aTag);
-  }
-
-
   /** returns true if aParent can contain a child of type aTag */
   bool CanContain(nsIDOMNode* aParent, nsIDOMNode* aChild);
   bool CanContainTag(nsIDOMNode* aParent, nsIAtom* aTag);
@@ -564,7 +572,7 @@ public:
   bool IsMozEditorBogusNode(nsIContent *aNode);
 
   /** counts number of editable child nodes */
-  nsresult CountEditableChildren(nsIDOMNode *aNode, PRUint32 &outCount);
+  PRUint32 CountEditableChildren(nsINode* aNode);
   
   /** Find the deep first and last children. */
   nsINode* GetFirstEditableNode(nsINode* aRoot);
@@ -580,7 +588,6 @@ public:
   bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
   virtual bool AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2);
 
-  static bool IsTextOrElementNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsINode *aNode);
   
@@ -592,7 +599,7 @@ public:
 #if DEBUG_JOE
   static void DumpNode(nsIDOMNode *aNode, PRInt32 indent=0);
 #endif
-  nsTypedSelection* GetTypedSelection();
+  mozilla::Selection* GetSelection();
 
   // Helpers to add a node to the selection. 
   // Used by table cell selection methods
@@ -813,7 +820,7 @@ protected:
 
   nsCOMPtr<nsIInlineSpellChecker> mInlineSpellChecker;
 
-  nsCOMPtr<nsITransactionManager> mTxnMgr;
+  nsRefPtr<nsTransactionManager> mTxnMgr;
   nsCOMPtr<mozilla::dom::Element> mRootElement; // cached root node
   nsCOMPtr<nsIPrivateTextRangeList> mIMETextRangeList; // IME special selection ranges
   nsCOMPtr<nsIDOMCharacterData>     mIMETextNode;      // current IME text node

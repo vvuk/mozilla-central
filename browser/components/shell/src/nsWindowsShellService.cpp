@@ -5,7 +5,6 @@
 
 #include "imgIContainer.h"
 #include "imgIRequest.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIImageLoadingContent.h"
@@ -195,14 +194,18 @@ static SETTING gDDESettings[] = {
   { MAKE_KEY_NAME1("Software\\Classes\\HTTPS", SOD) }
 };
 
+// See Bug 770883
+#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
 #define ONLY_SERVICE_LAUNCHING
 #include "updatehelper.h"
 #include "updatehelper.cpp"
 
-static const char kPrefetchClearedPref[] = "app.update.service.prefetchCleared";
+static const char *kPrefetchClearedPref =
+  "app.update.service.lastVersionPrefetchCleared";
 static nsCOMPtr<nsIThread> sThread;
+#endif
 #endif
 
 nsresult
@@ -213,9 +216,9 @@ GetHelperPath(nsAutoString& aPath)
     do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsILocalFile> appHelper;
+  nsCOMPtr<nsIFile> appHelper;
   rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                             NS_GET_IID(nsILocalFile),
+                             NS_GET_IID(nsIFile),
                              getter_AddRefs(appHelper));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -321,11 +324,20 @@ nsWindowsShellService::ShortcutMaintenance()
   return LaunchHelper(appHelperPath);
 }
 
+static bool
+IsWin8OrLater()
+{
+  OSVERSIONINFOW osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+  GetVersionExW(&osInfo);
+  return osInfo.dwMajorVersion > 6 || 
+         osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2;
+}
+
 bool
 nsWindowsShellService::IsDefaultBrowserVista(bool* aIsDefaultBrowser)
 {
   IApplicationAssociationRegistration* pAAR;
-  
   HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
                                 NULL,
                                 CLSCTX_INPROC,
@@ -338,6 +350,20 @@ nsWindowsShellService::IsDefaultBrowserVista(bool* aIsDefaultBrowser)
                                     APP_REG_NAME,
                                     &res);
     *aIsDefaultBrowser = res;
+
+    if (*aIsDefaultBrowser && IsWin8OrLater()) {
+      // Make sure the Prog ID matches what we have
+      LPWSTR registeredApp;
+      hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
+                                     &registeredApp);
+      if (SUCCEEDED(hr)) {
+        LPCWSTR firefoxHTTPProgID = L"FirefoxURL";
+        *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTTPProgID);
+        CoTaskMemFree(registeredApp);
+      } else {
+        *aIsDefaultBrowser = false;
+      }
+    }
 
     pAAR->Release();
     return true;
@@ -354,7 +380,12 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // default browser dialog).
   if (aStartupCheck)
     mCheckedThisSession = true;
+  return IsDefaultBrowser(aIsDefaultBrowser);
+}
 
+nsresult
+nsWindowsShellService::IsDefaultBrowser(bool* aIsDefaultBrowser)
+{
   *aIsDefaultBrowser = true;
 
   PRUnichar exePath[MAX_BUF];
@@ -544,6 +575,34 @@ nsWindowsShellService::GetCanSetDesktopBackground(bool* aResult)
   return NS_OK;
 }
 
+static nsresult
+DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
+{
+  typedef HRESULT (WINAPI * SHOpenWithDialogPtr)(HWND hwndParent,
+                                                 const OPENASINFO *poainfo);
+  static SHOpenWithDialogPtr SHOpenWithDialogFn = NULL;
+  if (!SHOpenWithDialogFn) {
+    // shell32.dll is in the knownDLLs list so will always be loaded from the
+    // system32 directory.
+    static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
+    HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
+    if (!shellDLL) {
+      return NS_ERROR_FAILURE;
+    }
+
+    SHOpenWithDialogFn =
+      (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
+    FreeLibrary(shellDLL);
+
+    if (!SHOpenWithDialogFn) {
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  return SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
+                                                              NS_ERROR_FAILURE;
+}
+
 NS_IMETHODIMP
 nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
 {
@@ -557,7 +616,21 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
     appHelperPath.AppendLiteral(" /SetAsDefaultAppUser");
   }
 
-  return LaunchHelper(appHelperPath);
+  nsresult rv = LaunchHelper(appHelperPath);
+  if (NS_SUCCEEDED(rv) && IsWin8OrLater()) {
+    OPENASINFO info;
+    info.pcszFile = L"http";
+    info.pcszClass = NULL;
+    info.oaifInFlags = OAIF_FORCE_REGISTRATION | 
+                       OAIF_URL_PROTOCOL |
+                       OAIF_REGISTER_EXT;
+    nsresult rv = DynSHOpenWithDialog(NULL, &info);
+    NS_ENSURE_SUCCESS(rv, rv);
+    bool isDefaultBrowser = false;
+    rv = NS_SUCCEEDED(IsDefaultBrowser(&isDefaultBrowser)) &&
+         isDefaultBrowser ? S_OK : NS_ERROR_FAILURE;
+  }
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -927,6 +1000,8 @@ nsWindowsShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 nsWindowsShellService::nsWindowsShellService() : 
   mCheckedThisSession(false) 
 {
+// See Bug 770883
+#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
   // Check to make sure the service is installed
@@ -946,17 +1021,20 @@ nsWindowsShellService::nsWindowsShellService() :
   }
 
   // check to see if we have attempted to do the one time operation of clearing
-  // the prefetch.
-  bool prefetchCleared;
+  // the prefetch.  We do it once per version upgrade.
+  nsCString lastClearedVer;
   nsCOMPtr<nsIPrefBranch> prefBranch;
   nsCOMPtr<nsIPrefService> prefs =
     do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (!prefs || 
       NS_FAILED(prefs->GetBranch(nsnull, getter_AddRefs(prefBranch))) ||
-      (NS_SUCCEEDED(prefBranch->GetBoolPref(kPrefetchClearedPref, 
-                                            &prefetchCleared)) &&
-       prefetchCleared)) {
-    return;
+      (NS_SUCCEEDED(prefBranch->GetCharPref(kPrefetchClearedPref, 
+                                            getter_Copies(lastClearedVer))))) {
+    // If the versions are the same, then bail out early.  We only want to clear
+    // once per version.
+    if (!strcmp(MOZ_APP_VERSION, lastClearedVer.get())) {
+      return;
+    }
   }
 
   // In a minute after startup is definitely complete, launch the
@@ -968,10 +1046,13 @@ nsWindowsShellService::nsWindowsShellService() :
       nsnull, CLEAR_PREFETCH_TIMEOUT_MS, nsITimer::TYPE_ONE_SHOT);
   }
 #endif
+#endif
 }
 
 nsWindowsShellService::~nsWindowsShellService()
 {
+// See Bug 770883
+#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
  if (mTimer) {
     mTimer->Cancel();
@@ -982,8 +1063,11 @@ nsWindowsShellService::~nsWindowsShellService()
     sThread = nsnull;
   }
 #endif
+#endif
 }
 
+// See Bug 770883
+#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 
 class ClearPrefetchEvent : public nsRunnable {
@@ -1006,6 +1090,7 @@ public:
   }
 };
 #endif
+#endif
 
 /**
  * For faster startup we attempt to clear the prefetch if the maintenance
@@ -1016,6 +1101,8 @@ public:
  * This is done on every update but also there is a one time operation done
  * from within the program for first time installs.
  */ 
+// See Bug 770883
+#if 0
 #if defined(MOZ_MAINTENANCE_SERVICE)
 void
 nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
@@ -1027,7 +1114,7 @@ nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
     do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
     if (NS_SUCCEEDED(prefs->GetBranch(nsnull, getter_AddRefs(prefBranch)))) {
-      prefBranch->SetBoolPref(kPrefetchClearedPref, true);
+      prefBranch->SetCharPref(kPrefetchClearedPref, MOZ_APP_VERSION);
     }
   }
 
@@ -1040,9 +1127,10 @@ nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
   }
 }
 #endif
+#endif
 
 NS_IMETHODIMP
-nsWindowsShellService::OpenApplicationWithURI(nsILocalFile* aApplication,
+nsWindowsShellService::OpenApplicationWithURI(nsIFile* aApplication,
                                               const nsACString& aURI)
 {
   nsresult rv;
@@ -1061,7 +1149,7 @@ nsWindowsShellService::OpenApplicationWithURI(nsILocalFile* aApplication,
 }
 
 NS_IMETHODIMP
-nsWindowsShellService::GetDefaultFeedReader(nsILocalFile** _retval)
+nsWindowsShellService::GetDefaultFeedReader(nsIFile** _retval)
 {
   *_retval = nsnull;
 
@@ -1090,7 +1178,7 @@ nsWindowsShellService::GetDefaultFeedReader(nsILocalFile** _retval)
     path = Substring(path, 0, path.FindChar(' '));
   }
 
-  nsCOMPtr<nsILocalFile> defaultReader =
+  nsCOMPtr<nsIFile> defaultReader =
     do_CreateInstance("@mozilla.org/file/local;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -4,11 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGPathData.h"
-#include "SVGAnimatedPathSegList.h"
 #include "SVGPathSegUtils.h"
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
-#include "nsContentUtils.h"
 #include "nsString.h"
 #include "nsSVGUtils.h"
 #include "string.h"
@@ -494,14 +492,14 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
 already_AddRefed<gfxFlattenedPath>
 SVGPathData::ToFlattenedPath(const gfxMatrix& aMatrix) const
 {
-  nsRefPtr<gfxContext> ctx =
+  nsRefPtr<gfxContext> tmpCtx =
     new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  ctx->SetMatrix(aMatrix);
-  ConstructPath(ctx);
-  ctx->IdentityMatrix();
+  tmpCtx->SetMatrix(aMatrix);
+  ConstructPath(tmpCtx);
+  tmpCtx->IdentityMatrix();
 
-  return ctx->GetFlattenedPath();
+  return tmpCtx->GetFlattenedPath();
 }
 
 static double
@@ -701,10 +699,9 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       double cyp = -root * ry * x1p / rx;
 
       double theta, delta;
-      theta = AngleOfVector(gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry) -   // F.6.5.5
-                            gfxPoint(1.0, 0.0));
-      delta = AngleOfVector(gfxPoint((-x1p-cxp)/rx, (-y1p-cyp)/ry) - // F.6.5.6
-                            gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry));
+      theta = AngleOfVector(gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry));    // F.6.5.5
+      delta = AngleOfVector(gfxPoint((-x1p-cxp)/rx, (-y1p-cyp)/ry)) - // F.6.5.6
+              theta;
       if (!sweepFlag && delta > 0)
         delta -= 2.0 * M_PI;
       else if (sweepFlag && delta < 0)

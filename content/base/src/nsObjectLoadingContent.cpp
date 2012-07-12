@@ -26,7 +26,6 @@
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
 #include "nsIPresShell.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIStreamConverterService.h"
@@ -250,16 +249,15 @@ nsPluginCrashedEvent::Run()
   nsCOMPtr<nsIDOMEvent> event;
   domDoc->CreateEvent(NS_LITERAL_STRING("datacontainerevents"),
                       getter_AddRefs(event));
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
   nsCOMPtr<nsIDOMDataContainerEvent> containerEvent(do_QueryInterface(event));
-  if (!privateEvent || !containerEvent) {
+  if (!containerEvent) {
     NS_WARNING("Couldn't QI event for PluginCrashed event!");
     return NS_OK;
   }
 
   event->InitEvent(NS_LITERAL_STRING("PluginCrashed"), true, true);
-  privateEvent->SetTrusted(true);
-  privateEvent->GetInternalNSEvent()->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
+  event->SetTrusted(true);
+  event->GetInternalNSEvent()->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
   
   nsCOMPtr<nsIWritableVariant> variant;
 
@@ -645,7 +643,7 @@ nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI*
   if (!aURI) {
     // We need some URI. If we have nothing else, use the base URI.
     // XXX(biesi): The code used to do this. Not sure why this is correct...
-    GetObjectBaseURI(nsCString(aMimeType), getter_AddRefs(baseURI));
+    GetObjectBaseURI(thisContent, getter_AddRefs(baseURI));
     aURI = baseURI;
   }
 
@@ -777,20 +775,31 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     chan->SetContentType(channelType);
   }
 
-  // We want to use the channel type unless one of the following is true:
+  // We want to ignore the channel type if one of the following is true:
   //
-  // 1) The channel type is application/octet-stream and we have a
-  //    type hint and the type hint is not a document type.
-  // 2) Our type hint is a type that we support with a plugin.
-  if (((channelType.EqualsASCII(APPLICATION_OCTET_STREAM) ||
-        channelType.EqualsASCII(BINARY_OCTET_STREAM)) && 
-       !mContentType.IsEmpty() &&
-       GetTypeOfContent(mContentType) != eType_Document) ||
-      // Need to check IsPluginEnabledForType() in addition to GetTypeOfContent()
-      // because otherwise the default plug-in's catch-all behavior would
-      // confuse things.
-      (NS_SUCCEEDED(IsPluginEnabledForType(mContentType)) && 
-       GetTypeOfContent(mContentType) == eType_Plugin)) {
+  // 1) The channel type is application/octet-stream or binary/octet-stream 
+  //    and we have a type hint (in mContentType) and the type hint is not a
+  //    document type.
+  // 2) Our type hint is a type that we support with a plugin
+  //    (where "support" means it is enabled or it is click-to-play)
+  //    and this object loading content has the capability to load a plugin.
+  //    We have to be careful here - there might be a plugin that supports
+  //    image types, so make sure the type of the content is not an image.
+  bool isOctetStream = (channelType.EqualsASCII(APPLICATION_OCTET_STREAM) ||
+                        channelType.EqualsASCII(BINARY_OCTET_STREAM));
+  ObjectType typeOfContent = GetTypeOfContent(mContentType);
+  bool caseOne = (isOctetStream &&
+                  !mContentType.IsEmpty() &&
+                  typeOfContent != eType_Document);
+  nsresult pluginState = IsPluginEnabledForType(mContentType);
+  bool pluginSupported = (NS_SUCCEEDED(pluginState) || 
+                          pluginState == NS_ERROR_PLUGIN_CLICKTOPLAY);
+  PRUint32 caps = GetCapabilities();
+  bool caseTwo = (pluginSupported && 
+                  (caps & eSupportPlugins) &&
+                  typeOfContent != eType_Image &&
+                  typeOfContent != eType_Document);
+  if (caseOne || caseTwo) {
     // Set the type we'll use for dispatch on the channel.  Otherwise we could
     // end up trying to dispatch to a nsFrameLoader, which will complain that
     // it couldn't find a way to handle application/octet-stream
@@ -1223,7 +1232,7 @@ nsObjectLoadingContent::LoadObject(const nsAString& aURI,
 
   nsIDocument* doc = thisContent->OwnerDoc();
   nsCOMPtr<nsIURI> baseURI;
-  GetObjectBaseURI(aTypeHint, getter_AddRefs(baseURI));
+  GetObjectBaseURI(thisContent, getter_AddRefs(baseURI));
 
   nsCOMPtr<nsIURI> uri;
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(uri),
@@ -1252,51 +1261,6 @@ nsObjectLoadingContent::UpdateFallbackState(nsIContent* aContent,
     fallback.SetPluginState(state);
     FirePluginError(aContent, state);
   }
-}
-
-bool
-nsObjectLoadingContent::IsFileCodebaseAllowable(nsIURI* aBaseURI, nsIURI* aOriginURI)
-{
-  nsCOMPtr<nsIFileURL> baseFileURL(do_QueryInterface(aBaseURI));
-  nsCOMPtr<nsIFileURL> originFileURL(do_QueryInterface(aOriginURI));
-
-  // get IFile handles and normalize
-  nsCOMPtr<nsIFile> originFile;
-  nsCOMPtr<nsIFile> baseFile;
-  if (!originFileURL || !baseFileURL ||
-      NS_FAILED(originFileURL->GetFile(getter_AddRefs(originFile))) ||
-      NS_FAILED(baseFileURL->GetFile(getter_AddRefs(baseFile))) ||
-      NS_FAILED(baseFile->Normalize()) ||
-      NS_FAILED(originFile->Normalize())) {
-    return false;
-  }
-
-  // If the origin is a directory, it should contain/equal baseURI
-  // Otherwise, its parent directory should contain/equal baseURI
-  bool origin_is_dir;
-  bool contained = false;
-  nsresult rv = originFile->IsDirectory(&origin_is_dir);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  if (origin_is_dir) {
-    // originURI is a directory, ensure it contains the baseURI
-    rv = originFile->Contains(baseFile, true, &contained);
-    if (NS_SUCCEEDED(rv) && !contained) {
-      rv = originFile->Equals(baseFile, &contained);
-    }
-  } else {
-    // originURI is a file, ensure its parent contains the baseURI
-    nsCOMPtr<nsIFile> originParent;
-    rv = originFile->GetParent(getter_AddRefs(originParent));
-    if (NS_SUCCEEDED(rv) && originParent) {
-      rv = originParent->Contains(baseFile, true, &contained);
-      if (NS_SUCCEEDED(rv) && !contained) {
-        rv = originParent->Equals(baseFile, &contained);
-      }
-    }
-  }
-
-  return NS_SUCCEEDED(rv) && contained;
 }
 
 nsresult
@@ -1396,28 +1360,6 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
       HandleBeingBlockedByContentPolicy(rv, shouldLoad);
       return NS_OK;
-    }
-
-    // If this is a file:// URI, require that the codebase (baseURI)
-    // is contained within the same folder as the document origin (originURI)
-    // or within the document origin, if it is a folder.
-    // No originURI implies chrome, which bypasses the check
-    // -- bug 406541
-    nsCOMPtr<nsIURI> originURI;
-    nsCOMPtr<nsIURI> baseURI;
-    GetObjectBaseURI(aTypeHint, getter_AddRefs(baseURI));
-    rv = thisContent->NodePrincipal()->GetURI(getter_AddRefs(originURI));
-    if (NS_FAILED(rv)) {
-      Fallback(aNotify);
-      return NS_OK;
-    }
-    if (originURI) {
-      bool isfile;
-      if (NS_FAILED(originURI->SchemeIs("file", &isfile)) ||
-          (isfile && !IsFileCodebaseAllowable(baseURI, originURI))) {
-        Fallback(aNotify);
-        return NS_OK;
-      }
     }
   }
 
@@ -1536,7 +1478,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
       // XXX(biesi). The plugin instantiation code used to pass the base URI
       // here instead of the plugin URI for instantiation via class ID, so I
       // continue to do so. Why that is, no idea...
-      GetObjectBaseURI(mContentType, getter_AddRefs(mURI));
+      GetObjectBaseURI(thisContent, getter_AddRefs(mURI));
       if (!mURI) {
         mURI = aURI;
       }
@@ -1913,38 +1855,25 @@ nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
   return NS_ERROR_NOT_AVAILABLE;
 }
 
-NS_IMETHODIMP
-nsObjectLoadingContent::GetObjectBaseURI(const nsACString & aMimeType, nsIURI** aURI)
+void
+nsObjectLoadingContent::GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI)
 {
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  // We want to use swap(); since this is just called from this file,
+  // we can assert this (callers use comptrs)
+  NS_PRECONDITION(*aURI == nsnull, "URI must be inited to zero");
 
   // For plugins, the codebase attribute is the base URI
   nsCOMPtr<nsIURI> baseURI = thisContent->GetBaseURI();
   nsAutoString codebase;
   thisContent->GetAttr(kNameSpaceID_None, nsGkAtoms::codebase,
                        codebase);
-
-  if (codebase.IsEmpty() && aMimeType.Equals("application/x-java-vm")) {
-    // bug 406541
-    // Java resolves codebase="" as "/" -- so we replicate that quirk, to ensure
-    // we run security checks against the same path.
-    codebase.AssignLiteral("/");
-  }
-
   if (!codebase.IsEmpty()) {
-    nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aURI, codebase,
-                                                            thisContent->OwnerDoc(),
-                                                            baseURI);
-    if (NS_SUCCEEDED(rv))
-      return rv;
-    NS_WARNING("GetObjectBaseURI: Could not resolve plugin's codebase to a URI, using baseURI instead");
+    nsContentUtils::NewURIWithDocumentCharset(aURI, codebase,
+                                              thisContent->OwnerDoc(),
+                                              baseURI);
+  } else {
+    baseURI.swap(*aURI);
   }
-
-  // Codebase empty or build URI failed, just use baseURI
-  *aURI = NULL;
-  baseURI.swap(*aURI);
-  return NS_OK;
 }
 
 nsObjectFrame*

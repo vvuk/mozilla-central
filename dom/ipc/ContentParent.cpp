@@ -17,7 +17,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
 #include "nsIObserverService.h"
-#include "nsContentUtils.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
@@ -356,9 +355,9 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 }
 
 TabParent*
-ContentParent::CreateTab(PRUint32 aChromeFlags)
+ContentParent::CreateTab(PRUint32 aChromeFlags, bool aIsBrowserFrame)
 {
-  return static_cast<TabParent*>(SendPBrowserConstructor(aChromeFlags));
+  return static_cast<TabParent*>(SendPBrowserConstructor(aChromeFlags, aIsBrowserFrame));
 }
 
 TestShellParent*
@@ -507,6 +506,7 @@ ContentParent::RecvSetClipboardText(const nsString& text, const PRInt32& whichCl
     
     nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
     NS_ENSURE_SUCCESS(rv, true);
+    trans->Init(nsnull);
     
     // If our data flavor has already been added, this will fail. But we don't care
     trans->AddDataFlavor(kUnicodeMime);
@@ -531,6 +531,7 @@ ContentParent::RecvGetClipboardText(const PRInt32& whichClipboard, nsString* tex
 
     nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
     NS_ENSURE_SUCCESS(rv, true);
+    trans->Init(nsnull);
     
     clipboard->GetData(trans, whichClipboard);
     nsCOMPtr<nsISupports> tmp;
@@ -698,7 +699,7 @@ ContentParent::Observe(nsISupports* aSubject,
 }
 
 PBrowserParent*
-ContentParent::AllocPBrowser(const PRUint32& aChromeFlags)
+ContentParent::AllocPBrowser(const PRUint32& aChromeFlags, const bool& aIsBrowserFrame)
 {
   TabParent* parent = new TabParent();
   if (parent){
@@ -1014,7 +1015,7 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
         nsCOMPtr<nsISimpleEnumerator> fileIter;
         *result = filePicker->GetFiles(getter_AddRefs(fileIter));
 
-        nsCOMPtr<nsILocalFile> singleFile;
+        nsCOMPtr<nsIFile> singleFile;
         bool loop = true;
         while (NS_SUCCEEDED(fileIter->HasMoreElements(&loop)) && loop) {
             fileIter->GetNext(getter_AddRefs(singleFile));
@@ -1026,7 +1027,7 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
         }
         return true;
     }
-    nsCOMPtr<nsILocalFile> file;
+    nsCOMPtr<nsIFile> file;
     filePicker->GetFile(getter_AddRefs(file));
 
     // even with NS_OK file can be null if nothing was selected 

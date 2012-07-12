@@ -25,25 +25,21 @@ using namespace js::gc;
 ArgumentsObject *
 ArgumentsObject::create(JSContext *cx, StackFrame *fp)
 {
-    JSFunction &callee = fp->callee();
-    RootedObject proto(cx, callee.global().getOrCreateObjectPrototype(cx));
+    RootedObject proto(cx, fp->callee().global().getOrCreateObjectPrototype(cx));
     if (!proto)
         return NULL;
 
-    RootedTypeObject type(cx);
-    type = proto->getNewType(cx);
+    RootedTypeObject type(cx, proto->getNewType(cx));
     if (!type)
         return NULL;
 
-    bool strict = callee.inStrictMode();
+    bool strict = fp->callee().inStrictMode();
     Class *clasp = strict ? &StrictArgumentsObjectClass : &NormalArgumentsObjectClass;
 
-    RootedShape emptyArgumentsShape(cx);
-    emptyArgumentsShape =
-        EmptyShape::getInitialShape(cx, clasp, proto,
-                                    proto->getParent(), FINALIZE_KIND,
-                                    BaseShape::INDEXED);
-    if (!emptyArgumentsShape)
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, proto,
+                                                      proto->getParent(), FINALIZE_KIND,
+                                                      BaseShape::INDEXED));
+    if (!shape)
         return NULL;
 
     unsigned numActuals = fp->numActualArgs();
@@ -59,7 +55,7 @@ ArgumentsObject::create(JSContext *cx, StackFrame *fp)
         return NULL;
 
     data->numArgs = numArgs;
-    data->callee.init(ObjectValue(callee));
+    data->callee.init(ObjectValue(fp->callee()));
     data->script = fp->script();
 
     /* Copy [0, numArgs) into data->slots. */
@@ -77,7 +73,7 @@ ArgumentsObject::create(JSContext *cx, StackFrame *fp)
     data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
 
-    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, emptyArgumentsShape, type, NULL);
+    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, shape, type, NULL);
     if (!obj)
         return NULL;
 
@@ -181,8 +177,11 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp
         unsigned arg = unsigned(JSID_TO_INT(id));
         if (arg < argsobj.initialLength() && !argsobj.isElementDeleted(arg)) {
             argsobj.setElement(arg, *vp);
-            if (arg < script->function()->nargs)
+            if (arg < script->function()->nargs) {
+                if (!script->ensureHasTypes(cx))
+                    return false;
                 types::TypeScript::SetArgument(cx, script, arg, *vp);
+            }
             return true;
         }
     } else {
@@ -200,14 +199,14 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value *vp
      */
     RootedValue value(cx);
     return baseops::DeleteGeneric(cx, obj, id, value.address(), false) &&
-           baseops::DefineProperty(cx, obj, id, vp, NULL, NULL, JSPROP_ENUMERATE);
+           baseops::DefineGeneric(cx, obj, id, vp, NULL, NULL, JSPROP_ENUMERATE);
 }
 
 static JSBool
 args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-             JSObject **objp)
+             MutableHandleObject objp)
 {
-    *objp = NULL;
+    objp.set(NULL);
 
     Rooted<NormalArgumentsObject*> argsobj(cx, &obj->asNormalArguments());
 
@@ -230,56 +229,11 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     }
 
     Value undef = UndefinedValue();
-    if (!baseops::DefineProperty(cx, argsobj, id, &undef, ArgGetter, ArgSetter, attrs))
+    if (!baseops::DefineGeneric(cx, argsobj, id, &undef, ArgGetter, ArgSetter, attrs))
         return JS_FALSE;
 
-    *objp = argsobj;
+    objp.set(argsobj);
     return true;
-}
-
-bool
-NormalArgumentsObject::optimizedGetElem(JSContext *cx, StackFrame *fp, const Value &elem, Value *vp)
-{
-    JS_ASSERT(!fp->script()->needsArgsObj());
-
-    /* Fast path: no need to convert to id when elem is already an int in range. */
-    if (elem.isInt32()) {
-        int32_t i = elem.toInt32();
-        if (i >= 0 && uint32_t(i) < fp->numActualArgs()) {
-            *vp = fp->unaliasedActual(i);
-            return true;
-        }
-    }
-
-    /* Slow path: create and canonicalize an id, then emulate args_resolve. */
-
-    jsid id;
-    if (!ValueToId(cx, elem, &id))
-        return false;
-
-    if (JSID_IS_INT(id)) {
-        int32_t i = JSID_TO_INT(id);
-        if (i >= 0 && uint32_t(i) < fp->numActualArgs()) {
-            *vp = fp->unaliasedActual(i);
-            return true;
-        }
-    }
-
-    if (id == NameToId(cx->runtime->atomState.lengthAtom)) {
-        *vp = Int32Value(fp->numActualArgs());
-        return true;
-    }
-
-    if (id == NameToId(cx->runtime->atomState.calleeAtom)) {
-        *vp = ObjectValue(fp->callee());
-        return true;
-    }
-
-    JSObject *proto = fp->global().getOrCreateObjectPrototype(cx);
-    if (!proto)
-        return false;
-
-    return proto->getGeneric(cx, RootedId(cx, id), vp);
 }
 
 static JSBool
@@ -300,8 +254,8 @@ args_enumerate(JSContext *cx, HandleObject obj)
              ? NameToId(cx->runtime->atomState.calleeAtom)
              : INT_TO_JSID(i);
 
-        JSObject *pobj;
-        JSProperty *prop;
+        RootedObject pobj(cx);
+        RootedShape prop(cx);
         if (!baseops::LookupProperty(cx, argsobj, id, &pobj, &prop))
             return false;
     }
@@ -358,13 +312,14 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Val
      */
     RootedValue value(cx);
     return baseops::DeleteGeneric(cx, argsobj, id, value.address(), strict) &&
-           baseops::SetPropertyHelper(cx, argsobj, id, 0, vp, strict);
+           baseops::SetPropertyHelper(cx, argsobj, argsobj, id, 0, vp, strict);
 }
 
 static JSBool
-strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags, JSObject **objp)
+strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
+                   MutableHandleObject objp)
 {
-    *objp = NULL;
+    objp.set(NULL);
 
     Rooted<StrictArgumentsObject*> argsobj(cx, &obj->asStrictArguments());
 
@@ -393,10 +348,10 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     }
 
     Value undef = UndefinedValue();
-    if (!baseops::DefineProperty(cx, argsobj, id, &undef, getter, setter, attrs))
+    if (!baseops::DefineGeneric(cx, argsobj, id, &undef, getter, setter, attrs))
         return false;
 
-    *objp = argsobj;
+    objp.set(argsobj);
     return true;
 }
 
@@ -409,8 +364,8 @@ strictargs_enumerate(JSContext *cx, HandleObject obj)
      * Trigger reflection in strictargs_resolve using a series of
      * js_LookupProperty calls.
      */
-    JSObject *pobj;
-    JSProperty *prop;
+    RootedObject pobj(cx);
+    RootedShape prop(cx);
     RootedId id(cx);
 
     // length

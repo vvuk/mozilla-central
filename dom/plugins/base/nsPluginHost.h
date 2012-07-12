@@ -156,6 +156,10 @@ public:
   // Writes updated plugins settings to disk and unloads the plugin
   // if it is now disabled
   nsresult UpdatePluginInfo(nsPluginTag* aPluginTag);
+  
+  // Helper that checks if a type is whitelisted in plugin.allowed_types.
+  // Always returns true if plugin.allowed_types is not set
+  static bool IsTypeWhitelisted(const char *aType);
 
   // checks whether aTag is a "java" plugin tag (a tag for a plugin
   // that does Java)
@@ -212,6 +216,9 @@ private:
   nsresult
   NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
 
+  nsPluginTag*
+  FindPreferredPlugin(const InfallibleTArray<nsPluginTag*>& matches);
+
   // Return an nsPluginTag for this type, if any.  If aCheckEnabled is
   // true, only enabled plugins will be returned.
   nsPluginTag*
@@ -225,6 +232,11 @@ private:
 
   nsresult
   FindPlugins(bool aCreatePluginList, bool * aPluginsChanged);
+
+  // Registers or unregisters the given mime type with the category manager
+  // (performs no checks - see UpdateCategoryManager)
+  enum nsRegisterType { ePluginRegister, ePluginUnregister };
+  void RegisterWithCategoryManager(nsCString &aMimeType, nsRegisterType aType);
 
   nsresult
   ScanPluginsDirectory(nsIFile *pluginsDir,
@@ -253,13 +265,6 @@ private:
 
   // Checks to see if a tag object is in our list of live tags.
   bool IsLiveTag(nsIPluginTag* tag);
-
-  // Checks our list of live tags for an equivalent tag.
-  nsPluginTag* HaveSamePlugin(nsPluginTag * aPluginTag);
-
-  // checks if given plugin is a duplicate of what we already have
-  // in the plugin list but found in some different place
-  bool IsDuplicatePlugin(nsPluginTag * aPluginTag);
 
   nsresult EnsurePrivateDirServiceProvider();
 

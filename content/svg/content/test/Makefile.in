@@ -10,13 +10,12 @@ VPATH		= @srcdir@
 relativesrcdir  = content/svg/content/test
 
 include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
 
 # Disabled:
 #		bbox-helper.svg \
 #		test_length.xhtml \
 
-_TEST_FILES = \
+MOCHITEST_FILES = \
 		matrixUtils.js \
 		MutationEventChecker.js \
 		test_a_href_01.xhtml \
@@ -51,6 +50,7 @@ _TEST_FILES = \
 		test_pointAtLength.xhtml \
 		test_pointer-events.xhtml \
 		test_pointer-events-2.xhtml \
+		test_pointer-events-3.xhtml \
 		test_scientific.html \
 		scientific-helper.svg \
 		test_SVGAnimatedImageSMILDisabled.html \
@@ -83,5 +83,4 @@ _TEST_FILES = \
 		test_zoom.xhtml \
 		$(NULL)
 
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+include $(topsrcdir)/config/rules.mk

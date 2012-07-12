@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nscore.h"
-#include "nsIDOMDocument.h"
 #include "nsEditor.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
@@ -98,10 +97,7 @@ nsHTMLEditor::InsertCell(nsIDOMElement *aCell, PRInt32 aRowSpan, PRInt32 aColSpa
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(cellParent, NS_ERROR_NULL_POINTER);
 
-
-  PRInt32 cellOffset;
-  res = GetChildOffset(aCell, cellParent, cellOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  PRInt32 cellOffset = GetChildOffset(aCell, cellParent);
 
   nsCOMPtr<nsIDOMElement> newCell;
   if (aIsHeader)
@@ -661,8 +657,7 @@ nsHTMLEditor::InsertTableRow(PRInt32 aNumber, bool aAfter)
       parentRow->GetParentNode(getter_AddRefs(parentOfRow));
       NS_ENSURE_TRUE(parentOfRow, NS_ERROR_NULL_POINTER);
 
-      res = GetChildOffset(parentRow, parentOfRow, newRowOffset);
-      NS_ENSURE_SUCCESS(res, res);
+      newRowOffset = GetChildOffset(parentRow, parentOfRow);
       
       // Adjust for when adding past the end 
       if (aAfter && startRowIndex >= rowCount)
@@ -2320,65 +2315,48 @@ nsHTMLEditor::MergeCells(nsCOMPtr<nsIDOMElement> aTargetCell,
                          nsCOMPtr<nsIDOMElement> aCellToMerge,
                          bool aDeleteCellToMerge)
 {
-  NS_ENSURE_TRUE(aTargetCell && aCellToMerge, NS_ERROR_NULL_POINTER);
-
-  nsresult res = NS_OK;
+  nsCOMPtr<dom::Element> targetCell = do_QueryInterface(aTargetCell);
+  nsCOMPtr<dom::Element> cellToMerge = do_QueryInterface(aCellToMerge);
+  NS_ENSURE_TRUE(targetCell && cellToMerge, NS_ERROR_NULL_POINTER);
 
   // Prevent rules testing until we're done
   nsAutoRules beginRulesSniffing(this, kOpDeleteNode, nsIEditor::eNext);
 
   // Don't need to merge if cell is empty
-  if (!IsEmptyCell(aCellToMerge))
-  {
+  if (!IsEmptyCell(cellToMerge)) {
     // Get index of last child in target cell
-    nsCOMPtr<nsIDOMNodeList> childNodes;
-    nsCOMPtr<nsIDOMNode> cellChild;
-    res = aTargetCell->GetChildNodes(getter_AddRefs(childNodes));
     // If we fail or don't have children, 
     //  we insert at index 0
     PRInt32 insertIndex = 0;
 
-    if ((NS_SUCCEEDED(res)) && (childNodes))
-    {
-      // Start inserting just after last child
-      PRUint32 len;
-      res = childNodes->GetLength(&len);
+    // Start inserting just after last child
+    PRUint32 len = targetCell->GetChildCount();
+    if (len == 1 && IsEmptyCell(targetCell)) {
+      // Delete the empty node
+      nsIContent* cellChild = targetCell->GetFirstChild();
+      nsresult res = DeleteNode(cellChild->AsDOMNode());
       NS_ENSURE_SUCCESS(res, res);
-      if (len == 1 && IsEmptyCell(aTargetCell))
-      {
-          // Delete the empty node
-          nsCOMPtr<nsIDOMNode> tempNode;
-          res = childNodes->Item(0, getter_AddRefs(cellChild));
-          NS_ENSURE_SUCCESS(res, res);
-          res = DeleteNode(cellChild);
-          NS_ENSURE_SUCCESS(res, res);
-          insertIndex = 0;
-      }
-      else
-        insertIndex = (PRInt32)len;
+      insertIndex = 0;
+    } else {
+      insertIndex = (PRInt32)len;
     }
 
     // Move the contents
-    bool hasChild;
-    aCellToMerge->HasChildNodes(&hasChild);
-    while (hasChild)
-    {
-      aCellToMerge->GetLastChild(getter_AddRefs(cellChild));
-      res = DeleteNode(cellChild);
+    while (cellToMerge->HasChildren()) {
+      nsCOMPtr<nsIDOMNode> cellChild = cellToMerge->GetLastChild()->AsDOMNode();
+      nsresult res = DeleteNode(cellChild);
       NS_ENSURE_SUCCESS(res, res);
 
       res = InsertNode(cellChild, aTargetCell, insertIndex);
       NS_ENSURE_SUCCESS(res, res);
-
-      aCellToMerge->HasChildNodes(&hasChild);
     }
   }
 
   // Delete cells whose contents were moved
   if (aDeleteCellToMerge)
-    res = DeleteNode(aCellToMerge);
+    return DeleteNode(aCellToMerge);
 
-  return res;
+  return NS_OK;
 }
 
 
@@ -2888,8 +2866,9 @@ nsHTMLEditor::GetCellContext(nsISelection **aSelection,
     *aCellParent = cellParent.get();
     NS_ADDREF(*aCellParent);
 
-    if (aCellOffset)
-      res = GetChildOffset(cell, cellParent, *aCellOffset);
+    if (aCellOffset) {
+      *aCellOffset = GetChildOffset(cell, cellParent);
+    }
   }
 
   return res;
@@ -3157,12 +3136,11 @@ nsHTMLEditor::SetSelectionAfterTableEdit(nsIDOMElement* aTable, PRInt32 aRow, PR
   // We didn't find a cell
   // Set selection to just before the table
   nsCOMPtr<nsIDOMNode> tableParent;
-  PRInt32 tableOffset;
   res = aTable->GetParentNode(getter_AddRefs(tableParent));
   if(NS_SUCCEEDED(res) && tableParent)
   {
-    if(NS_SUCCEEDED(GetChildOffset(aTable, tableParent, tableOffset)))
-      return selection->Collapse(tableParent, tableOffset);
+    PRInt32 tableOffset = GetChildOffset(aTable, tableParent);
+    return selection->Collapse(tableParent, tableOffset);
   }
   // Last resort: Set selection to start of doc
   // (it's very bad to not have a valid selection!)
@@ -3408,12 +3386,12 @@ nsHTMLEditor::AllCellsInColumnSelected(nsIDOMElement *aTable, PRInt32 aColIndex,
 }
 
 bool 
-nsHTMLEditor::IsEmptyCell(nsIDOMElement *aCell)
+nsHTMLEditor::IsEmptyCell(dom::Element* aCell)
 {
-  nsCOMPtr<dom::Element> cell = do_QueryInterface(aCell);
+  MOZ_ASSERT(aCell);
 
   // Check if target only contains empty text node or <br>
-  nsCOMPtr<nsINode> cellChild = cell->GetFirstChild();
+  nsCOMPtr<nsINode> cellChild = aCell->GetFirstChild();
   if (!cellChild) {
     return false;
   }

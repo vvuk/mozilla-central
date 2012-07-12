@@ -136,6 +136,7 @@ RemoteDebuggerPrompt.prototype = {
 function ScriptsView() {
   this._onScriptsChange = this._onScriptsChange.bind(this);
   this._onScriptsSearch = this._onScriptsSearch.bind(this);
+  this._onScriptsKeyUp = this._onScriptsKeyUp.bind(this);
 }
 
 ScriptsView.prototype = {
@@ -155,6 +156,31 @@ ScriptsView.prototype = {
   clearSearch: function DVS_clearSearch() {
     this._searchbox.value = "";
     this._onScriptsSearch({});
+  },
+
+  /**
+   * Checks whether the script with the specified URL is among the scripts
+   * known to the debugger (ignoring the query & reference).
+   *
+   * @param string aUrl
+   *        The script URL.
+   * @return boolean
+   */
+  containsIgnoringQuery: function DVS_containsIgnoringQuery(aUrl) {
+    let sourceScripts = DebuggerController.SourceScripts;
+    aUrl = sourceScripts.trimUrlQuery(aUrl);
+
+    if (this._tmpScripts.some(function(element) {
+      return sourceScripts.trimUrlQuery(element.script.url) == aUrl;
+    })) {
+      return true;
+    }
+    if (this.scriptLocations.some(function(url) {
+      return sourceScripts.trimUrlQuery(url) == aUrl;
+    })) {
+      return true;
+    }
+    return false;
   },
 
   /**
@@ -346,7 +372,7 @@ ScriptsView.prototype = {
     aLabel, aScript, aIndex, aSelectIfEmptyFlag)
   {
     // Make sure we don't duplicate anything.
-    if (aLabel == "null" || this.containsLabel(aLabel)) {
+    if (aLabel == "null" || this.containsLabel(aLabel) || this.contains(aScript.url)) {
       return;
     }
 
@@ -360,6 +386,29 @@ ScriptsView.prototype = {
     if (this._scripts.itemCount == 1 && aSelectIfEmptyFlag) {
       this._scripts.selectedItem = scriptItem;
     }
+  },
+
+  /**
+   * Gets the entered file, line and token entered in the searchbox.
+   *
+   * @return array
+   *         A [file, line, token] array.
+   */
+  _getSearchboxInfo: function DVS__getSearchboxInfo() {
+    let rawValue = this._searchbox.value.toLowerCase();
+
+    let rawLength = rawValue.length;
+    let lastColon = rawValue.lastIndexOf(":");
+    let lastAt = rawValue.lastIndexOf("#");
+
+    let fileEnd = lastColon != -1 ? lastColon : lastAt != -1 ? lastAt : rawLength;
+    let lineEnd = lastAt != -1 ? lastAt : rawLength;
+
+    let file = rawValue.slice(0, fileEnd);
+    let line = window.parseInt(rawValue.slice(fileEnd + 1, lineEnd)) || -1;
+    let token = rawValue.slice(lineEnd + 1);
+
+    return [file, line, token];
   },
 
   /**
@@ -377,18 +426,7 @@ ScriptsView.prototype = {
   _onScriptsSearch: function DVS__onScriptsSearch(e) {
     let editor = DebuggerView.editor;
     let scripts = this._scripts;
-    let rawValue = this._searchbox.value.toLowerCase();
-
-    let rawLength = rawValue.length;
-    let lastColon = rawValue.lastIndexOf(":");
-    let lastAt = rawValue.lastIndexOf("@");
-
-    let fileEnd = lastColon != -1 ? lastColon : lastAt != -1 ? lastAt : rawLength;
-    let lineEnd = lastAt != -1 ? lastAt : rawLength;
-
-    let file = rawValue.slice(0, fileEnd);
-    let line = window.parseInt(rawValue.slice(fileEnd + 1, lineEnd)) || -1;
-    let token = rawValue.slice(lineEnd + 1);
+    let [file, line, token] = this._getSearchboxInfo();
 
     // Presume we won't find anything.
     scripts.selectedItem = this._preferredScript;
@@ -401,9 +439,9 @@ ScriptsView.prototype = {
     } else {
       for (let i = 0, l = scripts.itemCount, found = false; i < l; i++) {
         let item = scripts.getItemAtIndex(i);
-        let target = item.value.toLowerCase();
+        let target = item.label.toLowerCase();
 
-        // Search is not case sensitive, and is tied to the url not the label.
+        // Search is not case sensitive, and is tied to the label not the url.
         if (target.match(file)) {
           item.hidden = false;
 
@@ -424,8 +462,7 @@ ScriptsView.prototype = {
     if (token) {
       let offset = editor.find(token, { ignoreCase: true });
       if (offset > -1) {
-        editor.setCaretPosition(0);
-        editor.setCaretOffset(offset);
+        editor.setSelection(offset, offset + token.length)
       }
     }
   },
@@ -440,11 +477,11 @@ ScriptsView.prototype = {
     }
 
     if (e.keyCode === e.DOM_VK_RETURN || e.keyCode === e.DOM_VK_ENTER) {
+      let token = this._getSearchboxInfo()[2];
       let editor = DebuggerView.editor;
       let offset = editor.findNext(true);
       if (offset > -1) {
-        editor.setCaretPosition(0);
-        editor.setCaretOffset(offset);
+        editor.setSelection(offset, offset + token.length)
       }
     }
   },
@@ -515,8 +552,6 @@ StackFramesView.prototype = {
        resume.setAttribute("tooltiptext", L10N.getStr("pauseTooltip"));
        resume.removeAttribute("checked");
      }
-
-     DebuggerView.Scripts.clearSearch();
    },
 
   /**
@@ -940,27 +975,15 @@ PropertiesView.prototype = {
       let valueLabel = document.createElement("label");
       let title = element.getElementsByClassName("title")[0];
 
+      // Use attribute flags to specify the element type and tooltip text.
+      this._setAttributes(element, aName, aFlags);
+
       // Separator between the variable name and its value.
       separatorLabel.className = "plain";
       separatorLabel.setAttribute("value", ":");
 
       // The variable information (type, class and/or value).
       valueLabel.className = "value plain";
-
-      if (aFlags) {
-        // Use attribute flags to specify the element type and tooltip text.
-        let tooltip = [];
-
-        !aFlags.configurable ? element.setAttribute("non-configurable", "")
-                             : tooltip.push("configurable");
-        !aFlags.enumerable   ? element.setAttribute("non-enumerable", "")
-                             : tooltip.push("enumerable");
-        !aFlags.writable     ? element.setAttribute("non-writable", "")
-                             : tooltip.push("writable");
-
-        element.setAttribute("tooltiptext", tooltip.join(", "));
-      }
-      if (aName === "this") { element.setAttribute("self", ""); }
 
       // Handle the click event when pressing the element value label.
       valueLabel.addEventListener("click", this._activateElementInputMode.bind({
@@ -990,6 +1013,36 @@ PropertiesView.prototype = {
 
     // Return the element for later use if necessary.
     return element;
+  },
+
+  /**
+   * Sets a variable's configurable, enumerable or writable attributes.
+   *
+   * @param object aVar
+   *        The object to set the attributes on.
+   * @param object aName
+   *        The varialbe name.
+   * @param object aFlags
+   *        Contains configurable, enumerable or writable flags.
+   */
+  _setAttributes: function DVP_setAttributes(aVar, aName, aFlags) {
+    if (aFlags) {
+      if (!aFlags.configurable) {
+        aVar.setAttribute("non-configurable", "");
+      }
+      if (!aFlags.enumerable) {
+        aVar.setAttribute("non-enumerable", "");
+      }
+      if (!aFlags.writable) {
+        aVar.setAttribute("non-writable", "");
+      }
+    }
+    if (aName === "this") {
+      aVar.setAttribute("self", "");
+    }
+    if (aName === "__proto__ ") {
+      aVar.setAttribute("proto", "");
+    }
   },
 
   /**
@@ -1172,6 +1225,9 @@ PropertiesView.prototype = {
       let separatorLabel = document.createElement("label");
       let valueLabel = document.createElement("label");
 
+      // Use attribute flags to specify the element type and tooltip text.
+      this._setAttributes(element, pKey, aFlags);
+
       if ("undefined" !== typeof pKey) {
         // Use a key element to specify the property name.
         nameLabel.className = "key plain";
@@ -1190,21 +1246,6 @@ PropertiesView.prototype = {
         title.appendChild(separatorLabel);
         title.appendChild(valueLabel);
       }
-
-      if (aFlags) {
-        // Use attribute flags to specify the element type and tooltip text.
-        let tooltip = [];
-
-        !aFlags.configurable ? element.setAttribute("non-configurable", "")
-                             : tooltip.push("configurable");
-        !aFlags.enumerable   ? element.setAttribute("non-enumerable", "")
-                             : tooltip.push("enumerable");
-        !aFlags.writable     ? element.setAttribute("non-writable", "")
-                             : tooltip.push("writable");
-
-        element.setAttribute("tooltiptext", tooltip.join(", "));
-      }
-      if (pKey === "__proto__ ") { element.setAttribute("proto", ""); }
 
       // Handle the click event when pressing the element value label.
       valueLabel.addEventListener("click", this._activateElementInputMode.bind({
@@ -1461,6 +1502,7 @@ PropertiesView.prototype = {
     } else {
       arrow.addEventListener("click", function() { element.toggle(); }, false);
       name.addEventListener("click", function() { element.toggle(); }, false);
+      name.addEventListener("mouseover", function() { element.updateTooltip(name); }, false);
     }
 
     title.appendChild(arrow);
@@ -1690,6 +1732,52 @@ PropertiesView.prototype = {
         }
       }
     });
+
+    /**
+     * Creates a tooltip for the element displaying certain attributes.
+     *
+     * @param object aAnchor
+     *        The element which will anchor the tooltip.
+     */
+    element.updateTooltip = function DVP_element_updateTooltip(aAnchor) {
+      let tooltip = document.getElementById("element-tooltip");
+      if (tooltip) {
+        document.documentElement.removeChild(tooltip);
+      }
+
+      tooltip = document.createElement("tooltip");
+      tooltip.id = "element-tooltip";
+
+      let configurableLabel = document.createElement("label");
+      configurableLabel.id = "configurableLabel";
+      configurableLabel.setAttribute("value", "configurable");
+
+      let enumerableLabel = document.createElement("label");
+      enumerableLabel.id = "enumerableLabel";
+      enumerableLabel.setAttribute("value", "enumerable");
+
+      let writableLabel = document.createElement("label");
+      writableLabel.id = "writableLabel";
+      writableLabel.setAttribute("value", "writable");
+
+      tooltip.setAttribute("orient", "horizontal")
+      tooltip.appendChild(configurableLabel);
+      tooltip.appendChild(enumerableLabel);
+      tooltip.appendChild(writableLabel);
+
+      if (element.hasAttribute("non-configurable")) {
+        configurableLabel.setAttribute("non-configurable", "");
+      }
+      if (element.hasAttribute("non-enumerable")) {
+        enumerableLabel.setAttribute("non-enumerable", "");
+      }
+      if (element.hasAttribute("non-writable")) {
+        writableLabel.setAttribute("non-writable", "");
+      }
+
+      document.documentElement.appendChild(tooltip);
+      aAnchor.setAttribute("tooltip", tooltip.id);
+    };
 
     /**
      * Generic function refreshing the internal state of the element when

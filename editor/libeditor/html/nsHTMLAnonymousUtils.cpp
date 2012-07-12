@@ -27,6 +27,8 @@
 #include "nsUnicharUtils.h"
 #include "nsContentUtils.h"
 
+using namespace mozilla;
+
 // retrieve an integer stored into a CSS computed float value
 static PRInt32 GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
                                 const nsAString & aProperty)
@@ -123,7 +125,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Create a new node through the element factory
-  nsCOMPtr<nsIContent> newContent;
+  nsCOMPtr<dom::Element> newContent;
   nsresult res = CreateHTMLContent(aTag, getter_AddRefs(newContent));
   NS_ENSURE_SUCCESS(res, res);
 
@@ -251,6 +253,13 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
   nsresult res  = GetSelectionContainer(getter_AddRefs(focusElement));
   NS_ENSURE_TRUE(focusElement, NS_OK);
   NS_ENSURE_SUCCESS(res, res);
+
+  // If we're not in a document, don't try to add resizers
+  nsCOMPtr<dom::Element> focusElementNode = do_QueryInterface(focusElement);
+  NS_ENSURE_STATE(focusElementNode);
+  if (!focusElementNode->IsInDoc()) {
+    return NS_OK;
+  }
 
   // what's its tag?
   nsAutoString focusTagName;

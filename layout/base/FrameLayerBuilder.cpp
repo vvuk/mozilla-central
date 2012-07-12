@@ -16,6 +16,7 @@
 #include "gfxUtils.h"
 #include "nsImageFrame.h"
 #include "nsRenderingContext.h"
+#include "MaskLayerImageCache.h"
 
 #include "mozilla/Preferences.h"
 #include "sampler.h"
@@ -59,9 +60,26 @@ public:
 
 namespace {
 
-static void DestroyRegion(void* aPropertyValue)
+// a global cache of image containers used for mask layers
+static MaskLayerImageCache* gMaskLayerImageCache = nsnull;
+
+static inline MaskLayerImageCache* GetMaskLayerImageCache()
 {
-  delete static_cast<nsRegion*>(aPropertyValue);
+  if (!gMaskLayerImageCache) {
+    gMaskLayerImageCache = new MaskLayerImageCache();
+  }
+
+  return gMaskLayerImageCache;
+}
+
+class RefCountedRegion : public RefCounted<RefCountedRegion> {
+public:
+  nsRegion mRegion;
+};
+
+static void DestroyRefCountedRegion(void* aPropertyValue)
+{
+  static_cast<RefCountedRegion*>(aPropertyValue)->Release();
 }
 
 /**
@@ -78,7 +96,7 @@ static void DestroyRegion(void* aPropertyValue)
  * When the property value is null, the region is infinite --- i.e. all
  * areas of the ThebesLayers should be invalidated.
  */
-NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRegion)
+NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRefCountedRegion)
 
 static void DestroyPoint(void* aPropertyValue)
 {
@@ -474,11 +492,22 @@ public:
  */
 struct MaskLayerUserData : public LayerUserData
 {
+  MaskLayerUserData() : mImageKey(nsnull) {}
+
+  bool
+  operator== (const MaskLayerUserData& aOther) const
+  {
+    return mRoundedClipRects == aOther.mRoundedClipRects &&
+           mScaleX == aOther.mScaleX &&
+           mScaleY == aOther.mScaleY;
+  }
+
+  nsRefPtr<const MaskLayerImageCache::MaskLayerImageKey> mImageKey;
   // properties of the mask layer; the mask layer may be re-used if these
   // remain unchanged.
   nsTArray<FrameLayerBuilder::Clip::RoundedRect> mRoundedClipRects;
-  gfx3DMatrix mTransform;
-  nsIntRect mBounds;
+  // scale from the masked layer which is applied to the mask
+  float mScaleX, mScaleY;
 };
 
 /**
@@ -532,6 +561,16 @@ ThebesDisplayItemLayerUserData* GetThebesDisplayItemLayerUserData(Layer* aLayer)
 }
 
 } // anonymous namespace
+
+
+/* static */ void
+FrameLayerBuilder::Shutdown()
+{
+  if (gMaskLayerImageCache) {
+    delete gMaskLayerImageCache;
+    gMaskLayerImageCache = nsnull;
+  }
+}
 
 void
 FrameLayerBuilder::Init(nsDisplayListBuilder* aBuilder)
@@ -643,6 +682,8 @@ FrameLayerBuilder::DidEndTransaction(LayerManager* aManager)
       RemoveThebesItemsForLayerSubtree(root);
     }
   }
+
+  GetMaskLayerImageCache()->Sweep();
 }
 
 void
@@ -675,8 +716,13 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
                "Some frame must have a layer!");
 }
 
+/**
+ * If *aThebesLayerInvalidRegion is non-null, use it as this frame's
+ * region property. Otherwise set it to the frame's region property.
+ */
 static void
-SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot)
+SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot,
+                     RefCountedRegion** aThebesLayerInvalidRegion)
 {
   aFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
   for (nsIFrame* f = aFrame;
@@ -692,6 +738,24 @@ SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot)
     *lastPaintOffset = aOffsetToRoot;
   } else {
     props.Set(ThebesLayerLastPaintOffsetProperty(), new nsPoint(aOffsetToRoot));
+  }
+
+  // Reset or create the invalid region now so we can start collecting
+  // new dirty areas.
+  if (*aThebesLayerInvalidRegion) {
+    (*aThebesLayerInvalidRegion)->AddRef();
+    props.Set(ThebesLayerInvalidRegionProperty(), *aThebesLayerInvalidRegion);
+  } else {
+    RefCountedRegion* invalidRegion = static_cast<RefCountedRegion*>
+      (props.Get(ThebesLayerInvalidRegionProperty()));
+    if (invalidRegion) {
+      invalidRegion->mRegion.SetEmpty();
+    } else {
+      invalidRegion = new RefCountedRegion();
+      invalidRegion->AddRef();
+      props.Set(ThebesLayerInvalidRegionProperty(), invalidRegion);
+    }
+    *aThebesLayerInvalidRegion = invalidRegion;
   }
 }
 
@@ -722,19 +786,7 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
     return PL_DHASH_REMOVE;
   }
 
-  if (newDisplayItems->HasNonEmptyContainerLayer()) {
-    // Reset or create the invalid region now so we can start collecting
-    // new dirty areas.
-    // Note that the NS_FRAME_HAS_CONTAINER_LAYER bit is set in
-    // BuildContainerLayerFor, so we don't need to set it here.
-    nsRegion* invalidRegion = static_cast<nsRegion*>
-      (props.Get(ThebesLayerInvalidRegionProperty()));
-    if (invalidRegion) {
-      invalidRegion->SetEmpty();
-    } else {
-      props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
-    }
-  } else {
+  if (!newDisplayItems->HasNonEmptyContainerLayer()) {
     SetNoContainerLayer(f);
   }
 
@@ -761,10 +813,6 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
 
   newEntry->mData.SwapElements(aEntry->mData);
   props.Set(LayerManagerDataProperty(), data);
-
-  if (f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
-    props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
-  }
   return PL_DHASH_REMOVE;
 }
 
@@ -878,7 +926,7 @@ ContainerState::CreateOrRecycleMaskImageLayerFor(Layer* aLayer)
   nsRefPtr<ImageLayer> result = mRecycledMaskImageLayers.Get(aLayer);
   if (result) {
     mRecycledMaskImageLayers.Remove(aLayer);
-    // if we use clip on mask layers, null it out here
+    // XXX if we use clip on mask layers, null it out here
   } else {
     // Create a new layer
     result = mManager->CreateImageLayer();
@@ -1131,11 +1179,7 @@ ContainerState::ThebesLayerData::UpdateCommonClipCount(
 already_AddRefed<ImageContainer>
 ContainerState::ThebesLayerData::CanOptimizeImageLayer()
 {
-#ifdef MOZ_ENABLE_MASK_LAYERS
   if (!mImage) {
-#else
-  if (!mImage || !mItemClip.mRoundedClipRects.IsEmpty()) {
-#endif
     return nsnull;
   }
 
@@ -1165,10 +1209,6 @@ ContainerState::PopThebesLayerData()
       gfx3DMatrix transform = imageLayer->GetTransform()*
         gfx3DMatrix::ScalingMatrix(mParameters.mXScale, mParameters.mYScale, 1.0f);
       imageLayer->SetTransform(transform);
-#ifndef MOZ_ENABLE_MASK_LAYERS
-      NS_ASSERTION(data->mItemClip.mRoundedClipRects.IsEmpty(),
-                   "How did we get rounded clip rects here?");
-#endif
       if (data->mItemClip.mHaveClipRect) {
         nsIntRect clip = ScaleToNearestPixels(data->mItemClip.mClipRect);
         imageLayer->IntersectClipRect(clip);
@@ -1250,7 +1290,6 @@ ContainerState::PopThebesLayerData()
     }
     userData->mForcedBackgroundColor = backgroundColor;
 
-#ifdef MOZ_ENABLE_MASK_LAYERS
     // use a mask layer for rounded rect clipping
     PRInt32 commonClipCount = data->mCommonClipCount;
     NS_ASSERTION(commonClipCount >= 0, "Inconsistent clip count.");
@@ -1262,7 +1301,6 @@ ContainerState::PopThebesLayerData()
   } else {
     // mask layer for image and color layers
     SetupMaskLayer(layer, data->mItemClip);
-#endif
   }
   PRUint32 flags;
   if (isOpaque && !data->mForceTransparentSurface) {
@@ -1625,13 +1663,7 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
         layerState == LAYER_ACTIVE_EMPTY ||
-#ifdef MOZ_ENABLE_MASK_LAYERS
         layerState == LAYER_ACTIVE) {
-#else
-        (layerState == LAYER_ACTIVE &&
-         (aClip.mRoundedClipRects.IsEmpty() ||
-          !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect())))) {
-#endif
 
       // LAYER_ACTIVE_EMPTY means the layer is created just for its metadata.
       // We should never see an empty layer with any visible content!
@@ -1693,13 +1725,11 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       }
       RestrictVisibleRegionForLayer(ownLayer, itemVisibleRect);
 
-#ifdef MOZ_ENABLE_MASK_LAYERS
       // rounded rectangle clipping using mask layers
       // (must be done after visible rect is set on layer)
       if (aClip.IsRectClippedByRoundedCorner(itemContent)) {
           SetupMaskLayer(ownLayer, aClip);
       }
-#endif
 
       ContainerLayer* oldContainer = ownLayer->GetParent();
       if (oldContainer && oldContainer != mContainerLayer) {
@@ -2025,26 +2055,22 @@ ApplyThebesLayerInvalidation(nsDisplayListBuilder* aBuilder,
                              ContainerState& aState,
                              nsPoint* aCurrentOffset)
 {
-  FrameProperties props = aContainerFrame->Properties();
-  nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
-    (props.Get(ThebesLayerLastPaintOffsetProperty()));
   *aCurrentOffset = aContainerItem ? aContainerItem->ToReferenceFrame()
     : aBuilder->ToReferenceFrame(aContainerFrame);
 
-  nsRegion* invalidThebesContent = static_cast<nsRegion*>
+  FrameProperties props = aContainerFrame->Properties();
+  RefCountedRegion* invalidThebesContent = static_cast<RefCountedRegion*>
     (props.Get(ThebesLayerInvalidRegionProperty()));
   if (invalidThebesContent) {
-    nsPoint offset = offsetAtLastPaint ? *offsetAtLastPaint : *aCurrentOffset;
-    invalidThebesContent->MoveBy(offset);
     const FrameLayerBuilder::ContainerParameters& scaleParameters = aState.ScaleParameters();
-    aState.AddInvalidThebesContent(invalidThebesContent->
+    aState.AddInvalidThebesContent(invalidThebesContent->mRegion.
       ScaleToOutsidePixels(scaleParameters.mXScale, scaleParameters.mYScale,
                            aState.GetAppUnitsPerDevPixel()));
     // We have to preserve the current contents of invalidThebesContent
     // because there might be multiple container layers for the same
     // frame and we need to invalidate the ThebesLayer children of all
-    // of them.
-    invalidThebesContent->MoveBy(-offset);
+    // of them. Also, multiple calls to ApplyThebesLayerInvalidation for the
+    // same layer can share the same region.
   } else {
     // The region was deleted to indicate that everything should be
     // invalidated.
@@ -2119,7 +2145,8 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
     nsPoint currentOffset;
     ApplyThebesLayerInvalidation(aBuilder, aContainerFrame, aContainerItem, state,
                                  &currentOffset);
-    SetHasContainerLayer(aContainerFrame, currentOffset);
+    RefCountedRegion* thebesLayerInvalidRegion = nsnull;
+    SetHasContainerLayer(aContainerFrame, currentOffset, &thebesLayerInvalidRegion);
 
     nsAutoTArray<nsIFrame*,4> mergedFrames;
     if (aContainerItem) {
@@ -2135,7 +2162,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
       }
       ApplyThebesLayerInvalidation(aBuilder, mergedFrame, nsnull, state,
                                    &currentOffset);
-      SetHasContainerLayer(mergedFrame, currentOffset);
+      SetHasContainerLayer(mergedFrame, currentOffset, &thebesLayerInvalidRegion);
     }
   }
 
@@ -2195,12 +2222,19 @@ FrameLayerBuilder::GetLeafLayerFor(nsDisplayListBuilder* aBuilder,
 FrameLayerBuilder::InvalidateThebesLayerContents(nsIFrame* aFrame,
                                                  const nsRect& aRect)
 {
-  nsRegion* invalidThebesContent = static_cast<nsRegion*>
-    (aFrame->Properties().Get(ThebesLayerInvalidRegionProperty()));
+  FrameProperties props = aFrame->Properties();
+  RefCountedRegion* invalidThebesContent = static_cast<RefCountedRegion*>
+    (props.Get(ThebesLayerInvalidRegionProperty()));
   if (!invalidThebesContent)
     return;
-  invalidThebesContent->Or(*invalidThebesContent, aRect);
-  invalidThebesContent->SimplifyOutward(20);
+
+  nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
+    (props.Get(ThebesLayerLastPaintOffsetProperty()));
+  NS_ASSERTION(offsetAtLastPaint,
+               "This must have been set up along with ThebesLayerInvalidRegionProperty");
+  invalidThebesContent->mRegion.Or(invalidThebesContent->mRegion,
+          aRect + *offsetAtLastPaint);
+  invalidThebesContent->mRegion.SimplifyOutward(20);
 }
 
 /**
@@ -2548,6 +2582,12 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
       break;
   }
 
+  {
+    ThebesLayerItemsEntry* entry =
+      builder->LayerBuilder()->mThebesLayerItems.GetEntry(aLayer);
+    items.SwapElements(entry->mItems);
+  }
+
   if (setClipRect) {
     aContext->Restore();
   }
@@ -2671,7 +2711,6 @@ FrameLayerBuilder::Clip::AddRoundedRectPathTo(gfxContext* aContext,
   gfxRect clip = nsLayoutUtils::RectToGfxRect(aRoundRect.mRect, A2D);
   clip.Round();
   clip.Condition();
-  // REVIEW: This might make clip empty.  Is that OK?
 
   aContext->NewPath();
   aContext->RoundedRectangle(clip, pixelRadii);
@@ -2787,129 +2826,132 @@ FrameLayerBuilder::Clip::RemoveRoundedCorners()
   mRoundedClipRects.Clear();
 }
 
-/**
- * Compares the first aEnd entries in a1 and a2, returning true if they are all
- * equal. If there are less than aEnd entries in either a1 or a2, then there
- * must be the same number of entries in a1 and a2 and they must all be equal.
- */
-template<class T> bool
-ArrayRangeEquals(const nsTArray<T>& a1, const nsTArray<T>& a2, PRUint32 aEnd)
+gfxRect
+CalculateBounds(nsTArray<FrameLayerBuilder::Clip::RoundedRect> aRects, PRInt32 A2D)
 {
-  if ((a1.Length() <= aEnd ||
-       a2.Length() <= aEnd) &&
-      a1.Length() != a2.Length()) {
-    return false;
-  }
-
-  PRUint32 end = NS_MIN<PRUint32>(aEnd, a1.Length());
-  for (PRUint32 i = 0; i < end; ++i) {
-    if (a1[i] != a2[i])
-      return false;
-  }
-
-  return true;
+  nsRect bounds = aRects[0].mRect;
+  for (PRUint32 i = 1; i < aRects.Length(); ++i) {
+    bounds.UnionRect(bounds, aRects[i].mRect);
+   }
+ 
+  return nsLayoutUtils::RectToGfxRect(bounds, A2D);
 }
-
+ 
 void
 ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aClip,
                                PRUint32 aRoundedRectClipCount) 
 {
-#ifdef MOZ_ENABLE_MASK_LAYERS
-  nsIntRect boundingRect = aLayer->GetEffectiveVisibleRegion().GetBounds();
   // don't build an unnecessary mask
+  nsIntRect layerBounds = aLayer->GetVisibleRegion().GetBounds();
   if (aClip.mRoundedClipRects.IsEmpty() ||
       aRoundedRectClipCount <= 0 ||
-      boundingRect.IsEmpty()) {
+      layerBounds.IsEmpty()) {
     return;
   }
-
-  const gfx3DMatrix& layerTransform = aLayer->GetTransform();
-  NS_ASSERTION(layerTransform.CanDraw2D() || aLayer->AsContainerLayer(),
-               "Only container layers may have 3D transforms.");
 
   // check if we can re-use the mask layer
   nsRefPtr<ImageLayer> maskLayer =  CreateOrRecycleMaskImageLayerFor(aLayer);
   MaskLayerUserData* userData = GetMaskLayerUserData(maskLayer);
-  if (ArrayRangeEquals(userData->mRoundedClipRects,
-                       aClip.mRoundedClipRects,
-                       aRoundedRectClipCount) &&
-      userData->mRoundedClipRects.Length() <= aRoundedRectClipCount &&
-      layerTransform == userData->mTransform &&
-      boundingRect == userData->mBounds) {
+
+  MaskLayerUserData newData;
+  newData.mRoundedClipRects.AppendElements(aClip.mRoundedClipRects);
+  if (aRoundedRectClipCount < newData.mRoundedClipRects.Length()) {
+    newData.mRoundedClipRects.TruncateLength(aRoundedRectClipCount);
+  }
+  newData.mScaleX = mParameters.mXScale;
+  newData.mScaleY = mParameters.mYScale;
+
+  if (*userData == newData) {
     aLayer->SetMaskLayer(maskLayer);
     return;
   }
+ 
+  // calculate a more precise bounding rect
+  const PRInt32 A2D = mContainerFrame->PresContext()->AppUnitsPerDevPixel();
+  gfxRect boundingRect = CalculateBounds(newData.mRoundedClipRects, A2D);
+  boundingRect.Scale(mParameters.mXScale, mParameters.mYScale);
 
-  // transform the bounds of the mask layer so that we are consistently in the
-  // masked layer's parent's coord space
-  gfxRect transformedBoundRect = layerTransform.TransformBounds(boundingRect);
-  transformedBoundRect.RoundOut();
-  if (!gfxUtils::GfxRectToIntRect(transformedBoundRect, &boundingRect)) {
-    NS_WARNING(
-      "Could not create mask layer: bounding rectangle could not be constructed.");
-    return;
-  }
-  
   PRUint32 maxSize = mManager->GetMaxTextureSize();
   NS_ASSERTION(maxSize > 0, "Invalid max texture size");
   nsIntSize surfaceSize(NS_MIN<PRInt32>(boundingRect.Width(), maxSize),
                         NS_MIN<PRInt32>(boundingRect.Height(), maxSize));
 
-  nsRefPtr<gfxASurface> surface =
-    aLayer->Manager()->CreateOptimalSurface(surfaceSize,
-                                            aLayer->Manager()->MaskImageFormat());
+  // maskTransform is applied to the clip when it is painted into the mask (as a
+  // component of imageTransform), and its inverse used when the mask is used for
+  // masking.
+  // It is the transform from the masked layer's space to mask space
+  gfxMatrix maskTransform;
+  maskTransform.Scale(float(surfaceSize.width)/float(boundingRect.Width()),
+                      float(surfaceSize.height)/float(boundingRect.Height()));
+  maskTransform.Translate(-boundingRect.TopLeft());
+  // imageTransform is only used when the clip is painted to the mask
+  gfxMatrix imageTransform = maskTransform;
+  imageTransform.Scale(mParameters.mXScale, mParameters.mYScale);
 
-  // fail if we can't get the right surface
-  if (!surface || surface->CairoStatus()) {
-    NS_WARNING("Could not create surface for mask layer.");
-    return;
+  // copy and transform the rounded rects
+  nsTArray<MaskLayerImageCache::PixelRoundedRect> roundedRects;
+  for (PRUint32 i = 0; i < newData.mRoundedClipRects.Length(); ++i) {
+    roundedRects.AppendElement(
+      MaskLayerImageCache::PixelRoundedRect(newData.mRoundedClipRects[i],
+                                            mContainerFrame->PresContext()));
+    roundedRects[i].ScaleAndTranslate(imageTransform);
   }
+ 
+  // check to see if we can reuse a mask image
+  const MaskLayerImageCache::MaskLayerImageKey* key =
+    new MaskLayerImageCache::MaskLayerImageKey(roundedRects);
+  const MaskLayerImageCache::MaskLayerImageKey* lookupKey = key;
 
-  nsRefPtr<gfxContext> context = new gfxContext(surface);
+  nsRefPtr<ImageContainer> container =
+    GetMaskLayerImageCache()->FindImageFor(&lookupKey);
 
-  gfxMatrix visRgnTranslation;
-  visRgnTranslation.Scale(float(surfaceSize.width)/float(boundingRect.Width()),
-                          float(surfaceSize.height)/float(boundingRect.Height()));
-  visRgnTranslation.Translate(-boundingRect.TopLeft());
-  context->Multiply(visRgnTranslation);
+  if (container) {
+    // track the returned key for the mask image
+    delete key;
+    key = lookupKey;
+  } else {
+    // no existing mask image, so build a new one
+    nsRefPtr<gfxASurface> surface =
+      aLayer->Manager()->CreateOptimalMaskSurface(surfaceSize);
 
-  gfxMatrix scale;
-  scale.Scale(mParameters.mXScale, mParameters.mYScale);
-  context->Multiply(scale);
+    // fail if we can't get the right surface
+    if (!surface || surface->CairoStatus()) {
+      NS_WARNING("Could not create surface for mask layer.");
+      return;
+    }
 
-  // useful for debugging, make masked areas semi-opaque
-  //context->SetColor(gfxRGBA(0, 0, 0, 0.3));
-  //context->Paint();
+    nsRefPtr<gfxContext> context = new gfxContext(surface);
+    context->Multiply(imageTransform);
 
-  // paint the clipping rects with alpha to create the mask
-  context->SetColor(gfxRGBA(0, 0, 0, 1));  PRInt32 A2D = mContainerFrame->PresContext()->AppUnitsPerDevPixel();
-  aClip.DrawRoundedRectsTo(context, A2D, 0, aRoundedRectClipCount);
+    // paint the clipping rects with alpha to create the mask
+    context->SetColor(gfxRGBA(1, 1, 1, 1));
+    aClip.DrawRoundedRectsTo(context, A2D, 0, aRoundedRectClipCount);
 
-  // build the image and container
-  nsRefPtr<ImageContainer> container = aLayer->Manager()->CreateImageContainer();
-  NS_ASSERTION(container, "Could not create image container for mask layer.");
-  static const Image::Format format = Image::CAIRO_SURFACE;
-  nsRefPtr<Image> image = container->CreateImage(&format, 1);
-  NS_ASSERTION(image, "Could not create image container for mask layer.");
-  CairoImage::Data data;
-  data.mSurface = surface;
-  data.mSize = surfaceSize;
-  static_cast<CairoImage*>(image.get())->SetData(data);
-  container->SetCurrentImage(image);
+    // build the image and container
+    container = aLayer->Manager()->CreateImageContainer();
+    NS_ASSERTION(container, "Could not create image container for mask layer.");
+    static const Image::Format format = Image::CAIRO_SURFACE;
+    nsRefPtr<Image> image = container->CreateImage(&format, 1);
+    NS_ASSERTION(image, "Could not create image container for mask layer.");
+    CairoImage::Data data;
+    data.mSurface = surface;
+    data.mSize = surfaceSize;
+    static_cast<CairoImage*>(image.get())->SetData(data);
+    container->SetCurrentImage(image);
+
+    GetMaskLayerImageCache()->PutImage(key, container);
+  }
 
   maskLayer->SetContainer(container);
-  maskLayer->SetTransform(gfx3DMatrix::From2D(visRgnTranslation.Invert()));
-  maskLayer->SetVisibleRegion(boundingRect);
+  maskLayer->SetTransform(gfx3DMatrix::From2D(maskTransform.Invert()));
+
   // save the details of the clip in user data
-  userData->mRoundedClipRects = aClip.mRoundedClipRects;
-  if (aRoundedRectClipCount < userData->mRoundedClipRects.Length()) {
-    userData->mRoundedClipRects.TruncateLength(aRoundedRectClipCount);
-  }
-  userData->mTransform = aLayer->GetTransform();
-  userData->mBounds = aLayer->GetEffectiveVisibleRegion().GetBounds();
+  userData->mScaleX = newData.mScaleX;
+  userData->mScaleY = newData.mScaleY;
+  userData->mRoundedClipRects.SwapElements(newData.mRoundedClipRects);
+  userData->mImageKey = key;
 
   aLayer->SetMaskLayer(maskLayer);
-#endif
   return;
 }
 

@@ -16,6 +16,7 @@
 #include "nsDeque.h"
 #include "nsHashKeys.h"
 #include "zlib.h"
+#include "mozilla/Attributes.h"
 
 class nsHttpConnection;
 class nsISocketTransport;
@@ -24,10 +25,10 @@ namespace mozilla { namespace net {
 
 class SpdyStream2;
 
-class SpdySession2 : public ASpdySession
-                   , public nsAHttpConnection
-                   , public nsAHttpSegmentReader
-                   , public nsAHttpSegmentWriter
+class SpdySession2 MOZ_FINAL : public ASpdySession
+                             , public nsAHttpConnection
+                             , public nsAHttpSegmentReader
+                             , public nsAHttpSegmentWriter
 {
 public:
   NS_DECL_ISUPPORTS
@@ -154,6 +155,8 @@ public:
   // an overload of nsAHttpSegementReader
   virtual nsresult CommitToSegmentSize(PRUint32 size);
   
+  void     PrintDiagnostics (nsCString &log);
+
 private:
 
   enum stateType {
