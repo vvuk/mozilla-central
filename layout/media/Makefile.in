@@ -114,10 +114,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/gfx/2d/$(LIB_PREFIX)gfx2d.$(LIB_SUFFIX) \
 	$(NULL)
 
-ifdef MOZ_WEBRTC
-include $(topsrcdir)/media/webrtc/shared_libs.mk
-endif
-
 ifdef MOZ_ENABLE_SKIA
 SHARED_LIBRARY_LIBS += $(MOZ_SKIA_LIBS)
 endif
