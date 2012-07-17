@@ -104,7 +104,7 @@ private:
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
-  ScopedDeletePtr<NSPRHelper> helper_;
+  mozilla::ScopedDeletePtr<NSPRHelper> helper_;
   CERTCertificate *peer_cert_;
   nsCOMPtr<nsIEventTarget> target_;  
   nsCOMPtr<nsITimer> timer_;

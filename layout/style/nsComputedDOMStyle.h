@@ -335,7 +335,6 @@ private:
 
   /* Column properties */
   nsIDOMCSSValue* DoGetColumnCount();
-  nsIDOMCSSValue* DoGetColumnFill();
   nsIDOMCSSValue* DoGetColumnWidth();
   nsIDOMCSSValue* DoGetColumnGap();
   nsIDOMCSSValue* DoGetColumnRuleWidth();
@@ -357,6 +356,18 @@ private:
   nsIDOMCSSValue* DoGetAnimationFillMode();
   nsIDOMCSSValue* DoGetAnimationIterationCount();
   nsIDOMCSSValue* DoGetAnimationPlayState();
+
+#ifdef MOZ_FLEXBOX
+  /* CSS Flexbox properties */
+  nsIDOMCSSValue* DoGetAlignItems();
+  nsIDOMCSSValue* DoGetAlignSelf();
+  nsIDOMCSSValue* DoGetFlexBasis();
+  nsIDOMCSSValue* DoGetFlexDirection();
+  nsIDOMCSSValue* DoGetFlexGrow();
+  nsIDOMCSSValue* DoGetFlexShrink();
+  nsIDOMCSSValue* DoGetOrder();
+  nsIDOMCSSValue* DoGetJustifyContent();
+#endif // MOZ_FLEXBOX
 
   /* SVG properties */
   nsIDOMCSSValue* DoGetFill();

@@ -26,6 +26,7 @@
 #include "npapi.h"
 #include "base/thread.h"
 #include "prenv.h"
+#include "mozilla/Attributes.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -97,6 +98,7 @@ nsBaseWidget::nsBaseWidget()
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
 , mPopupLevel(ePopupLevelTop)
+, mPopupType(ePopupTypeAny)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -208,6 +210,7 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
     mPopupLevel = aInitData->mPopupLevel;
+    mPopupType = aInitData->mPopupHint;
   }
 
   if (aParent) {
@@ -805,8 +808,12 @@ nsBaseWidget::GetShouldAccelerate()
   bool accelerateByDefault = false;
 #endif
 
+  // We don't want to accelerate small popup windows like menu, but we still 
+  // want to accelerate xul panels that may contain arbitrarily complex content.
+  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
+                      (mPopupType != ePopupTypePanel));
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = (mWindowType == eWindowType_popup) || 
+  bool disableAcceleration = isSmallPopup || 
     Preferences::GetBool("layers.acceleration.disabled", false);
   mForceLayersAcceleration =
     Preferences::GetBool("layers.acceleration.force-enabled", false);
@@ -846,6 +853,10 @@ nsBaseWidget::GetShouldAccelerate()
   
   if (!whitelisted) {
     NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
+#ifdef MOZ_JAVA_COMPOSITOR
+    NS_RUNTIMEABORT("OpenGL-accelerated layers are a hard requirement on this platform. "
+                    "Cannot continue without support for them.");
+#endif
     return false;
   }
 
@@ -909,7 +920,9 @@ void nsBaseWidget::CreateCompositor()
 
 bool nsBaseWidget::UseOffMainThreadCompositing()
 {
-  return sUseOffMainThreadCompositing;
+  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
+                      (mPopupType != ePopupTypePanel));
+  return sUseOffMainThreadCompositing && !isSmallPopup;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
@@ -1238,7 +1251,7 @@ nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
  * Returns true if the icon file exists and can be read.
  */
 static bool
-ResolveIconNameHelper(nsILocalFile *aFile,
+ResolveIconNameHelper(nsIFile *aFile,
                       const nsAString &aIconName,
                       const nsAString &aIconSuffix)
 {
@@ -1260,7 +1273,7 @@ ResolveIconNameHelper(nsILocalFile *aFile,
 void
 nsBaseWidget::ResolveIconName(const nsAString &aIconName,
                               const nsAString &aIconSuffix,
-                              nsILocalFile **aResult)
+                              nsIFile **aResult)
 { 
   *aResult = nsnull;
 
@@ -1280,7 +1293,7 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
       dirs->GetNext(getter_AddRefs(element));
       if (!element)
         continue;
-      nsCOMPtr<nsILocalFile> file = do_QueryInterface(element);
+      nsCOMPtr<nsIFile> file = do_QueryInterface(element);
       if (!file)
         continue;
       if (ResolveIconNameHelper(file, aIconName, aIconSuffix)) {
@@ -1292,8 +1305,8 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
 
   // then check the main app chrome directory
 
-  nsCOMPtr<nsILocalFile> file;
-  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsILocalFile),
+  nsCOMPtr<nsIFile> file;
+  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsIFile),
               getter_AddRefs(file));
   if (file && ResolveIconNameHelper(file, aIconName, aIconSuffix))
     NS_ADDREF(*aResult = file);
@@ -1336,9 +1349,18 @@ static void InitOnlyOnce()
   // X11 (else it would crash).
   sUseOffMainThreadCompositing = (PR_GetEnv("MOZ_USE_OMTC") != NULL);
 #else
-  sUseOffMainThreadCompositing = mozilla::Preferences::GetBool(
+  sUseOffMainThreadCompositing = Preferences::GetBool(
         "layers.offmainthreadcomposition.enabled", 
         false);
+  // Until https://bugzilla.mozilla.org/show_bug.cgi?id=745148 lands,
+  // we use either omtc or content processes, but not both.  Prefer
+  // OOP content to omtc.  (Currently, this only affects b2g.)
+  //
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=761962 .
+  if (!Preferences::GetBool("dom.ipc.tabs.disabled", true)) {
+    // Disable omtc if OOP content isn't force-disabled.
+    sUseOffMainThreadCompositing = false;
+  }
 #endif
 }
 
@@ -1480,7 +1502,7 @@ static void debug_SetCachedBoolPref(const char * aPrefName,bool aValue)
 }
 
 //////////////////////////////////////////////////////////////
-class Debug_PrefObserver : public nsIObserver {
+class Debug_PrefObserver MOZ_FINAL : public nsIObserver {
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER

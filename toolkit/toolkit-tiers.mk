@@ -127,8 +127,7 @@ tier_platform_dirs += \
 endif
 
 ifdef MOZ_PSM
-tier_platform_dirs += \
-		security/build
+tier_platform_dirs	+= security/build
 endif
 
 ifdef MOZ_WEBRTC
@@ -137,8 +136,8 @@ tier_platform_dirs +=     media/mtransport/build
 tier_platform_dirs +=     media/mtransport/standalone
 
 tier_platform_dirs += \
-	        media/webrtc \
-	        $(NULL)
+  media/webrtc \
+  $(NULL)
 endif
 
 ifdef MOZ_SPEEX_RESAMPLER

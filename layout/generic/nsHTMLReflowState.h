@@ -336,6 +336,9 @@ public:
     PRUint16 mHeightDependsOnAncestorCell:1;   // Does frame height depend on
                                                // an ancestor table-cell?
     PRUint16 mIsColumnBalancing:1;   // nsColumnSetFrame is balancing columns
+    PRUint16 mDummyParentReflowState:1; // a "fake" reflow state made
+                                        // in order to be the parent
+                                        // of a real one
   } mFlags;
 
   // Note: The copy constructor is written by the compiler automatically. You
@@ -347,7 +350,8 @@ public:
   nsHTMLReflowState(nsPresContext*           aPresContext,
                     nsIFrame*                aFrame,
                     nsRenderingContext*     aRenderingContext,
-                    const nsSize&            aAvailableSpace);
+                    const nsSize&            aAvailableSpace,
+                    PRUint32                 aFlags = 0);
 
   // Initialize a reflow state for a child frames reflow. Some state
   // is copied from the parent reflow state; the remaining state is
@@ -361,6 +365,11 @@ public:
                     nscoord                  aContainingBlockWidth = -1,
                     nscoord                  aContainingBlockHeight = -1,
                     bool                     aInit = true);
+
+  // Values for |aFlags| passed to constructor
+  enum {
+    DUMMY_PARENT_REFLOW_STATE = (1<<0)
+  };
 
   // This method initializes various data members. It is automatically
   // called by the various constructors
@@ -445,6 +454,13 @@ public:
     return mDiscoveredClearance && *mDiscoveredClearance;
   }
 
+  // Compute the offsets for a relative position element
+  static void ComputeRelativeOffsets(PRUint8 aCBDirection,
+                                     nsIFrame* aFrame,
+                                     nscoord aContainingBlockWidth,
+                                     nscoord aContainingBlockHeight,
+                                     nsMargin& aComputedOffsets);
+
 #ifdef DEBUG
   // Reflow trace methods.  Defined in nsFrame.cpp so they have access
   // to the display-reflow infrastructure.
@@ -498,11 +514,6 @@ protected:
                                nscoord aContainingBlockWidth,
                                nscoord aContainingBlockHeight,
                                nsIAtom* aFrameType);
-
-  void ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
-                              nscoord aContainingBlockWidth,
-                              nscoord aContainingBlockHeight,
-                              nsPresContext* aPresContext);
 
   // Calculates the computed values for the 'min-Width', 'max-Width',
   // 'min-Height', and 'max-Height' properties, and stores them in the assorted

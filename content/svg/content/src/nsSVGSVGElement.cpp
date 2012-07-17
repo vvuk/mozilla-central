@@ -36,8 +36,6 @@
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
 
-nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
-
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -190,7 +188,7 @@ nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
-  rv |= CopyInnerTo(it);
+  rv |= const_cast<nsSVGSVGElement*>(this)->CopyInnerTo(it);
   if (NS_SUCCEEDED(rv)) {
     kungFuDeathGrip.swap(*aResult);
   }
@@ -683,16 +681,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
-  gfxMatrix m;
-  if (IsRoot()) {
-    // Consistency with other elements would have us return only the
-    // eFromUserSpace transforms, but this is what we've been doing for
-    // a while, and it keeps us consistent with WebKit and Opera (if not
-    // really with the ambiguous spec).
-    m = PrependLocalTransformsTo(m);
-  } else {
-    m = nsSVGUtils::GetCTM(this, true);
-  }
+  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
   *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -744,7 +733,7 @@ nsSVGSVGElement::SetZoomAndPan(PRUint16 aZoomAndPan)
     return NS_OK;
   }
 
-  return NS_ERROR_DOM_SVG_INVALID_VALUE_ERR;
+  return NS_ERROR_RANGE_ERR;
 }
 
 //----------------------------------------------------------------------
@@ -1156,16 +1145,6 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
   return 0;
 }
 
-void
-nsSVGSVGElement::SyncWidthOrHeight(nsIAtom* aName, nsSVGElement *aTarget) const
-{
-  NS_ASSERTION(aName == nsGkAtoms::width || aName == nsGkAtoms::height,
-               "The clue is in the function name");
-
-  PRUint32 index = *sLengthInfo[WIDTH].mName == aName ? WIDTH : HEIGHT;
-  aTarget->SetLength(aName, mLengthAttributes[index]);
-}
-
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
@@ -1275,7 +1254,8 @@ nsSVGSVGElement::
   SVGPreserveAspectRatio* pAROverridePtr = new SVGPreserveAspectRatio(aPAR);
   nsresult rv = SetProperty(nsGkAtoms::overridePreserveAspectRatio,
                             pAROverridePtr,
-                            ReleasePreserveAspectRatioPropertyValue);
+                            ReleasePreserveAspectRatioPropertyValue,
+                            true);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1387,7 +1367,8 @@ nsSVGSVGElement::SetViewBoxProperty(const nsSVGViewBoxRect& aViewBox)
   nsSVGViewBoxRect* pViewBoxOverridePtr = new nsSVGViewBoxRect(aViewBox);
   nsresult rv = SetProperty(nsGkAtoms::viewBox,
                             pViewBoxOverridePtr,
-                            ReleaseViewBoxPropertyValue);
+                            ReleaseViewBoxPropertyValue,
+                            true);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1420,7 +1401,9 @@ nsSVGSVGElement::ClearViewBoxProperty()
 bool
 nsSVGSVGElement::SetZoomAndPanProperty(PRUint16 aValue)
 {
-  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan, reinterpret_cast<void*>(aValue));
+  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan,
+                            reinterpret_cast<void*>(aValue),
+                            nsnull, true);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 

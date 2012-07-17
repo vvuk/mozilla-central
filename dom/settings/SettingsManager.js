@@ -43,7 +43,7 @@ SettingsLock.prototype = {
 
     while (!lock._requests.isEmpty()) {
       let info = lock._requests.dequeue();
-      debug("info:" + info.intent);
+      debug("info: " + info.intent);
       let request = info.request;
       switch (info.intent) {
         case "clear":
@@ -56,6 +56,13 @@ SettingsLock.prototype = {
         case "set":
           for (let key in info.settings) {
             debug("key: " + key + ", val: " + JSON.stringify(info.settings[key]) + ", type: " + typeof(info.settings[key]));
+
+            let checkKeyRequest = store.get(key);
+            checkKeyRequest.onsuccess = function (event) {
+              if (!event.target.result) {
+                dump("MOZSETTINGS-SET-WARNING: " + key + " is not in the database. Please add it to build/settings.js\n");
+              }
+            }
 
             if(typeof(info.settings[key]) != 'object') {
               req = store.put({settingName: key, settingValue: info.settings[key]});
@@ -72,27 +79,43 @@ SettingsLock.prototype = {
               lock._open = false;
             };
 
-            req.onerror = function() { Services.DOMRequest.fireError(request, 0) };
+            req.onerror = function() {
+              Services.DOMRequest.fireError(request, 0)
+            };
           }
           break;
         case "get":
-          if (info.name == "*") {
-            req = store.getAll();
-          } else {
-            req = store.getAll(info.name);
-          }
+          req = (info.name === "*") ? store.mozGetAll()
+                                    : store.mozGetAll(info.name);
+
           req.onsuccess = function(event) {
             debug("Request for '" + info.name + "' successful. " + 
                   "Record count: " + event.target.result.length);
             debug("result: " + JSON.stringify(event.target.result));
-            var result = {};
-            for (var i in event.target.result)
-              result[event.target.result[i].settingName] = event.target.result[i].settingValue;
+
+            if (event.target.result.length == 0) {
+              dump("MOZSETTINGS-GET-WARNING: " + info.name + " is not in the database. Please add it to build/settings.js\n");
+            }
+
+            let results = {
+              __exposedProps__: {
+              }
+            };
+
+            for (var i in event.target.result) {
+              let result = event.target.result[i];
+              results[result.settingName] = result.settingValue;
+              results.__exposedProps__[result.settingName] = "r";
+            }
+
             this._open = true;
-            Services.DOMRequest.fireSuccess(request, result);
+            Services.DOMRequest.fireSuccess(request, results);
             this._open = false;
           }.bind(lock);
-          req.onerror = function() { Services.DOMRequest.fireError(request, 0)};
+
+          req.onerror = function() {
+            Services.DOMRequest.fireError(request, 0)
+          };
           break;
       }
     }
@@ -178,7 +201,7 @@ SettingsLock.prototype = {
 };
 
 const SETTINGSMANAGER_CONTRACTID = "@mozilla.org/settingsManager;1";
-const SETTINGSMANAGER_CID        = Components.ID("{5609d0a0-52a9-11e1-b86c-0800200c9a66}");
+const SETTINGSMANAGER_CID        = Components.ID("{dd9f5380-a454-11e1-b3dd-0800200c9a66}");
 const nsIDOMSettingsManager      = Ci.nsIDOMSettingsManager;
 
 let myGlobal = this;
@@ -194,6 +217,7 @@ function SettingsManager()
 
 SettingsManager.prototype = {
   _onsettingchange: null,
+  _callbacks: null,
 
   nextTick: function nextTick(aCallback, thisObj) {
     if (thisObj)
@@ -232,19 +256,55 @@ SettingsManager.prototype = {
     switch (aMessage.name) {
       case "Settings:Change:Return:OK":
         debug("Settings:Change:Return:OK");
-        if (!this._onsettingchange)
-          return;
+        if (this._onsettingchange || this._callbacks) {
+          debug('data:' + msg.key + ':' + msg.value + '\n');
 
-        debug('key:' + msg.key + ', value:' + msg.value + '\n');
-        let event = new this._window.MozSettingsEvent("settingchanged", {
-          settingName: msg.key,
-          settingValue: msg.value
-        });
-
-        this._onsettingchange.handleEvent(event);
+          if (this._onsettingchange) {
+            let event = new this._window.MozSettingsEvent("settingchanged", {
+              settingName: msg.key,
+              settingValue: msg.value
+            });
+            this._onsettingchange.handleEvent(event);
+          }
+          if (this._callbacks && this._callbacks[msg.key]) {
+            debug("observe callback called! " + msg.key + " " + this._callbacks[msg.key].length);
+            for (let cb in this._callbacks[msg.key]) {
+              this._callbacks[msg.key].forEach(function(cb) {
+                cb({settingName: msg.key, settingValue: msg.value});
+              });
+            }
+          }
+        } else {
+          debug("no observers stored!");
+        }
         break;
       default: 
         debug("Wrong message: " + aMessage.name);
+    }
+  },
+
+  addObserver: function addObserver(aName, aCallback) {
+    debug("addObserver " + aName);
+    if (!this._callbacks)
+      this._callbacks = {};
+    if (!this._callbacks[aName]) {
+      this._callbacks[aName] = [aCallback];
+    } else {
+      this._callbacks[aName].push(aCallback);
+    }
+  },
+
+  removeObserver: function removeObserver(aName, aCallback) {
+    debug("deleteObserver " + aName);
+    if (this._callbacks && this._callbacks[aName]) {
+      let index = this._callbacks[aName].indexOf(aCallback)
+      if (index != -1) {
+        this._callbacks[aName].splice(index, 1)
+      } else {
+        debug("Callback not found for: " + aName);
+      }
+    } else {
+      debug("No observers stored for " + aName);
     }
   },
 
@@ -280,7 +340,6 @@ SettingsManager.prototype = {
         this._innerWindowID = null;
         this._onsettingchange = null;
         this._settingsDB.close();
-        cpmm = null;
       }
     }
   },

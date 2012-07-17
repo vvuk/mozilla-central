@@ -27,6 +27,7 @@
       #
       'include_dirs': [
         '..',
+        './media-conduit',
         './src',
         './src/callcontrol',
         './src/common',
@@ -46,6 +47,7 @@
         '../trunk/src',
         '../trunk/src/video_engine/include',
         '../trunk/src/voice_engine/main/interface',
+        '../trunk/src/modules/interface',
         '../trunk/src/peerconnection',
         '../trunk/third_party/libjingle/source',
       ],	
@@ -64,6 +66,13 @@
       # SOURCES
       #
       'sources': [
+        # Media Conduit 
+        './media-conduit/MediaEngineWrapper.h',
+        './media-conduit/MediaEngineWrapper.cpp',
+        './media-conduit/AudioConduit.h',
+        './media-conduit/AudioConduit.cpp',
+        './media-conduit/VideoConduit.h',
+        './media-conduit/VideoConduit.cpp',
         # Common
         './src/common/CommonTypes.h',
         './src/common/csf_common.h',
@@ -161,8 +170,12 @@
           ],
         }], 
         ['build_for_test!=0', {
+          'include_dirs': [
+            './test'
+          ],
           'defines' : [
-            'NO_CHROMIUM_LOGGING'
+            'NO_CHROMIUM_LOGGING',
+            'USE_FAKE_MEDIA_STREAMS'
           ],
         }], 
         ['OS=="linux"', {

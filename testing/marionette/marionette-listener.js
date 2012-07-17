@@ -13,6 +13,7 @@ let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
 
 loader.loadSubScript("chrome://marionette/content/marionette-simpletest.js");
 loader.loadSubScript("chrome://marionette/content/marionette-log-obj.js");
+loader.loadSubScript("chrome://marionette/content/marionette-perf.js");
 Cu.import("chrome://marionette/content/marionette-elements.js");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");  
@@ -27,6 +28,7 @@ loader.loadSubScript("chrome://specialpowers/content/specialpowersAPI.js");
 loader.loadSubScript("chrome://specialpowers/content/specialpowers.js");
 
 let marionetteLogObj = new MarionetteLogObj();
+let marionettePerf = new MarionettePerfData();
 
 let isB2G = false;
 
@@ -248,7 +250,7 @@ function createExecuteContentSandbox(aWindow) {
   sandbox.__proto__ = sandbox.window;
   sandbox.testUtils = utils;
 
-  let marionette = new Marionette(this, aWindow, "content", marionetteLogObj);
+  let marionette = new Marionette(this, aWindow, "content", marionetteLogObj, marionettePerf);
   sandbox.marionette = marionette;
   marionette.exports.forEach(function(fn) {
     sandbox[fn] = marionette[fn].bind(marionette);
@@ -270,9 +272,10 @@ function createExecuteContentSandbox(aWindow) {
       curWindow.clearTimeout(i);
     }
 
-    sendSyncMessage("Marionette:testLog",
-                    {value: elementManager.wrapValue(marionetteLogObj.getLogs())});
+    sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                             perf: elementManager.wrapValue(marionettePerf.getPerfData())});
     marionetteLogObj.clearLogs();
+    marionettePerf.clearPerfData();
     if (status == 0){
       sendResponse({value: elementManager.wrapValue(value), status: status}, asyncTestCommandId);
     }
@@ -323,8 +326,10 @@ function executeScript(msg, directInject) {
         script = data + script;
       }
       let res = Cu.evalInSandbox(script, sandbox, "1.8");
-      sendSyncMessage("Marionette:testLog", {value: elementManager.wrapValue(marionetteLogObj.getLogs())});
+      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
       marionetteLogObj.clearLogs();
+      marionettePerf.clearPerfData();
       if (res == undefined || res.passed == undefined) {
         sendError("Marionette.finish() not called", 17, null);
       }
@@ -338,7 +343,7 @@ function executeScript(msg, directInject) {
           msg.json.args, curWindow);
       }
       catch(e) {
-        sendError(e.message, e.num, e.stack);
+        sendError(e.message, e.code, e.stack);
         return;
       }
 
@@ -352,8 +357,10 @@ function executeScript(msg, directInject) {
         scriptSrc = data + scriptSrc;
       }
       let res = Cu.evalInSandbox(scriptSrc, sandbox, "1.8");
-      sendSyncMessage("Marionette:testLog", {value: elementManager.wrapValue(marionetteLogObj.getLogs())});
+      sendSyncMessage("Marionette:shareData", {log: elementManager.wrapValue(marionetteLogObj.getLogs()),
+                                               perf: elementManager.wrapValue(marionettePerf.getPerfData())});
       marionetteLogObj.clearLogs();
+      marionettePerf.clearPerfData();
       sendResponse({value: elementManager.wrapValue(res)});
     }
   }
@@ -439,7 +446,7 @@ function executeWithCallback(msg, timeout) {
         msg.json.args, curWindow);
     }
     catch(e) {
-      sendError(e.message, e.num, e.stack);
+      sendError(e.message, e.code, e.stack);
       return;
     }
 
@@ -472,7 +479,7 @@ function setSearchTimeout(msg) {
     elementManager.setSearchTimeout(msg.json.value);
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
     return;
   }
   sendOk();
@@ -538,7 +545,7 @@ function findElementContent(msg) {
     id = elementManager.find(curWindow, msg.json, notify, false);
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -552,7 +559,7 @@ function findElementsContent(msg) {
     id = elementManager.find(curWindow, msg.json, notify, true);
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -567,7 +574,7 @@ function clickElement(msg) {
     sendOk();
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -580,7 +587,7 @@ function getElementAttribute(msg) {
     sendResponse({value: utils.getElementAttribute(el, msg.json.name)});
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -593,7 +600,7 @@ function getElementText(msg) {
     sendResponse({value: utils.getElementText(el)});
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -606,7 +613,7 @@ function isElementDisplayed(msg) {
     sendResponse({value: utils.isElementDisplayed(el)});
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -619,7 +626,7 @@ function isElementEnabled(msg) {
     sendResponse({value: utils.isElementEnabled(el)});
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -632,7 +639,7 @@ function isElementSelected(msg) {
     sendResponse({value: utils.isElementSelected(el)});
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -646,7 +653,7 @@ function sendKeysToElement(msg) {
     sendOk();
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -660,7 +667,7 @@ function clearElement(msg) {
     sendOk();
   }
   catch (e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
   }
 }
 
@@ -752,7 +759,7 @@ function emulatorCmdResult(msg) {
     cb(message.result);
   }
   catch(e) {
-    sendError(e.message, e.num, e.stack);
+    sendError(e.message, e.code, e.stack);
     return;
   }
 }
@@ -760,7 +767,7 @@ function emulatorCmdResult(msg) {
 function importScript(msg) {
   let file;
   if (importedScripts.exists()) {
-    file = FileUtils.openFileOutputStream(importedScripts, FielUtils.MODE_APPEND);
+    file = FileUtils.openFileOutputStream(importedScripts, FileUtils.MODE_APPEND | FileUtils.MODE_WRONLY);
   }
   else {
     file = FileUtils.openFileOutputStream(importedScripts, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);

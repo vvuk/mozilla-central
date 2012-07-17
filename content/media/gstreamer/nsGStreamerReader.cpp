@@ -191,7 +191,7 @@ nsresult nsGStreamerReader::ReadMetadata(nsVideoInfo* aInfo)
    * stream but that are otherwise decodeable.
    */
   guint flags[3] = {GST_PLAY_FLAG_VIDEO|GST_PLAY_FLAG_AUDIO,
-    ~GST_PLAY_FLAG_AUDIO, ~GST_PLAY_FLAG_VIDEO};
+    static_cast<guint>(~GST_PLAY_FLAG_AUDIO), static_cast<guint>(~GST_PLAY_FLAG_VIDEO)};
   guint default_flags, current_flags;
   g_object_get(mPlayBin, "flags", &default_flags, NULL);
 
@@ -505,6 +505,10 @@ nsresult nsGStreamerReader::Seek(PRInt64 aTarget,
 nsresult nsGStreamerReader::GetBuffered(nsTimeRanges* aBuffered,
                                         PRInt64 aStartTime)
 {
+  if (!mInfo.mHasVideo && !mInfo.mHasAudio) {
+    return NS_OK;
+  }
+
   GstFormat format = GST_FORMAT_TIME;
   MediaResource* resource = mDecoder->GetResource();
   gint64 resourceLength = resource->GetLength();

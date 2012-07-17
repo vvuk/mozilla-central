@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
+#include "mozilla/Attributes.h"
 
 #include "nsCache.h"
 #include "nsDiskCache.h"
@@ -219,11 +220,39 @@ nsOfflineCacheEvictionFunction::Apply()
   Reset();
 }
 
+class nsOfflineCacheDiscardCache : public nsRunnable
+{
+public:
+  nsOfflineCacheDiscardCache(nsOfflineCacheDevice *device,
+			     nsCString &group,
+			     nsCString &clientID)
+    : mDevice(device)
+    , mGroup(group)
+    , mClientID(clientID)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    if (mDevice->IsActiveCache(mGroup, mClientID))
+    {
+      mDevice->DeactivateGroup(mGroup);
+    }
+
+    return mDevice->EvictEntries(mClientID.get());
+  }
+
+private:
+  nsRefPtr<nsOfflineCacheDevice> mDevice;
+  nsCString mGroup;
+  nsCString mClientID;
+};
+
 /******************************************************************************
  * nsOfflineCacheDeviceInfo
  */
 
-class nsOfflineCacheDeviceInfo : public nsICacheDeviceInfo
+class nsOfflineCacheDeviceInfo MOZ_FINAL : public nsICacheDeviceInfo
 {
 public:
   NS_DECL_ISUPPORTS
@@ -253,7 +282,7 @@ nsOfflineCacheDeviceInfo::GetUsageReport(char ** usageReport)
   buffer.AssignLiteral("  <tr>\n"
                        "    <th>Cache Directory:</th>\n"
                        "    <td>");
-  nsILocalFile *cacheDir = mDevice->CacheDirectory();
+  nsIFile *cacheDir = mDevice->CacheDirectory();
   if (!cacheDir)
     return NS_OK;
 
@@ -299,7 +328,7 @@ nsOfflineCacheDeviceInfo::GetMaximumSize(PRUint32 *aMaximumSize)
  * nsOfflineCacheBinding
  */
 
-class nsOfflineCacheBinding : public nsISupports
+class nsOfflineCacheBinding MOZ_FINAL : public nsISupports
 {
 public:
   NS_DECL_ISUPPORTS
@@ -448,7 +477,7 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
  * nsOfflineCacheEntryInfo
  */
 
-class nsOfflineCacheEntryInfo : public nsICacheEntryInfo
+class nsOfflineCacheEntryInfo MOZ_FINAL : public nsICacheEntryInfo
 {
 public:
   NS_DECL_ISUPPORTS
@@ -630,7 +659,7 @@ nsApplicationCache::GetClientID(nsACString &out)
 }
 
 NS_IMETHODIMP
-nsApplicationCache::GetCacheDirectory(nsILocalFile **out)
+nsApplicationCache::GetCacheDirectory(nsIFile **out)
 {
   if (mDevice->BaseDirectory())
       NS_ADDREF(*out = mDevice->BaseDirectory());
@@ -667,12 +696,10 @@ nsApplicationCache::Discard()
 
   mValid = false;
 
-  if (mDevice->IsActiveCache(mGroup, mClientID))
-  {
-    mDevice->DeactivateGroup(mGroup);
-  }
-
-  return mDevice->EvictEntries(mClientID.get());
+  nsRefPtr<nsIRunnable> ev =
+    new nsOfflineCacheDiscardCache(mDevice, mGroup, mClientID);
+  nsresult rv = nsCacheService::DispatchToCacheIOThread(ev);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2350,7 +2377,7 @@ nsOfflineCacheDevice::GetGroupForCache(const nsACString &clientID,
  */
 
 void
-nsOfflineCacheDevice::SetCacheParentDirectory(nsILocalFile *parentDir)
+nsOfflineCacheDevice::SetCacheParentDirectory(nsIFile *parentDir)
 {
   if (Initialized())
   {

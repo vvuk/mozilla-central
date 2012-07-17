@@ -18,7 +18,6 @@
 #include "nsISelection.h"
 #include "nsCRT.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIPrivateDOMEvent.h"
 
 #include "nsIDOMRange.h"
 #include "nsIDOMDOMStringList.h"
@@ -31,7 +30,6 @@
 #include "nsIDragService.h"
 #include "nsIDOMUIEvent.h"
 #include "nsCopySupport.h"
-#include "nsITransferable.h"
 
 // Misc
 #include "nsEditorUtils.h"
@@ -51,6 +49,10 @@ NS_IMETHODIMP nsPlaintextEditor::PrepareTransferable(nsITransferable **transfera
 
   // Get the nsITransferable interface for getting the data from the clipboard
   if (transferable) {
+    nsCOMPtr<nsIDocument> destdoc = GetDocument();
+    nsILoadContext* loadContext = destdoc ? destdoc->GetLoadContext() : nsnull;
+    (*transferable)->Init(loadContext);
+
     (*transferable)->AddDataFlavor(kUnicodeMime);
     (*transferable)->AddDataFlavor(kMozTextInternal);
   };
@@ -164,8 +166,7 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
   NS_ASSERTION(dragSession, "No drag session");
 
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDropEvent));
-  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(privateEvent->GetInternalNSEvent());
+  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(aDropEvent->GetInternalNSEvent());
   if (nsContentUtils::CheckForSubFrameDrop(dragSession, dragEventInternal)) {
     return NS_OK;
   }
@@ -227,10 +228,8 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     //      The decision for dropping before or after the
     //      subtree should really be done based on coordinates.
 
-    rv = GetNodeLocation(userSelectNode, address_of(newSelectionParent),
-                         &newSelectionOffset);
+    newSelectionParent = GetNodeLocation(userSelectNode, &newSelectionOffset);
 
-    NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(newSelectionParent, NS_ERROR_FAILURE);
   }
 

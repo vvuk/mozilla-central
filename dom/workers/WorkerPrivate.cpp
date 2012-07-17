@@ -31,7 +31,6 @@
 #include "js/MemoryMetrics.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfo.h"
 #include "nsDOMJSUtils.h"
 #include "nsGUIEvent.h"
 #include "nsJSEnvironment.h"
@@ -39,6 +38,7 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
+#include "mozilla/Attributes.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -127,25 +127,47 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
 
 struct WorkerJSRuntimeStats : public JS::RuntimeStats
 {
-  WorkerJSRuntimeStats()
-   : JS::RuntimeStats(JsWorkerMallocSizeOf) { }
+  WorkerJSRuntimeStats(nsACString &aRtPath)
+   : JS::RuntimeStats(JsWorkerMallocSizeOf), mRtPath(aRtPath) { }
+
+  ~WorkerJSRuntimeStats() {
+    for (size_t i = 0; i != compartmentStatsVector.length(); i++) {
+      free(compartmentStatsVector[i].extra1);
+      // no need to free |extra2|, because it's a static string
+    }
+  }
 
   virtual void initExtraCompartmentStats(JSCompartment *c,
                                          JS::CompartmentStats *cstats) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(!cstats->extra);
+    MOZ_ASSERT(!cstats->extra1);
+    MOZ_ASSERT(!cstats->extra2);
     
-    // ReportJSRuntimeExplicitTreeStats expects that cstats->extra is a char pointer
-    const char *name = js::IsAtomsCompartment(c) ? "Web Worker Atoms" : "Web Worker";
-    cstats->extra = const_cast<char *>(name);
+    // ReportJSRuntimeExplicitTreeStats expects that cstats->{extra1,extra2}
+    // are char pointers.
+
+    // This is the |cJSPathPrefix|.  Each worker has exactly two compartments:
+    // one for atoms, and one for everything else.
+    nsCString cJSPathPrefix(mRtPath);
+    cJSPathPrefix += js::IsAtomsCompartment(c)
+                   ? NS_LITERAL_CSTRING("compartment(web-worker-atoms)/")
+                   : NS_LITERAL_CSTRING("compartment(web-worker)/");
+    cstats->extra1 = strdup(cJSPathPrefix.get());
+
+    // This is the |cDOMPathPrefix|, which should never be used when reporting
+    // with workers (hence the "?!").
+    cstats->extra2 = (void *)"explicit/workers/?!/";
   }
+
+private:
+  nsCString mRtPath;
 };
   
-class WorkerMemoryReporter : public nsIMemoryMultiReporter
+class WorkerMemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
 {
   WorkerPrivate* mWorkerPrivate;
   nsCString mAddressString;
-  nsCString mPathPrefix;
+  nsCString mRtPath;
 
 public:
   NS_DECL_ISUPPORTS
@@ -165,7 +187,7 @@ public:
       // 64bit address plus '0x' plus null terminator.
       char address[21];
       uint32_t addressSize =
-        JS_snprintf(address, sizeof(address), "0x%llx", aWorkerPrivate);
+        JS_snprintf(address, sizeof(address), "%p", aWorkerPrivate);
       if (addressSize != uint32_t(-1)) {
         mAddressString.Assign(address, addressSize);
       }
@@ -175,10 +197,10 @@ public:
       }
     }
 
-    mPathPrefix = NS_LITERAL_CSTRING("explicit/dom/workers(") +
-                  escapedDomain + NS_LITERAL_CSTRING(")/worker(") +
-                  escapedURL + NS_LITERAL_CSTRING(", ") + mAddressString +
-                  NS_LITERAL_CSTRING(")/");
+    mRtPath = NS_LITERAL_CSTRING("explicit/workers/workers(") +
+              escapedDomain + NS_LITERAL_CSTRING(")/worker(") +
+              escapedURL + NS_LITERAL_CSTRING(", ") + mAddressString +
+              NS_LITERAL_CSTRING(")/");
   }
 
   nsresult
@@ -224,7 +246,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    WorkerJSRuntimeStats rtStats;
+    WorkerJSRuntimeStats rtStats(mRtPath);
     nsresult rv = CollectForRuntime(/* isQuick = */false, &rtStats);
     if (NS_FAILED(rv)) {
       return rv;
@@ -232,7 +254,7 @@ public:
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
-    return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, mPathPrefix,
+    return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, mRtPath,
                                                  aCallback, aClosure);
   }
 
@@ -977,7 +999,7 @@ public:
   }
 };
 
-class CloseRunnable : public WorkerControlRunnable
+class CloseRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
   CloseRunnable(WorkerPrivate* aWorkerPrivate)
@@ -1233,7 +1255,7 @@ public:
     if (!logged) {
       NS_ConvertUTF16toUTF8 msg(aMessage);
 #ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", msg.get());
+      __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", msg.get());
 #endif
       fputs(msg.get(), stderr);
       fflush(stderr);
@@ -1278,7 +1300,7 @@ DummyCallback(nsITimer* aTimer, void* aClosure)
   // Nothing!
 }
 
-class WorkerRunnableEventTarget : public nsIEventTarget
+class WorkerRunnableEventTarget MOZ_FINAL : public nsIEventTarget
 {
 protected:
   nsRefPtr<WorkerRunnable> mWorkerRunnable;
@@ -1573,7 +1595,7 @@ public:
       *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
       *mSucceeded = true;
     } else {
-      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData));
+      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData), nsnull);
     }
 
     {
@@ -2478,7 +2500,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
     // First check to make sure the caller has permission to make a
     // ChromeWorker if they called the ChromeWorker constructor.
     if (aIsChromeWorker && !isChrome) {
-      nsDOMClassInfo::ThrowJSException(aCx, NS_ERROR_DOM_SECURITY_ERR);
+      xpc::Throw(aCx, NS_ERROR_DOM_SECURITY_ERR);
       return nsnull;
     }
 
@@ -2507,7 +2529,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       if (!window ||
           (globalWindow != window &&
            !nsContentUtils::CanCallerAccess(window))) {
-        nsDOMClassInfo::ThrowJSException(aCx, NS_ERROR_DOM_SECURITY_ERR);
+        xpc::Throw(aCx, NS_ERROR_DOM_SECURITY_ERR);
         return nsnull;
       }
 

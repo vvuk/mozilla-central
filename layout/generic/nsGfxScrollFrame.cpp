@@ -16,6 +16,7 @@
 #include "nsGfxScrollFrame.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
+#include "nsContentList.h"
 #include "nsIDocument.h"
 #include "nsFontMetrics.h"
 #include "nsIDocumentObserver.h"
@@ -51,6 +52,7 @@
 #include "nsSMILKeySpline.h"
 #include "nsSubDocumentFrame.h"
 #include "nsSVGOuterSVGFrame.h"
+#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -929,7 +931,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 NS_IMETHODIMP
 nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 {
@@ -1248,7 +1250,7 @@ nsXULScrollFrame::GetMaxSize(nsBoxLayoutState& aState)
   return maxSize;
 }
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
 NS_IMETHODIMP
 nsXULScrollFrame::GetFrameName(nsAString& aResult) const
 {
@@ -1281,7 +1283,7 @@ const double kCurrentVelocityWeighting = 0.25;
 const double kStopDecelerationWeighting = 0.4;
 
 // AsyncScroll has ref counting.
-class nsGfxScrollFrameInner::AsyncScroll : public nsARefreshObserver {
+class nsGfxScrollFrameInner::AsyncScroll MOZ_FINAL : public nsARefreshObserver {
 public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
@@ -1553,7 +1555,7 @@ IsSmoothScrollingEnabled()
   return Preferences::GetBool(SMOOTH_SCROLL_PREF_NAME, false);
 }
 
-class ScrollFrameActivityTracker : public nsExpirationTracker<nsGfxScrollFrameInner,4> {
+class ScrollFrameActivityTracker MOZ_FINAL : public nsExpirationTracker<nsGfxScrollFrameInner,4> {
 public:
   // Wait for 3-4s between scrolls before we remove our layers.
   // That's 4 generations of 1s each.
@@ -1663,6 +1665,9 @@ nsGfxScrollFrameInner::AsyncScrollCallback(void* anInstance, mozilla::TimeStamp 
   // Apply desired destination range since this is the last step of scrolling.
   self->mAsyncScroll = nsnull;
   self->ScrollToImpl(self->mDestination, range);
+  // We are done scrolling, set our destination to wherever we actually ended
+  // up scrolling to.
+  self->mDestination = self->GetScrollPosition();
 }
 
 void
@@ -1710,6 +1715,9 @@ nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
     // async-scrolling process and do an instant scroll.
     mAsyncScroll = nsnull;
     ScrollToImpl(mDestination, range);
+    // We are done scrolling, set our destination to wherever we actually ended
+    // up scrolling to.
+    mDestination = GetScrollPosition();
     return;
   }
 
@@ -1730,6 +1738,9 @@ nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
       mAsyncScroll = nsnull;
       // Observer setup failed. Scroll the normal way.
       ScrollToImpl(mDestination, range);
+      // We are done scrolling, set our destination to wherever we actually
+      // ended up scrolling to.
+      mDestination = GetScrollPosition();
       return;
     }
   }
@@ -1788,12 +1799,6 @@ CanScrollWithBlitting(nsIFrame* aFrame)
         f->IsFrameOfType(nsIFrame::eSVG)) {
       return false;
     }
-#ifndef MOZ_ENABLE_MASK_LAYERS
-    nsIScrollableFrame* sf = do_QueryFrame(f);
-    if ((sf || f->IsFrameOfType(nsIFrame::eReplaced)) &&
-        nsLayoutUtils::HasNonZeroCorner(f->GetStyleBorder()->mBorderRadius))
-      return false;
-#endif
     if (nsLayoutUtils::IsPopup(f))
       break;
   }
@@ -2385,12 +2390,18 @@ nsGfxScrollFrameInner::GetScrollRangeForClamping() const
     return nsRect(nscoord_MIN/2, nscoord_MIN/2,
                   nscoord_MAX - nscoord_MIN/2, nscoord_MAX - nscoord_MIN/2);
   }
+  nsSize scrollPortSize = GetScrollPositionClampingScrollPortSize();
+  return GetScrollRange(scrollPortSize.width, scrollPortSize.height);
+}
+
+nsSize
+nsGfxScrollFrameInner::GetScrollPositionClampingScrollPortSize() const
+{
   nsIPresShell* presShell = mOuter->PresContext()->PresShell();
   if (mIsRoot && presShell->IsScrollPositionClampingScrollPortSizeSet()) {
-    nsSize size = presShell->GetScrollPositionClampingScrollPortSize();
-    return GetScrollRange(size.width, size.height);
+    return presShell->GetScrollPositionClampingScrollPortSize();
   }
-  return GetScrollRange();
+  return mScrollPort.Size();
 }
 
 static void

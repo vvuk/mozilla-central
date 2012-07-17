@@ -923,13 +923,14 @@ nsSVGElement::sGraphicsMap[] = {
 // PresentationAttributes-TextContentElements
 /* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sTextContentElementsMap[] = {
-  { &nsGkAtoms::alignment_baseline },
-  { &nsGkAtoms::baseline_shift },
+  // Properties that we don't support are commented out.
+  // { &nsGkAtoms::alignment_baseline },
+  // { &nsGkAtoms::baseline_shift },
   { &nsGkAtoms::direction },
   { &nsGkAtoms::dominant_baseline },
-  { &nsGkAtoms::glyph_orientation_horizontal },
-  { &nsGkAtoms::glyph_orientation_vertical },
-  { &nsGkAtoms::kerning },
+  // { &nsGkAtoms::glyph_orientation_horizontal },
+  // { &nsGkAtoms::glyph_orientation_vertical },
+  // { &nsGkAtoms::kerning },
   { &nsGkAtoms::letter_spacing },
   { &nsGkAtoms::text_anchor },
   { &nsGkAtoms::text_decoration },
@@ -1073,7 +1074,7 @@ public:
 
   // Parses a mapped attribute value.
   void ParseMappedAttrValue(nsIAtom* aMappedAttrName,
-                            nsAString& aMappedAttrValue);
+                            const nsAString& aMappedAttrValue);
 
   // If we've parsed any values for mapped attributes, this method returns
   // a new already_AddRefed css::StyleRule that incorporates the parsed
@@ -1121,7 +1122,7 @@ MappedAttrParser::~MappedAttrParser()
 
 void
 MappedAttrParser::ParseMappedAttrValue(nsIAtom* aMappedAttrName,
-                                       nsAString& aMappedAttrValue)
+                                       const nsAString& aMappedAttrValue)
 {
   if (!mDecl) {
     mDecl = new css::Declaration();
@@ -1243,11 +1244,7 @@ ParseMappedAttrAnimValueCallback(void*    aObject,
     static_cast<MappedAttrParser*>(aData);
 
   nsStringBuffer* valueBuf = static_cast<nsStringBuffer*>(aPropertyValue);
-  nsAutoString value;
-  PRUint32 len = NS_strlen(static_cast<PRUnichar*>(valueBuf->Data()));
-  valueBuf->ToString(len, value);
-
-  mappedAttrParser->ParseMappedAttrValue(aPropertyName, value);
+  mappedAttrParser->ParseMappedAttrValue(aPropertyName, nsCheapString(valueBuf));
 }
 
 // Callback for freeing animated content style rule, in property table.
@@ -2448,6 +2445,23 @@ nsISMILAttr*
 nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
 {
   if (aNamespaceID == kNameSpaceID_None) {
+    // We check mapped-into-style attributes first so that animations
+    // targeting width/height on outer-<svg> don't appear to be ignored
+    // because we returned a nsISMILAttr for the corresponding
+    // SVGAnimatedLength.
+
+    // Mapped attributes:
+    if (IsAttributeMapped(aName)) {
+      nsCSSProperty prop =
+        nsCSSProps::LookupProperty(nsDependentAtomString(aName));
+      // Check IsPropertyAnimatable to avoid attributes that...
+      //  - map to explicitly unanimatable properties (e.g. 'direction')
+      //  - map to unsupported attributes (e.g. 'glyph-orientation-horizontal')
+      if (nsSMILCSSProperty::IsPropertyAnimatable(prop)) {
+        return new nsSMILMappedAttribute(prop, this);
+      }
+    }
+
     // Transforms:
     if (GetTransformListAttrName() == aName) {
       SVGAnimatedTransformList* transformList = GetAnimatedTransformList();
@@ -2593,18 +2607,6 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
         if (segList) {
           return segList->ToSMILAttr(this);
         }
-      }
-    }
-
-    // Mapped attributes:
-    if (IsAttributeMapped(aName)) {
-      nsCSSProperty prop =
-        nsCSSProps::LookupProperty(nsDependentAtomString(aName));
-      // Check IsPropertyAnimatable to avoid attributes that...
-      //  - map to explicitly unanimatable properties (e.g. 'direction')
-      //  - map to unsupported attributes (e.g. 'glyph-orientation-horizontal')
-      if (nsSMILCSSProperty::IsPropertyAnimatable(prop)) {
-        return new nsSMILMappedAttribute(prop, this);
       }
     }
   }

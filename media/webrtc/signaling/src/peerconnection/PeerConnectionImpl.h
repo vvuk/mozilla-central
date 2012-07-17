@@ -49,7 +49,7 @@ namespace sipcc {
 
 class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
-  LocalSourceStreamInfo(nsRefPtr<mozilla::MediaStream>& aMediaStream);
+   LocalSourceStreamInfo(nsRefPtr<nsDOMMediaStream>& aMediaStream);
   ~LocalSourceStreamInfo();
   
   /**
@@ -66,12 +66,14 @@ public:
     PRUint32 aTrackEvents,
     const mozilla::MediaSegment& aQueuedMedia);
 
-  nsRefPtr<mozilla::MediaStream> GetMediaStream();
+  nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  void ExpectAudio();
+  void ExpectVideo();
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
   
 private:
-  nsRefPtr<mozilla::MediaStream> mMediaStream;
+  nsRefPtr<nsDOMMediaStream> mMediaStream;
   nsTArray<mozilla::TrackID> mAudioTracks;
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
@@ -92,8 +94,8 @@ public:
   virtual const std::string& localDescription() const;
   virtual const std::string& remoteDescription() const;
   
-  virtual void AddStream(nsRefPtr<mozilla::MediaStream>& aMediaStream);
-  virtual void RemoveStream(nsRefPtr<mozilla::MediaStream>& aMediaStream);
+  virtual void AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream);
+  virtual void RemoveStream(nsRefPtr<nsDOMMediaStream>& aMediaStream);
   virtual void CloseStreams();
 
   virtual void AddIceCandidate(const std::string& strCandidate); 

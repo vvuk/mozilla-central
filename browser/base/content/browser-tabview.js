@@ -24,7 +24,7 @@ let TabView = {
     delete this.windowTitle;
     let brandBundle = document.getElementById("bundle_brand");
     let brandShortName = brandBundle.getString("brandShortName");
-    let title = gNavigatorBundle.getFormattedString("tabView2.title", [brandShortName]);
+    let title = gNavigatorBundle.getFormattedString("tabview.title", [brandShortName]);
     return this.windowTitle = title;
   },
 
@@ -292,7 +292,8 @@ let TabView = {
         // if group has title, it's not hidden and there is no active group or
         // the active group id doesn't match the group id, a group menu item
         // would be added.
-        if (!groupItem.hidden && groupItem.getChildren().length &&
+        if (!groupItem.hidden &&
+            (groupItem.getTitle().trim() || groupItem.getChildren().length) &&
             (!activeGroup || activeGroup.id != groupItem.id)) {
           let menuItem = self._createGroupMenuItem(groupItem);
           popup.insertBefore(menuItem, separator);
@@ -310,11 +311,13 @@ let TabView = {
 
     if (!title.trim()) {
       let topChildLabel = groupItem.getTopChild().tab.label;
+      let childNum = groupItem.getChildren().length;
 
-      if (groupItem.getChildren().length > 1) {
+      if (childNum > 1) {
+        let num = childNum - 1;
         title =
-          gNavigatorBundle.getFormattedString("tabview2.moveToUnnamedGroup.label",
-            [topChildLabel, groupItem.getChildren().length - 1]);
+          gNavigatorBundle.getString("tabview.moveToUnnamedGroup.label");
+        title = PluralForm.get(num, title).replace("#1", topChildLabel).replace("#2", num);
       } else {
         title = topChildLabel;
       }

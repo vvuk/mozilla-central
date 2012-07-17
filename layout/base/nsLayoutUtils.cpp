@@ -10,7 +10,6 @@
 #include "nsIFormControlFrame.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsFrameList.h"
@@ -23,7 +22,6 @@
 #include "nsPlaceholderFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsGUIEvent.h"
 #include "nsDisplayList.h"
@@ -390,7 +388,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
     }
   }
 
-#ifdef NS_DEBUG
+#ifdef DEBUG
   // Verify that the frame is actually in that child list or in the
   // corresponding overflow list.
   nsIFrame* parent = aChildFrame->GetParent();
@@ -668,12 +666,12 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
 }
 
 static nsIFrame* FillAncestors(nsIFrame* aFrame,
-                               nsIFrame* aStopAtAncestor, nsFrameManager* aFrameManager,
+                               nsIFrame* aStopAtAncestor,
                                nsTArray<nsIFrame*>* aAncestors)
 {
   while (aFrame && aFrame != aStopAtAncestor) {
     aAncestors->AppendElement(aFrame);
-    aFrame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrameManager, aFrame);
+    aFrame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrame);
   }
   return aFrame;
 }
@@ -706,17 +704,16 @@ nsLayoutUtils::DoCompareTreePosition(nsIFrame* aFrame1,
     NS_ERROR("no common ancestor at all, different documents");
     return 0;
   }
-  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
 
   nsAutoTArray<nsIFrame*,20> frame1Ancestors;
-  if (!FillAncestors(aFrame1, aCommonAncestor, frameManager, &frame1Ancestors)) {
+  if (!FillAncestors(aFrame1, aCommonAncestor, &frame1Ancestors)) {
     // We reached the root of the frame tree ... if aCommonAncestor was set,
     // it is wrong
     aCommonAncestor = nsnull;
   }
 
   nsAutoTArray<nsIFrame*,20> frame2Ancestors;
-  if (!FillAncestors(aFrame2, aCommonAncestor, frameManager, &frame2Ancestors) &&
+  if (!FillAncestors(aFrame2, aCommonAncestor, &frame2Ancestors) &&
       aCommonAncestor) {
     // We reached the root of the frame tree ... aCommonAncestor was wrong.
     // Try again with no hint.
@@ -939,11 +936,9 @@ nsLayoutUtils::HasPseudoStyle(nsIContent* aContent,
 nsPoint
 nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(nsIDOMEvent* aDOMEvent, nsIFrame* aFrame)
 {
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDOMEvent));
-  NS_ASSERTION(privateEvent, "bad implementation");
-  if (!privateEvent)
+  if (!aDOMEvent)
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  nsEvent *event = privateEvent->GetInternalNSEvent();
+  nsEvent *event = aDOMEvent->GetInternalNSEvent();
   if (!event)
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   return GetEventCoordinatesRelativeTo(event, aFrame);
@@ -1930,21 +1925,25 @@ nsLayoutUtils::GetAllInFlowBoxes(nsIFrame* aFrame, BoxCallback* aCallback)
   }
 }
 
-struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
+struct BoxToRect : public nsLayoutUtils::BoxCallback {
+  typedef nsSize (*GetRectFromFrameFun)(nsIFrame*);
+
   nsIFrame* mRelativeTo;
   nsLayoutUtils::RectCallback* mCallback;
   PRUint32 mFlags;
+  GetRectFromFrameFun mRectFromFrame;
 
-  BoxToBorderRect(nsIFrame* aRelativeTo, nsLayoutUtils::RectCallback* aCallback,
-                  PRUint32 aFlags)
-    : mRelativeTo(aRelativeTo), mCallback(aCallback), mFlags(aFlags) {}
+  BoxToRect(nsIFrame* aRelativeTo, nsLayoutUtils::RectCallback* aCallback,
+            PRUint32 aFlags, GetRectFromFrameFun aRectFromFrame)
+    : mRelativeTo(aRelativeTo), mCallback(aCallback), mFlags(aFlags),
+      mRectFromFrame(aRectFromFrame) {}
 
   virtual void AddBox(nsIFrame* aFrame) {
     nsRect r;
     nsIFrame* outer = nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(aFrame, &r);
     if (!outer) {
       outer = aFrame;
-      r = nsRect(nsPoint(0, 0), aFrame->GetSize());
+      r = nsRect(nsPoint(0, 0), mRectFromFrame(aFrame));
     }
     if (mFlags & nsLayoutUtils::RECTS_ACCOUNT_FOR_TRANSFORMS) {
       r = nsLayoutUtils::TransformFrameRectToAncestor(outer, r, mRelativeTo);
@@ -1955,11 +1954,31 @@ struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
   }
 };
 
+static nsSize
+GetFrameBorderSize(nsIFrame* aFrame)
+{
+  return aFrame->GetSize();
+}
+
 void
 nsLayoutUtils::GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                  RectCallback* aCallback, PRUint32 aFlags)
 {
-  BoxToBorderRect converter(aRelativeTo, aCallback, aFlags);
+  BoxToRect converter(aRelativeTo, aCallback, aFlags, &GetFrameBorderSize);
+  GetAllInFlowBoxes(aFrame, &converter);
+}
+
+static nsSize
+GetFramePaddingSize(nsIFrame* aFrame)
+{
+  return aFrame->GetPaddingRect().Size();
+}
+
+void
+nsLayoutUtils::GetAllInFlowPaddingRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
+                                        RectCallback* aCallback, PRUint32 aFlags)
+{
+  BoxToRect converter(aRelativeTo, aCallback, aFlags, &GetFramePaddingSize);
   GetAllInFlowBoxes(aFrame, &converter);
 }
 
@@ -1993,6 +2012,17 @@ nsLayoutUtils::GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo,
                                       PRUint32 aFlags) {
   RectAccumulator accumulator;
   GetAllInFlowRects(aFrame, aRelativeTo, &accumulator, aFlags);
+  return accumulator.mResultRect.IsEmpty() ? accumulator.mFirstRect
+          : accumulator.mResultRect;
+}
+
+nsRect
+nsLayoutUtils::GetAllInFlowPaddingRectsUnion(nsIFrame* aFrame,
+                                             nsIFrame* aRelativeTo,
+                                             PRUint32 aFlags)
+{
+  RectAccumulator accumulator;
+  GetAllInFlowPaddingRects(aFrame, aRelativeTo, &accumulator, aFlags);
   return accumulator.mResultRect.IsEmpty() ? accumulator.mFirstRect
           : accumulator.mResultRect;
 }
@@ -2098,23 +2128,31 @@ nsLayoutUtils::GetNonGeneratedAncestor(nsIFrame* aFrame)
   if (!(aFrame->GetStateBits() & NS_FRAME_GENERATED_CONTENT))
     return aFrame;
 
-  nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
   nsIFrame* f = aFrame;
   do {
-    f = GetParentOrPlaceholderFor(frameManager, f);
+    f = GetParentOrPlaceholderFor(f);
   } while (f->GetStateBits() & NS_FRAME_GENERATED_CONTENT);
   return f;
 }
 
 nsIFrame*
-nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
-                                         nsIFrame* aFrame)
+nsLayoutUtils::GetParentOrPlaceholderFor(nsIFrame* aFrame)
 {
   if ((aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
       && !aFrame->GetPrevInFlow()) {
-    return aFrameManager->GetPlaceholderFrameFor(aFrame);
+    return aFrame->PresContext()->PresShell()->FrameManager()->
+      GetPlaceholderFrameFor(aFrame);
   }
   return aFrame->GetParent();
+}
+
+nsIFrame*
+nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(nsIFrame* aFrame)
+{
+  nsIFrame* f = GetParentOrPlaceholderFor(aFrame);
+  if (f)
+    return f;
+  return GetCrossDocParentFrame(aFrame);
 }
 
 nsIFrame*
@@ -4707,8 +4745,10 @@ nsReflowFrameRunnable::Run()
 static nscoord
 MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
 {
-  PRUint32 emPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
-  PRUint32 minTwips = nsLayoutUtils::FontSizeInflationMinTwips();
+  nsIPresShell* presShell = aPresContext->PresShell();
+
+  PRUint32 emPerLine = presShell->FontSizeInflationEmPerLine();
+  PRUint32 minTwips = presShell->FontSizeInflationMinTwips();
   if (emPerLine == 0 && minTwips == 0) {
     return 0;
   }
@@ -4859,8 +4899,11 @@ nsLayoutUtils::FontSizeInflationFor(const nsIFrame *aFrame)
 /* static */ bool
 nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
 {
-  if ((sFontSizeInflationEmPerLine == 0 &&
-       sFontSizeInflationMinTwips == 0) ||
+  nsIPresShell* presShell = aPresContext->GetPresShell();
+
+  if (!presShell ||
+      (presShell->FontSizeInflationEmPerLine() == 0 &&
+       presShell->FontSizeInflationMinTwips() == 0) ||
        aPresContext->IsChrome()) {
     return false;
   }

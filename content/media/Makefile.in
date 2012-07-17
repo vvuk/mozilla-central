@@ -87,19 +87,12 @@ ifdef MOZ_MEDIA_PLUGINS
 PARALLEL_DIRS += plugins
 endif
 
-ifdef ENABLE_TESTS
-PARALLEL_DIRS += test
-endif
+TEST_DIRS += test
 
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
-
-INCLUDES += \
-  -I$(srcdir)/../base/src \
-  -I$(srcdir)/../html/content/src \
-  $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

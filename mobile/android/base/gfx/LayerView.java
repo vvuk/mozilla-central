@@ -80,10 +80,18 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+            requestFocus();
+
         /** We need to manually hide FormAssistPopup because it is not a regular PopupWindow. */
         if (GeckoApp.mFormAssistPopup != null)
             GeckoApp.mFormAssistPopup.hide();
 
+        return mTouchEventHandler.handleEvent(event);
+    }
+
+    @Override
+    public boolean onHoverEvent(MotionEvent event) {
         return mTouchEventHandler.handleEvent(event);
     }
 
@@ -227,6 +235,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GeckoApp.mAppContext.getLayerController().getView();
+            layerView.mListener.compositorCreated();
             return layerView.getGLController();
         } catch (Exception e) {
             Log.e(LOGTAG, "### Exception! " + e);
@@ -235,6 +244,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     public interface Listener {
+        void compositorCreated();
         void renderRequested();
         void compositionPauseRequested();
         void compositionResumeRequested(int width, int height);

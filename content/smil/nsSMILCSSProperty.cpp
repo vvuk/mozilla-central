@@ -91,8 +91,7 @@ nsSMILCSSProperty::GetBaseValue() const
   // GENERAL CASE: Non-Shorthands
   // (1) Put empty string in override style for property mPropID
   // (saving old override style value, so we can set it again when we're done)
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsICSSDeclaration* overrideDecl = mElement->GetSMILOverrideStyle();
   nsAutoString cachedOverrideStyleVal;
   if (overrideDecl) {
     overrideDecl->GetPropertyValue(mPropID, cachedOverrideStyleVal);
@@ -163,8 +162,7 @@ nsSMILCSSProperty::SetAnimValue(const nsSMILValue& aValue)
   }
 
   // Use string value to style the target element
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsICSSDeclaration* overrideDecl = mElement->GetSMILOverrideStyle();
   if (overrideDecl) {
     nsAutoString oldValStr;
     overrideDecl->GetPropertyValue(mPropID, oldValStr);
@@ -180,8 +178,7 @@ void
 nsSMILCSSProperty::ClearAnimValue()
 {
   // Put empty string in override style for our property
-  nsCOMPtr<nsICSSDeclaration> overrideDecl =
-    do_QueryInterface(mElement->GetSMILOverrideStyle());
+  nsICSSDeclaration* overrideDecl = mElement->GetSMILOverrideStyle();
   if (overrideDecl) {
     overrideDecl->SetPropertyValue(mPropID, EmptyString());
   }
@@ -227,6 +224,7 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_font_style:
     case eCSSProperty_font_variant:
     case eCSSProperty_font_weight:
+    case eCSSProperty_height:
     case eCSSProperty_image_rendering:
     case eCSSProperty_letter_spacing:
     case eCSSProperty_lighting_color:
@@ -255,6 +253,7 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_text_decoration_line:
     case eCSSProperty_text_rendering:
     case eCSSProperty_vector_effect:
+    case eCSSProperty_width:
     case eCSSProperty_visibility:
     case eCSSProperty_word_spacing:
       return true;
