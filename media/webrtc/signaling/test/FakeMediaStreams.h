@@ -105,6 +105,13 @@ public:
   Type mType;
 };
 
+class Fake_AudioStreamSource : public Fake_nsDOMMediaStream {
+ public:
+  Fake_AudioStreamSource() : Fake_nsDOMMediaStream() {}
+
+ private:
+};
+
 typedef Fake_nsDOMMediaStream nsDOMMediaStream;
 
 namespace mozilla

@@ -37,10 +37,12 @@ MtransportTestUtils test_utils;
 namespace {
 class TestAgent {
  public:
-  TestAgent() :
+  TestAgent(bool send) :
       flow_(),
       prsock_(new TransportLayerPrsock()),
-      pipeline_() {}
+      pipeline_(),
+      stream_(send ? new Fake_AudioStreamSource() : NULL) {
+  }
   
   void ConnectSocket(PRFileDesc *fd) {
     nsresult res;
@@ -59,12 +61,13 @@ class TestAgent {
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
+  nsRefPtr<nsDOMMediaStream> stream_;
 };
 
 
 class MediaPipelineTest : public ::testing::Test {
  public:
-  MediaPipelineTest() {
+  MediaPipelineTest() : p1_(true), p2_(false) {
     fds_[0] = fds_[1] = NULL;
   }
   
