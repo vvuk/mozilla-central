@@ -261,7 +261,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet7", 235);
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
     NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
-
+    NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
   }
 
   // Create the ICE context
