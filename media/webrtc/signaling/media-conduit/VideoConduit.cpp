@@ -33,10 +33,6 @@ mozilla::RefPtr<VideoSessionConduit> VideoSessionConduit::Create()
 
 }
 
-/** Super Class Pure destructor **/
-VideoSessionConduit::~VideoSessionConduit()
-{}
-
 WebrtcVideoConduit::~WebrtcVideoConduit()
 {
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);

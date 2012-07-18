@@ -27,8 +27,8 @@ namespace mozilla {
 class TransportInterface 
 {
 public:
-  
-  virtual ~TransportInterface() = 0;
+  virtual ~TransportInterface() {};
+
   /**
    * RTP Transport Function to be implemented by concrete transport implementation
    * @param data : RTP Packet (audio/video) to be transported
@@ -59,9 +59,7 @@ public:
 class VideoRenderer 
 {
  public:
-
-  
-  virtual ~VideoRenderer() = 0; 
+  virtual ~VideoRenderer() {} ; 
 
   /**
    * Callback Function reportng any change in the video-frame dimensions
@@ -110,7 +108,7 @@ class AudioRenderer
 {
 public: 
 
-  virtual ~AudioRenderer() = 0; 
+  virtual ~AudioRenderer() {}; 
 
   // This method is called to render a audio sample
   /**
@@ -142,7 +140,7 @@ public:
 class MediaSessionConduit 
 {
 public:
-  virtual ~MediaSessionConduit() = 0;
+  virtual ~MediaSessionConduit() {};
 
   /**
    * Function triggered on Incoming RTP packet from the remote
@@ -193,7 +191,7 @@ public:
    */
   static RefPtr<VideoSessionConduit> Create();
 
-  virtual ~VideoSessionConduit() = 0;
+  virtual ~VideoSessionConduit() {};
 
   /**
    * Function to attach Renderer end-point of the Media-Video conduit.
@@ -249,7 +247,7 @@ public:
     */
   static mozilla::RefPtr<AudioSessionConduit> Create();
 
-  virtual ~AudioSessionConduit() = 0; 
+  virtual ~AudioSessionConduit() {}; 
 
   /**
    * Function to attach Renderer end-point of the Media-Video conduit.

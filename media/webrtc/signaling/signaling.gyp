@@ -33,6 +33,7 @@
         './src/common',
         './src/common/browser_logging',
         './src/media',
+        './src/mediapipeline',
         './src/softphonewrapper',
         './src/peerconnection',
         './include',
@@ -143,8 +144,9 @@
         './src/peerconnection/PeerConnectionCtx.h',
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
-        './src/peerconnection/MediaPipeline.h',
-        './src/peerconnection/MediaPipeline.cpp',
+        # Media pipeline
+        './src/mediapipeline/MediaPipeline.h',
+        './src/mediapipeline/MediaPipeline.cpp',
       ],
     
       #

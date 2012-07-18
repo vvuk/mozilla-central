@@ -35,13 +35,6 @@ mozilla::RefPtr<AudioSessionConduit> AudioSessionConduit::Create()
 /**
  * Destruction defines for our super-classes 
  */
-
-MediaSessionConduit::~MediaSessionConduit()
-{}
-
-AudioSessionConduit::~AudioSessionConduit()
-{}
-
 WebrtcAudioConduit::~WebrtcAudioConduit()
 {
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
