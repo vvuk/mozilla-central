@@ -104,6 +104,7 @@ LOCAL_INCLUDES += \
 
 CPP_UNIT_TESTS = \
   signaling_unittests.cpp \
+  mediapipeline_unittest.cpp \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
