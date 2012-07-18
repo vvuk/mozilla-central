@@ -47,6 +47,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_signaling
 
+DEFINES         += -DUSE_FAKE_MEDIA_STREAMS
 LIBS		= $(EXTRA_DSO_LIBS) \
 		  $(XPCOM_LIBS) \
 		  $(NSPR_LIBS) \
@@ -97,6 +98,7 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/test \
  -I$(topsrcdir)/media/webrtc/signaling/include \
  -I$(topsrcdir)/media/webrtc/signaling/media-conduit \
+ -I$(topsrcdir)/media/webrtc/signaling/src/mediapipeline \
  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \

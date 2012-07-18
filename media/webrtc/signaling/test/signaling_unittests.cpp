@@ -54,9 +54,6 @@ using namespace std;
 #include "ssl.h"
 #include "prthread.h"
 
-// Typedefs all mediastream types to Fake_ versions
-#define USE_FAKE_MEDIA_STREAMS
-
 #include "PeerConnectionImpl.h"
 
 #include "mtransport_test_utils.h"

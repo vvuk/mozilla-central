@@ -13,11 +13,16 @@
 #include "nsXPCOM.h"
 
 #include "logging.h"
-#include "mtransport_test_utils.h"
+#include "mozilla/RefPtr.h"
+#include "FakeMediaStreams.h"
+#include "MediaPipeline.h"
+#include "MediaConduitInterface.h"
 #include "runnable_utils.h"
-
 #include "transportflow.h"
 #include "transportlayerprsock.h"
+
+
+#include "mtransport_test_utils.h"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
@@ -34,7 +39,8 @@ class TestAgent {
  public:
   TestAgent() :
       flow_(),
-      prsock_(new TransportLayerPrsock()) {}
+      prsock_(new TransportLayerPrsock()),
+      pipeline_() {}
   
   void ConnectSocket(PRFileDesc *fd) {
     nsresult res;
@@ -47,11 +53,12 @@ class TestAgent {
     
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
   }
-
+  
 
  private:
   TransportFlow flow_;
-  TransportLayerPrsock *prsock_;  
+  TransportLayerPrsock *prsock_;
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
 };
 
 
@@ -78,6 +85,7 @@ class MediaPipelineTest : public ::testing::Test {
 
 TEST_F(MediaPipelineTest, INIT) {
 }
+
 
 }  // end namespace
 
