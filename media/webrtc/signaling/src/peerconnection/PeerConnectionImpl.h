@@ -44,6 +44,7 @@
 #include "CC_Device.h"
 #include "CC_Call.h"
 #include "CC_Observer.h"
+#include "MediaPipeline.h"
 
 namespace sipcc {
 

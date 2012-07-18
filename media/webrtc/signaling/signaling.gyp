@@ -143,7 +143,8 @@
         './src/peerconnection/PeerConnectionCtx.h',
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
-
+        './src/peerconnection/MediaPipeline.h',
+        './src/peerconnection/MediaPipeline.cpp',
       ],
     
       #
