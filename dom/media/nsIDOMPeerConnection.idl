@@ -1,0 +1,70 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+#include "nsIDOMMediaStream.idl"
+
+/* Following typedefs only until the spec settles down */
+typedef DOMString SdpType;
+typedef DOMString IceState;
+typedef DOMString PeerState;
+typedef jsval IceServers;
+typedef jsval IceCandidate;
+typedef jsval MediaConstraints;
+typedef jsval SessionDescription;
+typedef nsIDOMMediaStream MediaStream;
+
+/* Quick hack */
+[scriptable, function, uuid(eb9c563c-3b09-4565-9317-eca96ae0c538)]
+interface PeerConnectionCallback : nsISupports
+{
+  void onCallback(in jsval value);
+};
+
+/* See http://dev.w3.org/2011/webrtc/editor/webrtc.html */
+[scriptable, uuid(94628e70-e96f-4170-871c-f993a49f065a)]
+interface nsIDOMPeerConnection : nsISupports
+{
+  void createOffer(in PeerConnectionCallback successCallback,
+    [optional] in PeerConnectionCallback failureCallback,
+    [optional] in MediaConstraints constraints);
+
+  void createAnswer(in SessionDescription offer,
+    in PeerConnectionCallback successCallback,
+    [optional] in PeerConnectionCallback failureCallback,
+    [optional] in MediaConstraints constraints,
+    [optional] in bool createProvisionalAnswer);
+
+  void setLocalDescription(in SdpType action,
+    in SessionDescription description);
+
+  void setRemoteDescription(in SdpType action,
+    in SessionDescription description);
+
+  void updateIce([optional] in IceServers configuration,
+    [optional] in MediaConstraints constraints,
+    [optional] in bool restart);
+
+  void addIceCandidate(in IceCandidate candidate);
+
+  void addStream(in MediaStream stream,
+    [optional] in MediaConstraints constraints);
+
+  void removeStream(in MediaStream stream);
+  void close();
+
+  readonly attribute IceState iceState;
+  readonly attribute PeerState readyState;
+  readonly attribute SessionDescription localDescription;
+  readonly attribute SessionDescription remoteDescription;
+
+  readonly attribute jsval localStreams; // MediaStream[]
+  readonly attribute jsval remoteStreams; // MediaStream[]
+
+  /* Data channel disabled for now
+  attribute Function ondatachannel;
+  DataChannel createDataChannel(in DOMString label,
+    [optional] in DataChannelInit dataChannelDict);
+  */
+};
