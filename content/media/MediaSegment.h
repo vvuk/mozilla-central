@@ -229,15 +229,16 @@ protected:
     return &mChunks[mChunks.Length() - 1];
   }
 
+public:
   class ChunkIterator {
   public:
     ChunkIterator(MediaSegmentBase<C, Chunk>& aSegment)
-      : mSegment(aSegment), mIndex(0) {}
+        : mSegment(aSegment), mIndex(0) {}
     bool IsEnded() { return mIndex >= mSegment.mChunks.Length(); }
     void Next() { ++mIndex; }
     Chunk& operator*() { return mSegment.mChunks[mIndex]; }
     Chunk* operator->() { return &mSegment.mChunks[mIndex]; }
-  private:
+   private:
     MediaSegmentBase<C, Chunk>& mSegment;
     PRUint32 mIndex;
   };

@@ -15,6 +15,7 @@
 #include "logging.h"
 #include "mozilla/RefPtr.h"
 #include "FakeMediaStreams.h"
+#include "FakeMediaStreamsImpl.h"
 #include "MediaPipeline.h"
 #include "MediaConduitInterface.h"
 #include "runnable_utils.h"
@@ -23,6 +24,7 @@
 
 
 #include "mtransport_test_utils.h"
+#include "runnable_utils.h"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
@@ -41,7 +43,7 @@ class TestAgent {
       flow_(),
       prsock_(new TransportLayerPrsock()),
       pipeline_(),
-      stream_(send ? new Fake_AudioStreamSource() : NULL) {
+      audio_(new Fake_nsDOMMediaStream(send ? new Fake_AudioStreamSource() : NULL)) {
   }
   
   void ConnectSocket(PRFileDesc *fd) {
@@ -56,12 +58,21 @@ class TestAgent {
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
   }
   
+  void StartSending() {
+    nsresult ret;
+    
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+  }
 
  private:
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
-  nsRefPtr<nsDOMMediaStream> stream_;
+  nsRefPtr<nsDOMMediaStream> audio_;
 };
 
 
@@ -78,7 +89,7 @@ class MediaPipelineTest : public ::testing::Test {
     p1_.ConnectSocket(fds_[0]);
     p2_.ConnectSocket(fds_[1]);
   }
-  
+
 
  private:
   PRFileDesc *fds_[2];
@@ -86,7 +97,8 @@ class MediaPipelineTest : public ::testing::Test {
   TestAgent p2_;
 };
 
-TEST_F(MediaPipelineTest, INIT) {
+TEST_F(MediaPipelineTest, AudioSend) {
+      
 }
 
 

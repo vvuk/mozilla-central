@@ -30,12 +30,21 @@
 #ifndef FAKE_MEDIA_STREAM_H_
 #define FAKE_MEDIA_STREAM_H_
 
+#include "nsNetCID.h"
+#include "nsITimer.h"
+#include "nsComponentManagerUtils.h"
+#include "nsIComponentManager.h"
+#include "nsIComponentRegistrar.h"
+
 // #includes from MediaStream.h
 #include "mozilla/Mutex.h"
+#include "AudioSegment.h"
+#include "MediaSegment.h"
 #include "nsAudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
 #include "nsISupportsImpl.h"
+
 
 class Fake_MediaStreamListener
 {
@@ -51,13 +60,20 @@ public:
   Fake_MediaStream () {}
   virtual ~Fake_MediaStream() {}
 
+  virtual nsresult Start() { return NS_OK; }
+
   void AddListener(Fake_MediaStreamListener *aListener) {}
+
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStream);
 };
 
 class Fake_nsDOMMediaStream
 {
 public:
   Fake_nsDOMMediaStream() : mMediaStream(new Fake_MediaStream()) {}
+  Fake_nsDOMMediaStream(Fake_MediaStream *stream) : 
+      mMediaStream(stream) {}
+
   virtual ~Fake_nsDOMMediaStream() { if (mMediaStream) { delete mMediaStream;} }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_nsDOMMediaStream)
@@ -88,29 +104,21 @@ public:
 };
 
 
-class Fake_MediaSegment
-{
-public:
-  Fake_MediaSegment() : mType(AUDIO) {}
-  virtual ~Fake_MediaSegment() {}
- 	
-  enum Type {
-    AUDIO,
-    VIDEO,
-    TYPE_COUNT
-  };
-
-  Type GetType() const { return mType; }
-
-  Type mType;
-};
-
-class Fake_AudioStreamSource : public Fake_nsDOMMediaStream {
+class Fake_AudioStreamSource : public Fake_MediaStream,
+                               public nsITimerCallback {
  public:
-  Fake_AudioStreamSource() : Fake_nsDOMMediaStream() {}
+  Fake_AudioStreamSource() : Fake_MediaStream() {}
+
+  virtual nsresult Start();
+  
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSITIMERCALLBACK
 
  private:
+  nsCOMPtr<nsITimer> mTimer;
 };
+
+
 
 typedef Fake_nsDOMMediaStream nsDOMMediaStream;
 
@@ -120,7 +128,7 @@ namespace mozilla
 typedef Fake_MediaStream MediaStream;
 typedef Fake_MediaStreamListener MediaStreamListener;
 typedef Fake_MediaStreamGraph MediaStreamGraph;
-typedef Fake_MediaSegment MediaSegment;
+// typedef Fake_MediaSegment MediaSegment;
 
 typedef PRInt32 TrackID;
 typedef PRInt32 TrackRate;
