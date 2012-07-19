@@ -133,13 +133,6 @@ nsWindow::nsWindow()
             NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
         }
 
-        sUsingOMTC = UseOffMainThreadCompositing();
-
-        if (sUsingOMTC) {
-          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                                             gfxASurface::ImageFormatRGB24);
-        }
-
         // We (apparently) don't have a way to tell if allocating the
         // fbs succeeded or failed.
         gNativeWindow = new android::FramebufferNativeWindow();
@@ -172,6 +165,20 @@ nsWindow::nsWindow()
         sScreenInitialized = true;
 
         nsAppShell::NotifyScreenInitialized();
+
+        // This is a hack to force initialization of the compositor
+        // resources, if we're going to use omtc.
+        //
+        // NB: GetPlatform() will create the gfxPlatform, which wants
+        // to know the color depth, which asks our native window.
+        // This has to happen after other init has finished.
+        gfxPlatform::GetPlatform();
+        sUsingOMTC = UseOffMainThreadCompositing();
+
+        if (sUsingOMTC) {
+          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
+                                             gfxASurface::ImageFormatRGB24);
+        }
     }
 }
 
@@ -197,12 +204,12 @@ nsWindow::DoDraw(void)
     gWindowToRedraw->mDirtyRegion.SetEmpty();
 
     LayerManager* lm = gWindowToRedraw->GetLayerManager();
-    if (LayerManager::LAYERS_OPENGL == lm->GetBackendType()) {
+    if (mozilla::layers::LAYERS_OPENGL == lm->GetBackendType()) {
         LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
         oglm->SetClippingRegion(event.region);
         oglm->SetWorldTransform(sRotationMatrix);
         gWindowToRedraw->mEventCallback(&event);
-    } else if (LayerManager::LAYERS_BASIC == lm->GetBackendType()) {
+    } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
         MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
         nsRefPtr<gfxASurface> targetSurface;
 
@@ -578,7 +585,7 @@ PRUint32
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
         // We directly map the hardware fb on Gonk.  The hardware fb
         // has RGB format.
         return LOCAL_GL_RGB;

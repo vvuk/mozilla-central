@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "ShadowBufferD3D9.h"
@@ -278,7 +279,7 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
     backendData->mCrTexture->UnlockRect(0);
   }
 
-  aImage->SetBackendData(LayerManager::LAYERS_D3D9, backendData.forget());
+  aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, backendData.forget());
 }
 
 Layer*
@@ -303,11 +304,11 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
     RemoteBitmapImage *remoteImage =
       static_cast<RemoteBitmapImage*>(aImage);
       
-    if (!aImage->GetBackendData(LayerManager::LAYERS_D3D9)) {
+    if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       nsAutoPtr<TextureD3D9BackendData> dat(new TextureD3D9BackendData());
       dat->mTexture = DataToTexture(device(), remoteImage->mData, remoteImage->mStride, remoteImage->mSize, D3DFMT_A8R8G8B8);
       if (dat->mTexture) {
-        aImage->SetBackendData(LayerManager::LAYERS_D3D9, dat.forget());
+        aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, dat.forget());
       }
     }
 
@@ -320,11 +321,11 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
       return nsnull;
     }
 
-    if (!aImage->GetBackendData(LayerManager::LAYERS_D3D9)) {
+    if (!aImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       nsAutoPtr<TextureD3D9BackendData> dat(new TextureD3D9BackendData());
       dat->mTexture = SurfaceToTexture(device(), cairoImage->mSurface, cairoImage->mSize);
       if (dat->mTexture) {
-        aImage->SetBackendData(LayerManager::LAYERS_D3D9, dat.forget());
+        aImage->SetBackendData(mozilla::layers::LAYERS_D3D9, dat.forget());
       }
     }
 
@@ -335,7 +336,7 @@ ImageLayerD3D9::GetTexture(Image *aImage, bool& aHasAlpha)
   }
 
   TextureD3D9BackendData *data =
-    static_cast<TextureD3D9BackendData*>(aImage->GetBackendData(LayerManager::LAYERS_D3D9));
+    static_cast<TextureD3D9BackendData*>(aImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
 
   if (!data) {
     return nsnull;
@@ -415,12 +416,12 @@ ImageLayerD3D9::RenderLayer()
       return;
     }
 
-    if (!yuvImage->GetBackendData(LayerManager::LAYERS_D3D9)) {
+    if (!yuvImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       AllocateTexturesYCbCr(yuvImage, device(), mD3DManager);
     }
 
     PlanarYCbCrD3D9BackendData *data =
-      static_cast<PlanarYCbCrD3D9BackendData*>(yuvImage->GetBackendData(LayerManager::LAYERS_D3D9));
+      static_cast<PlanarYCbCrD3D9BackendData*>(yuvImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
 
     if (!data) {
       return;
@@ -551,19 +552,17 @@ ShadowImageLayerD3D9::Swap(const SharedImage& aNewFront,
     if (!mBuffer) {
       mBuffer = new ShadowBufferD3D9(this);
     }
-    nsRefPtr<gfxASurface> surf =
-      ShadowLayerForwarder::OpenDescriptor(aNewFront.get_SurfaceDescriptor());
-
-    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
+    AutoOpenSurface surf(OPEN_READ_ONLY, aNewFront.get_SurfaceDescriptor());
+    mBuffer->Upload(surf.Get(), GetVisibleRegion().GetBounds());
   } else {
     const YUVImage& yuv = aNewFront.get_YUVImage();
 
-    nsRefPtr<gfxSharedImageSurface> surfY =
-      gfxSharedImageSurface::Open(yuv.Ydata());
-    nsRefPtr<gfxSharedImageSurface> surfU =
-      gfxSharedImageSurface::Open(yuv.Udata());
-    nsRefPtr<gfxSharedImageSurface> surfV =
-      gfxSharedImageSurface::Open(yuv.Vdata());
+    AutoOpenSurface asurfY(OPEN_READ_ONLY, yuv.Ydata());
+    AutoOpenSurface asurfU(OPEN_READ_ONLY, yuv.Udata());
+    AutoOpenSurface asurfV(OPEN_READ_ONLY, yuv.Vdata());
+    gfxImageSurface* surfY = asurfY.GetAsImage();
+    gfxImageSurface* surfU = asurfU.GetAsImage();
+    gfxImageSurface* surfV = asurfV.GetAsImage();
 
     PlanarYCbCrImage::Data data;
     data.mYChannel = surfY->Data();
@@ -617,12 +616,12 @@ ShadowImageLayerD3D9::RenderLayer()
       return;
     }
 
-    if (!mYCbCrImage->GetBackendData(LayerManager::LAYERS_D3D9)) {
+    if (!mYCbCrImage->GetBackendData(mozilla::layers::LAYERS_D3D9)) {
       AllocateTexturesYCbCr(mYCbCrImage, device(), mD3DManager);
     }
 
     PlanarYCbCrD3D9BackendData *data =
-      static_cast<PlanarYCbCrD3D9BackendData*>(mYCbCrImage->GetBackendData(LayerManager::LAYERS_D3D9));
+      static_cast<PlanarYCbCrD3D9BackendData*>(mYCbCrImage->GetBackendData(mozilla::layers::LAYERS_D3D9));
 
     if (!data) {
       return;
@@ -631,7 +630,7 @@ ShadowImageLayerD3D9::RenderLayer()
     if (!mYCbCrImage->mBufferSize) {
       return;
     }
-    
+
     SetShaderTransformAndOpacity();
 
     device()->SetVertexShaderConstantF(CBvLayerQuad,

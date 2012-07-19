@@ -22,7 +22,6 @@ import android.text.Editable;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
-import android.util.AttributeSet;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -65,7 +64,7 @@ public class AwesomeBar extends GeckoActivity {
 
     private String mTarget;
     private AwesomeBarTabs mAwesomeTabs;
-    private AwesomeBarEditText mText;
+    private CustomEditText mText;
     private ImageButton mGoButton;
     private ContentResolver mResolver;
     private ContextMenuSubject mContextMenuSubject;
@@ -82,7 +81,7 @@ public class AwesomeBar extends GeckoActivity {
         setContentView(R.layout.awesomebar);
 
         mGoButton = (ImageButton) findViewById(R.id.awesomebar_button);
-        mText = (AwesomeBarEditText) findViewById(R.id.awesomebar_text);
+        mText = (CustomEditText) findViewById(R.id.awesomebar_text);
 
         TabWidget tabWidget = (TabWidget) findViewById(android.R.id.tabs);
         tabWidget.setDividerDrawable(null);
@@ -124,7 +123,7 @@ public class AwesomeBar extends GeckoActivity {
             mText.selectAll();
         }
 
-        mText.setOnKeyPreImeListener(new AwesomeBarEditText.OnKeyPreImeListener() {
+        mText.setOnKeyPreImeListener(new CustomEditText.OnKeyPreImeListener() {
             public boolean onKeyPreIme(View v, int keyCode, KeyEvent event) {
                 // We only want to process one event per tap
                 if (event.getAction() != KeyEvent.ACTION_DOWN)
@@ -591,28 +590,4 @@ public class AwesomeBar extends GeckoActivity {
         return false;
     }
 
-    public static class AwesomeBarEditText extends EditText {
-        OnKeyPreImeListener mOnKeyPreImeListener;
-
-        public interface OnKeyPreImeListener {
-            public boolean onKeyPreIme(View v, int keyCode, KeyEvent event);
-        }
-
-        public AwesomeBarEditText(Context context, AttributeSet attrs) {
-            super(context, attrs);
-            mOnKeyPreImeListener = null;
-        }
-
-        @Override
-        public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-            if (mOnKeyPreImeListener != null)
-                return mOnKeyPreImeListener.onKeyPreIme(this, keyCode, event);
-
-            return false;
-        }
-
-        public void setOnKeyPreImeListener(OnKeyPreImeListener listener) {
-            mOnKeyPreImeListener = listener;
-        }
-    }
 }

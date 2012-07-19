@@ -17,17 +17,18 @@
 #include "nsHTMLURIRefObject.h"
 
 #include "nsIDOMText.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMAttr.h"
 #include "nsIDocument.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
-#include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsISelectionController.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsILinkHandler.h"
+#include "nsIInlineSpellChecker.h"
 
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
@@ -63,6 +64,7 @@
 
 #include "nsIFrame.h"
 #include "nsIParserService.h"
+#include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
 #include "nsTextFragment.h"
 
@@ -597,6 +599,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
 
   switch (nativeKeyEvent->keyCode) {
     case nsIDOMKeyEvent::DOM_VK_META:
+    case nsIDOMKeyEvent::DOM_VK_WIN:
     case nsIDOMKeyEvent::DOM_VK_SHIFT:
     case nsIDOMKeyEvent::DOM_VK_CONTROL:
     case nsIDOMKeyEvent::DOM_VK_ALT:
@@ -617,7 +620,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       }
 
       if (nativeKeyEvent->IsControl() || nativeKeyEvent->IsAlt() ||
-          nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsMeta() || nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
 
@@ -667,7 +670,7 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     case nsIDOMKeyEvent::DOM_VK_RETURN:
     case nsIDOMKeyEvent::DOM_VK_ENTER:
       if (nativeKeyEvent->IsControl() || nativeKeyEvent->IsAlt() ||
-          nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsMeta() || nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
       aKeyEvent->PreventDefault(); // consumed
@@ -682,7 +685,8 @@ nsHTMLEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   // NOTE: On some keyboard layout, some characters are inputted with Control
   // key or Alt key, but at that time, widget sets FALSE to these keys.
   if (nativeKeyEvent->charCode == 0 || nativeKeyEvent->IsControl() ||
-      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
+      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
+      nativeKeyEvent->IsOS()) {
     // we don't PreventDefault() here or keybindings like control-x won't work
     return NS_OK;
   }

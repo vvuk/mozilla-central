@@ -27,7 +27,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import org.mozilla.gecko.gfx.PointUtils;
 import org.mozilla.gecko.PropertyAnimator.Property;
 
 public class TabsTray extends LinearLayout 
@@ -193,8 +192,11 @@ public class TabsTray extends LinearLayout
             // accidentally updating it on the wrong thread.
             mTabs = new ArrayList<Tab>();
             ArrayList<Tab> tabs = Tabs.getInstance().getTabsInOrder();
-            for (Tab tab : tabs) {
-                mTabs.add(tab);
+
+            if (tabs != null) {
+                for (Tab tab : tabs) {
+                    mTabs.add(tab);
+                }
             }
 
             notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
@@ -441,4 +443,3 @@ public class TabsTray extends LinearLayout
         }
     }
 }
-

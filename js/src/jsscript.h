@@ -20,6 +20,21 @@
 
 #include "gc/Barrier.h"
 
+namespace js {
+
+struct Shape;
+
+namespace mjit {
+struct JITScript;
+class CallCompiler;
+}
+
+namespace analyze {
+class ScriptAnalysis;
+}
+
+}
+
 /*
  * Type of try note associated with each catch or finally block, and also with
  * for-in loops.
@@ -64,16 +79,68 @@ struct ClosedSlotArray {
     uint32_t        length;     /* count of closed slots */
 };
 
-struct Shape;
+/*
+ * A "binding" is a formal, 'var' or 'const' declaration. A function's lexical
+ * scope is composed of these three kinds of bindings.
+ */
 
-enum BindingKind { NONE, ARGUMENT, VARIABLE, CONSTANT };
+enum BindingKind { ARGUMENT, VARIABLE, CONSTANT };
 
-struct BindingName {
-    JSAtom *maybeAtom;
+struct Binding
+{
+    PropertyName *maybeName;  /* NULL for destructuring formals. */
     BindingKind kind;
 };
 
-typedef Vector<BindingName, 32> BindingNames;
+/*
+ * Iterator over a script's bindings (formals and variables). Note: iteration
+ * proceeds in reverse-frame-index order, vars before formals. For ascending
+ * order, see GetOrderedBindings.
+ */
+class BindingIter
+{
+    friend class Bindings;
+    BindingIter(JSContext *cx, const Bindings &bindings, Shape *shape);
+    void settle();
+
+    struct Init
+    {
+        Init(const Bindings *b, Shape::Range s) : bindings(b), shape(s) {}
+        const Bindings *bindings;
+        Shape::Range shape;
+    };
+
+  public:
+    BindingIter(JSContext *cx, Bindings &bindings);
+    BindingIter(JSContext *cx, Init init);
+
+    void operator=(Init init);
+
+    bool done() const { return shape_.empty(); }
+    operator bool() const { return !done(); }
+    void operator++(int) { shape_.popFront(); settle(); }
+
+    const Binding &operator*() const { JS_ASSERT(!done()); return binding_; }
+    const Binding *operator->() const { JS_ASSERT(!done()); return &binding_; }
+    unsigned frameIndex() const { JS_ASSERT(!done()); return shape_.front().shortid(); }
+
+  private:
+    const Bindings *bindings_;
+    Binding binding_;
+    Shape::Range shape_;
+    Shape::Range::AutoRooter rooter_;
+};
+
+/*
+ * This function fills the given BindingVector in ascending frame-index order,
+ * formals before variables. Thus, for function f(x) { var y; }, *vec will
+ * contain [("x",ARGUMENT),("y",VARIABLE)].
+ */
+
+typedef Vector<Binding, 32> BindingVector;
+
+extern bool
+GetOrderedBindings(JSContext *cx, Bindings &bindings, BindingVector *vec);
 
 /*
  * Formal parameters and local variables are stored in a shape tree
@@ -83,6 +150,9 @@ typedef Vector<BindingName, 32> BindingNames;
  */
 class Bindings
 {
+    friend class BindingIter;
+    friend class StaticScopeIter;
+
     HeapPtr<Shape> lastBinding;
     uint16_t nargs;
     uint16_t nvars;
@@ -115,9 +185,6 @@ class Bindings
     /* Ensure these bindings have a shape lineage. */
     inline bool ensureShape(JSContext *cx);
 
-    /* Return the shape lineage generated for these bindings. */
-    inline Shape *lastShape() const;
-
     /*
      * Return the shape to use to create a call object for these bindings.
      * The result is guaranteed not to have duplicate property names.
@@ -127,8 +194,6 @@ class Bindings
     /* See Scope::extensibleParents */
     inline bool extensibleParents();
     bool setExtensibleParents(JSContext *cx);
-
-    bool setParent(JSContext *cx, JSObject *obj);
 
     enum {
         /* A script may have no more than this many arguments or variables. */
@@ -179,37 +244,16 @@ class Bindings
      * exists, *indexp will receive the index of the corresponding argument or
      * variable.
      */
-    BindingKind lookup(JSContext *cx, JSAtom *name, unsigned *indexp) const;
+    BindingIter::Init lookup(JSContext *cx, PropertyName *name) const;
 
     /* Convenience method to check for any binding for a name. */
-    bool hasBinding(JSContext *cx, JSAtom *name) const {
-        return lookup(cx, name, NULL) != NONE;
+    bool hasBinding(JSContext *cx, PropertyName *name) const {
+        Shape **_;
+        return lastBinding && Shape::search(cx, lastBinding, NameToId(name), &_) != NULL;
     }
 
     /* Convenience method to get the var index of 'arguments'. */
-    inline unsigned argumentsVarIndex(JSContext *cx) const;
-
-    /*
-     * This method returns the local variable, argument, etc. names used by a
-     * script.  This function must be called only when count() > 0.
-     *
-     * The elements of the vector with index less than nargs correspond to the
-     * the names of arguments. An index >= nargs addresses a var binding.
-     * The name at an element will be null when the element is for an argument
-     * corresponding to a destructuring pattern.
-     */
-    bool getLocalNameArray(JSContext *cx, BindingNames *namesp);
-
-    /*
-     * This method provides direct access to the shape path normally
-     * encapsulated by js::Bindings. This method may be used to make a
-     * Shape::Range for iterating over the relevant shapes from youngest to
-     * oldest (i.e., last or right-most to first or left-most in source order).
-     *
-     * Sometimes iteration order must be from oldest to youngest, however. For
-     * such cases, use js::Bindings::getLocalNameArray.
-     */
-    js::Shape *lastVariable() const;
+    unsigned argumentsVarIndex(JSContext *cx) const;
 
     void trace(JSTracer *trc);
 
@@ -232,26 +276,6 @@ class Bindings
         JS_DECL_USE_GUARD_OBJECT_NOTIFIER
     };
 };
-
-} /* namespace js */
-
-#ifdef JS_METHODJIT
-namespace JSC {
-    class ExecutablePool;
-}
-
-namespace js {
-namespace mjit {
-    struct JITScript;
-    class CallCompiler;
-}
-}
-
-#endif
-
-namespace js {
-
-namespace analyze { class ScriptAnalysis; }
 
 class ScriptCounts
 {
@@ -409,19 +433,6 @@ struct JSScript : public js::gc::Cell
     JSPrincipals    *principals;/* principals for this script */
     JSPrincipals    *originPrincipals; /* see jsapi.h 'originPrincipals' comment */
 
-    /*
-     * A global object for the script.
-     * - All scripts returned by JSAPI functions (JS_CompileScript,
-     *   JS_CompileUTF8File, etc.) have a non-null globalObject.
-     * - A function script has a globalObject if the function comes from a
-     *   compile-and-go script.
-     * - Temporary scripts created by obj_eval, JS_EvaluateScript, and
-     *   similar functions never have the globalObject field set; for such
-     *   scripts the global should be extracted from the JS frame that
-     *   execute scripts.
-     */
-    js::HeapPtr<js::GlobalObject, JSScript*> globalObject;
-
     /* Persistent type information retained across GCs. */
     js::types::TypeScript *types;
 
@@ -429,8 +440,8 @@ struct JSScript : public js::gc::Cell
 #ifdef JS_METHODJIT
     JITScriptSet *jitInfo;
 #endif
-
     js::HeapPtrFunction function_;
+    js::HeapPtrObject   enclosingScope_;
 
     // 32-bit fields.
 
@@ -510,14 +521,9 @@ struct JSScript : public js::gc::Cell
                                                    undefined properties in this
                                                    script */
     bool            hasSingletons:1;  /* script has singleton objects */
-    bool            isOuterFunction:1; /* function is heavyweight, with inner functions */
-    bool            isInnerFunction:1; /* function is directly nested in a heavyweight
-                                        * outer function */
     bool            isActiveEval:1;   /* script came from eval(), and is still active */
     bool            isCachedEval:1;   /* script came from eval(), and is in eval cache */
     bool            uninlineable:1;   /* script is considered uninlineable by analysis */
-    bool            reentrantOuterFunction:1; /* outer function marked reentrant */
-    bool            typesPurged:1;    /* TypeScript has been purged at some point */
 #ifdef JS_METHODJIT
     bool            debugMode:1;      /* script was compiled in debug mode */
     bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
@@ -542,11 +548,10 @@ struct JSScript : public js::gc::Cell
     //
 
   public:
-    static JSScript *Create(JSContext *cx, bool savedCallerFun,
+    static JSScript *Create(JSContext *cx, js::HandleObject enclosingScope, bool savedCallerFun,
                             JSPrincipals *principals, JSPrincipals *originPrincipals,
                             bool compileAndGo, bool noScriptRval,
-                            js::GlobalObject *globalObject, JSVersion version,
-                            unsigned staticLevel);
+                            JSVersion version, unsigned staticLevel);
 
     // Three ways ways to initialize a JSScript.  Callers of partiallyInit()
     // and fullyInitTrivial() are responsible for notifying the debugger after
@@ -594,15 +599,15 @@ struct JSScript : public js::gc::Cell
         return needsArgsObj() && !strictModeCode;
     }
 
-    /* Hash table chaining for JSCompartment::evalCache. */
-    JSScript *&evalHashLink() { return *globalObject.unsafeGetUnioned(); }
-
     /*
      * Original compiled function for the script, if it has a function.
      * NULL for global and eval scripts.
      */
     JSFunction *function() const { return function_; }
     void setFunction(JSFunction *fun);
+
+    /* Return whether this script was compiled for 'eval' */
+    bool isForEval() { return isCachedEval || isActiveEval; }
 
 #ifdef DEBUG
     unsigned id();
@@ -614,12 +619,10 @@ struct JSScript : public js::gc::Cell
     inline bool ensureHasTypes(JSContext *cx);
 
     /*
-     * Ensure the script has scope and bytecode analysis information.
-     * Performed when the script first runs, or first runs after a TypeScript
-     * GC purge. If scope is NULL then the script must already have types with
-     * scope information.
+     * Ensure the script has bytecode analysis information. Performed when the
+     * script first runs, or first runs after a TypeScript GC purge.
      */
-    inline bool ensureRanAnalysis(JSContext *cx, JSObject *scope);
+    inline bool ensureRanAnalysis(JSContext *cx);
 
     /* Ensure the script has type inference analysis information. */
     inline bool ensureRanInference(JSContext *cx);
@@ -631,15 +634,10 @@ struct JSScript : public js::gc::Cell
     inline bool hasGlobal() const;
     inline bool hasClearedGlobal() const;
 
-    inline js::GlobalObject * global() const;
-    inline js::types::TypeScriptNesting *nesting() const;
+    inline js::GlobalObject &global() const;
 
-    inline void clearNesting();
-
-    /* Return creation time global or null. */
-    js::GlobalObject *getGlobalObjectOrNull() const {
-        return (isCachedEval || isActiveEval) ? NULL : globalObject.get();
-    }
+    /* See StaticScopeIter comment. */
+    JSObject *enclosingStaticScope() const { return enclosingScope_; }
 
   private:
     bool makeTypes(JSContext *cx);
@@ -875,8 +873,7 @@ struct JSScript : public js::gc::Cell
         return hasDebugScript ? debugScript()->breakpoints[pc - code] : NULL;
     }
 
-    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc,
-                                                  js::GlobalObject *scriptGlobal);
+    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc);
 
     void destroyBreakpointSite(js::FreeOp *fop, jsbytecode *pc);
 
@@ -1035,7 +1032,7 @@ inline void
 CurrentScriptFileLineOrigin(JSContext *cx, unsigned *linenop, LineOption = NOT_CALLED_FROM_JSOP_EVAL);
 
 extern JSScript *
-CloneScript(JSContext *cx, HandleScript script);
+CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, HandleScript script);
 
 /*
  * NB: after a successful XDR_DECODE, XDRScript callers must do any required
@@ -1044,7 +1041,8 @@ CloneScript(JSContext *cx, HandleScript script);
  */
 template<XDRMode mode>
 bool
-XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript);
+XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
+          HandleFunction fun, JSScript **scriptp);
 
 } /* namespace js */
 

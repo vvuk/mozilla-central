@@ -132,7 +132,7 @@ public:
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual bool            HasPendingInputEvent();
   virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
+                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
   gfxASurface             *GetThebesSurface();
@@ -431,6 +431,7 @@ private:
   nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, bool force = false);
   nsresult                UpdateTranslucentWindow();
+  void                    ClearTranslucentWindow();
   void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
   void                    UpdateGlass();
 protected:

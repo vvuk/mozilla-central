@@ -46,6 +46,8 @@ using namespace mozilla;
 NS_IMPL_THREADSAFE_ISUPPORTS0(nsFilePickerCallback)
 
 AndroidBridge *AndroidBridge::sBridge = 0;
+static PRUintn sJavaEnvThreadIndex = 0;
+static void JavaThreadDetachFunc(void *arg);
 
 AndroidBridge *
 AndroidBridge::ConstructBridge(JNIEnv *jEnv,
@@ -58,6 +60,8 @@ AndroidBridge::ConstructBridge(JNIEnv *jEnv,
      * Conveniently, NSS has an env var that can prevent it from unloading.
      */
     putenv("NSS_DISABLE_UNLOAD=1");
+
+    PR_NewThreadPrivateIndex(&sJavaEnvThreadIndex, JavaThreadDetachFunc);
 
     sBridge = new AndroidBridge();
     if (!sBridge->Init(jEnv, jGeckoAppShellClass)) {
@@ -1013,7 +1017,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
     if (!arr)
         return;
 
-    jsize len = env->GetArrayLength(arr);
+    PRUint32 len = static_cast<PRUint32>(env->GetArrayLength(arr));
     jint *elements = env->GetIntArrayElements(arr, 0);
 
     PRUint32 colorsCount = sizeof(AndroidSystemColors) / sizeof(nscolor);
@@ -1027,7 +1031,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
         PRUint32 androidColor = static_cast<PRUint32>(elements[i]);
         PRUint8 r = (androidColor & 0x00ff0000) >> 16;
         PRUint8 b = (androidColor & 0x000000ff);
-        colors[i] = androidColor & 0xff00ff00 | b << 16 | r;
+        colors[i] = (androidColor & 0xff00ff00) | (b << 16) | r;
     }
 
     env->ReleaseIntArrayElements(arr, elements, 0);
@@ -1060,7 +1064,7 @@ AndroidBridge::GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSiz
     if (!arr)
         return;
 
-    jsize len = env->GetArrayLength(arr);
+    PRUint32 len = static_cast<PRUint32>(env->GetArrayLength(arr));
     jbyte *elements = env->GetByteArrayElements(arr, 0);
 
     PRUint32 bufSize = aIconSize * aIconSize * 4;
@@ -1095,11 +1099,28 @@ AndroidBridge::SetSurfaceView(jobject obj)
 }
 
 void
-AndroidBridge::SetLayerClient(jobject obj)
+AndroidBridge::SetLayerClient(JNIEnv* env, jobject jobj)
 {
+    // if resetting is true, that means Android destroyed our GeckoApp activity
+    // and we had to recreate it, but all the Gecko-side things were not destroyed.
+    // We therefore need to link up the new java objects to Gecko, and that's what
+    // we do here.
+    bool resetting = (mLayerClient != NULL);
+
+    if (resetting) {
+        // clear out the old layer client
+        env->DeleteGlobalRef(mLayerClient->wrappedObject());
+        delete mLayerClient;
+        mLayerClient = NULL;
+    }
+
     AndroidGeckoLayerClient *client = new AndroidGeckoLayerClient();
-    client->Init(obj);
+    client->Init(env->NewGlobalRef(jobj));
     mLayerClient = client;
+
+    if (resetting) {
+        RegisterCompositor(env, true);
+    }
 }
 
 void
@@ -1170,10 +1191,11 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
 static AndroidGLController sController;
 
 void
-AndroidBridge::RegisterCompositor()
+AndroidBridge::RegisterCompositor(JNIEnv *env, bool resetting)
 {
     ALOG_BRIDGE("AndroidBridge::RegisterCompositor");
-    JNIEnv *env = GetJNIForThread();    // called on the compositor thread
+    if (!env)
+        env = GetJNIForThread();    // called on the compositor thread
     if (!env)
         return;
 
@@ -1185,8 +1207,12 @@ AndroidBridge::RegisterCompositor()
     if (jniFrame.CheckForException())
         return;
 
-    sController.Acquire(env, glController);
-    sController.SetGLVersion(2);
+    if (resetting) {
+        sController.Reacquire(env, glController);
+    } else {
+        sController.Acquire(env, glController);
+        sController.SetGLVersion(2);
+    }
 }
 
 EGLSurface
@@ -1518,7 +1544,7 @@ AndroidBridge::ValidateBitmap(jobject bitmap, int width, int height)
         return false;
     }
 
-    if (info.width != width || info.height != height)
+    if ((int)info.width != width || (int)info.height != height)
         return false;
 
     return true;
@@ -1968,7 +1994,7 @@ AndroidBridge::LockWindow(void *window, unsigned char **bits, int *width, int *h
 
     // Very similar to the above, but the 'usage' field is included. We use this
     // in the fallback case when NDK support is not available
-    typedef struct SurfaceInfo {
+    struct SurfaceInfo {
         uint32_t    w;
         uint32_t    h;
         uint32_t    s;
@@ -2141,16 +2167,20 @@ extern "C" {
             __android_log_print(ANDROID_LOG_INFO, "GetJNIForThread", "Returned a null VM");
             return NULL;
         }
+        jEnv = static_cast<JNIEnv*>(PR_GetThreadPrivate(sJavaEnvThreadIndex));
+
+        if (jEnv)
+            return jEnv;
+
         int status = jVm->GetEnv((void**) &jEnv, JNI_VERSION_1_2);
-        if (status < 0) {
+        if (status) {
 
             status = jVm->AttachCurrentThread(&jEnv, NULL);
-            if (status < 0) {
+            if (status) {
                 __android_log_print(ANDROID_LOG_INFO, "GetJNIForThread",  "Could not attach");
                 return NULL;
             }
-            static PRUintn sJavaEnvThreadIndex = 0;
-            PR_NewThreadPrivateIndex(&sJavaEnvThreadIndex, JavaThreadDetachFunc);
+            
             PR_SetThreadPrivate(sJavaEnvThreadIndex, jEnv);
         }
         if (!jEnv) {

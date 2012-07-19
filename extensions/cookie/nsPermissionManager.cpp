@@ -19,8 +19,10 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "prprf.h"
 #include "mozilla/storage.h"
+#include "mozilla/Attributes.h"
 #include "nsXULAppAPI.h"
 #include "nsIPrincipal.h"
+#include "nsContentUtils.h"
 
 static nsPermissionManager *gPermissionManager = nsnull;
 
@@ -115,7 +117,7 @@ nsHostEntry::nsHostEntry(const nsHostEntry& toCopy)
  * Note: Once the callback has been called this DeleteFromMozHostListener cannot
  * be reused.
  */
-class CloseDatabaseListener : public mozIStorageCompletionCallback
+class CloseDatabaseListener MOZ_FINAL : public mozIStorageCompletionCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -164,7 +166,7 @@ CloseDatabaseListener::Complete()
  * Note: Once the callback has been called this DeleteFromMozHostListener cannot
  * be reused.
  */
-class DeleteFromMozHostListener : public mozIStorageStatementCallback
+class DeleteFromMozHostListener MOZ_FINAL : public mozIStorageStatementCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -510,6 +512,12 @@ nsPermissionManager::AddFromPrincipal(nsIPrincipal* aPrincipal,
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
+  // We don't add the system principal because it actually has no URI and we
+  // always allow action for them.
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIURI> uri;
   aPrincipal->GetURI(getter_AddRefs(uri));
 
@@ -700,6 +708,11 @@ nsPermissionManager::RemoveFromPrincipal(nsIPrincipal* aPrincipal,
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
+  // System principals are never added to the database, no need to remove them.
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIURI> uri;
   aPrincipal->GetURI(getter_AddRefs(uri));
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
@@ -789,6 +802,13 @@ nsPermissionManager::TestPermissionFromPrincipal(nsIPrincipal* aPrincipal,
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
+  // System principals do not have URI so we can't try to get
+  // retro-compatibility here.
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    *aPermission = nsIPermissionManager::ALLOW_ACTION;
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIURI> uri;
   aPrincipal->GetURI(getter_AddRefs(uri));
 
@@ -801,6 +821,13 @@ nsPermissionManager::TestExactPermissionFromPrincipal(nsIPrincipal* aPrincipal,
                                                       PRUint32* aPermission)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  // System principals do not have URI so we can't try to get
+  // retro-compatibility here.
+  if (nsContentUtils::IsSystemPrincipal(aPrincipal)) {
+    *aPermission = nsIPermissionManager::ALLOW_ACTION;
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIURI> uri;
   aPrincipal->GetURI(getter_AddRefs(uri));

@@ -4,51 +4,65 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "nsPlaintextEditor.h"
-#include "nsCaret.h"
-#include "nsTextEditUtils.h"
-#include "nsTextEditRules.h"
-#include "nsIEditActionListener.h"
-#include "nsIDOMNodeList.h"
-#include "nsIDOMDocument.h"
-#include "nsIDocument.h"
-#include "nsIDOMEventTarget.h" 
-#include "nsIDOMKeyEvent.h"
-#include "nsISelection.h"
-#include "nsISelectionPrivate.h"
-#include "nsISelectionController.h"
-#include "nsGUIEvent.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/FunctionTimer.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/Selection.h"
+#include "mozilla/dom/Element.h"
+#include "mozilla/mozalloc.h"
+#include "nsAString.h"
+#include "nsAutoPtr.h"
 #include "nsCRT.h"
-
-#include "nsIEnumerator.h"
+#include "nsCaret.h"
+#include "nsCharTraits.h"
+#include "nsComponentManagerUtils.h"
+#include "nsContentCID.h"
+#include "nsCopySupport.h"
+#include "nsDebug.h"
+#include "nsDependentSubstring.h"
+#include "nsEditRules.h"
+#include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
+#include "nsError.h"
+#include "nsGUIEvent.h"
+#include "nsGkAtoms.h"
+#include "nsIClipboard.h"
 #include "nsIContent.h"
 #include "nsIContentIterator.h"
-#include "nsIDOMRange.h"
-#include "nsISupportsArray.h"
-#include "nsIComponentManager.h"
-#include "nsIServiceManager.h"
+#include "nsIDOMCharacterData.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMEventTarget.h" 
+#include "nsIDOMKeyEvent.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMNodeList.h"
 #include "nsIDocumentEncoder.h"
+#include "nsIEditorIMESupport.h"
+#include "nsINameSpaceManager.h"
+#include "nsINode.h"
 #include "nsIPresShell.h"
+#include "nsIPrivateTextRange.h"
+#include "nsISelection.h"
+#include "nsISelectionController.h"
+#include "nsISelectionPrivate.h"
 #include "nsISupportsPrimitives.h"
-#include "nsReadableUtils.h"
-
-// Misc
-#include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
-#include "nsUnicharUtils.h"
-#include "nsContentCID.h"
-#include "nsInternetCiter.h"
-#include "nsEventDispatcher.h"
-#include "nsGkAtoms.h"
-#include "nsDebug.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
-
-// Drag & Drop, Clipboard
-#include "nsIClipboard.h"
 #include "nsITransferable.h"
-#include "nsCopySupport.h"
+#include "nsIWeakReferenceUtils.h"
+#include "nsInternetCiter.h"
+#include "nsLiteralString.h"
+#include "nsPlaintextEditor.h"
+#include "nsReadableUtils.h"
+#include "nsServiceManagerUtils.h"
+#include "nsString.h"
+#include "nsStringFwd.h"
+#include "nsSubstringTuple.h"
+#include "nsTextEditRules.h"
+#include "nsTextEditUtils.h"
+#include "nsUnicharUtils.h"
+#include "nsXPCOM.h"
 
-#include "mozilla/FunctionTimer.h"
+class nsIOutputStream;
+class nsISupports;
+class nsISupportsArray;
 
 using namespace mozilla;
 
@@ -344,6 +358,7 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
 
   switch (nativeKeyEvent->keyCode) {
     case nsIDOMKeyEvent::DOM_VK_META:
+    case nsIDOMKeyEvent::DOM_VK_WIN:
     case nsIDOMKeyEvent::DOM_VK_SHIFT:
     case nsIDOMKeyEvent::DOM_VK_CONTROL:
     case nsIDOMKeyEvent::DOM_VK_ALT:
@@ -357,7 +372,8 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       }
 
       if (nativeKeyEvent->IsShift() || nativeKeyEvent->IsControl() ||
-          nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
+          nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
 
@@ -368,7 +384,8 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
     case nsIDOMKeyEvent::DOM_VK_RETURN:
     case nsIDOMKeyEvent::DOM_VK_ENTER:
       if (IsSingleLineEditor() || nativeKeyEvent->IsControl() ||
-          nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
+          nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
+          nativeKeyEvent->IsOS()) {
         return NS_OK;
       }
       aKeyEvent->PreventDefault();
@@ -378,7 +395,8 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   // NOTE: On some keyboard layout, some characters are inputted with Control
   // key or Alt key, but at that time, widget sets FALSE to these keys.
   if (nativeKeyEvent->charCode == 0 || nativeKeyEvent->IsControl() ||
-      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta()) {
+      nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
+      nativeKeyEvent->IsOS()) {
     // we don't PreventDefault() here or keybindings like control-x won't work
     return NS_OK;
   }

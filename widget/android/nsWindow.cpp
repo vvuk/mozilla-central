@@ -171,7 +171,7 @@ nsWindow::~nsWindow()
         top->mFocus = nsnull;
     ALOG("nsWindow %p destructor", (void*)this);
 #ifdef MOZ_JAVA_COMPOSITOR
-    SetCompositor(NULL, NULL, NULL);
+    SetCompositor(NULL, NULL);
 #endif
 }
 
@@ -697,7 +697,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
     if (useCompositor) {
         CreateCompositor();
         if (mLayerManager) {
-            SetCompositor(mCompositorParent, mCompositorChild, mCompositorThread);
+            SetCompositor(mCompositorParent, mCompositorChild);
             return mLayerManager;
         }
 
@@ -989,7 +989,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
         event.region = invalidRect;
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
-            case LayerManager::LAYERS_BASIC: {
+            case mozilla::layers::LAYERS_BASIC: {
 
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
@@ -1013,7 +1013,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
                 break;
             }
 
-            case LayerManager::LAYERS_OPENGL: {
+            case mozilla::layers::LAYERS_OPENGL: {
 
                 static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
                     SetClippingRegion(nsIntRegion(boundsRect));
@@ -1114,7 +1114,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
-    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
+    if (GetLayerManager(nsnull)->GetBackendType() == mozilla::layers::LAYERS_BASIC) {
         if (sNativeWindow) {
             unsigned char *bits;
             int width, height, format, stride;
@@ -2279,17 +2279,14 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 
 nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
 nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
-base::Thread * nsWindow::sCompositorThread = 0;
 bool nsWindow::sCompositorPaused = false;
 
 void
 nsWindow::SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
-                        mozilla::layers::CompositorChild* aCompositorChild,
-                        ::base::Thread* aCompositorThread)
+                        mozilla::layers::CompositorChild* aCompositorChild)
 {
     sCompositorParent = aCompositorParent;
     sCompositorChild = aCompositorChild;
-    sCompositorThread = aCompositorThread;
 }
 
 void
