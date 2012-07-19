@@ -23,6 +23,13 @@
 
 namespace mozilla {
 
+// We only support 1 audio and 1 video track for now.
+enum {
+  kVideoTrack = 1,
+  kAudioTrack = 2
+};
+
+
 /**
  * Send an error back to content. The error is the form a string.
  * Do this only on the main thread.
@@ -110,7 +117,16 @@ public:
   Run()
   {
     // Create a media stream.
-    nsCOMPtr<nsDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream();
+    nsCOMPtr<nsDOMMediaStream> stream;
+    if (mTrackID == kVideoTrack) {
+      stream = nsDOMMediaStream::CreateInputStream(
+        nsDOMMediaStream::HINT_CONTENTS_VIDEO
+      );
+    } else {
+      stream = nsDOMMediaStream::CreateInputStream(
+        nsDOMMediaStream::HINT_CONTENTS_AUDIO
+      );
+    }
 
     nsPIDOMWindow *window = static_cast<nsPIDOMWindow*>
       (nsGlobalWindow::GetOuterWindowWithId(mWindowID));
@@ -171,12 +187,6 @@ public:
     , mWindowID(aWindowID) {}
 
   ~GetUserMediaRunnable() {}
-
-  // We only support 1 audio and 1 video track for now.
-  enum {
-    kVideoTrack = 1,
-    kAudioTrack = 2
-  };
 
   NS_IMETHOD
   Run()
