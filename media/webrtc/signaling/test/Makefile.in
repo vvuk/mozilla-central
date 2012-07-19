@@ -46,7 +46,6 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_signaling
-LIBRARY_NAME = test_signaling
 
 DEFINES         += -DUSE_FAKE_MEDIA_STREAMS
 LIBS		= $(EXTRA_DSO_LIBS) \

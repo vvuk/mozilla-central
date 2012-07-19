@@ -43,17 +43,30 @@ nsresult Fake_AudioStreamSource::Start() {
   return NS_OK;
 }
 
+nsresult Fake_AudioStreamSource::Stop() {
+  mTimer->Cancel();
+  
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 Fake_AudioStreamSource::Notify(nsITimer* aTimer)
 {
+#if 0
   mozilla::AudioSegment segment;
   segment.Init(1);
   segment.InsertNullDataAtStart(1);
 
-  //  mSource->AppendToTrack(mTrackID, &segment);
-
+  if (mListener)
+    mListener->NotifyQueuedTrackChanges(NULL, // Graph
+                                        0, // TrackID
+                                        100, // Rate (hz)
+                                        0, // Offset TODO(ekr@rtfm.com) fix
+                                        0, // ???
+                                        segment);
+#endif
   return NS_OK;
 }
-
+      
 NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_AudioStreamSource, nsITimerCallback)
 

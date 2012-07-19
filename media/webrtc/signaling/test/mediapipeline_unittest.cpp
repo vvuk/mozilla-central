@@ -39,11 +39,12 @@ MtransportTestUtils test_utils;
 namespace {
 class TestAgent {
  public:
-  TestAgent(bool send) :
+  TestAgent() :
       flow_(),
       prsock_(new TransportLayerPrsock()),
-      pipeline_(),
-      audio_(new Fake_nsDOMMediaStream(send ? new Fake_AudioStreamSource() : NULL)) {
+      conduit_(),
+      audio_(),
+      pipeline_() {
   }
   
   void ConnectSocket(PRFileDesc *fd) {
@@ -57,10 +58,27 @@ class TestAgent {
     
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
   }
-  
+
+ protected:
+  TransportFlow flow_;
+  TransportLayerPrsock *prsock_;
+  mozilla::RefPtr<mozilla::MediaSessionConduit> conduit_;
+  nsRefPtr<nsDOMMediaStream> audio_;
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
+};
+
+class TestAgentSend : public TestAgent {
+ public:
+  TestAgentSend() {
+    audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
+    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, conduit_, &flow_, &flow_);
+  }
+
   void StartSending() {
     nsresult ret;
     
+    MLOG(PR_LOG_DEBUG, "Starting sending");
+
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(audio_->GetStream(),
                         &Fake_MediaStream::Start, &ret),
@@ -68,17 +86,25 @@ class TestAgent {
     ASSERT_TRUE(NS_SUCCEEDED(ret));    
   }
 
+  void StopSending() {
+    nsresult ret;
+    
+    MLOG(PR_LOG_DEBUG, "Stopping sending");
+
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Stop, &ret),
+        NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+  }
+  
  private:
-  TransportFlow flow_;
-  TransportLayerPrsock *prsock_;
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
-  nsRefPtr<nsDOMMediaStream> audio_;
 };
 
 
 class MediaPipelineTest : public ::testing::Test {
  public:
-  MediaPipelineTest() : p1_(true), p2_(false) {
+  MediaPipelineTest() : p1_() {
     fds_[0] = fds_[1] = NULL;
   }
   
@@ -87,18 +113,20 @@ class MediaPipelineTest : public ::testing::Test {
     ASSERT_EQ(status, PR_SUCCESS);
 
     p1_.ConnectSocket(fds_[0]);
-    p2_.ConnectSocket(fds_[1]);
+    //    p2_.ConnectSocket(fds_[1]);
   }
 
 
- private:
+ protected:
   PRFileDesc *fds_[2];
-  TestAgent p1_;
-  TestAgent p2_;
+  TestAgentSend p1_;
+  // TestAgent p2_;
 };
 
 TEST_F(MediaPipelineTest, AudioSend) {
-      
+  p1_.StartSending();
+  ASSERT_TRUE_WAIT(false, 1000);
+  p1_.StopSending();
 }
 
 

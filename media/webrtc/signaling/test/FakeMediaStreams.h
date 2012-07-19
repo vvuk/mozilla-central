@@ -40,31 +40,47 @@
 #include "mozilla/Mutex.h"
 #include "AudioSegment.h"
 #include "MediaSegment.h"
+#include "StreamBuffer.h"
 #include "nsAudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
 #include "nsISupportsImpl.h"
 
+namespace mozilla {
+   class MediaStreamGraph;
+   class MediaSegment;
+};
 
 class Fake_MediaStreamListener
 {
 public:
   virtual ~Fake_MediaStreamListener() {}
 
+  virtual void NotifyQueuedTrackChanges(mozilla::MediaStreamGraph* aGraph, mozilla::TrackID aID,
+                                        mozilla::TrackRate aTrackRate,
+                                        mozilla::TrackTicks aTrackOffset,
+                                        PRUint32 aTrackEvents,
+                                        const mozilla::MediaSegment& aQueuedMedia)  = 0;
+
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStreamListener)
 };
 
-class Fake_MediaStream
-{
+
+// Note: only one listener supported
+class Fake_MediaStream {
 public:
-  Fake_MediaStream () {}
+  Fake_MediaStream () : mListener(NULL) {}
   virtual ~Fake_MediaStream() {}
 
   virtual nsresult Start() { return NS_OK; }
+  virtual nsresult Stop() { return NS_OK; }
 
-  void AddListener(Fake_MediaStreamListener *aListener) {}
+  void AddListener(Fake_MediaStreamListener *aListener) {
+    mListener = aListener;
+  }
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStream);
+ protected:
+  Fake_MediaStreamListener *mListener;
 };
 
 class Fake_nsDOMMediaStream
@@ -74,7 +90,7 @@ public:
   Fake_nsDOMMediaStream(Fake_MediaStream *stream) : 
       mMediaStream(stream) {}
 
-  virtual ~Fake_nsDOMMediaStream() { if (mMediaStream) { delete mMediaStream;} }
+  virtual ~Fake_nsDOMMediaStream() {}
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_nsDOMMediaStream)
 
@@ -110,7 +126,8 @@ class Fake_AudioStreamSource : public Fake_MediaStream,
   Fake_AudioStreamSource() : Fake_MediaStream() {}
 
   virtual nsresult Start();
-  
+  virtual nsresult Stop();
+
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
@@ -122,18 +139,9 @@ class Fake_AudioStreamSource : public Fake_MediaStream,
 
 typedef Fake_nsDOMMediaStream nsDOMMediaStream;
 
-namespace mozilla
-{
-
+namespace mozilla {
 typedef Fake_MediaStream MediaStream;
 typedef Fake_MediaStreamListener MediaStreamListener;
-typedef Fake_MediaStreamGraph MediaStreamGraph;
-// typedef Fake_MediaSegment MediaSegment;
-
-typedef PRInt32 TrackID;
-typedef PRInt32 TrackRate;
-typedef PRInt64 TrackTicks;
-
 }
 
 #endif

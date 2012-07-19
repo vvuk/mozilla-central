@@ -10,6 +10,8 @@
 
 #include "logging.h"
 #include "nsError.h"
+#include "AudioSegment.h"
+#include "MediaSegment.h"
 
 // Logging context
 MLOG_INIT("mediapipeline");
@@ -51,6 +53,29 @@ nsresult MediaPipelineTransmit::SendPacket(TransportFlow *flow, const void *data
   }
 
   return NS_OK;
+}
+
+void MediaPipelineTransmit::
+NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
+                         TrackRate rate,
+                         TrackTicks offset,
+                         PRUint32 events,
+                         const MediaSegment& queued_media) {
+  // TODO(ekr@rtfm.com): For now assume that we have only one
+  // track type and it's destined for us
+  if (queued_media.GetType() == MediaSegment::AUDIO) {
+    AudioSegment* audio = const_cast<AudioSegment *>(static_cast<const AudioSegment *>(&queued_media));
+    AudioSegment::ChunkIterator iter(*audio);
+    
+    while(iter.IsEnded()) {
+      //      AudioChunk& chunk = *iter;
+
+    }
+  } else if (queued_media.GetType() == MediaSegment::VIDEO) {
+    // TODO(ekr@rtfm.com): Implement VIDEO
+  } else {
+    // Ignore
+  }
 }
 
 }  // end namespace

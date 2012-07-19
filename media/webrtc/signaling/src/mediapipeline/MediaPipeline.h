@@ -44,8 +44,6 @@ class MediaPipeline {
   }
 
   virtual ~MediaPipeline() {
-    delete rtp_transport_;
-    delete rtcp_transport_;
   }
   
   virtual Direction direction() const { return direction_; }
@@ -63,19 +61,31 @@ class MediaPipeline {
 
 
 class MediaPipelineTransmit : public MediaPipeline,
+                              public MediaStreamListener,
                               public TransportInterface {
  public: 
   MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream>& stream, 
                         RefPtr<MediaSessionConduit>& conduit,
                         TransportFlow* rtp_transport,
                         TransportFlow* rtcp_transport) :
-      MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport) {}
+      MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
+      TransportInterface() {
+    stream_->GetStream()->AddListener(this);
+  }
 
   virtual ~MediaPipelineTransmit() {}
 
   // Implement the TransportInterface functions
   virtual nsresult SendRtpPacket(const void* data, int len);
   virtual nsresult SendRtcpPacket(const void* data, int len);
+
+
+  // Implement MediaStreamListener
+  virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
+                                        TrackRate rate,
+                                        TrackTicks offset,
+                                        PRUint32 events,
+                                        const MediaSegment& queued_media);
 
  private:
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
