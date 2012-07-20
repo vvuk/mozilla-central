@@ -61,46 +61,73 @@ class MediaPipeline {
 };
 
 
-class MediaPipelineTransmit : public MediaPipeline,
-                              public MediaStreamListener,
-                              public TransportInterface {
+class MediaPipelineTransmit : public MediaPipeline {
  public: 
   MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream>& stream, 
                         RefPtr<MediaSessionConduit>& conduit,
                         TransportFlow* rtp_transport,
                         TransportFlow* rtcp_transport) :
       MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
-      TransportInterface() {
-    stream_->GetStream()->AddListener(this);
-
-    // TODO(ekr@rtfm.com): check error code; move to an Init function?
-    // TODO(ekr@rtfm.com): This creates a reference cycle. Move to
-    // an internal class
-    conduit->AttachTransport(this);
+      transport_(new PipelineTransport(this)),
+      listener_(new PipelineListener(this)) {
+    Init();  // TODO(ekr@rtfm.com): ignoring error
   }
+
+  // Initialize (stuff here may fail)
+  nsresult Init();
 
   virtual ~MediaPipelineTransmit() {
-    // TODO(ekr@rtfm.com): Race conditions?
-    stream_->GetStream()->RemoveListener(this);
+    stream_->GetStream()->RemoveListener(listener_);
+
+    // These shouldn't be necessary, but just to make sure
+    // that if we have messed up ownership somehow the
+    // interfaces just abort.
+    listener_->Detach();
+    transport_->Detach();
   }
 
-  // Implement the TransportInterface functions
-  virtual nsresult SendRtpPacket(const void* data, int len);
-  virtual nsresult SendRtcpPacket(const void* data, int len);
+  // Separate class to allow ref counting
+  class PipelineTransport : public TransportInterface {
+   public:
+    // Implement the TransportInterface functions
+    PipelineTransport(MediaPipelineTransmit *pipeline) : 
+        pipeline_(pipeline) {}
+    void Detach() { pipeline_ = NULL; }
 
+    virtual nsresult SendRtpPacket(const void* data, int len);
+    virtual nsresult SendRtcpPacket(const void* data, int len);
 
-  // Implement MediaStreamListener
-  virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
-                                        TrackRate rate,
-                                        TrackTicks offset,
-                                        PRUint32 events,
-                                        const MediaSegment& queued_media);
+   private:
+    MediaPipelineTransmit *pipeline_;  // Raw pointer to avoid cycles
+  };
+  friend class PipelineTransport;
+
+  // Separate class to allow ref counting
+  class PipelineListener : public MediaStreamListener {
+   public:
+    PipelineListener(MediaPipelineTransmit *pipeline) :
+        pipeline_(pipeline) {}
+    void Detach() { pipeline_ = NULL; }
+
+      
+    // Implement MediaStreamListener
+    virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
+                                          TrackRate rate,
+                                          TrackTicks offset,
+                                          PRUint32 events,
+                                          const MediaSegment& queued_media);
+   private:
+    MediaPipelineTransmit *pipeline_;  // Raw pointer to avoid cycles
+  };
+  friend class PipelineListener;
 
  private:
   virtual void ProcessAudioChunk(AudioSessionConduit *conduit, 
                                  TrackRate rate, mozilla::AudioChunk& chunk);
-
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
+
+  mozilla::RefPtr<PipelineTransport> transport_;
+  mozilla::RefPtr<PipelineListener> listener_;
 };
 
 }  // end namespace

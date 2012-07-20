@@ -143,7 +143,7 @@ MediaConduitErrorCode
   
   if(aVideoRenderer)
   {
-    mRenderer = aVideoRenderer.get();
+    mRenderer = aVideoRenderer;
     if(!mEnginePlaying)
     {
       if(mPtrViERender->StartRender(mChannel) == -1)
@@ -169,7 +169,7 @@ MediaConduitErrorCode
  
   if(aTransport)
   {
-    mTransport = aTransport.get();
+    mTransport = aTransport;
   } else
   {
     return kVideoConduitInvalidTransport;

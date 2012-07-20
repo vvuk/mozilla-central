@@ -144,7 +144,7 @@ class MediaPipelineTest : public ::testing::Test {
 
 TEST_F(MediaPipelineTest, AudioSend) {
   p1_.StartSending();
-  ASSERT_TRUE_WAIT(false, 10000);
+  PR_Sleep(1000);
   p1_.StopSending();
 }
 

@@ -142,7 +142,7 @@ MediaConduitErrorCode
   
   if(aTransport)
   {
-    mTransport = aTransport.get();
+    mTransport = aTransport;
     return kMediaConduitNoError;
   }
    return kAudioConduitInvalidTransport;

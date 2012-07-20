@@ -20,24 +20,39 @@ MLOG_INIT("mediapipeline");
 
 namespace mozilla {
 
-nsresult MediaPipelineTransmit::SendRtpPacket(const void *data, int len) {
-  PR_ASSERT(rtp_transport_);
-  if (!rtp_transport_) {
+nsresult MediaPipelineTransmit::Init() {
+  // TODO(ekr@rtfm.com): Check for errors
+  stream_->GetStream()->AddListener(listener_);
+  conduit_->AttachTransport(transport_);
+
+  return NS_OK;
+}
+
+nsresult MediaPipelineTransmit::PipelineTransport::SendRtpPacket(
+    const void *data, int len) {
+  if (!pipeline_)
+    return NS_OK;  // Detached
+
+  PR_ASSERT(pipeline_->rtp_transport_);
+  if (!pipeline_->rtp_transport_) {
     MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
-
-  return SendPacket(rtp_transport_, data, len);
+  
+  return pipeline_->SendPacket(pipeline_->rtp_transport_, data, len);
 }
 
-nsresult MediaPipelineTransmit::SendRtcpPacket(const void *data, int len) {
-  PR_ASSERT(rtcp_transport_);
-  if (!rtp_transport_) {
+nsresult MediaPipelineTransmit::PipelineTransport::SendRtcpPacket(
+    const void *data, int len) {
+  if (!pipeline_)
+    return NS_OK;  // Detached
+
+  if (!pipeline_->rtp_transport_) {
     MLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
 
-  return SendPacket(rtcp_transport_, data, len);
+  return pipeline_->SendPacket(pipeline_->rtcp_transport_, data, len);
 }
 
 nsresult MediaPipelineTransmit::SendPacket(TransportFlow *flow, const void *data,
@@ -56,27 +71,32 @@ nsresult MediaPipelineTransmit::SendPacket(TransportFlow *flow, const void *data
   return NS_OK;
 }
 
-void MediaPipelineTransmit::
+void MediaPipelineTransmit::PipelineListener::
 NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          TrackRate rate,
                          TrackTicks offset,
                          PRUint32 events,
                          const MediaSegment& queued_media) {
+  if (!pipeline_)
+    return;  // Detached
+
   MLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
   // TODO(ekr@rtfm.com): For now assume that we have only one
   // track type and it's destined for us
   if (queued_media.GetType() == MediaSegment::AUDIO) {
-    if (conduit_->type() != MediaSessionConduit::AUDIO) {
+    if (pipeline_->conduit_->type() != MediaSessionConduit::AUDIO) {
       // TODO(ekr): How do we handle muxed audio and video streams
       MLOG(PR_LOG_ERROR, "Audio data provided for a video pipeline");
       return;
     }
-    AudioSegment* audio = const_cast<AudioSegment *>(static_cast<const AudioSegment *>(&queued_media));
+    AudioSegment* audio = const_cast<AudioSegment *>(
+        static_cast<const AudioSegment *>(&queued_media));
 
     AudioSegment::ChunkIterator iter(*audio);
     while(!iter.IsEnded()) {
-      ProcessAudioChunk(static_cast<AudioSessionConduit *>(conduit_.get()),
-                        rate, *iter);
+      pipeline_->ProcessAudioChunk(static_cast<AudioSessionConduit *>
+                                   (pipeline_->conduit_.get()),
+                                   rate, *iter);
       iter.Next();
     }
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
