@@ -141,7 +141,7 @@ static PRLock *gWatchdogLock = NULL;
 static PRCondVar *gWatchdogWakeup = NULL;
 static PRThread *gWatchdogThread = NULL;
 static bool gWatchdogHasTimeout = false;
-static PRIntervalTime gWatchdogTimeout = 0;
+static int64_t gWatchdogTimeout = 0;
 
 static PRCondVar *gSleepWakeup = NULL;
 
@@ -302,7 +302,7 @@ GetLine(FILE *file, const char * prompt)
  * on timing.
  */
 struct JSShellContextData {
-    volatile JSIntervalTime startTime;
+    volatile int64_t startTime;
 };
 
 static JSShellContextData *
@@ -316,7 +316,7 @@ NewContextData()
                                calloc(sizeof(JSShellContextData), 1);
     if (!data)
         return NULL;
-    data->startTime = js_IntervalNow();
+    data->startTime = PRMJ_Now();
     return data;
 }
 
@@ -1472,7 +1472,7 @@ SetThrowHook(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 LineToPC(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JSScript *script;
+    RootedScript script(cx);
     int32_t lineArg = 0;
     uint32_t lineno;
     jsbytecode *pc;
@@ -1726,9 +1726,6 @@ DisassembleScript(JSContext *cx, JSScript *script_, JSFunction *fun, bool lines,
         SHOW_FLAG(EXPR_CLOSURE);
 
 #undef SHOW_FLAG
-
-        if (fun->isNullClosure())
-            Sprint(sp, " NULL_CLOSURE");
 
         Sprint(sp, "\n");
     }
@@ -2368,8 +2365,6 @@ GetPDA(JSContext *cx, unsigned argc, jsval *vp)
              JS_SetProperty(cx, pdobj, "value", &pd->value) &&
              (v = INT_TO_JSVAL(pd->flags),
               JS_SetProperty(cx, pdobj, "flags", &v)) &&
-             (v = INT_TO_JSVAL(pd->slot),
-              JS_SetProperty(cx, pdobj, "slot", &v)) &&
              JS_SetProperty(cx, pdobj, "alias", &pd->alias);
         if (!ok)
             break;
@@ -2790,12 +2785,11 @@ Resolver(JSContext *cx, unsigned argc, jsval *vp)
 
 /*
  * Check that t1 comes strictly before t2. The function correctly deals with
- * PRIntervalTime wrap-around between t2 and t1 assuming that t2 and t1 stays
- * within INT32_MAX from each other. We use MAX_TIMEOUT_INTERVAL to enforce
- * this restriction.
+ * wrap-around between t2 and t1 assuming that t2 and t1 stays within INT32_MAX
+ * from each other. We use MAX_TIMEOUT_INTERVAL to enforce this restriction.
  */
 static bool
-IsBefore(PRIntervalTime t1, PRIntervalTime t2)
+IsBefore(int64_t t1, int64_t t2)
 {
     return int32_t(t1 - t2) < 0;
 }
@@ -2803,7 +2797,7 @@ IsBefore(PRIntervalTime t1, PRIntervalTime t2)
 static JSBool
 Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
-    PRIntervalTime t_ticks;
+    int64_t t_ticks;
 
     if (argc == 0) {
         t_ticks = 0;
@@ -2820,19 +2814,19 @@ Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
         }
         t_ticks = (t_secs <= 0.0)
                   ? 0
-                  : PRIntervalTime(PR_TicksPerSecond() * t_secs);
+                  : int64_t(PRMJ_USEC_PER_SEC * t_secs);
     }
     if (t_ticks == 0) {
         JS_YieldRequest(cx);
     } else {
         JSAutoSuspendRequest suspended(cx);
         PR_Lock(gWatchdogLock);
-        PRIntervalTime to_wakeup = PR_IntervalNow() + t_ticks;
+        int64_t to_wakeup = PRMJ_Now() + t_ticks;
         for (;;) {
             PR_WaitCondVar(gSleepWakeup, t_ticks);
             if (gCanceled)
                 break;
-            PRIntervalTime now = PR_IntervalNow();
+            int64_t now = PRMJ_Now();
             if (!IsBefore(now, to_wakeup))
                 break;
             t_ticks = to_wakeup - now;
@@ -2892,7 +2886,7 @@ WatchdogMain(void *arg)
 
     PR_Lock(gWatchdogLock);
     while (gWatchdogThread) {
-        PRIntervalTime now = PR_IntervalNow();
+         int64_t now = PRMJ_Now();
          if (gWatchdogHasTimeout && !IsBefore(now, gWatchdogTimeout)) {
             /*
              * The timeout has just expired. Trigger the operation callback
@@ -2906,9 +2900,9 @@ WatchdogMain(void *arg)
             /* Wake up any threads doing sleep. */
             PR_NotifyAllCondVar(gSleepWakeup);
         } else {
-            PRIntervalTime sleepDuration = gWatchdogHasTimeout
-                                           ? gWatchdogTimeout - now
-                                           : PR_INTERVAL_NO_TIMEOUT;
+            int64_t sleepDuration = gWatchdogHasTimeout
+                                    ? gWatchdogTimeout - now
+                                    : PR_INTERVAL_NO_TIMEOUT;
             DebugOnly<PRStatus> status =
                 PR_WaitCondVar(gWatchdogWakeup, sleepDuration);
             JS_ASSERT(status == PR_SUCCESS);
@@ -2927,8 +2921,8 @@ ScheduleWatchdog(JSRuntime *rt, double t)
         return true;
     }
 
-    PRIntervalTime interval = PRIntervalTime(ceil(t * PR_TicksPerSecond()));
-    PRIntervalTime timeout = PR_IntervalNow() + interval;
+    int64_t interval = int64_t(ceil(t * PRMJ_USEC_PER_SEC));
+    int64_t timeout = PRMJ_Now() + interval;
     PR_Lock(gWatchdogLock);
     if (!gWatchdogThread) {
         JS_ASSERT(!gWatchdogHasTimeout);
@@ -3081,7 +3075,7 @@ Elapsed(JSContext *cx, unsigned argc, jsval *vp)
         double d = 0.0;
         JSShellContextData *data = GetContextData(cx);
         if (data)
-            d = js_IntervalNow() - data->startTime;
+            d = PRMJ_Now() - data->startTime;
         return JS_NewNumberValue(cx, d, vp);
     }
     JS_ReportError(cx, "Wrong number of arguments");
@@ -3411,25 +3405,18 @@ EnableStackWalkingAssertion(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
+RelaxRootChecks(JSContext *cx, unsigned argc, jsval *vp)
 {
-    jsval arg = JS_ARGV(cx, vp)[0];
-    if (argc == 0 || !JSVAL_IS_BOOLEAN(arg)) {
+    if (argc > 0) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS,
-                             "enableSPSProfilingAssertions");
+                             "relaxRootChecks");
         return false;
     }
 
-    static ProfileEntry stack[1000];
-    static uint32_t stack_size = 0;
+#ifdef DEBUG
+    cx->runtime->relaxRootChecks = true;
+#endif
 
-    if (JSVAL_TO_BOOLEAN(arg))
-        SetRuntimeProfilingStack(cx->runtime, stack, &stack_size, 1000);
-    else
-        SetRuntimeProfilingStack(cx->runtime, NULL, NULL, 0);
-    cx->runtime->spsProfiler.enableSlowAssertions(JSVAL_TO_BOOLEAN(arg));
-
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
 
@@ -3733,10 +3720,11 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "getMaxArgs()",
 "  Return the maximum number of supported args for a call."),
 
-    JS_FN_HELP("enableSPSProfilingAssertions", EnableSPSProfilingAssertions, 1, 0,
-"enableProfilingAssertions(enabled)",
-"  Enables or disables the assertions related to SPS profiling. This is fairly\n"
-"  expensive, so it shouldn't be enabled normally."),
+    JS_FN_HELP("relaxRootChecks", RelaxRootChecks, 0, 0,
+"relaxRootChecks()",
+"  Tone down the frequency with which the dynamic rooting analysis checks for\n"
+"  rooting hazards. This is helpful to reduce the time taken when interpreting\n"
+"  heavily numeric code."),
 
     JS_FS_END
 };

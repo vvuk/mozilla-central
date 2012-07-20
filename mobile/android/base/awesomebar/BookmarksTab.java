@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import android.content.res.Resources;
 import android.widget.AdapterView;
 import android.os.AsyncTask;
 import android.content.Context;
@@ -19,17 +18,11 @@ import android.util.Log;
 import android.widget.SimpleCursorAdapter;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
-import android.content.Intent;
-import android.widget.LinearLayout;
-import android.os.SystemClock;
 import android.util.Pair;
 import android.widget.TabHost.TabContentFactory;
 import android.view.MenuInflater;
-import android.widget.TabHost;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
-
-import org.json.JSONArray;
 
 import java.util.LinkedList;
 
@@ -197,7 +190,11 @@ public class BookmarksTab extends AwesomeBarTab {
             return;
         }
 
-        listener.onUrlOpen(cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)));
+        String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
+        if (isInReadingList()) {
+            url = getReaderForUrl(url);
+        }
+        listener.onUrlOpen(url);
     }
 
     private class BookmarksListAdapter extends SimpleCursorAdapter {
@@ -381,6 +378,10 @@ public class BookmarksTab extends AwesomeBarTab {
         return adapter.moveToParentFolder();
     }
 
+    /**
+     * Whether the user is in the Reading List bookmarks directory in the
+     * AwesomeScreen UI.
+     */
     public boolean isInReadingList() {
         return mInReadingList;
     }

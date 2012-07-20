@@ -127,6 +127,11 @@ public:
   // Public methods
 
   /**
+   * Initialize the accessible.
+   */
+  virtual bool Init();
+
+  /**
    * Get the description of this accessible.
    */
   virtual void Description(nsString& aDescription);
@@ -913,6 +918,7 @@ public:
   static const PRUint32 kControl = 2;
   static const PRUint32 kAlt = 4;
   static const PRUint32 kMeta = 8;
+  static const PRUint32 kOS = 16;
 
   KeyBinding() : mKey(0), mModifierMask(0) {}
   KeyBinding(PRUint32 aKey, PRUint32 aModifierMask) :

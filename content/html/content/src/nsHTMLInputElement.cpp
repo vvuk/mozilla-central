@@ -252,7 +252,7 @@ AsyncClickHandler::Run()
     }
 
     PRUint32 permission;
-    pm->TestPermission(doc->GetDocumentURI(), &permission);
+    pm->TestPermission(doc->NodePrincipal(), &permission);
     if (permission == nsIPopupWindowManager::DENY_POPUP) {
       nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
       nsGlobalWindow::FirePopupBlockedEvent(domDoc, win, nsnull, EmptyString(), EmptyString());
@@ -644,7 +644,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   nsRefPtr<nsHTMLInputElement> it =
     new nsHTMLInputElement(ni.forget(), NOT_FROM_PARSER);
 
-  nsresult rv = CopyInnerTo(it);
+  nsresult rv = const_cast<nsHTMLInputElement*>(this)->CopyInnerTo(it);
   NS_ENSURE_SUCCESS(rv, rv);
 
   switch (mType) {

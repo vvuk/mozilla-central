@@ -2576,6 +2576,7 @@ void nsHTMLMediaElement::EndMediaStreamPlayback()
   if (mPaused) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
+  mVideoFrameContainer->GetImageContainer()->SetCurrentImage(nsnull);
   if (mPausedForInactiveDocument) {
     GetMediaStream()->ChangeExplicitBlockerCount(-1);
   }
@@ -2992,7 +2993,8 @@ VideoFrameContainer* nsHTMLMediaElement::GetVideoFrameContainer()
     return nsnull;
 
   mVideoFrameContainer =
-    new VideoFrameContainer(this, LayerManager::CreateImageContainer());
+    new VideoFrameContainer(this, LayerManager::CreateAsynchronousImageContainer());
+
   return mVideoFrameContainer;
 }
 
@@ -3321,7 +3323,7 @@ already_AddRefed<nsILoadGroup> nsHTMLMediaElement::GetDocumentLoadGroup()
 }
 
 nsresult
-nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest) const
+nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest)
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -217,6 +217,7 @@ CopyErrorReport(JSContext *cx, JSErrorReport *report)
     /* Copy non-pointer members. */
     copy->lineno = report->lineno;
     copy->errorNumber = report->errorNumber;
+    copy->exnType = report->exnType;
 
     /* Note that this is before it gets flagged with JSREPORT_EXCEPTION */
     copy->flags = report->flags;
@@ -561,6 +562,9 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
     /* Find the scripted caller. */
     ScriptFrameIter iter(cx);
 
+    /* XXX StackIter should not point directly to scripts. */
+    SkipRoot skip(cx, &iter);
+
     /* Set the 'fileName' property. */
     RootedString filename(cx);
     if (args.length() > 1) {
@@ -610,11 +614,11 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 1. */
-    JSObject &obj = args.thisv().toObject();
+    RootedObject obj(cx, &args.thisv().toObject());
 
     /* Step 3. */
     Value nameVal;
-    if (!obj.getProperty(cx, cx->runtime->atomState.nameAtom, &nameVal))
+    if (!obj->getProperty(cx, cx->runtime->atomState.nameAtom, &nameVal))
         return false;
 
     /* Step 4. */
@@ -629,7 +633,7 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 5. */
     Value msgVal;
-    if (!obj.getProperty(cx, cx->runtime->atomState.messageAtom, &msgVal))
+    if (!obj->getProperty(cx, cx->runtime->atomState.messageAtom, &msgVal))
         return false;
 
     /* Step 6. */
@@ -682,12 +686,12 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
     JS_CHECK_RECURSION(cx, return false);
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *obj = ToObject(cx, &args.thisv());
+    RootedObject obj(cx, ToObject(cx, &args.thisv()));
     if (!obj)
         return false;
 
     Value nameVal;
-    JSString *name;
+    RootedString name(cx);
     if (!obj->getProperty(cx, cx->runtime->atomState.nameAtom, &nameVal) ||
         !(name = ToString(cx, nameVal)))
     {
@@ -695,7 +699,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Value messageVal;
-    JSString *message;
+    RootedString message(cx);
     if (!obj->getProperty(cx, cx->runtime->atomState.messageAtom, &messageVal) ||
         !(message = js_ValueToSource(cx, messageVal)))
     {
@@ -703,7 +707,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Value filenameVal;
-    JSString *filename;
+    RootedString filename(cx);
     if (!obj->getProperty(cx, cx->runtime->atomState.fileNameAtom, &filenameVal) ||
         !(filename = js_ValueToSource(cx, filenameVal)))
     {
@@ -797,9 +801,8 @@ InitErrorClass(JSContext *cx, Handle<GlobalObject*> global, int type, HandleObje
     }
 
     /* Create the corresponding constructor. */
-    RootedFunction ctor(cx);
-    ctor = global->createConstructor(cx, Exception, name, 1,
-                                     JSFunction::ExtendedFinalizeKind);
+    RootedFunction ctor(cx, global->createConstructor(cx, Exception, name, 1,
+                                                      JSFunction::ExtendedFinalizeKind));
     if (!ctor)
         return NULL;
     ctor->setExtendedSlot(0, Int32Value(int32_t(type)));
@@ -828,8 +831,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Initialize the base Error class first. */
-    RootedObject errorProto(cx);
-    errorProto = InitErrorClass(cx, global, JSEXN_ERR, objectProto);
+    RootedObject errorProto(cx, InitErrorClass(cx, global, JSEXN_ERR, objectProto));
     if (!errorProto)
         return NULL;
 
@@ -864,19 +866,18 @@ js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
 namespace js {
 
 JS_FRIEND_API(const jschar*)
-GetErrorTypeNameFromNumber(JSContext* cx, const unsigned errorNumber)
+GetErrorTypeName(JSContext* cx, int16_t exnType)
 {
-    const JSErrorFormatString *efs = js_GetErrorMessage(NULL, NULL, errorNumber);
     /*
      * JSEXN_INTERNALERR returns null to prevent that "InternalError: "
      * is prepended before "uncaught exception: "
      */
-    if (!efs || efs->exnType <= JSEXN_NONE || efs->exnType >= JSEXN_LIMIT ||
-        efs->exnType == JSEXN_INTERNALERR)
+    if (exnType <= JSEXN_NONE || exnType >= JSEXN_LIMIT ||
+        exnType == JSEXN_INTERNALERR)
     {
         return NULL;
     }
-    JSProtoKey key = GetExceptionProtoKey(efs->exnType);
+    JSProtoKey key = GetExceptionProtoKey(exnType);
     return cx->runtime->atomState.classAtoms[key]->chars();
 }
 
@@ -963,9 +964,8 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
      * exception constructor name in the scope chain of the current context's
      * top stack frame, or in the global object if no frame is active.
      */
-    RootedObject null(cx);
     RootedObject errProto(cx);
-    if (!js_GetClassPrototype(cx, null, GetExceptionProtoKey(exn), &errProto))
+    if (!js_GetClassPrototype(cx, NullPtr(), GetExceptionProtoKey(exn), &errProto))
         return false;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 
@@ -1023,7 +1023,6 @@ js_ReportUncaughtException(JSContext *cx)
 {
     jsval roots[6];
     JSErrorReport *reportp, report;
-    RootedString str(cx);
 
     if (!JS_IsExceptionPending(cx))
         return true;
@@ -1053,7 +1052,7 @@ js_ReportUncaughtException(JSContext *cx)
     reportp = js_ErrorFromException(cx, exn);
 
     /* XXX L10N angels cry once again. see also everywhere else */
-    str = ToString(cx, exn);
+    RootedString str(cx, ToString(cx, exn));
     if (str)
         roots[1] = StringValue(str);
 
@@ -1110,6 +1109,7 @@ js_ReportUncaughtException(JSContext *cx)
         PodZero(&report);
         report.filename = filename.ptr();
         report.lineno = (unsigned) lineno;
+        report.exnType = int16_t(JSEXN_NONE);
         if (str) {
             if (JSFixedString *fixed = str->ensureFixed(cx))
                 report.ucmessage = fixed->chars();

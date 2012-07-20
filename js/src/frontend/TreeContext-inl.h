@@ -17,16 +17,25 @@ namespace js {
 
 inline
 SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun,
-                             FunctionBox *funbox)
+                             FunctionBox *funbox, StrictMode::StrictModeState sms)
   : context(cx),
     fun_(cx, fun),
     funbox_(funbox),
     scopeChain_(cx, scopeChain),
     bindings(),
     bindingsRoot(cx, &bindings),
-    cxFlags(cx)
+    cxFlags(cx),
+    strictModeState(sms)
 {
     JS_ASSERT((fun && !scopeChain_) || (!fun && !funbox));
+}
+
+inline bool
+SharedContext::inStrictMode()
+{
+    JS_ASSERT(strictModeState != StrictMode::UNKNOWN);
+    JS_ASSERT_IF(inFunction() && funbox(), funbox()->strictModeState == strictModeState);
+    return strictModeState == StrictMode::STRICT;
 }
 
 inline unsigned
@@ -42,8 +51,9 @@ TreeContext::atBodyLevel()
 }
 
 inline bool
-SharedContext::needStrictChecks() {
-    return context->hasStrictOption() || inStrictMode();
+SharedContext::needStrictChecks()
+{
+    return context->hasStrictOption() || strictModeState != StrictMode::NOTSTRICT;
 }
 
 inline
@@ -61,6 +71,7 @@ TreeContext::TreeContext(Parser *prs, SharedContext *sc, unsigned staticLevel, u
     decls(prs->context),
     yieldNode(NULL),
     functionList(NULL),
+    queuedStrictModeError(NULL),
     parserTC(&prs->tc),
     lexdeps(prs->context),
     parent(prs->tc),
@@ -83,9 +94,13 @@ TreeContext::init()
     return decls.init() && lexdeps.ensureMap(sc->context);
 }
 
-// For functions the tree context is constructed and destructed a second
-// time during code generation. To avoid a redundant stats update in such
-// cases, we store UINT16_MAX in maxScopeDepth.
+inline void
+TreeContext::setQueuedStrictModeError(CompileError *e)
+{
+    JS_ASSERT(!queuedStrictModeError);
+    queuedStrictModeError = e;
+}
+
 inline
 TreeContext::~TreeContext()
 {
@@ -94,6 +109,15 @@ TreeContext::~TreeContext()
     JS_ASSERT(*parserTC == this);
     *parserTC = this->parent;
     sc->context->delete_(funcStmts);
+    if (queuedStrictModeError) {
+        // If the parent context is looking for strict mode violations, pass
+        // ours up. Otherwise, free it.
+        if (parent && parent->sc->strictModeState == StrictMode::UNKNOWN &&
+            !parent->queuedStrictModeError)
+            parent->queuedStrictModeError = queuedStrictModeError;
+        else
+            sc->context->delete_(queuedStrictModeError);
+    }
 }
 
 template <class ContextT>
@@ -121,7 +145,6 @@ frontend::FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt,
                                StaticBlockObject &blockObj)
 {
     stmt->isBlockScope = true;
-    blockObj.setEnclosingBlock(ct->blockChain);
     stmt->downScope = ct->topScopeStmt;
     ct->topScopeStmt = stmt;
     ct->blockChain = &blockObj;
@@ -141,17 +164,30 @@ frontend::FinishPopStatement(ContextT *ct)
     }
 }
 
+/*
+ * The function LexicalLookup searches a static binding for the given name in
+ * the stack of statements enclosing the statement currently being parsed. Each
+ * statement that introduces a new scope has a corresponding scope object, on
+ * which the bindings for that scope are stored. LexicalLookup either returns
+ * the innermost statement which has a scope object containing a binding with
+ * the given name, or NULL.
+ */
 template <class ContextT>
 typename ContextT::StmtInfo *
-frontend::LexicalLookup(ContextT *ct, JSAtom *atom, int *slotp, typename ContextT::StmtInfo *stmt)
+frontend::LexicalLookup(ContextT *ct, HandleAtom atom, int *slotp, typename ContextT::StmtInfo *stmt)
 {
     if (!stmt)
         stmt = ct->topScopeStmt;
     for (; stmt; stmt = stmt->downScope) {
+        /*
+         * With-statements introduce dynamic bindings. Since dynamic bindings
+         * can potentially override any static bindings introduced by statements
+         * further up the stack, we have to abort the search.
+         */
         if (stmt->type == STMT_WITH)
             break;
 
-        // Skip "maybe scope" statements that don't contain let bindings.
+        // Skip statements that do not introduce a new scope
         if (!stmt->isBlockScope)
             continue;
 

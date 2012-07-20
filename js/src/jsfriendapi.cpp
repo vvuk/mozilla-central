@@ -248,9 +248,8 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj_, const JSFunctionSpecWi
         if (!atom)
             return false;
 
-        RootedFunction fun(cx);
         Rooted<jsid> id(cx, AtomToId(atom));
-        fun = js_DefineFunction(cx, obj, id, fs->call, fs->nargs, fs->flags);
+        RootedFunction fun(cx, js_DefineFunction(cx, obj, id, fs->call, fs->nargs, fs->flags));
         if (!fun)
             return false;
 
@@ -453,7 +452,9 @@ JS_GetE4XObjectsCreated(JSContext *)
     return sE4XObjectsCreated;
 }
 
+namespace js {
 extern size_t sSetProtoCalled;
+}
 
 JS_FRIEND_API(size_t)
 JS_SetProtoCalled(JSContext *)
@@ -872,7 +873,12 @@ SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size,
                          uint32_t max)
 {
     rt->spsProfiler.setProfilingStack(stack, size, max);
-    ReleaseAllJITCode(rt->defaultFreeOp());
+}
+
+JS_FRIEND_API(void)
+EnableRuntimeProfilingStack(JSRuntime *rt, bool enabled)
+{
+    rt->spsProfiler.enable(enabled);
 }
 
 } // namespace js

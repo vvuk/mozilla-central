@@ -152,7 +152,8 @@ nsSVGGraphicElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 {
   nsChangeHint retval =
     nsSVGGraphicElementBase::GetAttributeChangeHint(aAttribute, aModType);
-  if (aAttribute == nsGkAtoms::transform) {
+  if (aAttribute == nsGkAtoms::transform ||
+      aAttribute == nsGkAtoms::mozAnimateMotionDummyAttr) {
     // We add nsChangeHint_UpdateOverflow so that nsFrame::UpdateOverflow()
     // will be called on us and our ancestors.
     nsIFrame* frame =
@@ -226,11 +227,17 @@ nsSVGGraphicElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   return result;
 }
 
+const gfxMatrix*
+nsSVGGraphicElement::GetAnimateMotionTransform() const
+{
+  return mAnimateMotionTransform.get();
+}
+
 void
 nsSVGGraphicElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
 {
   if ((!aMatrix && !mAnimateMotionTransform) ||
-      aMatrix && mAnimateMotionTransform && *aMatrix == *mAnimateMotionTransform) {
+      (aMatrix && mAnimateMotionTransform && *aMatrix == *mAnimateMotionTransform)) {
     return;
   }
   mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nsnull;

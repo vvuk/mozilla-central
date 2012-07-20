@@ -649,7 +649,47 @@ nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
   
   return NS_OK;
 }
-  
+
+NS_IMETHODIMP
+nsRange::IntersectsNode(nsIDOMNode* aNode, bool* aResult)
+{
+  *aResult = false;
+
+  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+  // TODO: This should throw a TypeError.
+  NS_ENSURE_ARG(node);
+
+  NS_ENSURE_TRUE(mIsPositioned, NS_ERROR_NOT_INITIALIZED);
+
+  // Step 3.
+  nsINode* parent = node->GetNodeParent();
+  if (!parent) {
+    // Steps 2 and 4. 
+    // |parent| is null, so |node|'s root is |node| itself.
+    *aResult = (GetRoot() == node);
+    return NS_OK;
+  }
+
+  // Step 5.
+  PRInt32 nodeIndex = parent->IndexOf(node);
+
+  // Steps 6-7.
+  // Note: if disconnected is true, ComparePoints returns 1.
+  bool disconnected = false;
+  *aResult = nsContentUtils::ComparePoints(mStartParent, mStartOffset,
+                                           parent, nodeIndex + 1,
+                                           &disconnected) < 0 &&
+             nsContentUtils::ComparePoints(parent, nodeIndex,
+                                           mEndParent, mEndOffset,
+                                           &disconnected) < 0;
+
+  // Step 2.
+  if (disconnected) {
+    *aResult = false;
+  }
+  return NS_OK;
+}
+
 /******************************************************
  * Private helper routines
  ******************************************************/
@@ -1453,6 +1493,11 @@ ValidateCurrentNode(nsRange* aRange, RangeSubtreeIterator& aIter)
 {
   bool before, after;
   nsCOMPtr<nsIDOMNode> domNode = aIter.GetCurrentNode();
+  if (!domNode) {
+    // We don't have to worry that the node was removed if it doesn't exist,
+    // e.g., the iterator is done.
+    return true;
+  }
   nsCOMPtr<nsINode> node = do_QueryInterface(domNode);
   MOZ_ASSERT(node);
 
