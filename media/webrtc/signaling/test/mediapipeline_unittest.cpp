@@ -16,8 +16,9 @@
 #include "mozilla/RefPtr.h"
 #include "FakeMediaStreams.h"
 #include "FakeMediaStreamsImpl.h"
-#include "MediaPipeline.h"
+#include "MediaConduitErrors.h"
 #include "MediaConduitInterface.h"
+#include "MediaPipeline.h"
 #include "runnable_utils.h"
 #include "transportflow.h"
 #include "transportlayerprsock.h"
@@ -42,7 +43,8 @@ class TestAgent {
   TestAgent() :
       flow_(),
       prsock_(new TransportLayerPrsock()),
-      conduit_(),
+      audio_config_(97, "PCMU", 8000, 80, 1, 64000),
+      audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
       pipeline_() {
   }
@@ -62,7 +64,8 @@ class TestAgent {
  protected:
   TransportFlow flow_;
   TransportLayerPrsock *prsock_;
-  mozilla::RefPtr<mozilla::MediaSessionConduit> conduit_;
+  mozilla::AudioCodecConfig audio_config_;
+  mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
 };
@@ -71,13 +74,18 @@ class TestAgentSend : public TestAgent {
  public:
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
-    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, conduit_, &flow_, &flow_);
+    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &flow_, &flow_);
   }
 
   void StartSending() {
     nsresult ret;
     
     MLOG(PR_LOG_DEBUG, "Starting sending");
+
+    mozilla::MediaConduitErrorCode err = 
+        static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
+        ConfigureSendMediaCodec(&audio_config_);
+    ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(audio_->GetStream(),
@@ -96,8 +104,19 @@ class TestAgentSend : public TestAgent {
                         &Fake_MediaStream::Stop, &ret),
         NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(ret));    
+
+    PR_Sleep(1000); // Deal with race condition
   }
   
+ private:
+};
+
+
+class TestAgentReceive : public TestAgent {
+ public:
+  TestAgentReceive() {
+  }
+
  private:
 };
 
@@ -113,19 +132,19 @@ class MediaPipelineTest : public ::testing::Test {
     ASSERT_EQ(status, PR_SUCCESS);
 
     p1_.ConnectSocket(fds_[0]);
-    //    p2_.ConnectSocket(fds_[1]);
+    p2_.ConnectSocket(fds_[1]);
   }
 
 
  protected:
   PRFileDesc *fds_[2];
   TestAgentSend p1_;
-  // TestAgent p2_;
+  TestAgentReceive p2_;
 };
 
 TEST_F(MediaPipelineTest, AudioSend) {
   p1_.StartSending();
-  ASSERT_TRUE_WAIT(false, 1000);
+  ASSERT_TRUE_WAIT(false, 10000);
   p1_.StopSending();
 }
 

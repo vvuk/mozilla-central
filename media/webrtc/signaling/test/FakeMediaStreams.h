@@ -79,6 +79,10 @@ public:
     mListener = aListener;
   }
 
+  void RemoveListener(Fake_MediaStreamListener *aListener) {
+    mListener = NULL;
+  }
+
  protected:
   Fake_MediaStreamListener *mListener;
 };

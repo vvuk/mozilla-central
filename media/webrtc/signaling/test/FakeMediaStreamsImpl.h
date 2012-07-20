@@ -52,19 +52,18 @@ nsresult Fake_AudioStreamSource::Stop() {
 NS_IMETHODIMP
 Fake_AudioStreamSource::Notify(nsITimer* aTimer)
 {
-#if 0
   mozilla::AudioSegment segment;
   segment.Init(1);
-  segment.InsertNullDataAtStart(1);
+  segment.InsertNullDataAtStart(160);
 
   if (mListener)
     mListener->NotifyQueuedTrackChanges(NULL, // Graph
                                         0, // TrackID
-                                        100, // Rate (hz)
+                                        16000, // Rate (hz)
                                         0, // Offset TODO(ekr@rtfm.com) fix
                                         0, // ???
                                         segment);
-#endif
+
   return NS_OK;
 }
       

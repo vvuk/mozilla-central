@@ -13,6 +13,7 @@
 #include "nsDOMMediaStream.h"
 #endif
 #include "MediaConduitInterface.h"
+#include "AudioSegment.h"
 #include "TransportFlow.h"
 
 namespace mozilla {
@@ -71,9 +72,17 @@ class MediaPipelineTransmit : public MediaPipeline,
       MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
       TransportInterface() {
     stream_->GetStream()->AddListener(this);
+
+    // TODO(ekr@rtfm.com): check error code; move to an Init function?
+    // TODO(ekr@rtfm.com): This creates a reference cycle. Move to
+    // an internal class
+    conduit->AttachTransport(this);
   }
 
-  virtual ~MediaPipelineTransmit() {}
+  virtual ~MediaPipelineTransmit() {
+    // TODO(ekr@rtfm.com): Race conditions?
+    stream_->GetStream()->RemoveListener(this);
+  }
 
   // Implement the TransportInterface functions
   virtual nsresult SendRtpPacket(const void* data, int len);
@@ -88,6 +97,9 @@ class MediaPipelineTransmit : public MediaPipeline,
                                         const MediaSegment& queued_media);
 
  private:
+  virtual void ProcessAudioChunk(AudioSessionConduit *conduit, 
+                                 TrackRate rate, mozilla::AudioChunk& chunk);
+
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
 };
 

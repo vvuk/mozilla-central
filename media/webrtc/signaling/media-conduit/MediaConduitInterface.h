@@ -140,7 +140,11 @@ public:
 class MediaSessionConduit 
 {
 public:
+  enum Type { AUDIO, VIDEO } ;
+  
   virtual ~MediaSessionConduit() {};
+
+  virtual Type type() const = 0;
 
   /**
    * Function triggered on Incoming RTP packet from the remote
@@ -192,6 +196,8 @@ public:
   static RefPtr<VideoSessionConduit> Create();
 
   virtual ~VideoSessionConduit() {};
+
+  virtual Type type() const { return VIDEO; }
 
   /**
    * Function to attach Renderer end-point of the Media-Video conduit.
@@ -248,6 +254,8 @@ public:
   static mozilla::RefPtr<AudioSessionConduit> Create();
 
   virtual ~AudioSessionConduit() {}; 
+
+  virtual Type type() const { return AUDIO; }
 
   /**
    * Function to attach Renderer end-point of the Media-Video conduit.
