@@ -1237,39 +1237,15 @@
         this.chooseIdentityDesc.textContent = gNavigatorBundle.getFormattedString(
                                                 "identity.chooseIdentity.description", [origin]);
 
-        if (this.identity.termsOfService) {
-          // Show optional TOS link
-          let tos = document.getAnonymousElementByAttribute(this, "anonid", "tos");
-          tos.value = gNavigatorBundle.getString("identity.termsOfService");
-          tos.href = this.identity.termsOfService;
-          tos.hidden = false;
-        }
-
-        if (this.identity.privacyPolicy) {
-          // Show optional privacy policy link
-          let pp = document.getAnonymousElementByAttribute(this, "anonid", "privacypolicy");
-          pp.value = gNavigatorBundle.getString("identity.privacyPolicy");
-          pp.href = this.identity.privacyPolicy;
-          pp.hidden = false;
-        }
+        // Show optional terms of service and privacy policy links
+        this._populateLink(this.identity.termsOfService, "tos", "identity.termsOfService");
+        this._populateLink(this.identity.privacyPolicy, "privacypolicy", "identity.privacyPolicy");
 
         // Populate the list of identities to choose from. The origin is used to provide
         // better suggestions.
-        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(this.identity.origin);
+        let identities = this.SignInToWebsiteUX.getIdentitiesForSite(origin);
 
-        let foundLastUsed = false;
-        let lastUsed = this.identity.selected || identities.lastUsed;
-        for (let id in identities.result) {
-          let label = identities.result[id];
-          let opt = this.identityList.appendItem(label);
-          if (label == lastUsed) {
-            this.identityList.selectedItem = opt;
-            foundLastUsed = true;
-          }
-        }
-        if (!foundLastUsed) {
-          this.identityList.selectedIndex = -1;
-        }
+        this._populateIdentityList(identities);
 
         if (typeof this.step == "undefined") {
           // First opening of this notification
@@ -1289,35 +1265,14 @@
         }
 
         // Fire notification with the chosen identity when main button is clicked
-        this.button.addEventListener("command", function(evt) {
-          if (evt.target != evt.currentTarget)
+        this.button.addEventListener("command", this._onButtonCommand.bind(this), true);
+
+        // Do the same if enter is pressed in the email field
+        this.emailField.addEventListener("keypress", function emailFieldKeypress(aEvent) {
+          if (aEvent.keyCode != aEvent.DOM_VK_RETURN)
             return;
-          let chosenId;
-          switch(this.step) {
-            case 0:
-              evt.stopPropagation();
-              if (!this.emailField.validity.valid) {
-                this.emailField.focus();
-                return;
-              }
-              chosenId = this.emailField.value;
-              break;
-            case 1:
-              evt.stopPropagation();
-              let selectedItem = this.identityList.selectedItem
-              chosenId = selectedItem ? selectedItem.label : null;
-              if (!chosenId)
-                return;
-              break;
-            default:
-              throw new Error("Unknown case");
-              return;
-          }
-          // Actually select the identity
-          this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, chosenId);
-          this.identity.selected = chosenId;
-          this.onIdentitySelected();
-        }.bind(this), true);
+          this._onButtonCommand(aEvent);
+        }.bind(this));
 
         this.addEmailLink.value = gNavigatorBundle.getString("identity.newIdentity.label");
         this.addEmailLink.accessKey = gNavigatorBundle.getString("identity.newIdentity.accessKey");
@@ -1331,7 +1286,7 @@
           this.step = 1;
         }.bind(this));
 
-        // TODO: move below to close/dismissal handler
+        // TODO: move below to close/dismissal handler (or maybe onblur if that works for outside clicks in the right order)
         this.emailField.addEventListener("input", function onEmailInput() {
           this.identity.typedEmail = this.emailField.value;
         }.bind(this));
@@ -1383,12 +1338,11 @@
         </getter>
         <setter><![CDATA[
           let deck = document.getAnonymousElementByAttribute(this, "anonid", "identity-deck");
-          let paneIndex = val % deck.children.length;
           for (let i = 0; i < deck.children.length; i++) {
-            deck.children[i].hidden = (paneIndex != i);
+            deck.children[i].hidden = (val != i);
           }
-          this.identity.step = paneIndex;
-          switch(paneIndex) {
+          this.identity.step = val;
+          switch (val) {
             case 0:
               this.emailField.focus();
               break;
@@ -1403,6 +1357,73 @@
           this.emailField.value = this.identity.selected
           this.emailField.disabled = true;
           this.identityList.disabled = true;
+        ]]></body>
+      </method>
+
+      <method name="_populateLink">
+        <parameter name="aURL"/>
+        <parameter name="aLinkId"/>
+        <parameter name="aStringId"/>
+        <body><![CDATA[
+          if (aURL) {
+            // Show optional link to aURL
+            let link = document.getAnonymousElementByAttribute(this, "anonid", aLinkId);
+            link.value = gNavigatorBundle.getString(aStringId);
+            link.href = aURL;
+            link.hidden = false;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_populateIdentityList">
+        <parameter name="aIdentities"/>
+        <body><![CDATA[
+          let foundLastUsed = false;
+          let lastUsed = this.identity.selected || aIdentities.lastUsed;
+          for (let id in aIdentities.result) {
+            let label = aIdentities.result[id];
+            let opt = this.identityList.appendItem(label);
+            if (label == lastUsed) {
+              this.identityList.selectedItem = opt;
+              foundLastUsed = true;
+            }
+          }
+          if (!foundLastUsed) {
+            this.identityList.selectedIndex = -1;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_onButtonCommand">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          if (aEvent.target != aEvent.currentTarget)
+            return;
+          let chosenId;
+          switch (this.step) {
+            case 0:
+              aEvent.stopPropagation();
+              if (!this.emailField.validity.valid) {
+                this.emailField.focus();
+                return;
+              }
+              chosenId = this.emailField.value;
+              break;
+            case 1:
+              aEvent.stopPropagation();
+              let selectedItem = this.identityList.selectedItem
+              chosenId = selectedItem ? selectedItem.label : null;
+              if (!chosenId)
+                return;
+              break;
+            default:
+              throw new Error("Unknown case");
+              return;
+          }
+          // Actually select the identity
+          this.SignInToWebsiteUX.selectIdentity(this.identity.rpId, chosenId);
+          this.identity.selected = chosenId;
+          this.onIdentitySelected();
         ]]></body>
       </method>
 

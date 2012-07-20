@@ -12,6 +12,7 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/SignInToWebsite.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
@@ -25,14 +26,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "BookmarkHTMLUtils",
                                   "resource://gre/modules/BookmarkHTMLUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "webappsUI", 
+XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
                                   "resource:///modules/webappsUI.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
                                   "resource:///modules/PageThumbs.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
-                                  "resource:///modules/SignInToWebsite.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PdfJs",
                                   "resource://pdf.js/PdfJs.jsm");

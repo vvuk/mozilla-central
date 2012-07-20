@@ -11,11 +11,16 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/ProfileIdentityUtils.jsm");
-Cu.import("resource://gre/modules/identity/Identity.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-function log(msg) {
-  dump("SignInToWebsiteUX: " + msg + "\n");
+XPCOMUtils.defineLazyModuleGetter(this, "IdentityService",
+                                  "resource://gre/modules/identity/Identity.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "Logger",
+                                  "resource://gre/modules/identity/LogUtils.jsm");
+
+function log(...aMessageArgs) {
+  Logger.log.apply(Logger, ["SignInToWebsiteUX"].concat(aMessageArgs));
 }
 
 let SignInToWebsiteUX = {
@@ -25,16 +30,6 @@ let SignInToWebsiteUX = {
     Services.obs.addObserver(this, "identity-auth", false);
     Services.obs.addObserver(this, "identity-auth-complete", false);
     Services.obs.addObserver(this, "identity-login-state-changed", false);
-
-    /* Sample data */
-    [
-      "foo@eyedee.me",
-      "benadida@eyedee.me",
-      "joe@mockmyid.com",
-      "matt@browserid.linuxsecured.net",
-    ].forEach(function(identity) {
-      IdentityService.addIdentity(identity);
-    });
   },
 
   uninit: function SignInToWebsiteUX_uninit() {
@@ -45,7 +40,7 @@ let SignInToWebsiteUX = {
   },
 
   observe: function SignInToWebsiteUX_observe(aSubject, aTopic, aData) {
-    log("observe: received " + aTopic + " with " + aData + " for " + aSubject);
+    log("observe: received", aTopic, "with", aData, "for", aSubject);
     switch(aTopic) {
       case "identity-request":
         this.requestLogin(aSubject.wrappedJSObject);
@@ -64,6 +59,9 @@ let SignInToWebsiteUX = {
           this._removeLoggedInUI(aSubject.wrappedJSObject);
         }
         break;
+      default:
+        Logger.reportError("SignInToWebsiteUX", "Unknown observer notification:", aTopic);
+        break;
     }
   },
 
@@ -72,26 +70,19 @@ let SignInToWebsiteUX = {
    */
   requestLogin: function SignInToWebsiteUX_requestLogin(aOptions) {
     let windowID = aOptions.rpId;
-    log("requestLogin for " + windowID);
-    let [win, browserEl] = this._getUIForID(windowID);
+    log("requestLogin", aOptions);
+    let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
     // message is not shown in the UI but is required
-    let message = browserEl.currentURI.prePath;
+    let message = aOptions.origin;
     let mainAction = {
-      label: win.gNavigatorBundle.getString("identity.next.label"),
-      accessKey: win.gNavigatorBundle.getString("identity.next.accessKey"),
-      callback: function() {
-        let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
-        // TODO: mostly handled in the binding already
-        log("requestLogin callback fired for " + requestNot.options.identity.rpId);
-      },
+      label: chromeWin.gNavigatorBundle.getString("identity.next.label"),
+      accessKey: chromeWin.gNavigatorBundle.getString("identity.next.accessKey"),
+      callback: function() {}, // required
     };
     let options = {
-      eventCallback: function(state) {
-        //log("requestLogin: doorhanger " + state);
-      },
       identity: {
-        origin: browserEl.currentURI.prePath,
+        origin: aOptions.origin,
       },
     };
     let secondaryActions = [];
@@ -100,11 +91,11 @@ let SignInToWebsiteUX = {
     for (let opt in aOptions) {
       options.identity[opt] = aOptions[opt];
     }
-    log("requestLogin: rpId: " + options.identity.rpId);
+    log("requestLogin: rpId: ", options.identity.rpId);
 
-    let reqNot = win.PopupNotifications.show(browserEl, "identity-request", message,
-                                             "identity-notification-icon", mainAction,
-                                             secondaryActions, options);
+    chromeWin.PopupNotifications.show(browserEl, "identity-request", message,
+                                      "identity-notification-icon", mainAction,
+                                      [], options);
   },
 
   /**
@@ -118,27 +109,22 @@ let SignInToWebsiteUX = {
    * User chose a new or existing identity from the doorhanger after a request() call
    */
   selectIdentity: function SignInToWebsiteUX_selectIdentity(aRpId, aIdentity) {
-    log("selectIdentity: rpId: " + aRpId + " identity: " + aIdentity);
+    log("selectIdentity: rpId: ", aRpId, " identity: ", aIdentity);
     IdentityService.selectIdentity(aRpId, aIdentity);
-  },
-
-  /**
-   * User clicked sign out on the given notification.  Notify the identity service.
-   */
-  signOut: function signOut(aNotification) {
-    let origin = aNotification.options.identity.origin;
-    log("signOut for: " + origin);
-    IdentityService.RP.logout(origin);
   },
 
   // Private
 
   /**
-   * Return the window and <browser> for the given outer window ID.
+   * Return the chrome window and <browser> for the given outer window ID.
    */
-  _getUIForID: function(aWindowID) {
-    // XXX: as a hack just use the most recent window for now
-    let someWindow = Services.wm.getMostRecentWindow('navigator:browser');
+  _getUIForWindowID: function(aWindowID) {
+    let someWindow = Services.wm.getMostRecentWindow("navigator:browser");
+    if (!someWindow) {
+      Logger.reportError("SignInToWebsiteUX", "no window");
+      return [null, null];
+    }
+
     let windowUtils = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                 .getInterface(Ci.nsIDOMWindowUtils);
     let content = windowUtils.getOuterWindowWithId(aWindowID);
@@ -147,11 +133,11 @@ let SignInToWebsiteUX = {
       let browser = content.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIWebNavigation)
                            .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
-      let win = browser.ownerDocument.defaultView;
-      return [win, browser];
-    } else {
-      log("no content");
+      let chromeWin = browser.ownerDocument.defaultView;
+      return [chromeWin, browser];
     }
+    Logger.reportError("SignInToWebsiteUX", "no content");
+
     return [null, null];
   },
 
@@ -162,12 +148,12 @@ let SignInToWebsiteUX = {
    */
   _openAuthenticationUI: function _openAuthenticationUI(aAuthURI, aContext) {
     // Open a tab/window with aAuthURI with an identifier (aID) attached so that the DOM APIs know this is an auth. window.
-    let win = Services.wm.getMostRecentWindow('navigator:browser');
+    let chromeWin = Services.wm.getMostRecentWindow('navigator:browser');
     let features = "chrome=false,width=640,height=480,centerscreen,location=yes,resizable=yes,scrollbars=yes,status=yes";
-    log("aAuthURI: " + aAuthURI);
-    let authWin = Services.ww.openWindow(win, "about:blank", "", features, null);
+    log("aAuthURI: ", aAuthURI);
+    let authWin = Services.ww.openWindow(chromeWin, "about:blank", "", features, null);
     let windowID = authWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
-    log("authWin outer id: " + windowID);
+    log("authWin outer id: ", windowID);
 
     let provId = aContext.provId;
     // Tell the ID service about the id before loading the url
@@ -177,9 +163,12 @@ let SignInToWebsiteUX = {
   },
 
   _closeAuthenticationUI: function _closeAuthenticationUI(aAuthId) {
-    let [win, browserEl] = this._getUIForID(aAuthId);
-    if (win)
-      win.close();
+    log("_closeAuthenticationUI:", aAuthId);
+    let [chromeWin, browserEl] = this._getUIForWindowID(aAuthId);
+    if (chromeWin)
+      chromeWin.close();
+    else
+      Logger.reportError("SignInToWebsite", "Could not close window with ID", aAuthId);
   },
 
   /**
@@ -187,15 +176,15 @@ let SignInToWebsiteUX = {
    */
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
     let windowID = aContext.rpId;
-    log("_showLoggedInUI for " + windowID);
-    let [win, browserEl] = this._getUIForID(windowID);
+    log("_showLoggedInUI for ", windowID);
+    let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
-    let message = win.gNavigatorBundle.getFormattedString("identity.loggedIn.description",
+    let message = chromeWin.gNavigatorBundle.getFormattedString("identity.loggedIn.description",
                                                           [aIdentity]);
     let mainAction = {
-      label: win.gNavigatorBundle.getString("identity.loggedIn.signOut.label"),
-      accessKey: win.gNavigatorBundle.getString("identity.loggedIn.signOut.accessKey"),
-      callback: function(notification) {
+      label: chromeWin.gNavigatorBundle.getString("identity.loggedIn.signOut.label"),
+      accessKey: chromeWin.gNavigatorBundle.getString("identity.loggedIn.signOut.accessKey"),
+      callback: function() {
         log("sign out callback fired");
         IdentityService.RP.logout(windowID);
       },
@@ -204,7 +193,7 @@ let SignInToWebsiteUX = {
     let options = {
       dismissed: true,
     };
-    let loggedInNot = win.PopupNotifications.show(browserEl, "identity-logged-in", message,
+    let loggedInNot = chromeWin.PopupNotifications.show(browserEl, "identity-logged-in", message,
                                                   "identity-notification-icon", mainAction,
                                                   secondaryActions, options);
     loggedInNot.rpId = windowID;
@@ -215,14 +204,14 @@ let SignInToWebsiteUX = {
    */
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
     let windowID = aContext.rpId;
-    log("_removeLoggedInUI for " + windowID);
+    log("_removeLoggedInUI for ", windowID);
     if (!windowID)
       throw "_removeLoggedInUI: Invalid RP ID";
-    let [win, browserEl] = this._getUIForID(windowID);
+    let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
-    let loggedInNot = win.PopupNotifications.getNotification("identity-logged-in", browserEl);
+    let loggedInNot = chromeWin.PopupNotifications.getNotification("identity-logged-in", browserEl);
     if (loggedInNot)
-      win.PopupNotifications.remove(loggedInNot);
+      chromeWin.PopupNotifications.remove(loggedInNot);
   },
 
   /**
@@ -230,13 +219,12 @@ let SignInToWebsiteUX = {
    */
   _removeRequestUI: function _removeRequestUI(aContext) {
     let windowID = aContext.rpId;
-    log("_removeRequestUI for " + windowID);
-    let [win, browserEl] = this._getUIForID(windowID);
+    log("_removeRequestUI for ", windowID);
+    let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
-    let requestNot = win.PopupNotifications.getNotification("identity-request", browserEl);
+    let requestNot = chromeWin.PopupNotifications.getNotification("identity-request", browserEl);
     if (requestNot)
-      win.PopupNotifications.remove(requestNot);
+      chromeWin.PopupNotifications.remove(requestNot);
   },
 
 };
-
