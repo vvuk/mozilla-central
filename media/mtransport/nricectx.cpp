@@ -97,7 +97,8 @@ static int nr_crypto_nss_hmac(UCHAR *key, int keyl, UCHAR *buf, int bufl,
                               UCHAR *result) {
   CK_MECHANISM_TYPE mech = CKM_SHA_1_HMAC;
   PK11SlotInfo *slot = 0;
-  SECItem keyi = { siBuffer, key, keyl};
+  PR_ASSERT(keyl > 0);
+  SECItem keyi = { siBuffer, key, static_cast<unsigned int>(keyl)};
   PK11SymKey *skey = 0;
   PK11Context *hmac_ctx = 0;
   SECStatus status;
