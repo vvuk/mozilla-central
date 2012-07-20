@@ -217,7 +217,7 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
   // Create two streams to start with, assume one for audio and
   // one for video
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
-  mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
+  mIceStreams.push_back(mIceCtx->CreateStream("stream2", 2));
 
   for (std::size_t i=0; i<mIceStreams.size(); i++) {
     mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);
@@ -240,26 +240,7 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
  * CC_SDP_DIRECTION_SENDRECV will not be used when Constraints are implemented
  */
 StatusCode PeerConnectionImpl::CreateOffer(const std::string& hints) {
-  unsigned localSourceAudioTracks = 0;
-  unsigned localSourceVideoTracks = 0;
-
-  // Add up all the audio/video inputs, e.g. microphone/camera
-  PR_Lock(mLocalSourceStreamsLock);
-  for (unsigned u = 0; u < mLocalSourceStreams.Length(); u++)
-  {
-    nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
-    localSourceAudioTracks += localSourceStream->AudioTrackCount();
-    localSourceVideoTracks += localSourceStream->VideoTrackCount();
-  }
-  PR_Unlock(mLocalSourceStreamsLock);
-
-  // Tell the SDP creator about the streams we received from GetUserMedia
-  // FIX - we are losing information here.  When we need SIPCC to handle two
-  // cameras with different caps this will need to be changed
-  mCall->setLocalSourceAudioVideo(localSourceAudioTracks, localSourceVideoTracks);
-
   mCall->createOffer(hints);
-
   return PC_OK;
 }
 
@@ -291,18 +272,48 @@ const std::string& PeerConnectionImpl::remoteDescription() const {
 void PeerConnectionImpl::AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream)
 {
   CSFLogDebug(logTag, "AddStream");
-  nsRefPtr<LocalSourceStreamInfo> localSourceStream = new LocalSourceStreamInfo(aMediaStream);
-  
+
+  // TODO(ekr@rtfm.com): Remove these asserts?
   // Adding tracks here based on nsDOMMediaStream expectation settings
   PRUint32 hints = aMediaStream->GetHintContents();
+
+  if (!(hints & (nsDOMMediaStream::HINT_CONTENTS_AUDIO |
+        nsDOMMediaStream::HINT_CONTENTS_VIDEO))) {
+    CSFLogError(logTag, "Stream must contain either audio or video");
+    return;
+  }
+
+  // Now see if we already have a stream of this type, since we only 
+  // allow one of each. 
+  // TODO(ekr@rtfm.com): remove this when multiple of each stream 
+  // is allowed
+  PR_Lock(mLocalSourceStreamsLock);
+  for (unsigned u = 0; u < mLocalSourceStreams.Length(); u++)
+  {
+    nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
+    
+    if (localSourceStream->GetMediaStream()->GetHintContents() & hints) {
+      CSFLogError(logTag, "Only one stream of any given type allowed");
+      PR_Unlock(mLocalSourceStreamsLock);
+      PR_ASSERT(PR_FALSE);
+      return;
+    }
+  }
+
+  // OK, we're good to add
+  nsRefPtr<LocalSourceStreamInfo> localSourceStream = new LocalSourceStreamInfo(aMediaStream);
+  cc_media_track_id_t track_id = mLocalSourceStreams.Length();
+
   if (hints & nsDOMMediaStream::HINT_CONTENTS_AUDIO)
   {
     localSourceStream->ExpectAudio();
+    mCall->addStream(0, track_id, AUDIO);
   }
 
   if (hints & nsDOMMediaStream::HINT_CONTENTS_VIDEO)
   {
     localSourceStream->ExpectVideo();
+    mCall->addStream(0, track_id, VIDEO);
   }
 
   // Make it the listener for info from the MediaStream and add it to the list
@@ -313,7 +324,6 @@ void PeerConnectionImpl::AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream)
     plainMediaStream->AddListener(localSourceStream);
   }
 
-  PR_Lock(mLocalSourceStreamsLock);
   mLocalSourceStreams.AppendElement(localSourceStream);
   PR_Unlock(mLocalSourceStreamsLock);
 }
@@ -328,7 +338,17 @@ void PeerConnectionImpl::RemoveStream(nsRefPtr<nsDOMMediaStream>& aMediaStream)
     nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
     if (localSourceStream->GetMediaStream() == aMediaStream)
     {
-      mLocalSourceStreams.RemoveElementAt(u);
+      PRUint32 hints = aMediaStream->GetHintContents();
+      if (hints & nsDOMMediaStream::HINT_CONTENTS_AUDIO)
+      {
+        // <emannion>  This API will change when we implement multiple streams
+        //             It will only need the ID
+        mCall->removeStream(u, 0, AUDIO);
+      }
+      if (hints & nsDOMMediaStream::HINT_CONTENTS_VIDEO)
+      {
+        mCall->removeStream(u, 1, VIDEO);
+      }
       break;
     }    
   }

@@ -104,7 +104,7 @@ typedef enum {
     MEDIA_TABLE_SESSION
 } media_table_e;
 
-cc_media_track_table_t g_media_track_table = {
+cc_remote_media_track_table_t g_remote_media_track_table = {
       1,
       {
         {0,FALSE},
@@ -148,12 +148,14 @@ extern boolean g_disable_mass_reg_debug_print;
 static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dcb_p)
 {
     static const char *fname = "gsmsdp_get_media_capability";
+    int                sdpmode = 0;
 
     if (g_disable_mass_reg_debug_print == FALSE) {
         GSM_DEBUG(DEB_F_PREFIX"dcb video pref %x\n", 
                                DEB_F_PREFIX_ARGS(GSM, fname), dcb_p->video_pref);
     }
     
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     
     if ( dcb_p->media_cap_tbl == NULL ) {
          dcb_p->media_cap_tbl = (cc_media_cap_table_t*) cpr_malloc(sizeof(cc_media_cap_table_t));
@@ -193,6 +195,17 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
        }
     } // else if requested is SENDRECV just go by capability 
 
+    /*
+     * Turn off two default streams, this is temporary
+     * until we can handle multiple streams properly
+     */
+    if (sdpmode) {
+    	dcb_p->media_cap_tbl->cap[CC_VIDEO_1].enabled = FALSE;
+    	dcb_p->media_cap_tbl->cap[CC_AUDIO_1].enabled = FALSE;
+    	dcb_p->media_cap_tbl->cap[CC_VIDEO_1].support_direction = SDP_DIRECTION_INACTIVE;
+    	dcb_p->media_cap_tbl->cap[CC_AUDIO_1].support_direction = SDP_DIRECTION_INACTIVE;
+    	dcb_p->video_pref = SDP_DIRECTION_INACTIVE;
+    }
 
     return (dcb_p->media_cap_tbl);
 }
@@ -204,22 +217,22 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
  *
  * @return           - pointer to the the media track table for session
  */
-static const cc_media_track_table_t *gsmsdp_get_media_track_table (fsmdef_dcb_t *dcb_p)
+static const cc_remote_media_track_table_t *gsmsdp_get_media_track_table (fsmdef_dcb_t *dcb_p)
 {
     static const char *fname = "gsmsdp_get_media_track_table";
 
-    if ( dcb_p->media_track_tbl == NULL ) {
-         dcb_p->media_track_tbl = (cc_media_track_table_t*) cpr_malloc(sizeof(cc_media_track_table_t));
-         if ( dcb_p->media_track_tbl == NULL ) {
+    if ( dcb_p->remote_media_track_tbl == NULL ) {
+         dcb_p->remote_media_track_tbl = (cc_remote_media_track_table_t*) cpr_malloc(sizeof(cc_remote_media_track_table_t));
+         if ( dcb_p->remote_media_track_tbl == NULL ) {
              GSM_ERR_MSG(GSM_L_C_F_PREFIX"media track table malloc failed.\n",
                     dcb_p->line, dcb_p->call_id, fname);
              return NULL;
          }
     }
 
-    *(dcb_p->media_track_tbl) = g_media_track_table;
+    *(dcb_p->remote_media_track_tbl) = g_remote_media_track_table;
 
-    return (dcb_p->media_track_tbl);
+    return (dcb_p->remote_media_track_tbl);
 }
 
 
@@ -547,7 +560,7 @@ void gsmsdp_clean_media_list (fsmdef_dcb_t *dcb_p)
 void gsmsdp_init_media_list (fsmdef_dcb_t *dcb_p)
 {
     const cc_media_cap_table_t *media_cap_tbl;
-    const cc_media_track_table_t *media_track_tbl;
+    const cc_remote_media_track_table_t *remote_media_track_tbl;
     const char                 fname[] = "gsmsdp_init_media_list";
 
     /* do the actual media element list initialization */
@@ -560,9 +573,9 @@ void gsmsdp_init_media_list (fsmdef_dcb_t *dcb_p)
                     dcb_p->line, dcb_p->call_id, fname);
     }
 
-    media_track_tbl = gsmsdp_get_media_track_table(dcb_p);
+    remote_media_track_tbl = gsmsdp_get_media_track_table(dcb_p);
 
-    if (media_track_tbl == NULL) {
+    if (remote_media_track_tbl == NULL) {
         GSM_ERR_MSG(GSM_L_C_F_PREFIX"no media tracks available\n",
                     dcb_p->line, dcb_p->call_id, fname);
     }
@@ -5663,8 +5676,8 @@ void gsmsdp_add_track(fsmdef_dcb_t * dcb_p, fsmdef_media_t *media) {
 
 	// TODO handle for multiple tracks
 
-	dcb_p->media_track_tbl->track[0].ref_id = media->refid;
-	dcb_p->media_track_tbl->track[0].video = FALSE ? media->type == 0 : TRUE;
+	dcb_p->remote_media_track_tbl->track[0].ref_id = media->refid;
+	dcb_p->remote_media_track_tbl->track[0].video = (media->type == 0 ? FALSE : TRUE);
 }
 
 

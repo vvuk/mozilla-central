@@ -539,7 +539,9 @@ fim_process_event (void *data, boolean cac_passed)
             (event_id == CC_MSG_CREATEANSWER) ||
             (event_id == CC_MSG_SETLOCALDESC) ||
             (event_id == CC_MSG_SETREMOTEDESC) ||            
-            (event_id == CC_MSG_SETPEERCONNECTION) ||            
+            (event_id == CC_MSG_SETPEERCONNECTION) ||
+            (event_id == CC_MSG_ADDSTREAM) ||
+            (event_id == CC_MSG_REMOVESTREAM) ||
             ((event_id == CC_MSG_FEATURE) &&
              ((((cc_feature_t *) msg)->feature_id == CC_FEATURE_NEW_CALL)))) {
             call_chn = fim_get_new_call_chn(call_id);

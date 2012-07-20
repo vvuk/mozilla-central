@@ -415,7 +415,12 @@ typedef struct {
     /*
      * Holds the remote stream track information to be passed to UI
      */
-    cc_media_track_table_t *media_track_tbl;
+    cc_remote_media_track_table_t *remote_media_track_tbl;
+
+    /*
+     * Holds the local stream track information passed in from the UI
+     */
+    cc_local_media_track_table_t *local_media_track_tbl;
 
 #define FSMDEF_F_HOLD_REQ_PENDING  (1 << 0)/* hold feature pending    */ 
 #define FSMDEF_F_XFER_COMPLETE     (1 << 1)/* hold feature pending    */ 
