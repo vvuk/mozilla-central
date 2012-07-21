@@ -451,6 +451,15 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         int *candidate_ct /* Out */
 );
 
+/* Get ICE global parameters (ufrag and pwd)
+ *
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] ufragp - where to put the ufrag
+ *  @param[out] pwdp - where to put the pwd
+ *
+ *  @return void
+ */
+void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp);
 
 /* Set remote ICE global parameters.
  * 

@@ -298,7 +298,8 @@ static nsSize ComputeInsideBorderSize(ScrollReflowState* aState,
       aState->mReflowState.mComputedPadding.TopBottom();
   }
 
-  aState->mReflowState.ApplyMinMaxConstraints(&contentWidth, &contentHeight);
+  contentWidth  = aState->mReflowState.ApplyMinMaxWidth(contentWidth);
+  contentHeight = aState->mReflowState.ApplyMinMaxHeight(contentHeight);
   return nsSize(contentWidth + aState->mReflowState.mComputedPadding.LeftRight(),
                 contentHeight + aState->mReflowState.mComputedPadding.TopBottom());
 }
@@ -3190,9 +3191,12 @@ void nsGfxScrollFrameInner::PostOverflowEvent()
     return;
   }
 
-  nsRefPtr<AsyncScrollPortEvent> ev = new AsyncScrollPortEvent(this);
-  if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev)))
-    mAsyncScrollPortEvent = ev;
+  nsRootPresContext* rpc = mOuter->PresContext()->GetRootPresContext();
+  if (!rpc)
+    return;
+
+  mAsyncScrollPortEvent = new AsyncScrollPortEvent(this);
+  rpc->AddWillPaintObserver(mAsyncScrollPortEvent.get());
 }
 
 bool

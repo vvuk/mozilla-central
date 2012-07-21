@@ -1072,6 +1072,9 @@ fsmdef_init_dcb (fsmdef_dcb_t *dcb, callid_t call_id,
     
     dcb->join_call_id = CC_NO_CALL_ID;
     dcb->callref = 0;
+
+    dcb->ice_ufrag = NULL;
+    dcb->ice_pwd = NULL;
 }
 
 
@@ -2823,31 +2826,16 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
     
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
     	/* Force clean up call without sending release */
     	return (fsmdef_release(fcb, cause, FALSE));
     }    
     
     if (dcb == NULL) {
-        dcb = fsmdef_get_new_dcb(call_id);
-        if (dcb == NULL) {
-    	    ui_create_offer(evCreateOfferError, line, call_id, dcb->caller_id.call_instance_id, NULL);
-            return (fsmdef_release(fcb, cause, FALSE));
-        }    
-    
-        lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
-        if (lsm_rc != CC_CAUSE_OK) {
-        }    
-    
-        fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_OUTGOING, NULL, line, fcb);
-
-        cause = fsm_set_fcb_dcbs(dcb);
-        if (cause != CC_CAUSE_OK) {
-            ui_create_offer(evCreateOfferError, line, call_id, dcb->caller_id.call_instance_id, NULL);
-    	    return (fsmdef_release(fcb, cause, FALSE));
-        }
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
+    	return (fsmdef_release(fcb, cause, FALSE));
+    	return SM_RC_END;
     }
-    
     
     vcmGetIceParams(dcb->peerconnection, &ufrag, &ice_pwd);
     if (!ufrag || !ice_pwd) {
@@ -2855,12 +2843,19 @@ fsmdef_ev_createoffer (sm_event_t *event) {
       return (fsmdef_release(fcb, cause, FALSE));
     }
 
-    strncpy(dcb->ice_ufrag, ufrag, sizeof(dcb->ice_ufrag));
-    dcb->ice_ufrag[sizeof(dcb->ice_ufrag)-1] = 0;
+    dcb->ice_ufrag = (char *)cpr_malloc(strlen(ufrag) + 1);
+    if (!dcb->ice_ufrag)
+    	return SM_RC_END;
+
+    strncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
     free(ufrag);
 
-    strncpy(dcb->ice_pwd, ice_pwd, sizeof(dcb->ice_pwd));
-    dcb->ice_pwd[sizeof(dcb->ice_pwd)-1] = 0;
+
+    dcb->ice_pwd = (char *)cpr_malloc(strlen(ice_pwd) + 1);
+    if (!dcb->ice_pwd)
+    	return SM_RC_END;
+
+    strncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
     free(ice_pwd);
 
     cause = gsmsdp_create_local_sdp(dcb);
@@ -2913,29 +2908,15 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_createanswer"));
     
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         return (fsmdef_release(fcb, cause, FALSE));
     } 
-    
+
     if (dcb == NULL) {
-        dcb = fsmdef_get_new_dcb(call_id);
-        if (dcb == NULL) {
-            ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);
-    	    return (fsmdef_release(fcb, cause, FALSE));
-        }    
-    
-        if ((lsm_rc = lsm_get_facility_by_called_number(call_id, called_number,
-                                        &free_line, FALSE, dcb))  != CC_CAUSE_OK) {
-        }
-
-        fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_INCOMING, called_number, free_line, fcb);
-
-        cause = fsm_set_fcb_dcbs(dcb);
-        if (cause != CC_CAUSE_OK) {
-            ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);
-            return (fsmdef_release(fcb, cause, FALSE));
-        }
-    }    
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
+    	return (fsmdef_release(fcb, cause, FALSE));
+    	return SM_RC_END;
+    }
     
     cc_initialize_msg_body_parts_info(&msg_body);
     
@@ -2956,12 +2937,19 @@ fsmdef_ev_createanswer (sm_event_t *event) {
       return (fsmdef_release(fcb, cause, FALSE));
     }
 
-    strncpy(dcb->ice_ufrag, ufrag, sizeof(dcb->ice_ufrag));
-    dcb->ice_ufrag[sizeof(dcb->ice_ufrag)-1] = 0;
+    dcb->ice_ufrag = (char *)cpr_malloc(strlen(ufrag) + 1);
+    if (!dcb->ice_ufrag)
+    	return SM_RC_END;
+
+    strncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
     free(ufrag);
 
-    strncpy(dcb->ice_pwd, ice_pwd, sizeof(dcb->ice_pwd));
-    dcb->ice_pwd[sizeof(dcb->ice_pwd)-1] = 0;
+
+    dcb->ice_pwd = (char *)cpr_malloc(strlen(ice_pwd) + 1);
+    if (!dcb->ice_pwd)
+    	return SM_RC_END;
+
+    strncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
     free(ice_pwd);
 
 
@@ -3022,31 +3010,17 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setlocaldesc"));
     
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETLOCALDESCERROR);
         return (SM_RC_END);
     } 
 
     if (dcb == NULL) {
-        /* TODO(emannion): how can this happen? shouldn't createoffer/createanswer have made the dcb? */
-    	dcb = fsmdef_get_new_dcb(call_id);
-        if (dcb == NULL) {
-            return CC_CAUSE_NO_RESOURCE;
-        }
-        
-        lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
-        if (lsm_rc != CC_CAUSE_OK) {
-        }    
-    
-        fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_OUTGOING, NULL, line, fcb);
-
-        cause = fsm_set_fcb_dcbs(dcb);
-        if (cause != CC_CAUSE_OK) {
-            ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETLOCALDESCERROR);
-            return (SM_RC_END);
-        }   
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
+    	return (fsmdef_release(fcb, cause, FALSE));
+    	return SM_RC_END;
     }
-
+    
     if (JSEP_OFFER == action) {
         
         cause = gsmsdp_encode_sdp(dcb->sdp, &msg_body);
@@ -3143,30 +3117,17 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setremotedesc"));
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
         return (SM_RC_END);
     } 
-    
-    if (dcb == NULL ) {
-        dcb = fsmdef_get_new_dcb(call_id);
-        if (dcb == NULL) {
-            return CC_CAUSE_NO_RESOURCE;
-        }    
-    
-        lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
-        if (lsm_rc != CC_CAUSE_OK) {
-        }    
-    
-        fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_OUTGOING, NULL, line, fcb);
 
-        cause = fsm_set_fcb_dcbs(dcb);
-        if (cause != CC_CAUSE_OK) {
-            ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
-            return (SM_RC_END);
-        }
+    if (dcb == NULL) {
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
+    	return (fsmdef_release(fcb, cause, FALSE));
+    	return SM_RC_END;
     }    
-   	
+
     cc_initialize_msg_body_parts_info(&msg_body);
     
     msg_body.num_parts = 1;
@@ -3245,7 +3206,7 @@ fsmdef_ev_localdesc(sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_localdesc"));
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         return (SM_RC_END);
     } 
     
@@ -3269,7 +3230,7 @@ fsmdef_ev_remotedesc(sm_event_t *event) {
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_remotedesc"));
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         
         return (SM_RC_END);
     } 
@@ -3293,15 +3254,13 @@ fsmdef_ev_setpeerconnection(sm_event_t *event) {
 
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setpeerconnection"));
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
         return (SM_RC_END);
     } 
     
-//    cpr_assert(msg);
     if (!msg)
       return SM_RC_END;
 
-//    cpr_assert(msg->data_valid);
     if (!msg->data_valid)
       return SM_RC_END;
     
@@ -3313,15 +3272,16 @@ fsmdef_ev_setpeerconnection(sm_event_t *event) {
     
       lsm_rc = lsm_get_facility_by_line(call_id, line, FALSE, dcb);
       if (lsm_rc != CC_CAUSE_OK) {
-        /* TODO (ekr@rtfm.com): check the return code? */
+    	  FSM_DEBUG_SM(DEB_F_PREFIX"lsm_get_facility_by_line failed.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_setpeerconnection"));
+    	  return SM_RC_END;
       }    
 
       fsmdef_init_dcb(dcb, call_id, FSMDEF_CALL_TYPE_NONE, NULL, line, fcb);
-      /* TODO(ekr@rtfm.com: error check */
+
       fsm_set_fcb_dcbs(dcb);
     }
 
-//    cpr_assert(strlen(msg->data.pc.pc_handle) < PC_HANDLE_SIZE);
+    /* cpr_assert(strlen(msg->data.pc.pc_handle) < PC_HANDLE_SIZE); */
     strncpy(dcb->peerconnection, msg->data.pc.pc_handle, PC_HANDLE_SIZE);
     dcb->peerconnection_set = TRUE;
 
@@ -5736,6 +5696,7 @@ fsmdef_ev_onhook (sm_event_t *event)
     fsmdef_dcb_t    *dcb = fcb->dcb;
     sm_rcs_t         sm_rc;
     cc_action_data_t data;
+    int              sdpmode = 0;
     
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_onhook"));
 
@@ -5745,6 +5706,16 @@ fsmdef_ev_onhook (sm_event_t *event)
     if (dcb->onhook_received) {
         dcb->onhook_received = FALSE;
         return SM_RC_END;
+    }
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+
+    if (sdpmode) {
+    	if(dcb->ice_ufrag)
+    		cpr_free(dcb->ice_ufrag);
+
+    	if(dcb->ice_pwd)
+    		cpr_free(dcb->ice_pwd);
     }
 
     /*

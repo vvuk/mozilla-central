@@ -105,7 +105,7 @@ namespace CSF
 
         virtual CC_CallInfoPtr getCallInfo ();
 
-        virtual bool originateCall (cc_sdp_direction_t video_pref, const std::string & digits, char* sdp, int audioPort, int videoPort);
+        virtual bool originateCall (cc_sdp_direction_t video_pref, const std::string & digits);
         virtual bool answerCall (cc_sdp_direction_t video_pref);
         virtual bool hold (cc_hold_reason_t reason);
         virtual bool resume (cc_sdp_direction_t video_pref);
@@ -135,10 +135,10 @@ namespace CSF
         virtual void removeStream(int streamId);
         virtual bool setVolume(int volume);
         virtual bool originateP2PCall (cc_sdp_direction_t video_pref, const std::string & digits, const std::string & ip);
-        virtual int createOffer(cc_sdp_direction_t video_pref, const std::string & hints);
-        virtual int createAnswer(cc_sdp_direction_t video_pref, const std::string & hints, const std::string & offersdp);
-        virtual int setLocalDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);
-        virtual int setRemoteDescription(cc_sdp_direction_t video_pref, cc_jsep_action_t action, const std::string & sdp);		
+        virtual int createOffer(const std::string & hints);
+        virtual int createAnswer(const std::string & hints, const std::string & offersdp);
+        virtual int setLocalDescription(cc_jsep_action_t action, const std::string & sdp);
+        virtual int setRemoteDescription(cc_jsep_action_t action, const std::string & sdp);
         virtual void addIceCandidate(const std::string& strCandidate);
         virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks);
         virtual void setPeerConnection(const std::string& handle);

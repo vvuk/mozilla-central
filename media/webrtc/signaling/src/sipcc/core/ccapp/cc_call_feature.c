@@ -253,37 +253,36 @@ cc_return_t CC_CallFeature_dial(cc_call_handle_t call_handle, cc_sdp_direction_t
 	return cc_invokeFeature(call_handle, CC_FEATURE_DIALSTR, video_pref, JSEP_NO_ACTION, numbers);
 }
 
-cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref) {
+cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle) {
 	static const char fname[] = "CC_CallFeature_CreateOffer";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	const string_t numbers = "1234";
-	return cc_invokeFeature(call_handle, CC_FEATURE_CREATEOFFER, video_pref, JSEP_NO_ACTION, numbers);
+	return cc_invokeFeature(call_handle, CC_FEATURE_CREATEOFFER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, NULL);
 }
 
-cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, const char* sdp) {
+cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, string_t sdp) {
 	static const char fname[] = "CC_CallFeature_CreateAnswer";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeature(call_handle, CC_FEATURE_CREATEANSWER, video_pref, JSEP_NO_ACTION, sdp);
+	return cc_invokeFeature(call_handle, CC_FEATURE_CREATEANSWER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, sdp);
 }
 
-cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, const string_t sdp) {
+cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
 	static const char fname[] = "CC_CallFeature_SetLocalDescription";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeature(call_handle, CC_FEATURE_SETLOCALDESC, video_pref, action, sdp);
+	return cc_invokeFeature(call_handle, CC_FEATURE_SETLOCALDESC, CC_SDP_DIRECTION_SENDRECV, action, sdp);
 }
 
-cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, const string_t sdp) {
+cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
 	static const char fname[] = "CC_CallFeature_SetRemoteDescription";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeature(call_handle, CC_FEATURE_SETREMOTEDESC, video_pref, action, sdp);
+	return cc_invokeFeature(call_handle, CC_FEATURE_SETREMOTEDESC, CC_SDP_DIRECTION_SENDRECV, action, sdp);
 }
 
 cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc) {

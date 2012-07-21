@@ -614,75 +614,6 @@ IsPoisonedValue(const Value &v)
 
 /************************************************************************/
 
-/* This is a specialization of the general Handle template in gc/Root.h */
-template <>
-class Handle<Value>
-{
-  public:
-    /*
-     * Construct a handle from an explicitly rooted location. This is the
-     * normal way to create a handle, and normally happens implicitly.
-     */
-    inline Handle(Rooted<Value> &root) {
-        ptr = root.address();
-    }
-
-    /*
-     * This may be called only if the location of the T is guaranteed
-     * to be marked (for some reason other than being a Rooted),
-     * e.g., if it is guaranteed to be reachable from an implicit root.
-     *
-     * Create a Handle from a raw location of a T.
-     */
-    static Handle fromMarkedLocation(const Value *p) {
-        Handle h;
-        h.ptr = p;
-        return h;
-    }
-
-    const Value *address() const { return ptr; }
-    const Value &get() const { return *ptr; }
-    operator const Value &() const { return *ptr; }
-
-    bool operator==(const Handle &h) const { return *ptr == *h.ptr; }
-    bool operator!=(const Handle &h) const { return *ptr != *h.ptr; }
-
-    bool isUndefined() const { return ptr->isUndefined(); }
-    bool isNull() const { return ptr->isNull(); }
-    bool isBoolean() const { return ptr->isBoolean(); }
-    bool isTrue() const { return ptr->isTrue(); }
-    bool isFalse() const { return ptr->isFalse(); }
-    bool isNumber() const { return ptr->isNumber(); }
-    bool isInt32() const { return ptr->isInt32(); }
-    bool isDouble() const { return ptr->isDouble(); }
-    bool isString() const { return ptr->isString(); }
-    bool isObject() const { return ptr->isObject(); }
-    bool isMagic() const { return ptr->isMagic(); }
-    bool isMagic(JSWhyMagic why) const { return ptr->isMagic(why); }
-    bool isGCThing() const { return ptr->isGCThing(); }
-    bool isMarkable() const { return ptr->isMarkable(); }
-
-    bool toBoolean() const { return ptr->toBoolean(); }
-    double toNumber() const { return ptr->toNumber(); }
-    int32_t toInt32() const { return ptr->toInt32(); }
-    double toDouble() const { return ptr->toDouble(); }
-    JSString *toString() const { return ptr->toString(); }
-    JSObject &toObject() const { return ptr->toObject(); }
-    JSObject *toObjectOrNull() const { return ptr->toObjectOrNull(); }
-    void *toGCThing() const { return ptr->toGCThing(); }
-
-#ifdef DEBUG
-    JSWhyMagic whyMagic() const { return ptr->whyMagic(); }
-#endif
-
-  private:
-    Handle() {}
-
-    const Value *ptr;
-};
-
-/************************************************************************/
-
 static JS_ALWAYS_INLINE Value
 NullValue()
 {
@@ -883,6 +814,8 @@ SameType(const Value &lhs, const Value &rhs)
     return JSVAL_SAME_TYPE_IMPL(lhs.data, rhs.data);
 }
 
+/************************************************************************/
+
 template <> struct RootMethods<const Value>
 {
     static Value initial() { return UndefinedValue(); }
@@ -895,6 +828,125 @@ template <> struct RootMethods<Value>
     static Value initial() { return UndefinedValue(); }
     static ThingRootKind kind() { return THING_ROOT_VALUE; }
     static bool poisoned(const Value &v) { return IsPoisonedValue(v); }
+};
+
+template <class Outer> class MutableValueOperations;
+
+/*
+ * A class designed for CRTP use in implementing the non-mutating parts of the
+ * Value interface in Value-like classes.  Outer must be a class inheriting
+ * ValueOperations<Outer> with a visible extract() method returning the
+ * const Value* abstracted by Outer.
+ */
+template <class Outer>
+class ValueOperations
+{
+    friend class MutableValueOperations<Outer>;
+    const Value * value() const { return static_cast<const Outer*>(this)->extract(); }
+
+  public:
+    bool isUndefined() const { return value()->isUndefined(); }
+    bool isNull() const { return value()->isNull(); }
+    bool isBoolean() const { return value()->isBoolean(); }
+    bool isTrue() const { return value()->isTrue(); }
+    bool isFalse() const { return value()->isFalse(); }
+    bool isNumber() const { return value()->isNumber(); }
+    bool isInt32() const { return value()->isInt32(); }
+    bool isDouble() const { return value()->isDouble(); }
+    bool isString() const { return value()->isString(); }
+    bool isObject() const { return value()->isObject(); }
+    bool isMagic() const { return value()->isMagic(); }
+    bool isMagic(JSWhyMagic why) const { return value()->isMagic(why); }
+    bool isMarkable() const { return value()->isMarkable(); }
+    bool isPrimitive() const { return value()->isPrimitive(); }
+
+    bool toBoolean() const { return value()->toBoolean(); }
+    double toNumber() const { return value()->toNumber(); }
+    int32_t toInt32() const { return value()->toInt32(); }
+    double toDouble() const { return value()->toDouble(); }
+    JSString *toString() const { return value()->toString(); }
+    JSObject &toObject() const { return value()->toObject(); }
+    JSObject *toObjectOrNull() const { return value()->toObjectOrNull(); }
+    void *toGCThing() const { return value()->toGCThing(); }
+
+#ifdef DEBUG
+    JSWhyMagic whyMagic() const { return value()->whyMagic(); }
+#endif
+};
+
+/*
+ * A class designed for CRTP use in implementing the mutating parts of the
+ * Value interface in Value-like classes.  Outer must be a class inheriting
+ * MutableValueOperations<Outer> with visible extractMutable() and extract()
+ * methods returning the const Value* and Value* abstracted by Outer.
+ */
+template <class Outer>
+class MutableValueOperations : public ValueOperations<Outer>
+{
+    Value * value() { return static_cast<Outer*>(this)->extractMutable(); }
+
+  public:
+    void setNull() { value()->setNull(); }
+    void setUndefined() { value()->setUndefined(); }
+    void setInt32(int32_t i) { value()->setInt32(i); }
+    void setDouble(double d) { value()->setDouble(d); }
+    void setString(JSString *str) { value()->setString(str); }
+    void setString(const JS::Anchor<JSString *> &str) { value()->setString(str); }
+    void setObject(JSObject &obj) { value()->setObject(obj); }
+    void setBoolean(bool b) { value()->setBoolean(b); }
+    void setMagic(JSWhyMagic why) { value()->setMagic(why); }
+    bool setNumber(uint32_t ui) { return value()->setNumber(ui); }
+    bool setNumber(double d) { return value()->setNumber(d); }
+    void setObjectOrNull(JSObject *arg) { value()->setObjectOrNull(); }
+};
+
+/*
+ * Augment the generic Handle<T> interface when T = Value with type-querying
+ * and value-extracting operations.
+ */
+template <>
+class HandleBase<Value> : public ValueOperations<Handle<Value> >
+{
+    friend class ValueOperations<Handle<Value> >;
+    const Value * extract() const {
+        return static_cast<const Handle<Value>*>(this)->address();
+    }
+};
+
+/*
+ * Augment the generic MutableHandle<T> interface when T = Value with
+ * type-querying, value-extracting, and mutating operations.
+ */
+template <>
+class MutableHandleBase<Value> : public MutableValueOperations<MutableHandle<Value> >
+{
+    friend class ValueOperations<MutableHandle<Value> >;
+    const Value * extract() const {
+        return static_cast<const MutableHandle<Value>*>(this)->address();
+    }
+
+    friend class MutableValueOperations<MutableHandle<Value> >;
+    Value * extractMutable() {
+        return static_cast<MutableHandle<Value>*>(this)->address();
+    }
+};
+
+/*
+ * Augment the generic Rooted<T> interface when T = Value with type-querying,
+ * value-extracting, and mutating operations.
+ */
+template <>
+class RootedBase<Value> : public MutableValueOperations<Rooted<Value> >
+{
+    friend class ValueOperations<Rooted<Value> >;
+    const Value * extract() const {
+        return static_cast<const Rooted<Value>*>(this)->address();
+    }
+
+    friend class MutableValueOperations<Handle<Value> >;
+    Value * extractMutable() {
+        return static_cast<Rooted<Value>*>(this)->address();
+    }
 };
 
 /************************************************************************/
@@ -1389,6 +1441,93 @@ JS_ALWAYS_INLINE CallArgs
 CallArgsFromSp(unsigned argc, Value *sp)
 {
     return CallArgsFromArgv(argc, sp - argc);
+}
+
+/* Returns true if |v| is considered an acceptable this-value. */
+typedef bool (*IsAcceptableThis)(const Value &v);
+
+/*
+ * Implements the guts of a method; guaranteed to be provided an acceptable
+ * this-value, as determined by a corresponding IsAcceptableThis method.
+ */
+typedef bool (*NativeImpl)(JSContext *cx, CallArgs args);
+
+namespace detail {
+
+/* DON'T CALL THIS DIRECTLY.  It's for use only by CallNonGenericMethod! */
+extern JS_PUBLIC_API(bool)
+CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
+
+} /* namespace detail */
+
+/*
+ * Methods usually act upon |this| objects only from a single global object and
+ * compartment.  Sometimes, however, a method must act upon |this| values from
+ * multiple global objects or compartments.  In such cases the |this| value a
+ * method might see will be wrapped, such that various access to the object --
+ * to its class, its private data, its reserved slots, and so on -- will not
+ * work properly without entering that object's compartment.  This method
+ * implements a solution to this problem.
+ *
+ * To implement a method that accepts |this| values from multiple compartments,
+ * define two functions.  The first function matches the IsAcceptableThis type
+ * and indicates whether the provided value is an acceptable |this| for the
+ * method; it must be a pure function only of its argument.
+ *
+ *   static JSClass AnswerClass = { ... };
+ *
+ *   static bool
+ *   IsAnswerObject(const Value &v)
+ *   {
+ *       if (!v.isObject())
+ *           return false;
+ *       return JS_GetClass(&v.toObject()) == &AnswerClass;
+ *   }
+ *
+ * The second function implements the NativeImpl signature and defines the
+ * behavior of the method when it is provided an acceptable |this| value.
+ * Aside from some typing niceties -- see the CallArgs interface for details --
+ * its interface is the same as that of JSNative.
+ *
+ *   static bool
+ *   answer_getAnswer_impl(JSContext *cx, JS::CallArgs args)
+ *   {
+ *       args.rval().setInt32(42);
+ *       return true;
+ *   }
+ *
+ * The implementation function is guaranteed to be called *only* with a |this|
+ * value which is considered acceptable.
+ *
+ * Now to implement the actual method, write a JSNative that calls the method
+ * declared below, passing the appropriate arguments.
+ *
+ *   static JSBool
+ *   answer_getAnswer(JSContext *cx, unsigned argc, JS::Value *vp)
+ *   {
+ *       JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+ *       return JS::CallNonGenericMethod(cx, IsAnswerObject,
+                                         answer_getAnswer_impl, args);
+ *   }
+ *
+ * JS::CallNonGenericMethod will test whether |args.thisv()| is acceptable.  If
+ * it is, it will call the provided implementation function, which will return
+ * a value and indicate success.  If it is not, it will attempt to unwrap
+ * |this| and call the implementation function on the unwrapped |this|.  If
+ * that succeeds, all well and good.  If it doesn't succeed, a TypeError will
+ * be thrown.
+ *
+ * Note: JS::CallNonGenericMethod will only work correctly if it's called in
+ *       tail position in a JSNative.  Do not call it from any other place.
+ */
+JS_ALWAYS_INLINE bool
+CallNonGenericMethod(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args)
+{
+    const Value &thisv = args.thisv();
+    if (test(thisv))
+        return impl(cx, args);
+
+    return detail::CallMethodIfWrapped(cx, test, impl, args);
 }
 
 }  /* namespace JS */
@@ -3717,7 +3856,37 @@ typedef enum JSGCParamKey {
     JSGC_SLICE_TIME_BUDGET = 9,
 
     /* Maximum size the GC mark stack can grow to. */
-    JSGC_MARK_STACK_LIMIT = 10
+    JSGC_MARK_STACK_LIMIT = 10,
+
+    /*
+     * GCs less than this far apart in time will be considered 'high-frequency GCs'.
+     * See setGCLastBytes in jsgc.cpp.
+     */
+    JSGC_HIGH_FREQUENCY_TIME_LIMIT = 11,
+
+    /* Start of dynamic heap growth. */
+    JSGC_HIGH_FREQUENCY_LOW_LIMIT = 12,
+
+    /* End of dynamic heap growth. */
+    JSGC_HIGH_FREQUENCY_HIGH_LIMIT = 13,
+
+    /* Upper bound of heap growth. */
+    JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX = 14,
+
+    /* Lower bound of heap growth. */
+    JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MIN = 15,
+
+    /* Heap growth for low frequency GCs. */
+    JSGC_LOW_FREQUENCY_HEAP_GROWTH = 16,
+
+    /*
+     * If false, the heap growth factor is fixed at 3. If true, it is determined
+     * based on whether GCs are high- or low- frequency.
+     */
+    JSGC_DYNAMIC_HEAP_GROWTH = 17,
+
+    /* If true, high-frequency GCs will use a longer mark slice. */
+    JSGC_DYNAMIC_MARK_SLICE = 18
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -3810,7 +3979,7 @@ struct JSClass {
 #define JSCLASS_NEW_ENUMERATE           (1<<1)  /* has JSNewEnumerateOp hook */
 #define JSCLASS_NEW_RESOLVE             (1<<2)  /* has JSNewResolveOp hook */
 #define JSCLASS_PRIVATE_IS_NSISUPPORTS  (1<<3)  /* private is (nsISupports *) */
-/* (1<<4) is unused */
+#define JSCLASS_IS_DOMJSCLASS           (1<<4)  /* objects are DOM */
 #define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
                                                    and write barriers */
 #define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
@@ -3873,7 +4042,7 @@ struct JSClass {
  * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
  * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
-#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 8)
+#define JSCLASS_GLOBAL_SLOT_COUNT      (JSProto_LIMIT * 3 + 20)
 #define JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(n)                                    \
     (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSCLASS_GLOBAL_SLOT_COUNT + (n)))
 #define JSCLASS_GLOBAL_FLAGS                                                  \
@@ -4615,68 +4784,12 @@ extern JS_PUBLIC_API(JSFunction *)
 JS_DefineFunctionById(JSContext *cx, JSObject *obj, jsid id, JSNative call,
                       unsigned nargs, unsigned attrs);
 
+/*
+ * Clone a top-level function into a new scope. This function will dynamically
+ * fail if funobj was lexically nested inside some other function.
+ */
 extern JS_PUBLIC_API(JSObject *)
 JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent);
-
-/*
- * Methods usually act upon |this| objects only from a single global object and
- * compartment.  Sometimes, however, a method must act upon |this| values from
- * multiple global objects or compartments.  In such cases the |this| value a
- * method might see will be wrapped, such that various access to the object --
- * to its class, its private data, its reserved slots, and so on -- will not
- * work properly without entering that object's compartment.  This method
- * implements a solution to this problem.
- *
- * When called, this method attempts to unwrap |this| and call |native| on the
- * underlying object with the provided arguments, entering |this|'s compartment
- * in the process.  It is critical that |this|-checking occur right at the
- * start of |native| so that reentrant invocation is idempotent!  If the call
- * fails because |this| isn't a proxy to another object, a TypeError is thrown.
- *
- * The following example demonstrates the most common way this method might be
- * used, to accept objects having only a particular class but which might be
- * found in another compartment/global object or might be a proxy of some sort:
- *
- *     static JSClass MyClass = { "MyClass", JSCLASS_HAS_PRIVATE, ... };
- *
- *     inline bool
- *     RequireMyClassThis(JSContext *cx, unsigned argc, JSObject **thisObj)
- *     {
- *         const Value &thisv = JS_THIS_VALUE(cx, vp);
- *         if (!thisv.isObject()) {
- *             JS_ReportError(cx, "this must be an object");
- *             return false;
- *         }
- *
- *         JSObject *obj = &thisv.toObject();
- *         if (JS_GetClass(obj) == &MyClass) {
- *             *thisObj = obj;
- *             return true;
- *         }
- *
- *         *thisObj = NULL; // prevent infinite recursion into calling method
- *         return JS_CallNonGenericMethodOnProxy(cx, argc, vp, method, &MyClass);
- *     }
- *
- *     static JSBool
- *     Method(JSContext *cx, unsigned argc, jsval *vp)
- *     {
- *         if (!RequireMyClassThis(cx, argc, vp, &thisObj))
- *             return false;
- *         if (!thisObj)
- *             return true; // method invocation was performed by nested call
- *
- *         // thisObj definitely has MyClass: implement the guts of the method.
- *         void *priv = JS_GetPrivate(thisObj);
- *         ...
- *     }
- *
- * This method doesn't do any checking of its own, except to throw a TypeError
- * if the |this| in the arguments isn't a proxy that can be unwrapped for the
- * recursive call.  The client is responsible for performing all type-checks!
- */
-extern JS_PUBLIC_API(JSBool)
-JS_CallNonGenericMethodOnProxy(JSContext *cx, unsigned argc, jsval *vp, JSNative native, JSClass *clasp);
 
 /*
  * Given a buffer, return JS_FALSE if the buffer might become a valid
@@ -5537,6 +5650,12 @@ extern JS_PUBLIC_API(void)
 JS_ReportErrorNumber(JSContext *cx, JSErrorCallback errorCallback,
                      void *userRef, const unsigned errorNumber, ...);
 
+#ifdef va_start
+extern JS_PUBLIC_API(void)
+JS_ReportErrorNumberVA(JSContext *cx, JSErrorCallback errorCallback,
+                       void *userRef, const unsigned errorNumber, va_list ap);
+#endif
+
 /*
  * Use an errorNumber to retrieve the format string, args are jschar *
  */
@@ -5587,6 +5706,7 @@ struct JSErrorReport {
     unsigned           errorNumber;    /* the error number, e.g. see js.msg */
     const jschar    *ucmessage;     /* the (default) error message */
     const jschar    **messageArgs;  /* arguments for the error message */
+    int16_t         exnType;        /* One of the JSExnType constants */
 };
 
 /*
@@ -5641,6 +5761,13 @@ JS_NewDateObjectMsec(JSContext *cx, double msec);
  */
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsDate(JSContext *cx, JSObject *obj);
+
+/*
+ * Clears the cache of calculated local time from each Date object.
+ * Call to propagate a system timezone change.
+ */
+extern JS_PUBLIC_API(void)
+JS_ClearDateCaches(JSContext *cx);
 
 /************************************************************************/
 

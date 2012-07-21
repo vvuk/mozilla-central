@@ -61,9 +61,25 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 		  $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
 		  $(NULL)
 
+ifdef MOZ_SYDNEYAUDIO
 ifeq ($(OS_ARCH),Linux)
 LIBS += \
+  $(MOZ_ALSA_LIBS) \
+  $(NULL)
+endif
+endif
+
+ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
+LIBS += \
+  $(XLIBS) \
+  $(MOZ_GTK2_LIBS) \
   -lgthread-2.0 \
+  $(NULL)
+endif
+
+ifeq ($(OS_ARCH),Linux)
+LIBS += \
+  $(MOZ_CAIRO_OSLIBS) \
   $(NULL)
 endif
 

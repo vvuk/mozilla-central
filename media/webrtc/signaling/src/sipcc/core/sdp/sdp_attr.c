@@ -5144,16 +5144,18 @@ sdp_result_e sdp_build_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p,
 }
 
 
-sdp_result_e sdp_parse_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, char *ptr) {
+sdp_result_e sdp_parse_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr) {
     sdp_result_e  result;
     char tmp[SDP_MAX_STRING_LEN];
 
     ptr = sdp_getnextstrtok(ptr, tmp, "\r\n", &result);
     if (result != SDP_SUCCESS){
- 	/* return success just means attribute not found */
-      /* TODO(emannion): is this really right? how can this happen? */
-      attr_p->attr.ice_attr[0] = 0;
-      return (SDP_SUCCESS);
+
+      if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+          SDP_WARN("%s Warning: problem parsing ice attribute ", sdp_p->debug_str);
+      }
+      sdp_p->conf_p->num_invalid_param++;
+      return (SDP_INVALID_PARAMETER);
     }
     
     /* We need the attr= here. This is pretty gross. */

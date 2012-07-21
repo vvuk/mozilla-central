@@ -8,8 +8,6 @@ package org.mozilla.gecko;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -120,7 +118,14 @@ public class TabsPanel extends LinearLayout {
             setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                           (int) context.getResources().getDimension(R.dimen.browser_toolbar_height)));
 
-            LayoutInflater.from(context).inflate(R.layout.tabs_panel_toolbar, this);
+            int panelToolbarRes;
+
+            if (GeckoApp.mAppContext.hasPermanentMenuKey())
+                panelToolbarRes = R.layout.tabs_panel_toolbar_menu;
+            else
+                panelToolbarRes = R.layout.tabs_panel_toolbar;
+
+            LayoutInflater.from(context).inflate(panelToolbarRes, this);
         }
     }
 

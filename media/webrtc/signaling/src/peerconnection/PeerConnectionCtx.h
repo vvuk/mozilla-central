@@ -49,6 +49,7 @@ class PeerConnectionImpl;
 class PeerConnectionCtx : public CSF::CC_Observer {
  public:
   static PeerConnectionCtx* GetInstance();
+  static void Destroy();
 
   // Implementations of CC_Observer methods
   virtual void onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info);
@@ -67,9 +68,10 @@ class PeerConnectionCtx : public CSF::CC_Observer {
   // This is a singleton, so don't copy construct it, etc.
   PeerConnectionCtx(const PeerConnectionCtx& other) MOZ_DELETE;
   void operator=(const PeerConnectionCtx& other) MOZ_DELETE;
-  ~PeerConnectionCtx();
+  ~PeerConnectionCtx() {};
 
   nsresult Initialize();
+  nsresult Cleanup();
   
 
   void ChangeSipccState(PeerConnectionInterface::SipccState state) {

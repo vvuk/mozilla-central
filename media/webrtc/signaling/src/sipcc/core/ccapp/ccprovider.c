@@ -1705,7 +1705,7 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         data->state = sessUpd->update.ccSessionUpd.data.state_data.state;
         data->media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.media_track_tbl;
         capset_get_allowed_features(gCCApp.mode, data->state, data->allowed_features);
-        ccsnap_gen_callEvent(CCAPI_CALL_EV_CREATED, CREATE_CALL_HANDLE_FROM_SESSION_ID(data->sess_id));
+        ccsnap_gen_callEvent(CCAPI_CALL_EV_STATE, CREATE_CALL_HANDLE_FROM_SESSION_ID(data->sess_id));
         break;
     default:
         DEF_DEBUG(DEB_F_PREFIX"Unknown event, id = %d\n",

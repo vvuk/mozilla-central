@@ -724,7 +724,7 @@ extern sdp_result_e sdp_build_attr_rtcp_unicast(
 extern sdp_result_e sdp_build_attr_ice_attr (
 	sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr, u16 len);
 extern sdp_result_e sdp_parse_attr_ice_attr (
-	sdp_t *sdp_p, sdp_attr_t *attr_p, char *ptr);
+	sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr);
 
 
 /* sdp_attr_access.c */

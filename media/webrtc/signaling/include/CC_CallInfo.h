@@ -77,6 +77,20 @@ namespace CSF
         virtual cc_call_state_t getCallState () = 0;
 
         /**
+           print Call state
+           @param [in] handle - call info handle
+           @return call state as string
+         */
+        virtual std::string callStateToString (cc_call_state_t state) = 0;
+
+        /**
+           print Call event
+           @param [in] call event
+           @return call event as string
+         */
+        virtual std::string callEventToString (ccapi_call_event_e callEvent) = 0;
+
+        /**
            Get ringer state.
 
            @return bool ringer state.

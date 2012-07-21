@@ -430,8 +430,8 @@ typedef struct {
     char peerconnection[PC_HANDLE_SIZE];  /* A handle to the peerconnection */
     boolean peerconnection_set;
 
-    char ice_ufrag[ICE_STRING_SIZE];  /* <emannion> got to check array size */
-    char ice_pwd[ICE_STRING_SIZE];
+    char *ice_ufrag;
+    char *ice_pwd;
 
 } fsmdef_dcb_t;
 
@@ -615,6 +615,7 @@ void fsmdef_init_dcb(fsmdef_dcb_t *dcb, callid_t call_id,
                      fsmdef_call_types_t call_type,
                      const char *called_number, line_t line,
                      fsm_fcb_t *fcb);
+cc_causes_t fsm_set_fcb_dcbs (fsmdef_dcb_t *dcb);
 fsmdef_dcb_t *fsmdef_get_new_dcb(callid_t call_id);
 void fsmdef_init(void);
 int fsmdef_get_active_call_cnt(callid_t callId);

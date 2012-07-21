@@ -39,7 +39,6 @@
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "vm/Debugger.h"
-#include "vm/MethodGuard.h"
 #include "vm/ScopeObject.h"
 #include "vm/Xdr.h"
 
@@ -336,7 +335,8 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 
 template<XDRMode mode>
 bool
-js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *parentScript)
+js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
+                           JSObject **objp)
 {
     /* NB: Keep this in sync with CloneInterpretedFunction. */
     JSAtom *atom;
@@ -382,12 +382,11 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
     if (!xdr->codeUint32(&flagsword))
         return false;
 
-    if (!XDRScript(xdr, &script, parentScript))
+    if (!XDRScript(xdr, enclosingScope, enclosingScript, fun, &script))
         return false;
 
     if (mode == XDR_DECODE) {
         fun->nargs = flagsword >> 16;
-        JS_ASSERT((flagsword & JSFUN_KINDMASK) >= JSFUN_INTERPRETED);
         fun->flags = uint16_t(flagsword);
         fun->atom.init(atom);
         fun->initScript(script);
@@ -403,13 +402,13 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, JSObject **objp, JSScript *paren
 }
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *xdr, JSObject **objp, JSScript *parentScript);
+js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, JSObject **);
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_DECODE> *xdr, JSObject **objp, JSScript *parentScript);
+js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, JSObject **);
 
 JSObject *
-js::CloneInterpretedFunction(JSContext *cx, HandleFunction srcFun)
+js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
@@ -423,7 +422,7 @@ js::CloneInterpretedFunction(JSContext *cx, HandleFunction srcFun)
         return NULL;
 
     Rooted<JSScript*> srcScript(cx, srcFun->script());
-    JSScript *clonedScript = CloneScript(cx, srcScript);
+    JSScript *clonedScript = CloneScript(cx, enclosingScope, clone, srcScript);
     if (!clonedScript)
         return NULL;
 
@@ -1219,8 +1218,8 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
 
     /* Initialize all function members. */
     fun->nargs = uint16_t(nargs);
-    fun->flags = flags & (JSFUN_FLAGS_MASK | JSFUN_KINDMASK);
-    if ((flags & JSFUN_KINDMASK) >= JSFUN_INTERPRETED) {
+    fun->flags = flags & (JSFUN_FLAGS_MASK | JSFUN_INTERPRETED);
+    if (flags & JSFUN_INTERPRETED) {
         JS_ASSERT(!native);
         fun->mutableScript().init(NULL);
         fun->initEnvironment(parent);
@@ -1268,7 +1267,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
         clone->initializeExtended();
     }
 
-    if (cx->compartment == fun->compartment()) {
+    if (cx->compartment == fun->compartment() && !types::UseNewTypeForClone(fun)) {
         /*
          * We can use the same type as the original function provided that (a)
          * its prototype is correct, and (b) its type is not a singleton. The
@@ -1279,29 +1278,37 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
         if (fun->getProto() == proto && !fun->hasSingletonType())
             clone->setType(fun->type());
     } else {
+        if (!clone->setSingletonType(cx))
+            return NULL;
+
         /*
          * Across compartments we have to clone the script for interpreted
-         * functions.
+         * functions. Cross-compartment cloning only happens via JSAPI
+         * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
+         * no enclosing lexical scope (only the global scope).
          */
         if (clone->isInterpreted()) {
             RootedScript script(cx, clone->script());
             JS_ASSERT(script);
             JS_ASSERT(script->compartment() == fun->compartment());
-            JS_ASSERT(script->compartment() != cx->compartment);
+            JS_ASSERT_IF(script->compartment() != cx->compartment,
+                         !script->enclosingStaticScope() && !script->compileAndGo);
+
+            RootedObject scope(cx, script->enclosingStaticScope());
 
             clone->mutableScript().init(NULL);
-            JSScript *cscript = CloneScript(cx, script);
+
+            JSScript *cscript = CloneScript(cx, scope, clone, script);
             if (!cscript)
                 return NULL;
 
-            cscript->globalObject = &clone->global();
             clone->setScript(cscript);
             cscript->setFunction(clone);
-            if (!clone->setTypeForScriptedFunction(cx))
-                return NULL;
+
+            GlobalObject *global = script->compileAndGo ? &script->global() : NULL;
 
             js_CallNewScriptHook(cx, clone->script(), clone);
-            Debugger::onNewScript(cx, clone->script(), NULL);
+            Debugger::onNewScript(cx, clone->script(), global);
         }
     }
     return clone;
@@ -1343,4 +1350,46 @@ js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
         return NULL;
 
     return fun;
+}
+
+void
+js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
+{
+    Value &thisv = call.thisv();
+
+#ifdef DEBUG
+    if (thisv.isObject()) {
+        JS_ASSERT(thisv.toObject().getClass() != clasp ||
+                  !thisv.toObject().getProto() ||
+                  thisv.toObject().getProto()->getClass() != clasp);
+    } else if (thisv.isString()) {
+        JS_ASSERT(clasp != &StringClass);
+    } else if (thisv.isNumber()) {
+        JS_ASSERT(clasp != &NumberClass);
+    } else if (thisv.isBoolean()) {
+        JS_ASSERT(clasp != &BooleanClass);
+    } else {
+        JS_ASSERT(thisv.isUndefined() || thisv.isNull());
+    }
+#endif
+
+    if (JSFunction *fun = ReportIfNotFunction(cx, call.calleev())) {
+        JSAutoByteString funNameBytes;
+        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
+                                 clasp->name, funName, InformalValueTypeName(thisv));
+        }
+    }
+}
+
+void
+js::ReportIncompatible(JSContext *cx, CallReceiver call)
+{
+    if (JSFunction *fun = ReportIfNotFunction(cx, call.calleev())) {
+        JSAutoByteString funNameBytes;
+        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_METHOD,
+                                 funName, "method", InformalValueTypeName(call.thisv()));
+        }
+    }
 }

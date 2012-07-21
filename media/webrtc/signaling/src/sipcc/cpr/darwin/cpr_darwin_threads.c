@@ -123,7 +123,7 @@ cprCreateThread (const char *name,
          * that an application does not attempt to create
          * the same thread twice.
          */
-        threadPtr->u.handleInt = threadId;
+        threadPtr->u.handleInt = (uint64_t)threadId;
         threadPtr->threadId = ++id;
         return (cprThread_t)threadPtr;
     }
@@ -162,7 +162,7 @@ cprDestroyThread (cprThread_t thread)
          * Make sure thread is trying to destroy itself.
          */
 
-        if ((uint32_t) cprThreadPtr->u.handleInt == (uint32_t)pthread_self()) {
+        if ((uint64_t) cprThreadPtr->u.handleInt == (uint64_t)pthread_self()) {
             cprThreadPtr->threadId = 0;
             cpr_free(cprThreadPtr);
             pthread_exit(NULL);

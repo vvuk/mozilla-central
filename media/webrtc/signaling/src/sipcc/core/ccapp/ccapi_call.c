@@ -121,39 +121,24 @@ cc_lineid_t CCAPI_Call_getLine(cc_call_handle_t call_handle){
  * @param [in] digits - digits to be dialed
  * @return SUCCESS or FAILURE
  */
-cc_return_t CCAPI_Call_originateCall(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_string_t digits, char* ipaddress, int audioPort, int videoPort){
-	
-	int roapproxy = 0;
-	int sdpmode = 0;
-	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
-	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-	
-	if (roapproxy == TRUE || sdpmode == TRUE) {
-		init_empty_str(gROAPSDP.offerAddress);
-		init_empty_str(gROAPSDP.answerSDP);
-		init_empty_str(gROAPSDP.offerSDP);
-		strcpy(gROAPSDP.offerAddress, ipaddress);
-		gROAPSDP.audioPort = audioPort;
-		gROAPSDP.videoPort = videoPort;
-	}
-	
+cc_return_t CCAPI_Call_originateCall(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_string_t digits){
 	return CC_CallFeature_dial(handle, video_pref, digits);
 }
 
-cc_return_t CCAPI_CreateOffer(cc_call_handle_t handle, cc_sdp_direction_t video_pref, int audioPort, int videoPort) {
-	return CC_CallFeature_CreateOffer(handle, video_pref);
+cc_return_t CCAPI_CreateOffer(cc_call_handle_t handle) {
+	return CC_CallFeature_CreateOffer(handle);
 }
 
-cc_return_t CCAPI_CreateAnswer(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_string_t offersdp, int audioPort, int videoPort) {	
-	return CC_CallFeature_CreateAnswer(handle, video_pref, offersdp);
+cc_return_t CCAPI_CreateAnswer(cc_call_handle_t handle, cc_string_t offersdp) {
+	return CC_CallFeature_CreateAnswer(handle, offersdp);
 }
 
-cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, cc_string_t sdp) {
-	return CC_CallFeature_SetLocalDescription(handle, video_pref, action, sdp);
+cc_return_t CCAPI_SetLocalDescription(cc_call_handle_t handle, cc_jsep_action_t action, cc_string_t sdp) {
+	return CC_CallFeature_SetLocalDescription(handle, action, sdp);
 }
 
-cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_sdp_direction_t video_pref, cc_jsep_action_t action, cc_string_t sdp) {
-    return CC_CallFeature_SetRemoteDescription(handle, video_pref, action, sdp);
+cc_return_t CCAPI_SetRemoteDescription(cc_call_handle_t handle, cc_jsep_action_t action, cc_string_t sdp) {
+    return CC_CallFeature_SetRemoteDescription(handle, action, sdp);
 }
 
 cc_return_t CCAPI_SetPeerConnection(cc_call_handle_t handle, cc_peerconnection_t pc) {

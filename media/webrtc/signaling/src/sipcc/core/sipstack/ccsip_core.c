@@ -108,9 +108,6 @@ const char *ring_names[] = {
 };
 
 
-cc_global_sdp_t  gROAPSDP;
-
-
 /* Forward function declarations */
 static int sip_sm_request_check_and_store(ccsipCCB_t *ccb, sipMessage_t *request,
                                                sipMethod_t request_method,
@@ -3297,8 +3294,6 @@ ccsip_handle_idle_ev_cc_setup (ccsipCCB_t *ccb, sipSMEvent_t *event)
     cpr_ip_type     ip_type = CPR_IP_ADDR_IPV4;
     boolean         replace = FALSE;
 
-	int	roapproxy;
-
     CPR_IP_ADDR_INIT(proxy_ipaddr);
 
     ccb->gsm_id  = event->u.cc_msg->msg.setup.call_id;
@@ -3599,16 +3594,6 @@ ccsip_handle_idle_ev_cc_setup (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
     /* Save the GSM's msg. bodies for future used */
     ccsip_save_local_msg_body(ccb, &event->u.cc_msg->msg.setup.msg_body);
-
-	// replace SDP in ccb if this is the ROAP proxy
-	// we not inject directly into sdp generation
-    roapproxy = 0;
-	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
-	
-	if (roapproxy == TRUE) {
-		//strcpy(ccb->local_msg_body.parts[0].body, gROAPSDP.offerSDP);
-	}
-    //
     
     /*
      * CC_REDIRECT_REASON_DEFLECTION shows that this is an attended transfer
@@ -3854,7 +3839,6 @@ ccsip_handle_sentinvite_ev_sip_2xx (ccsipCCB_t *ccb, sipSMEvent_t *event)
     const char     *contact = NULL;
     sipsdp_status_t sdp_status;
     string_t        recv_info_list = strlib_empty();
-	int roapproxy;
 
     /* Unpack the event */
     response = event->u.pSipMessage;
@@ -3920,15 +3904,6 @@ ccsip_handle_sentinvite_ev_sip_2xx (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
     /* Extract destination SDP and related fields */
     sdp_status = sip_util_extract_sdp(ccb, response);
-
-	// extract SDP from ccb if this is the ROAP proxy
-    // you are in function ccsip_handle_sentinvite_ev_sip_2xx
-    roapproxy = 0;
-	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
-	
-	if (roapproxy == TRUE) {
-		strcpy(gROAPSDP.answerSDP, response->mesg_body->msgBody);
-	}
 
     switch (sdp_status) {
     case SIP_SDP_SUCCESS:
@@ -7224,7 +7199,7 @@ sip_sm_init (void)
 
 	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 	
-	if (sdpmode == FALSE) {
+	if (!sdpmode) {
 	
         if (ccsip_register_init() == SIP_ERROR) {
             CCSIP_DEBUG_ERROR(SIP_F_PREFIX"registration initialization failed\n", fname);

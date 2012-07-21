@@ -46,6 +46,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcPreserveCode(false),
     gcBytes(0),
     gcTriggerBytes(0),
+    gcHeapGrowthFactor(3.0),
     hold(false),
     isSystemCompartment(false),
     lastCodeRelease(0),
@@ -275,8 +276,6 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (!crossCompartmentWrappers.put(key, *vp))
         return false;
 
-    if (!JSObject::setParent(cx, wrapper, global))
-        return false;
     return true;
 }
 
@@ -534,7 +533,6 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
                     if (releaseTypes) {
                         script->types->destroy();
                         script->types = NULL;
-                        script->typesPurged = true;
                     }
                 }
             }
@@ -556,6 +554,10 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
         {
             gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
             oldAlloc.freeAll();
+            if (types.constrainedOutputs) {
+                fop->delete_(types.constrainedOutputs);
+                types.constrainedOutputs = NULL;
+            }
         }
     }
 

@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import java.util.HashMap;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 import android.view.Gravity;
@@ -45,6 +44,7 @@ public class DoorHangerPopup extends PopupWindow {
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
+        setFocusable(true);
         setWindowLayoutMode(GeckoApp.mAppContext.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
 

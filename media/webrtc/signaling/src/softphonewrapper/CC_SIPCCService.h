@@ -53,7 +53,7 @@ extern "C" {
     void CCAPI_DeviceListener_onDeviceEvent(ccapi_device_event_e type, cc_device_handle_t hDevice, cc_deviceinfo_ref_t dev_info);
     void CCAPI_DeviceListener_onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_ref_t /* device_info */, cc_featureinfo_ref_t feature_info);
     void CCAPI_LineListener_onLineEvent(ccapi_line_event_e eventType, cc_lineid_t line, cc_lineinfo_ref_t info);
-    void CCAPI_CallListener_onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t handle, cc_callinfo_ref_t info, char* sdp);
+    void CCAPI_CallListener_onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t handle, cc_callinfo_ref_t info);
 }
 
 #include "VcmSIPCCBinding.h"
@@ -124,8 +124,6 @@ namespace CSF
 		virtual bool setRemoteVoipPort(int port);
 		virtual bool setP2PMode(bool mode);
 		virtual bool setSDPMode(bool mode);
-		virtual bool setROAPProxyMode(bool mode);
-		virtual bool setROAPClientMode(bool mode);
 
         /**
          * End of public API

@@ -196,16 +196,6 @@ cc_boolean CCAPI_Config_set_sdp_mode(const cc_boolean is_sdp) {
 	return TRUE;
 }
 
-cc_boolean CCAPI_Config_set_roap_proxy_mode(const cc_boolean is_roap_proxy) {
-	config_setup_roap_proxy_mode(is_roap_proxy);
-	return TRUE;
-}
-
-cc_boolean CCAPI_Config_set_roap_client_mode(const cc_boolean is_roap_client) {
-	config_setup_roap_client_mode(is_roap_client);
-	return TRUE;
-}
-
 /**
  * 
  * @return

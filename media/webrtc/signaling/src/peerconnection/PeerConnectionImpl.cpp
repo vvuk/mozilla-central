@@ -31,6 +31,7 @@
 #include <iostream>
 
 #include "CSFLog.h"
+#include "CSFLogStream.h"
 #include "ccapi_call_info.h"
 #include "CC_SIPCCCallInfo.h"
 #include "ccapi_device_info.h"
@@ -176,7 +177,7 @@ PeerConnectionImpl::PeerConnectionImpl() :
 PeerConnectionImpl::~PeerConnectionImpl() 
 {
   peerconnections.erase(mHandle);
-  Shutdown();
+  Close();
   PR_DestroyLock(mLocalSourceStreamsLock);
 }
 
@@ -218,7 +219,7 @@ StatusCode PeerConnectionImpl::Initialize(PeerConnectionObserver* observer) {
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
 
-  for (int i=0; i<mIceStreams.size(); i++) {
+  for (std::size_t i=0; i<mIceStreams.size(); i++) {
     mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);
   }
 
@@ -257,25 +258,25 @@ StatusCode PeerConnectionImpl::CreateOffer(const std::string& hints) {
   // cameras with different caps this will need to be changed
   mCall->setLocalSourceAudioVideo(localSourceAudioTracks, localSourceVideoTracks);
 
-  mCall->createOffer(CC_SDP_DIRECTION_SENDRECV, hints);
+  mCall->createOffer(hints);
 
   return PC_OK;
 }
 
 StatusCode PeerConnectionImpl::CreateAnswer(const std::string& hints, const  std::string& offer) {
-  mCall->createAnswer(CC_SDP_DIRECTION_SENDRECV, hints, offer);
+  mCall->createAnswer(hints, offer);
   return PC_OK;
 }
 
 StatusCode PeerConnectionImpl::SetLocalDescription(Action action, const  std::string& sdp) {
   mLocalRequestedSDP = sdp;
-  mCall->setLocalDescription(CC_SDP_DIRECTION_SENDRECV, (cc_jsep_action_t)action, sdp);		
+  mCall->setLocalDescription((cc_jsep_action_t)action, sdp);
   return PC_OK;
 }
 
 StatusCode PeerConnectionImpl::SetRemoteDescription(Action action, const std::string& sdp) {
   mRemoteRequestedSDP = sdp;
-  mCall->setRemoteDescription(CC_SDP_DIRECTION_SENDRECV, (cc_jsep_action_t)action, sdp);	
+  mCall->setRemoteDescription((cc_jsep_action_t)action, sdp);
   return PC_OK;
 } 
 
@@ -358,17 +359,25 @@ PeerConnectionInterface::SipccState PeerConnectionImpl::sipcc_state() {
   return pcctx ? pcctx->sipcc_state() : kIdle;
 }
 
-void PeerConnectionImpl::Shutdown() {
+void PeerConnectionImpl::Close() {
   mCall->endCall();
 }
 
+void PeerConnectionImpl::Shutdown() {
+  PeerConnectionCtx::Destroy();
+}
+
 void PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info)  {
-  if(CCAPI_CALL_EV_CREATED == callEvent) {	
+  cc_call_state_t state = info->getCallState();
+  std::string statestr = info->callStateToString(state);
+  std::string eventstr = info->callEventToString(callEvent);
+
+  if(CCAPI_CALL_EV_CREATED == callEvent || CCAPI_CALL_EV_STATE == callEvent) {
     std::string sdpstr;
     StatusCode code;
     MediaTrackTable* stream;
 
-    switch (info->getCallState()) {
+    switch (state) {
       case CREATEOFFER:
         sdpstr = info->getSDP();
         if (mPCObserver)
@@ -426,18 +435,14 @@ void PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallP
         break;
 
       default:
-    	// for now print states to learn activity, in time handle correctly
-    	cc_call_state_t state = info->getCallState();
-    	std::cerr << mHandle << ": **** CALL CREATED STATE NOW " << state << std::endl;
+    	CSFLogDebugS(logTag, ": **** CALL HANDLE IS: " << mHandle << ": **** CALL STATE IS: " << statestr);
         break;
     }
-  } else if(CCAPI_CALL_EV_STATE == callEvent) {	
-      cc_call_state_t state = info->getCallState();
-      
-      std::cerr << mHandle << ": **** CALL STATE NOW " << state << std::endl;
+  } else {
+	  CSFLogDebugS(logTag, ": **** CALL HANDLE IS: " << mHandle << ": **** CALL STATE IS: " << statestr);
   }
 }
-  
+
 void PeerConnectionImpl::ChangeReadyState(PeerConnectionInterface::ReadyState ready_state) {
   mReadyState = ready_state;
   if (mPCObserver)

@@ -66,6 +66,12 @@ PeerConnectionCtx* PeerConnectionCtx::GetInstance() {
   return instance;
 }
 
+void PeerConnectionCtx::Destroy() {
+  instance->Cleanup();
+  delete instance;
+  instance = NULL;
+}
+
 // Signatures for address
 // TODO(ekr@rtfm.com): remove
 std::string GetLocalActiveInterfaceAddressSDP();
@@ -112,6 +118,12 @@ nsresult PeerConnectionCtx::Initialize() {
 
   ChangeSipccState(PeerConnectionInterface::kStarting);
 
+  return NS_OK;
+}
+
+nsresult PeerConnectionCtx::Cleanup() {
+  mCCM->destroy();
+  mCCM->removeCCObserver(this);
   return NS_OK;
 }
 

@@ -382,7 +382,7 @@ extern "C" void CCAPI_LineListener_onLineEvent(ccapi_line_event_e type, cc_linei
     CSF::CC_SIPCCService::onLineEvent(type, line, info);
 }
 
-extern "C" void CCAPI_CallListener_onCallEvent(ccapi_call_event_e type, cc_call_handle_t handle, cc_callinfo_ref_t info, char* sdp)
+extern "C" void CCAPI_CallListener_onCallEvent(ccapi_call_event_e type, cc_call_handle_t handle, cc_callinfo_ref_t info)
 {
     //CSFLogDebugS( logTag, "In CCAPI_CallListener_onCallEvent");
 	CSF::CC_SIPCCService::onCallEvent(type, handle, info);
@@ -405,8 +405,9 @@ CC_SIPCCService::CC_SIPCCService()
 	// Only one instance allowed!
     assert(_self == NULL);
     _self = this;
-    vcmMediaBridge.setStreamObserver(this);
-    vcmMediaBridge.setMediaProviderObserver(this);
+    // <emannion> Commented as part of media provider removal
+    //vcmMediaBridge.setStreamObserver(this);
+    //vcmMediaBridge.setMediaProviderObserver(this);
 }
 
 CC_SIPCCService::~CC_SIPCCService()
@@ -1055,14 +1056,6 @@ bool CC_SIPCCService::setP2PMode(bool mode)  {
 
 bool CC_SIPCCService::setSDPMode(bool mode)  {
 	return CCAPI_Config_set_sdp_mode(mode);
-}
-
-bool CC_SIPCCService::setROAPProxyMode(bool mode)  {
-	return CCAPI_Config_set_roap_proxy_mode(mode);
-}
-
-bool CC_SIPCCService::setROAPClientMode(bool mode)  {
-	return CCAPI_Config_set_roap_client_mode(mode);
 }
 
 } // End of namespace CSF

@@ -53,6 +53,7 @@
 #include "gsm.h"
 #include "vcm.h"
 #include "sip_common_regmgr.h"
+#include "util_string.h"
 
 static const char *cc_src_names[] = {
     "GSM",

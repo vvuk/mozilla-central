@@ -1364,7 +1364,7 @@ gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, cha
     		cpr_free(ice_attribs);
     		return FALSE;
     	}
-        (*ice_attribs)[i] = (char *) cpr_malloc(strlen(ice_attrib) + 1);
+        (*ice_attribs)[i] = (char *) cpr_calloc(1, strlen(ice_attrib) + 1);
         if(!(*ice_attribs)[i])
         	return FALSE;
 
@@ -3699,8 +3699,10 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                 }
 
                 config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-                if (sdpmode == TRUE) {
-                    // Add track to dcb
+                if (sdpmode) {
+                    /* Add track to dcb,
+                     * This needs moving when we complete the media track work
+                     */
                     gsmsdp_add_track(dcb_p, media);
                 }
 
@@ -3946,7 +3948,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
          * Update UI for Remote Stream Added
          */
         config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-        if (sdpmode == TRUE) {
+        if (sdpmode) {
         	/* <emannion>  need to look at adding remote streams closer before
         	 *             finishing this implementation
             ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
@@ -4008,7 +4010,6 @@ gsmsdp_init_local_sdp (cc_sdp_t **sdp_pp)
     int             nat_enable = 0;
     char           *p_addr_str;
     cpr_ip_mode_e   ip_mode;
-    int roapproxy;
 
     if (!sdp_pp) {
         return CC_CAUSE_ERROR;
@@ -4029,13 +4030,8 @@ gsmsdp_init_local_sdp (cc_sdp_t **sdp_pp)
         sip_config_get_nat_ipaddr(&ipaddr);
     }
 
-    roapproxy = 0;
-	config_get_value(CFGID_ROAPPROXY, &roapproxy, sizeof(roapproxy));
-	if (roapproxy == TRUE) {
-		strcpy(addr_str, gROAPSDP.offerAddress);
-	} else {
-		ipaddr2dotted(addr_str, &ipaddr);
-	}
+
+	ipaddr2dotted(addr_str, &ipaddr);
 
     p_addr_str = strtok(addr_str, "[ ]");
 
@@ -4240,7 +4236,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
         gsmsdp_set_local_sdp_direction(dcb_p, media, media->direction);
 
         /*
-         * <emannion>  wait until here to set ICE candidates as SDP is now initialized
+         * wait until here to set ICE candidates as SDP is now initialized
          */
         for (i=0; i<media->candidate_ct; i++) {
         	gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, level, dcb_p->sdp->src_sdp, media->candidatesp[i]);
@@ -4357,8 +4353,8 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p)
     }
 
     /*
-     * <emannion>
-     * I think this is a suitable place to add ice ufrag and pwd to the SDP
+     *
+     * This is a suitable place to add ice ufrag and pwd to the SDP
      */
 
     if (dcb_p->ice_ufrag)
@@ -4367,7 +4363,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p)
         gsmsdp_set_ice_attribute (SDP_ATTR_ICE_PWD, SDP_SESSION_LEVEL, dcb_p->sdp->src_sdp, dcb_p->ice_pwd);
 
 
-    if (sdpmode == FALSE) {
+    if (!sdpmode) {
 
        /*
         * Ensure that there is at least one audio line.
