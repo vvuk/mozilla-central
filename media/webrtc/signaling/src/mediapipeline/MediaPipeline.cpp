@@ -180,13 +180,28 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
     PR_ASSERT(PR_FALSE);
     return;
   }
-
-  const layers::PlanarYCbCrImage::Data *data =
-    static_cast<layers::PlanarYCbCrImage*>(img)->GetData();
+  
+  // Cast away constness b/c some of the accessors are non-const
+  layers::PlanarYCbCrImage* yuv =
+    const_cast<layers::PlanarYCbCrImage *>(
+      static_cast<const layers::PlanarYCbCrImage *>(img));
 
   // TODO(ekr@rtfm.com): Is this really how we get the length?
   // It's the inverse of the code in MediaEngineDefault
-  unsigned int length = ((data->mYSize.width * data->mYSize.height) * 3 / 2);
+  unsigned int length = ((yuv->GetSize().width * yuv->GetSize().height) * 3 / 2);
+
+  // Big-time assumption here that this is all contiguous data coming
+  // from Anant's version of gUM. This code here is an attempt to double-check
+  // that
+  PR_ASSERT(length == yuv->GetDataSize());
+  if (length != yuv->GetDataSize())
+    return;
+
+  // OK, pass it on to the conduit
+  // TODO(ekr@rtfm.com): Check return value
+  conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
+    yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
 }
+
 }  // end namespace
 

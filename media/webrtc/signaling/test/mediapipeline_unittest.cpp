@@ -41,32 +41,42 @@ namespace {
 class TestAgent {
  public:
   TestAgent() :
-      flow_(),
-      prsock_(new TransportLayerPrsock()),
+      audio_flow_(),
+      audio_prsock_(new TransportLayerPrsock()),
       audio_config_(97, "PCMU", 8000, 80, 1, 64000),
       audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
+      video_flow_(),
+      video_prsock_(new TransportLayerPrsock()),
+      video_config_(120, "VP8", 640, 480),
+      video_conduit_(mozilla::VideoSessionConduit::Create()),
+      video_(),
       pipeline_() {
   }
   
   void ConnectSocket(PRFileDesc *fd) {
     nsresult res;
-    res = prsock_->Init();
+    res = audio_prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
     
-    test_utils.sts_target()->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
+    test_utils.sts_target()->Dispatch(WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import,
                                    fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
     
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
+    ASSERT_EQ((nsresult)NS_OK, audio_flow_.PushLayer(audio_prsock_));
   }
 
  protected:
-  TransportFlow flow_;
-  TransportLayerPrsock *prsock_;
+  TransportFlow audio_flow_;
+  TransportFlow video_flow_;
+  TransportLayerPrsock *audio_prsock_;
+  TransportLayerPrsock *video_prsock_;
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;
+  mozilla::VideoCodecConfig video_config_;
+  mozilla::RefPtr<mozilla::MediaSessionConduit> video_conduit_;
+  nsRefPtr<nsDOMMediaStream> video_;
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
 };
 
@@ -74,7 +84,7 @@ class TestAgentSend : public TestAgent {
  public:
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
-    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &flow_, &flow_);
+    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
   }
 
   void StartSending() {
