@@ -85,6 +85,7 @@ class TestAgentSend : public TestAgent {
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
     pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
+
   }
 
   void StartSending() {

@@ -73,7 +73,7 @@ public:
 	
 	
   WebrtcAudioConduit():
-                      mVoiceEngine(WebRTCEngineWrapper::Instance()->GetVoiceEngine()),
+                      mVoiceEngine(webrtc::VoiceEngine::Create()),
                       mTransport(NULL),
                       mRenderer(NULL),
                       mPtrVoENetwork(VoENetwork::GetInterface(mVoiceEngine)),
