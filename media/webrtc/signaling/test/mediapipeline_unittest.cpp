@@ -46,12 +46,13 @@ class TestAgent {
       audio_config_(97, "PCMU", 8000, 80, 1, 64000),
       audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
+      audio_pipeline_(),
       video_flow_(),
       video_prsock_(new TransportLayerPrsock()),
       video_config_(120, "VP8", 640, 480),
       video_conduit_(mozilla::VideoSessionConduit::Create()),
       video_(),
-      pipeline_() {
+      video_pipeline_() {
   }
   
   void ConnectSocket(PRFileDesc *fd) {
@@ -72,20 +73,23 @@ class TestAgent {
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;
+  mozilla::RefPtr<mozilla::MediaPipeline> audio_pipeline_;
   TransportFlow video_flow_;
   TransportLayerPrsock *video_prsock_;
   mozilla::VideoCodecConfig video_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> video_conduit_;
   nsRefPtr<nsDOMMediaStream> video_;
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline_;
+  mozilla::RefPtr<mozilla::MediaPipeline> video_pipeline_;
 };
 
 class TestAgentSend : public TestAgent {
  public:
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
-    pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
+//    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
+//    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
   }
 
   void StartSending() {
@@ -126,7 +130,7 @@ class TestAgentSend : public TestAgent {
 class TestAgentReceive : public TestAgent {
  public:
   TestAgentReceive() {
-    pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
+    audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
       &audio_flow_, &audio_flow_);
   }
