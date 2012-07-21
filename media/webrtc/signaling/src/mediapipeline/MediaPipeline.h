@@ -14,6 +14,7 @@
 #endif
 #include "MediaConduitInterface.h"
 #include "AudioSegment.h"
+#include "VideoSegment.h"
 #include "TransportFlow.h"
 
 namespace mozilla {
@@ -124,6 +125,8 @@ class MediaPipelineTransmit : public MediaPipeline {
  private:
   virtual void ProcessAudioChunk(AudioSessionConduit *conduit, 
                                  TrackRate rate, mozilla::AudioChunk& chunk);
+  virtual void ProcessVideoChunk(VideoSessionConduit *conduit, 
+                                 TrackRate rate, mozilla::VideoChunk& chunk);
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
 
   mozilla::RefPtr<PipelineTransport> transport_;

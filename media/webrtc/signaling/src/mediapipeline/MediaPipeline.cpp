@@ -9,9 +9,11 @@
 #include "nspr.h"
 #include <prlog.h>
 
+#include "ImageLayers.h"
 #include "logging.h"
 #include "nsError.h"
 #include "AudioSegment.h"
+#include "ImageLayers.h"
 #include "MediaSegment.h"
 
 // Logging context
@@ -100,7 +102,21 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
       iter.Next();
     }
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
-    // TODO(ekr@rtfm.com): Implement VIDEO
+    if (pipeline_->conduit_->type() != MediaSessionConduit::VIDEO) {
+      // TODO(ekr): How do we handle muxed video and video streams
+      MLOG(PR_LOG_ERROR, "Video data provided for a video pipeline");
+      return;
+    }
+    VideoSegment* video = const_cast<VideoSegment *>(
+        static_cast<const VideoSegment *>(&queued_media));
+
+    VideoSegment::ChunkIterator iter(*video);
+    while(!iter.IsEnded()) {
+      pipeline_->ProcessVideoChunk(static_cast<VideoSessionConduit *>
+                                   (pipeline_->conduit_.get()),
+                                   rate, *iter);
+      iter.Next();
+    }
   } else {
     // Ignore
   }
@@ -150,4 +166,27 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
   conduit->SendAudioFrame(samples.get(), chunk.mDuration, rate, 0);
 }
 
+
+void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
+                                              TrackRate rate,
+                                              VideoChunk& chunk) {
+  // We now need to send the video frame to the other side
+  mozilla::layers::Image *img = chunk.mFrame.GetImage();
+  
+  mozilla::layers::Image::Format format = img->GetFormat();
+
+  if (format != mozilla::layers::Image::PLANAR_YCBCR) {
+    MLOG(PR_LOG_ERROR, "Can't process non-YCBCR video");
+    PR_ASSERT(PR_FALSE);
+    return;
+  }
+
+  const layers::PlanarYCbCrImage::Data *data =
+    static_cast<layers::PlanarYCbCrImage*>(img)->GetData();
+
+  // TODO(ekr@rtfm.com): Is this really how we get the length?
+  // It's the inverse of the code in MediaEngineDefault
+  unsigned int length = ((data->mYSize.width * data->mYSize.height) * 3 / 2);
+}
 }  // end namespace
+
