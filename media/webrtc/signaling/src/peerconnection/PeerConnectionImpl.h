@@ -44,7 +44,6 @@
 #include "CC_Device.h"
 #include "CC_Call.h"
 #include "CC_Observer.h"
-#include "MediaPipeline.h"
 
 namespace sipcc {
 
@@ -66,6 +65,9 @@ public:
     mozilla::TrackTicks aTrackOffset,
     PRUint32 aTrackEvents,
     const mozilla::MediaSegment& aQueuedMedia);
+
+  virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
+    mozilla::StreamTime aDesiredTime) {}
 
   nsRefPtr<nsDOMMediaStream> GetMediaStream();
   void ExpectAudio();

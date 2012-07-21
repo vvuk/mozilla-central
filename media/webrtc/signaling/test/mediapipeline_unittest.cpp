@@ -68,12 +68,12 @@ class TestAgent {
 
  protected:
   TransportFlow audio_flow_;
-  TransportFlow video_flow_;
   TransportLayerPrsock *audio_prsock_;
-  TransportLayerPrsock *video_prsock_;
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;
+  TransportFlow video_flow_;
+  TransportLayerPrsock *video_prsock_;
   mozilla::VideoCodecConfig video_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> video_conduit_;
   nsRefPtr<nsDOMMediaStream> video_;
@@ -126,6 +126,9 @@ class TestAgentSend : public TestAgent {
 class TestAgentReceive : public TestAgent {
  public:
   TestAgentReceive() {
+    pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
+      static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
+      &audio_flow_, &audio_flow_);
   }
 
  private:

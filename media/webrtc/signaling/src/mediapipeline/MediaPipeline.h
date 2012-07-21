@@ -7,6 +7,8 @@
 #ifndef mediapipeline_h__
 #define mediapipeline_h__
 
+#include <talk/base/sigslot.h>
+
 #ifdef USE_FAKE_MEDIA_STREAMS
 #include "FakeMediaStreams.h"
 #else
@@ -34,8 +36,8 @@ class MediaPipeline {
   enum Direction { TRANSMIT, RECEIVE };
 
   MediaPipeline(Direction direction,
-                nsRefPtr<nsDOMMediaStream>& stream,
-                RefPtr<MediaSessionConduit>& conduit,
+                nsRefPtr<nsDOMMediaStream> stream,
+                RefPtr<MediaSessionConduit> conduit,
                 TransportFlow* rtp_transport,
                 TransportFlow* rtcp_transport) :
       direction_(direction),
@@ -62,10 +64,12 @@ class MediaPipeline {
 };
 
 
+// A specialization of pipeline for reading from an input device
+// and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public: 
-  MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream>& stream, 
-                        RefPtr<MediaSessionConduit>& conduit,
+  MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream> stream, 
+                        RefPtr<MediaSessionConduit> conduit,
                         TransportFlow* rtp_transport,
                         TransportFlow* rtcp_transport) :
       MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
@@ -117,6 +121,8 @@ class MediaPipelineTransmit : public MediaPipeline {
                                           TrackTicks offset,
                                           PRUint32 events,
                                           const MediaSegment& queued_media);
+    virtual void NotifyPull(MediaStreamGraph* aGraph, StreamTime aDesiredTime) {}
+
    private:
     MediaPipelineTransmit *pipeline_;  // Raw pointer to avoid cycles
   };
@@ -132,6 +138,83 @@ class MediaPipelineTransmit : public MediaPipeline {
   mozilla::RefPtr<PipelineTransport> transport_;
   mozilla::RefPtr<PipelineListener> listener_;
 };
+
+
+// A specialization of pipeline for reading from the network and
+// rendering video.
+class MediaPipelineReceive : public MediaPipeline,
+                             public sigslot::has_slots<> {
+ public: 
+  MediaPipelineReceive(nsRefPtr<nsDOMMediaStream> stream, 
+                       RefPtr<MediaSessionConduit> conduit,
+                       TransportFlow* rtp_transport,
+                       TransportFlow* rtcp_transport) :
+      MediaPipeline(RECEIVE, stream, conduit, rtp_transport, rtcp_transport) {
+    PR_ASSERT(rtp_transport_);
+
+    if (rtcp_transport_) {
+      // If we have un-muxed transport, connect separate methods
+      rtp_transport_->SignalPacketReceived.connect(this,
+                                                   &MediaPipelineReceive::
+                                                   RtpPacketReceived);
+      rtcp_transport_->SignalPacketReceived.connect(this,
+                                                    &MediaPipelineReceive::
+                                                    RtcpPacketReceived);
+    } else {
+      rtp_transport_->SignalPacketReceived.connect(this,
+                                                   &MediaPipelineReceive::
+                                                   PacketReceived);
+    }
+  }
+  
+ private:
+  bool IsRtp(const unsigned char *data, size_t len);
+  void RtpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  void RtcpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+};
+
+
+// A specialization of pipeline for reading from the network and
+// rendering audio.
+class MediaPipelineReceiveAudio : public MediaPipelineReceive {
+ public: 
+  MediaPipelineReceiveAudio(nsRefPtr<nsDOMMediaStream> stream, 
+                            RefPtr<AudioSessionConduit> conduit,
+                            TransportFlow* rtp_transport,
+                            TransportFlow* rtcp_transport) :
+      MediaPipelineReceive(stream, conduit, rtp_transport, rtcp_transport),
+      listener_(new PipelineListener(this)) {
+    Init();
+  }
+
+ private:
+  // Separate class to allow ref counting
+  class PipelineListener : public MediaStreamListener {
+   public:
+    PipelineListener(MediaPipelineReceiveAudio *pipeline) :
+        pipeline_(pipeline) {}
+    void Detach() { pipeline_ = NULL; }
+
+      
+    // Implement MediaStreamListener
+    virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
+                                          TrackRate rate,
+                                          TrackTicks offset,
+                                          PRUint32 events,
+                                          const MediaSegment& queued_media) {}
+    virtual void NotifyPull(MediaStreamGraph* aGraph, StreamTime aDesiredTime);
+
+   private:
+    MediaPipelineReceiveAudio *pipeline_;  // Raw pointer to avoid cycles
+  };
+  friend class PipelineListener;
+
+  nsresult Init();
+
+  mozilla::RefPtr<PipelineListener> listener_;
+};
+
 
 }  // end namespace
 #endif

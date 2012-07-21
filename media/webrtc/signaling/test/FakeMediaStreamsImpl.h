@@ -31,7 +31,7 @@
 
 #include "nsError.h"
 
-nsresult Fake_AudioStreamSource::Start() {
+nsresult Fake_MediaStreamBase::Start() {
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   if (!mTimer) {
     return NS_ERROR_FAILURE;
@@ -43,7 +43,7 @@ nsresult Fake_AudioStreamSource::Start() {
   return NS_OK;
 }
 
-nsresult Fake_AudioStreamSource::Stop() {
+nsresult Fake_MediaStreamBase::Stop() {
   mTimer->Cancel();
   
   return NS_OK;
@@ -67,5 +67,15 @@ Fake_AudioStreamSource::Notify(nsITimer* aTimer)
   return NS_OK;
 }
       
-NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_AudioStreamSource, nsITimerCallback)
+
+NS_IMETHODIMP
+Fake_AudioStreamSink::Notify(nsITimer* aTimer)
+{
+  if (mPullEnabled && mListener) {
+    mListener->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
+  }
+  return NS_OK;
+}
+      
+NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_MediaStreamBase, nsITimerCallback)
 

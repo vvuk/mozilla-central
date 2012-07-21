@@ -203,5 +203,49 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
 }
 
+
+void MediaPipelineReceive::RtpPacketReceived(TransportFlow *flow,
+                                             const unsigned char *data,
+                                             size_t len) {
+  (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
+}
+
+void MediaPipelineReceive::RtcpPacketReceived(TransportFlow *flow,
+                                              const unsigned char *data,
+                                              size_t len) {
+  (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
+}
+
+bool MediaPipelineReceive::IsRtp(const unsigned char *data, size_t len) {
+  if (len < 2)
+    return false;
+
+  // TODO(ekr@rtfm.com): this needs updating in light of RFC5761
+  if ((data[1] >= 200) && (data[1] <= 204))
+    return false;
+
+  return true;
+
+}
+
+void MediaPipelineReceive::PacketReceived(TransportFlow *flow,
+                                          const unsigned char *data,
+                                          size_t len) {
+  if (IsRtp(data, len)) {
+    RtpPacketReceived(flow, data, len);
+  } else {
+    RtcpPacketReceived(flow, data, len);
+  }
+}
+
+nsresult MediaPipelineReceiveAudio::Init() {
+  return NS_OK;
+}
+
+void MediaPipelineReceiveAudio::PipelineListener::
+NotifyPull(MediaStreamGraph* aGraph,
+                                           StreamTime aDesiredTime) {
+}
+
 }  // end namespace
 

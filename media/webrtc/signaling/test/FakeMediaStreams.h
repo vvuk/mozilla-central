@@ -61,6 +61,7 @@ public:
                                         mozilla::TrackTicks aTrackOffset,
                                         PRUint32 aTrackEvents,
                                         const mozilla::MediaSegment& aQueuedMedia)  = 0;
+  virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph, mozilla::StreamTime aDesiredTime) = 0;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStreamListener)
 };
@@ -72,9 +73,6 @@ public:
   Fake_MediaStream () : mListener(NULL) {}
   virtual ~Fake_MediaStream() {}
 
-  virtual nsresult Start() { return NS_OK; }
-  virtual nsresult Stop() { return NS_OK; }
-
   void AddListener(Fake_MediaStreamListener *aListener) {
     mListener = aListener;
   }
@@ -83,8 +81,30 @@ public:
     mListener = NULL;
   }
 
+  virtual nsresult Start() { return NS_OK; }
+  virtual nsresult Stop() { return NS_OK; }
+
  protected:
   Fake_MediaStreamListener *mListener;
+};
+
+class Fake_SourceMediaStream : public Fake_MediaStream {
+ public:
+  Fake_SourceMediaStream() : mPullEnabled(false) {}
+
+  void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,
+                mozilla::MediaSegment* aSegment) {}
+
+  void AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {}
+
+  void AdvanceKnownTracksTime(mozilla::StreamTime aKnownTime) {}
+  
+  void SetPullEnabled(bool aEnabled) {
+    mPullEnabled = aEnabled;
+  }
+
+ protected:
+  bool mPullEnabled;
 };
 
 class Fake_nsDOMMediaStream
@@ -124,19 +144,32 @@ public:
 };
 
 
-class Fake_AudioStreamSource : public Fake_MediaStream,
-                               public nsITimerCallback {
+class Fake_MediaStreamBase : public Fake_SourceMediaStream,
+                             public nsITimerCallback {
  public:
-  Fake_AudioStreamSource() : Fake_MediaStream() {}
-
   virtual nsresult Start();
   virtual nsresult Stop();
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSITIMERCALLBACK
+  NS_IMETHODIMP Notify(nsITimer* aTimer) = 0;
 
  private:
   nsCOMPtr<nsITimer> mTimer;
+};
+
+
+class Fake_AudioStreamSource : public Fake_MediaStreamBase {
+ public:
+  Fake_AudioStreamSource() : Fake_MediaStreamBase() {}
+
+  NS_DECL_NSITIMERCALLBACK
+};
+
+class Fake_AudioStreamSink : public Fake_MediaStreamBase {
+ public:
+  Fake_AudioStreamSink() : Fake_MediaStreamBase() {}
+
+  NS_DECL_NSITIMERCALLBACK
 };
 
 
@@ -145,6 +178,7 @@ typedef Fake_nsDOMMediaStream nsDOMMediaStream;
 
 namespace mozilla {
 typedef Fake_MediaStream MediaStream;
+typedef Fake_SourceMediaStream SourceMediaStream;
 typedef Fake_MediaStreamListener MediaStreamListener;
 }
 
