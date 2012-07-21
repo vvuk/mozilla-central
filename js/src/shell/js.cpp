@@ -3189,6 +3189,8 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 Parse(JSContext *cx, unsigned argc, jsval *vp)
 {
+    using namespace js::frontend;
+
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "compile", "0", "s");
@@ -3202,10 +3204,10 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    js::Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
-                      JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                      "<string>", /* lineno = */ 1, cx->findVersion(),
-                      /* foldConstants = */ true, /* compileAndGo = */ false);
+    Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
+                  JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
+                  "<string>", /* lineno = */ 1, cx->findVersion(),
+                  /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 
@@ -3287,6 +3289,63 @@ Snarf(JSContext *cx, unsigned argc, jsval *vp)
     if (!(str = FileAsString(cx, pathname)))
         return false;
     *vp = STRING_TO_JSVAL(str);
+    return true;
+}
+
+static bool
+DecompileFunctionSomehow(JSContext *cx, unsigned argc, Value *vp,
+                         JSString *(*decompiler)(JSContext *, JSFunction *, unsigned))
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() < 1 || !args[0].isObject() || !args[0].toObject().isFunction()) {
+        args.rval().setUndefined();
+        return true;
+    }
+    JSString *result = decompiler(cx, args[0].toObject().toFunction(), 0);
+    if (!result)
+        return false;
+    args.rval().setString(result);
+    return true;
+}
+
+static JSBool
+DecompileBody(JSContext *cx, unsigned argc, Value *vp)
+{
+    return DecompileFunctionSomehow(cx, argc, vp, JS_DecompileFunctionBody);
+}
+
+static JSBool
+DecompileFunction(JSContext *cx, unsigned argc, Value *vp)
+{
+    return DecompileFunctionSomehow(cx, argc, vp, JS_DecompileFunction);
+}
+
+static JSBool
+DecompileThisScript(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JSScript *script = js_GetCurrentScript(cx);
+    JS_ASSERT(script);
+    JSString *result = JS_DecompileScript(cx, script, "test", 0);
+    if (!result)
+        return false;
+    args.rval().setString(result);
+    return true;
+}
+
+static JSBool
+ThisFilename(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JSScript *script = js_GetCurrentScript(cx);
+    if (!script || !script->filename) {
+        args.rval().setString(cx->runtime->emptyString);
+        return true;
+    }
+    JSString *filename = JS_NewStringCopyZ(cx, script->filename);
+    if (!filename)
+        return false;
+    args.rval().setString(filename);
     return true;
 }
 
@@ -3685,6 +3744,22 @@ static JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("parent", Parent, 1, 0,
 "parent(obj)",
 "  Returns the parent of obj."),
+
+    JS_FN_HELP("decompileFunction", DecompileFunction, 1, 0,
+"decompileFunction(func)",
+"  Decompile a function."),
+
+    JS_FN_HELP("decompileBody", DecompileBody, 1, 0,
+"decompileBody(func)",
+"  Decompile a function's body."),
+
+    JS_FN_HELP("decompileThis", DecompileThisScript, 0, 0,
+"decompileThis()",
+"  Decompile the currently executing script."),
+
+    JS_FN_HELP("thisFilename", ThisFilename, 0, 0,
+"thisFilename()",
+"  Return the filename of the current script"),
 
     JS_FN_HELP("wrap", Wrap, 1, 0,
 "wrap(obj)",

@@ -65,7 +65,7 @@ NewTryNote(JSContext *cx, BytecodeEmitter *bce, JSTryNoteKind kind, unsigned sta
 static bool
 SetSrcNoteOffset(JSContext *cx, BytecodeEmitter *bce, unsigned index, unsigned which, ptrdiff_t offset);
 
-struct js::StmtInfoBCE : public js::StmtInfoBase
+struct frontend::StmtInfoBCE : public StmtInfoBase
 {
     StmtInfoBCE     *down;          /* info for enclosing statement */
     StmtInfoBCE     *downScope;     /* next enclosing lexical scope */
@@ -4872,7 +4872,10 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                                                       parent->compileAndGo,
                                                       /* noScriptRval = */ false,
                                                       parent->getVersion(),
-                                                      parent->staticLevel + 1));
+                                                      parent->staticLevel + 1,
+                                                      bce->script->source,
+                                                      funbox->bufStart,
+                                                      funbox->bufEnd));
         if (!script)
             return false;
 
