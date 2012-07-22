@@ -52,6 +52,8 @@ namespace mozilla {
    class MediaSegment;
 };
 
+class Fake_SourceMediaStream;
+
 class Fake_MediaStreamListener
 {
 public:
@@ -81,6 +83,7 @@ public:
   void RemoveListener(Fake_MediaStreamListener *aListener) {
     mListener = NULL;
   }
+  virtual Fake_SourceMediaStream *AsSourceStream() { return NULL; }
 
   virtual nsresult Start() { return NS_OK; }
   virtual nsresult Stop() { return NS_OK; }
@@ -103,7 +106,7 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
   void SetPullEnabled(bool aEnabled) {
     mPullEnabled = aEnabled;
   }
-
+  virtual Fake_SourceMediaStream *AsSourceStream() { return this; }
  protected:
   bool mPullEnabled;
 };

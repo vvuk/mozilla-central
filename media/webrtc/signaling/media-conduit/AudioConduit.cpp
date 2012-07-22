@@ -287,6 +287,9 @@ WebrtcAudioConduit::GetAudioFrame(int16_t speechData[],
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
 
   lengthSamples = 0;
+  
+  // Hack
+  mEnginePlaying = true;
 
   if(mEnginePlaying)
   {

@@ -6,6 +6,8 @@
 
 #include "MediaPipeline.h"
 
+#include <math.h>
+
 #include "nspr.h"
 #include <prlog.h>
 
@@ -239,13 +241,60 @@ void MediaPipelineReceive::PacketReceived(TransportFlow *flow,
 }
 
 nsresult MediaPipelineReceiveAudio::Init() {
+  stream_->GetStream()->AddListener(listener_);
+
   return NS_OK;
 }
 
 void MediaPipelineReceiveAudio::PipelineListener::
-NotifyPull(MediaStreamGraph* aGraph,
-                                           StreamTime aDesiredTime) {
+NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
+  mozilla::SourceMediaStream *source =
+    pipeline_->stream_->GetStream()->AsSourceStream();
+
+  PR_ASSERT(source);
+  if (!source) {
+    MLOG(PR_LOG_ERROR, "NotifyPull() called from a non-SourceMediaStream");
+    return;
+  }
+
+  double time_s = MediaTimeToSeconds(desired);
+  
+  // Clip the number of seconds asked for to 1 second
+  if (time_s > 1) {
+    time_s = 1.0f;
+  }
+  
+  // Number of 10 ms samples we need
+  int num_samples = floor((time_s / .01f) + .5);
+
+  MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << " from Audio Conduit");
+
+  
+  while (num_samples--) {
+    // TODO(ekr@rtfm.com): Is there a way to avoid mallocating here?
+    nsRefPtr<SharedBuffer> samples = SharedBuffer::Create(1000);
+    unsigned int samples_length;
+  
+    mozilla::MediaConduitErrorCode err =
+      static_cast<mozilla::AudioSessionConduit*>(pipeline_->conduit_.get())->GetAudioFrame(
+        static_cast<int16_t *>(samples->Data()),
+        16000,  // Sampling rate fixed at 16 kHz for now
+        0,  // TODO(ekr@rtfm.com): better estimate of capture delay
+        samples_length);
+  
+    if (err != mozilla::kMediaConduitNoError)
+      return;
+    
+    mozilla::AudioSegment segment;
+    segment.Init(1);    
+    segment.AppendFrames(samples.forget(), samples_length * 2,
+      0, samples_length, nsAudioStream::FORMAT_S16_LE);
+
+    source->AppendToTrack(0,  // TODO(ekr@rtfm.com): Track ID
+      &segment);
+  }
 }
+
 
 }  // end namespace
 

@@ -67,6 +67,32 @@ class TestAgent {
     ASSERT_EQ((nsresult)NS_OK, audio_flow_.PushLayer(audio_prsock_));
   }
 
+  void Start() {
+    nsresult ret;
+    
+    MLOG(PR_LOG_DEBUG, "Starting");
+
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+  }
+
+  void Stop() {
+    nsresult ret;
+    
+    MLOG(PR_LOG_DEBUG, "Stopping");
+
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Stop, &ret),
+        NS_DISPATCH_SYNC);
+    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+
+    PR_Sleep(1000); // Deal with race condition
+  }
+
  protected:
   TransportFlow audio_flow_;
   TransportLayerPrsock *audio_prsock_;
@@ -86,42 +112,18 @@ class TestAgentSend : public TestAgent {
  public:
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
-//    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
-
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
-//    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
-  }
-
-  void StartSending() {
-    nsresult ret;
-    
-    MLOG(PR_LOG_DEBUG, "Starting sending");
 
     mozilla::MediaConduitErrorCode err = 
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureSendMediaCodec(&audio_config_);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
-    test_utils.sts_target()->Dispatch(
-        WrapRunnableRet(audio_->GetStream(),
-                        &Fake_MediaStream::Start, &ret),
-        NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
+
+//    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
+//    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
   }
 
-  void StopSending() {
-    nsresult ret;
-    
-    MLOG(PR_LOG_DEBUG, "Stopping sending");
-
-    test_utils.sts_target()->Dispatch(
-        WrapRunnableRet(audio_->GetStream(),
-                        &Fake_MediaStream::Stop, &ret),
-        NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(ret));    
-
-    PR_Sleep(1000); // Deal with race condition
-  }
   
  private:
 };
@@ -130,6 +132,20 @@ class TestAgentSend : public TestAgent {
 class TestAgentReceive : public TestAgent {
  public:
   TestAgentReceive() {
+    mozilla::SourceMediaStream *audio = new Fake_AudioStreamSink();
+    audio->SetPullEnabled(true);
+
+    mozilla::AudioSegment* segment= new mozilla::AudioSegment();
+    segment->Init(1);
+    audio->AddTrack(0, 100, 0, segment);
+    audio->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+
+    audio_ = new Fake_nsDOMMediaStream(audio);
+
+    mozilla::MediaConduitErrorCode err = 
+        static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
+        ConfigureRecvMediaCodec(&audio_config_);
+
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
       &audio_flow_, &audio_flow_);
@@ -161,9 +177,11 @@ class MediaPipelineTest : public ::testing::Test {
 };
 
 TEST_F(MediaPipelineTest, AudioSend) {
-  p1_.StartSending();
+  p2_.Start();
+  p1_.Start();
   PR_Sleep(1000);
-  p1_.StopSending();
+  p1_.Stop();
+  p2_.Stop();
 }
 
 

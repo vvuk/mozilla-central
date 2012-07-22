@@ -179,7 +179,7 @@ class MediaPipelineReceive : public MediaPipeline,
 // rendering audio.
 class MediaPipelineReceiveAudio : public MediaPipelineReceive {
  public: 
-  MediaPipelineReceiveAudio(nsRefPtr<nsDOMMediaStream> stream, 
+  MediaPipelineReceiveAudio(nsRefPtr<nsDOMMediaStream> stream,
                             RefPtr<AudioSessionConduit> conduit,
                             TransportFlow* rtp_transport,
                             TransportFlow* rtcp_transport) :
