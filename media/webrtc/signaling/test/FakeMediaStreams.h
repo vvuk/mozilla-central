@@ -39,6 +39,7 @@
 // #includes from MediaStream.h
 #include "mozilla/Mutex.h"
 #include "AudioSegment.h"
+#include "ImageLayers.h"
 #include "MediaSegment.h"
 #include "StreamBuffer.h"
 #include "nsAudioStream.h"
@@ -163,6 +164,16 @@ class Fake_AudioStreamSource : public Fake_MediaStreamBase {
   Fake_AudioStreamSource() : Fake_MediaStreamBase() {}
 
   NS_DECL_NSITIMERCALLBACK
+};
+
+class Fake_VideoStreamSource : public Fake_MediaStreamBase {
+ public:
+  Fake_VideoStreamSource() : Fake_MediaStreamBase() {}
+
+  NS_DECL_NSITIMERCALLBACK
+
+ protected:
+  nsCOMPtr<nsITimer> mTimer;
 };
 
 class Fake_AudioStreamSink : public Fake_MediaStreamBase {
