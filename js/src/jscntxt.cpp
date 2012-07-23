@@ -105,6 +105,10 @@ JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *run
     for (ScriptFilenameTable::Range r = scriptFilenameTable.all(); !r.empty(); r.popFront())
         runtime->scriptFilenames += mallocSizeOf(r.front());
 
+    runtime->scriptSources = 0;
+    for (ScriptSource *n = scriptSources; n; n = n->next)
+        runtime->scriptSources += n->sizeOfIncludingThis(mallocSizeOf);
+
     runtime->compartmentObjects = 0;
     CallbackData data(mallocSizeOf);
     JS_IterateCompartments(this, &data, CompartmentCallback);
@@ -1027,7 +1031,7 @@ JSContext::~JSContext()
 {
     /* Free the stuff hanging off of cx. */
     if (parseMapPool_)
-        Foreground::delete_<ParseMapPool>(parseMapPool_);
+        Foreground::delete_(parseMapPool_);
 
     if (lastMessage)
         Foreground::free_(lastMessage);
@@ -1202,7 +1206,7 @@ void
 JSContext::purge()
 {
     if (!activeCompilations) {
-        Foreground::delete_<ParseMapPool>(parseMapPool_);
+        Foreground::delete_(parseMapPool_);
         parseMapPool_ = NULL;
     }
 }

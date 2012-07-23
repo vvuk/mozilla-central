@@ -263,11 +263,25 @@ class SignalingAgent {
   const std::string offer() const { return offer_; }
   const std::string answer() const { return answer_; }
 
-  void CreateOffer(const std::string hints) {
+  void CreateOffer(const std::string hints, bool audio, bool video) {
+
     // Create a media stream as if it came from GUM
     nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
-    // Pretend GUM got both audio and video.
-    domMediaStream->SetHintContents(nsDOMMediaStream::HINT_CONTENTS_AUDIO | nsDOMMediaStream::HINT_CONTENTS_VIDEO); 
+
+    // store in object to be used by RemoveStream
+    domMediaStream_ = domMediaStream;
+
+
+    PRUint32 aHintContents = 0;
+    
+    if (audio)
+      aHintContents |= nsDOMMediaStream::HINT_CONTENTS_AUDIO;
+    if (video)
+      aHintContents |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
+    
+    PR_ASSERT(aHintContents);
+
+    domMediaStream->SetHintContents(aHintContents);
       
     pc->AddStream(domMediaStream);
 
@@ -275,7 +289,7 @@ class SignalingAgent {
     pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateOffer(hints), PC_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
-    SDPSanityCheck(pObserver->lastString, true, true);
+    SDPSanityCheck(pObserver->lastString, audio, video);
     offer_ = pObserver->lastString;
   }
 
@@ -285,14 +299,43 @@ class SignalingAgent {
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateError, kDefaultTimeout);
   }
 
-  void CreateAnswer(const std::string offer, const std::string hints) {
+  void CreateAnswer(const std::string hints, const std::string offer) {
+    // Create a media stream as if it came from GUM
+	nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+	// Pretend GUM got both audio and video.
+	domMediaStream->SetHintContents(nsDOMMediaStream::HINT_CONTENTS_AUDIO | nsDOMMediaStream::HINT_CONTENTS_VIDEO);
+
+	pc->AddStream(domMediaStream);
+
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateAnswer(offer, hints), PC_OK);
+    ASSERT_EQ(pc->CreateAnswer(hints, offer), PC_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
     SDPSanityCheck(pObserver->lastString, true, true);
     answer_ = pObserver->lastString;
   }
 
+  void CreateOfferRemoveStream(const std::string hints, bool audio, bool video) {
+
+    PRUint32 aHintContents = 0;
+
+	if (!audio)
+      aHintContents |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
+    if (!video)
+      aHintContents |= nsDOMMediaStream::HINT_CONTENTS_AUDIO;
+
+	domMediaStream_->SetHintContents(aHintContents);
+
+	// When complete RemoveStream will remove and entire stream and its tracks
+	// not just disable a track as this is currently doing
+    pc->RemoveStream(domMediaStream_);
+
+    // Now call CreateOffer as JS would
+    pObserver->state = TestObserver::stateNoResponse;
+    ASSERT_EQ(pc->CreateOffer(hints), PC_OK);
+    ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
+    SDPSanityCheck(pObserver->lastString, video, audio);
+    offer_ = pObserver->lastString;
+  }
 
   void SetRemote(sipcc::Action action, std::string remote) {
     pObserver->state = TestObserver::stateNoResponse;    
@@ -340,6 +383,7 @@ public:
   TestObserver *pObserver;
   std::string offer_;
   std::string answer_;
+  nsRefPtr<nsDOMMediaStream> domMediaStream_;
 
   
 private:
@@ -370,23 +414,36 @@ class SignalingEnvironment : public ::testing::Environment {
 class SignalingTest : public ::testing::Test {
  public:
   void CreateOffer(std::string hints) {
-    a1_.CreateOffer(hints);
+    a1_.CreateOffer(hints, true, true);
   }
 
   void CreateSetOffer(std::string hints) {
-    a1_.CreateOffer(hints);
+    a1_.CreateOffer(hints, true, true);
     a1_.SetLocal(sipcc::OFFER, a1_.offer());
   }
 
   void OfferAnswer(std::string ahints, std::string bhints) {
-    a1_.CreateOffer(ahints);
+    a1_.CreateOffer(ahints, true, true);
     a1_.SetLocal(sipcc::OFFER, a1_.offer());
     a2_.SetRemote(sipcc::OFFER, a1_.offer());
-    a2_.CreateAnswer(a1_.offer(), bhints);
+    a2_.CreateAnswer(bhints, a1_.offer());
     a2_.SetLocal(sipcc::ANSWER, a2_.answer());
     a1_.SetRemote(sipcc::ANSWER, a2_.answer());
     ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, 10000);
     ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, 10000);
+  }
+
+  void CreateOfferVideoOnly(std::string hints) {
+    a1_.CreateOffer(hints, false, true);
+  }
+
+  void CreateOfferAudioOnly(std::string hints) {
+    a1_.CreateOffer(hints, true, false);
+  }
+
+  void CreateOfferRemoveStream(std::string hints) {
+	a1_.CreateOffer(hints, true, true);
+    a1_.CreateOfferRemoveStream(hints, false, true);
   }
 
  private:
@@ -407,6 +464,21 @@ TEST_F(SignalingTest, CreateOfferNoHints)
 TEST_F(SignalingTest, CreateSetOffer)
 {
   CreateSetOffer("");
+}
+
+TEST_F(SignalingTest, CreateOfferVideoOnly)
+{
+  CreateOfferVideoOnly("");
+}
+
+TEST_F(SignalingTest, CreateOfferAudioOnly)
+{
+  CreateOfferAudioOnly("");
+}
+
+TEST_F(SignalingTest, CreateOfferRemoveStream)
+{
+	CreateOfferRemoveStream("");
 }
 
 TEST_F(SignalingTest, OfferAnswer)

@@ -563,7 +563,21 @@ typedef enum {
   JSEP_PRANSWER
 } cc_jsep_action_t;
 
+
 typedef cc_string_t cc_peerconnection_t;
+
+typedef unsigned int cc_media_stream_id_t;
+
+typedef unsigned int cc_media_track_id_t;
+
+
+typedef enum {
+  NO_STREAM = -1,
+  AUDIO,
+  VIDEO,
+  TYPE_MAX
+} cc_media_type_t;
+
 
 
 #endif /* _CC_CONSTANTS_H_ */

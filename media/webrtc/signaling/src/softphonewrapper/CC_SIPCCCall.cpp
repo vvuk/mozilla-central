@@ -609,4 +609,11 @@ const std::string& CC_SIPCCCall::getPeerConnection() const {
   return peerconnection;
 }
 
+void CC_SIPCCCall::addStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
+  CCAPI_AddStream(callHandle, stream_id, track_id, media_type);
+}
+
+void CC_SIPCCCall::removeStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
+  CCAPI_RemoveStream(callHandle, stream_id, track_id, media_type);
+}
 

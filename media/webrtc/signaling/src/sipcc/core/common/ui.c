@@ -1769,7 +1769,7 @@ void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID
     msg.update.ccSessionUpd.data.state_data.state = event;
     msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
     msg.update.ccSessionUpd.data.state_data.line_id = nLine;
-    msg.update.ccSessionUpd.data.state_data.media_track_tbl = dcb->media_track_tbl;
+    msg.update.ccSessionUpd.data.state_data.remote_media_track_tbl = dcb->remote_media_track_tbl;
 
     if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
         CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);

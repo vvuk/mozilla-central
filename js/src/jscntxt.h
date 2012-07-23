@@ -159,18 +159,18 @@ struct ConservativeGCData
     }
 };
 
-class ToSourceCache
+class SourceDataCache
 {
-    typedef HashMap<JSFunction *,
-                    JSString *,
-                    DefaultHasher<JSFunction *>,
+    typedef HashMap<ScriptSource *,
+                    JSFixedString *,
+                    DefaultHasher<ScriptSource *>,
                     SystemAllocPolicy> Map;
-    Map *map_;
-  public:
-    ToSourceCache() : map_(NULL) {}
-    JSString *lookup(JSFunction *fun);
-    void put(JSFunction *fun, JSString *);
-    void purge();
+     Map *map_;
+   public:
+    SourceDataCache() : map_(NULL) {}
+    JSFixedString *lookup(ScriptSource *ss);
+    void put(ScriptSource *ss, JSFixedString *);
+     void purge();
 };
 
 struct EvalCacheLookup
@@ -203,7 +203,7 @@ class NativeIterCache
     static const size_t SIZE = size_t(1) << 8;
 
     /* Cached native iterators. */
-    JSObject            *data[SIZE];
+    PropertyIteratorObject *data[SIZE];
 
     static size_t getIndex(uint32_t key) {
         return size_t(key) % SIZE;
@@ -211,7 +211,7 @@ class NativeIterCache
 
   public:
     /* Native iterator most recently started. */
-    JSObject            *last;
+    PropertyIteratorObject *last;
 
     NativeIterCache()
       : last(NULL) {
@@ -223,11 +223,11 @@ class NativeIterCache
         PodArrayZero(data);
     }
 
-    JSObject *get(uint32_t key) const {
+    PropertyIteratorObject *get(uint32_t key) const {
         return data[getIndex(key)];
     }
 
-    void set(uint32_t key, JSObject *iterobj) {
+    void set(uint32_t key, PropertyIteratorObject *iterobj) {
         data[getIndex(key)] = iterobj;
     }
 };
@@ -502,7 +502,8 @@ struct JSRuntime : js::RuntimeFriendFields
      */
     volatile uint32_t   gcNumArenasFreeCommitted;
     js::GCMarker        gcMarker;
-    void                *gcVerifyData;
+    void                *gcVerifyPreData;
+    void                *gcVerifyPostData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
     int64_t             gcLastGCTime;
@@ -716,6 +717,8 @@ struct JSRuntime : js::RuntimeFriendFields
         return !JS_CLIST_IS_EMPTY(&contextList);
     }
 
+    JS_SourceHook       sourceHook;
+
     /* Per runtime debug hooks -- see jsprvtd.h and jsdbgapi.h. */
     JSDebugHooks        debugHooks;
 
@@ -750,6 +753,10 @@ struct JSRuntime : js::RuntimeFriendFields
     PRLock              *gcLock;
 
     js::GCHelperThread  gcHelperThread;
+
+#ifdef JS_THREADSAFE
+    js::SourceCompressorThread sourceCompressorThread;
+#endif
 
   private:
     js::FreeOp          defaultFreeOp_;
@@ -800,7 +807,7 @@ struct JSRuntime : js::RuntimeFriendFields
     js::PropertyCache   propertyCache;
     js::NewObjectCache  newObjectCache;
     js::NativeIterCache nativeIterCache;
-    js::ToSourceCache   toSourceCache;
+    js::SourceDataCache sourceDataCache;
     js::EvalCache       evalCache;
 
     /* State used by jsdtoa.cpp. */
@@ -829,6 +836,8 @@ struct JSRuntime : js::RuntimeFriendFields
     js::PreserveWrapperCallback            preserveWrapperCallback;
 
     js::ScriptFilenameTable scriptFilenameTable;
+
+    js::ScriptSource *scriptSources;
 
 #ifdef DEBUG
     size_t              noGCOrAllocationCheck;
@@ -1146,7 +1155,7 @@ struct JSContext : js::ContextFriendFields
 
   private:
     /* Lazily initialized pool of maps used during parse/emit. */
-    js::ParseMapPool    *parseMapPool_;
+    js::frontend::ParseMapPool *parseMapPool_;
 
   public:
     /* Top-level object and pointer to top stack frame's scope chain. */
@@ -1175,7 +1184,7 @@ struct JSContext : js::ContextFriendFields
     inline js::RegExpStatics *regExpStatics();
 
   public:
-    js::ParseMapPool &parseMapPool() {
+    js::frontend::ParseMapPool &parseMapPool() {
         JS_ASSERT(parseMapPool_);
         return *parseMapPool_;
     }
@@ -1303,7 +1312,7 @@ struct JSContext : js::ContextFriendFields
     DSTOffsetCache dstOffsetCache;
 
     /* List of currently active non-escaping enumerators (for-in). */
-    JSObject *enumerators;
+    js::PropertyIteratorObject *enumerators;
 
   private:
     /* Innermost-executing generator or null if no generator are executing. */

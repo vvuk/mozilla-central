@@ -317,6 +317,10 @@ namespace CSF
 
         virtual void setPeerConnection(const std::string& handle) = 0;
 
+        virtual void addStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) = 0;
+
+        virtual void removeStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) = 0;
+
         virtual const std::string& getPeerConnection() const = 0;
     };
 }

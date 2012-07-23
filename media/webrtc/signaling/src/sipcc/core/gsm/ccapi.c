@@ -1289,7 +1289,7 @@ cc_createanswer (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
     pmsg->data_valid = (data == NULL) ? (FALSE) : (TRUE);
     
     init_empty_str(pmsg->sdp);
-	strcpy(pmsg->sdp, sdp);    
+    strncpy(pmsg->sdp, sdp, SDP_SIZE);
 
     if (pmsg->data_valid == TRUE) {
         pmsg->data = *data;
@@ -1345,7 +1345,7 @@ void cc_setlocaldesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line
     pmsg->action = action;
     
     init_empty_str(pmsg->sdp);
-	strcpy(pmsg->sdp, sdp);
+	strncpy(pmsg->sdp, sdp, SDP_SIZE);
 	
     if (pmsg->data_valid == TRUE) {
         pmsg->data = *data;
@@ -1401,7 +1401,7 @@ void cc_setremotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, lin
     pmsg->action = action;
     
     init_empty_str(pmsg->sdp);
-	strcpy(pmsg->sdp, sdp);
+    strncpy(pmsg->sdp, sdp, SDP_SIZE);
     
 
     if (pmsg->data_valid == TRUE) {

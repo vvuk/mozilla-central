@@ -791,7 +791,7 @@ MediaTrackTable*  CCAPI_CallInfo_getMediaTrackTable(cc_callinfo_ref_t handle) {
   static const char *fname="CCAPI_CallInfo_getMediaTrackTable";
   session_data_t *data = (session_data_t *)handle;
   MediaTrackTable* stream;
-  cc_media_track_table_t *media_track_tbl;
+  cc_remote_media_track_table_t *remote_media_track_tbl;
 
   CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
 

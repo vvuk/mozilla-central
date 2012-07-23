@@ -644,7 +644,16 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
              call_id, (line_t)instance,
              CC_FEATURE_SETPEERCONNECTION, &featdata);
            break;
-           
+         case CC_FEATURE_ADDSTREAM:
+           featdata.track.track_id = ccData.track_id;
+           featdata.track.media_type = ccData.media_type;
+           cc_int_feature2(CC_MSG_ADDSTREAM, CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_ADDSTREAM, &featdata);
+           break;
+         case CC_FEATURE_REMOVESTREAM:
+           featdata.track.track_id = ccData.track_id;
+           featdata.track.media_type = ccData.media_type;
+           cc_int_feature2(CC_MSG_REMOVESTREAM, CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_REMOVESTREAM, &featdata);
+           break;
          case CC_FEATURE_DIALSTR:
              if (CheckAndGetAvailableLine(&line_id, &call_id) == TRUE) {
                  getDigits(data, digits);
@@ -1375,7 +1384,7 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         || sessUpd->eventID == SET_LOCAL_DESC  || sessUpd->eventID == SET_REMOTE_DESC) {
         	data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
         	data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
-        	data->media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.media_track_tbl;
+        	data->remote_media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.remote_media_track_tbl;
         }
         
         /*
@@ -1703,7 +1712,7 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
         data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
         data->state = sessUpd->update.ccSessionUpd.data.state_data.state;
-        data->media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.media_track_tbl;
+        data->remote_media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.remote_media_track_tbl;
         capset_get_allowed_features(gCCApp.mode, data->state, data->allowed_features);
         ccsnap_gen_callEvent(CCAPI_CALL_EV_STATE, CREATE_CALL_HANDLE_FROM_SESSION_ID(data->sess_id));
         break;

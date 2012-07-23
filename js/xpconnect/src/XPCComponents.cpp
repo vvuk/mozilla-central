@@ -3398,7 +3398,10 @@ GetPrincipalFromString(JSContext *cx, JSString *codebase, nsIPrincipal **princip
         do_GetService(kScriptSecurityManagerContractID);
     NS_ENSURE_TRUE(secman, NS_ERROR_FAILURE);
 
-    rv = secman->GetCodebasePrincipal(uri, principal);
+    // We could allow passing in the app-id and browser-element info to the
+    // sandbox constructor. But creating a sandbox based on a string is a
+    // deprecated API so no need to add features to it.
+    rv = secman->GetNoAppCodebasePrincipal(uri, principal);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(*principal, NS_ERROR_FAILURE);
 
@@ -4290,6 +4293,17 @@ nsXPCComponents_Utils::MakeObjectPropsNormal(const jsval &vobj, JSContext *cx)
             return NS_ERROR_FAILURE;
     }
 
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCComponents_Utils::IsDeadWrapper(const jsval &obj, bool *out)
+{
+    *out = false;
+    if (JSVAL_IS_PRIMITIVE(obj))
+        return NS_ERROR_INVALID_ARG;
+
+    *out = JS_IsDeadWrapper(JSVAL_TO_OBJECT(obj));
     return NS_OK;
 }
 

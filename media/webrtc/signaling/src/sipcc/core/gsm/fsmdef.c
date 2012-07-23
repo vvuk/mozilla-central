@@ -113,6 +113,8 @@ static sm_rcs_t fsmdef_ev_setremotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_setpeerconnection(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_localdesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_remotedesc(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_addstream(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_removestream(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default_feature_ack(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_idle_setup(sm_event_t *event);
@@ -188,6 +190,10 @@ static void fsmdef_update_callinfo_security_status(fsmdef_dcb_t *dcb,
 static void fsmdef_update_calltype (fsm_fcb_t *fcb, cc_feature_t *msg);
 
 
+/*
+ * TODO <emannion> Update events for correct JSEP transitions
+ *                 Instead of providing events for all states
+ */
 static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
 {
 /* FSMDEF_S_IDLE ------------------------------------------------------------ */
@@ -216,7 +222,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
-    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection  
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_COLLECT_INFO ---------------------------------------------------- */
@@ -243,6 +251,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_CREATEANSWER     */ fsmdef_ev_createanswer,
     /* FSMDEF_E_SETLOCALDESC     */ fsmdef_ev_setlocaldesc,
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_CALL_SENT ------------------------------------------------------- */
@@ -271,6 +282,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_OUTGOING_PROCEEDING --------------------------------------------- */
@@ -299,6 +313,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_KPML_COLLECT_INFO ----------------------------------------------- */
@@ -327,6 +344,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_OUTGOING_ALERTING ----------------------------------------------- */
@@ -355,6 +375,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_INCOMING_ALERTING ----------------------------------------------- */
@@ -383,6 +406,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_CONNECTING ------------------------------------------------------ */
@@ -411,6 +437,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_JOINING --------------------------------------------------------- */
@@ -439,6 +468,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_CONNECTED ------------------------------------------------------- */
@@ -467,6 +499,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_CONNECTED_MEDIA_PEND  ------------------------------------------- */
@@ -495,6 +530,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_RELEASING ------------------------------------------------------- */
@@ -523,6 +561,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_HOLD_PENDING ---------------------------------------------------- */
@@ -551,6 +592,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_HOLDING --------------------------------------------------------- */
@@ -579,6 +623,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_RESUME_PENDING -------------------------------------------------- */
@@ -607,6 +654,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     },
 
 /* FSMDEF_S_PRESERVED  ------------------------------------------------------ */
@@ -635,6 +685,9 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_LOCALDESC        */ fsmdef_ev_localdesc,
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
+    /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
+    /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
     }
 };
 
@@ -2913,7 +2966,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     } 
 
     if (dcb == NULL) {
-    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_creatoffer"));
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_createanswer"));
     	return (fsmdef_release(fcb, cause, FALSE));
     	return SM_RC_END;
     }
@@ -3288,6 +3341,85 @@ fsmdef_ev_setpeerconnection(sm_event_t *event) {
     return (SM_RC_END);
 }
 
+
+static sm_rcs_t
+fsmdef_ev_addstream(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    cc_feature_t        *msg = (cc_feature_t *) event->msg;
+    int                 sdpmode = 0;
+    cc_causes_t         lsm_rc;
+    cc_msgbody_t        *part;
+    uint32_t            body_length;
+    cc_msgbody_info_t   msg_body;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_addstream"));
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+        return (SM_RC_END);
+    }
+
+    /*
+     * This is temporary code to allow configuration of the two
+     * default streams. When multiple streams > 2 are supported this
+     * will be re-implemented.
+     */
+    if (msg->data.track.media_type == VIDEO) {
+        dcb->media_cap_tbl->cap[CC_VIDEO_1].enabled = TRUE;
+        dcb->media_cap_tbl->cap[CC_VIDEO_1].support_direction = SDP_DIRECTION_SENDRECV;
+        dcb->media_cap_tbl->cap[CC_VIDEO_1].pc_track = msg->data.track.track_id;
+        dcb->video_pref = SDP_DIRECTION_SENDRECV;
+    } else if (msg->data.track.media_type == AUDIO) {
+    	dcb->media_cap_tbl->cap[CC_AUDIO_1].enabled = TRUE;
+    	dcb->media_cap_tbl->cap[CC_AUDIO_1].support_direction = SDP_DIRECTION_SENDRECV;
+        dcb->media_cap_tbl->cap[CC_AUDIO_1].pc_track = msg->data.track.track_id;
+    } else {
+    	return (SM_RC_END);
+    }
+
+    return (SM_RC_END);
+}
+
+static sm_rcs_t
+fsmdef_ev_removestream(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    cc_feature_t        *msg = (cc_feature_t *) event->msg;
+    int                 sdpmode = 0;
+    cc_causes_t         lsm_rc;
+    cc_msgbody_t        *part;
+    uint32_t            body_length;
+    cc_msgbody_info_t   msg_body;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, "fsmdef_ev_removestream"));
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+
+        return (SM_RC_END);
+    }
+
+    /*
+     * This is temporary code to allow configuration of the two
+     * default streams. When multiple streams > 2 are supported this
+     * will be re-implemented.
+     */
+    if (msg->data.track.media_type == VIDEO) {
+        dcb->media_cap_tbl->cap[CC_VIDEO_1].enabled = FALSE;
+        dcb->media_cap_tbl->cap[CC_VIDEO_1].support_direction = SDP_DIRECTION_INACTIVE;
+        dcb->video_pref = SDP_DIRECTION_SENDRECV;
+    } else if (msg->data.track.media_type == AUDIO) {
+    	dcb->media_cap_tbl->cap[CC_AUDIO_1].enabled = FALSE;
+    	dcb->media_cap_tbl->cap[CC_AUDIO_1].support_direction = SDP_DIRECTION_INACTIVE;
+    } else {
+    	return (SM_RC_END);
+    }
+
+	return (SM_RC_END);
+}
 
 static void
 fsmdef_check_active_feature (fsmdef_dcb_t *dcb, cc_features_t ftr_id)
