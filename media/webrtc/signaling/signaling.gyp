@@ -67,8 +67,6 @@
       #
       'sources': [
         # Media Conduit 
-        './media-conduit/MediaEngineWrapper.h',
-        './media-conduit/MediaEngineWrapper.cpp',
         './media-conduit/AudioConduit.h',
         './media-conduit/AudioConduit.cpp',
         './media-conduit/VideoConduit.h',
