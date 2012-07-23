@@ -78,11 +78,17 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/webrtc/signaling/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \
+ -I$(topsrcdir)/media/webrtc/signaling/media-conduit\
  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
  $(NULL)
 
 CPP_UNIT_TESTS = \
   signaling_unittests.cpp \
+  mediaconduit_unittests.cpp \
+  webrtc_standalone_test.cpp \
   $(NULL)
 
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/media/webrtc/webrtc-config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
