@@ -152,6 +152,7 @@ class TestAgentReceive : public TestAgent {
   }
 
  private:
+  
 };
 
 
@@ -168,7 +169,6 @@ class MediaPipelineTest : public ::testing::Test {
     p1_.ConnectSocket(fds_[0]);
     p2_.ConnectSocket(fds_[1]);
   }
-
 
  protected:
   PRFileDesc *fds_[2];

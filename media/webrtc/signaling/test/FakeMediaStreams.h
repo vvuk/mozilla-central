@@ -74,7 +74,7 @@ public:
 class Fake_MediaStream {
 public:
   Fake_MediaStream () : mListener(NULL) {}
-  virtual ~Fake_MediaStream() {}
+  virtual ~Fake_MediaStream() { Stop(); }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
     mListener = aListener;
@@ -118,7 +118,10 @@ public:
   Fake_nsDOMMediaStream(Fake_MediaStream *stream) : 
       mMediaStream(stream) {}
 
-  virtual ~Fake_nsDOMMediaStream() {}
+  virtual ~Fake_nsDOMMediaStream() {
+    // Note: memory leak
+    mMediaStream->Stop();
+  }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_nsDOMMediaStream)
 
