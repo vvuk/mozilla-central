@@ -183,7 +183,6 @@
 @BINPATH@/components/dom_events.xpt
 @BINPATH@/components/dom_file.xpt
 @BINPATH@/components/dom_geolocation.xpt
-@BINPATH@/components/dom_media.xpt
 @BINPATH@/components/dom_media_bridge.xpt
 @BINPATH@/components/dom_network.xpt
 @BINPATH@/components/dom_notification.xpt
@@ -264,6 +263,7 @@
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
+@BINPATH@/components/peerconnection.xpt
 @BINPATH@/components/places.xpt
 @BINPATH@/components/plugin.xpt
 @BINPATH@/components/pref.xpt
