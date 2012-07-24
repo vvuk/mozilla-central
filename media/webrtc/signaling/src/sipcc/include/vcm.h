@@ -493,6 +493,17 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
 short vcmStartIceChecks(const char *peerconnection);
   
 
+/* Create Remote Stream
+ *  @param[in]  media capability index
+ *  @param[in]  pc handle
+ *  @param[out] stream id
+ *  @return 0 success, error failure
+ */
+short vcmCreateRemoteStream(
+             cc_mcapid_t mcap_id,
+             const char *peerconnection,
+             int *pc_stream_id);
+
 /*!
  *  Release the allocated port
  * @param[in] mcap_id   - media capability id (0 is audio)

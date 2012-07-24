@@ -783,28 +783,36 @@ cc_int32_t  CCAPI_CallInfo_getStatusCode(cc_callinfo_ref_t handle){
 
 
 /**
- * get media track table
+ * get media stream table
  * @param handle - call handle
- * @return status code
+ * @return status MediaStreamTable
  */
-MediaTrackTable*  CCAPI_CallInfo_getMediaTrackTable(cc_callinfo_ref_t handle) {
-  static const char *fname="CCAPI_CallInfo_getMediaTrackTable";
+MediaStreamTable*  CCAPI_CallInfo_getMediaStreams(cc_callinfo_ref_t handle) {
+  static const char *fname="CCAPI_CallInfo_getMediaStreams";
   session_data_t *data = (session_data_t *)handle;
-  MediaTrackTable* stream;
-  cc_remote_media_track_table_t *remote_media_track_tbl;
+  MediaTrack track;
+  MediaStreamTable* table = cpr_malloc(sizeof(MediaStreamTable));
+  if (!table)
+    return NULL;
 
   CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
 
-  if ( data != NULL){
-	  // TODO for now just do this for one track
-	  /*
-	  media_track_tbl = data->media_track_tbl;
-	  stream->stream_id = media_track_tbl->stream_id;
-	  stream->track[0].ref_id = media_track_tbl->track[0].ref_id;
-	  stream->track[0].video = media_track_tbl->track[0].video;
+  if (data != NULL) {
+    table->media_stream_id = data->media_stream_id;
+	table->num_tracks = 1;   /* this will change when we have multiple tracks per stream */
+	track.media_stream_track_id = data->media_stream_track_id;
+	table->track[0] = track;
+
+	/*
+	 * Partly implemented multi-track handling
+	   cc_table = data->media_tracks;
+	   table->stream_id = (unsigned int)cc_table->stream_id;
+	   table->num_tracks = (unsigned int)cc_table->num_tracks;
+	   track.track_id = cc_table->track[0].ref_id;
+	   table->track[0] = track;
 	*/
-     return stream;
+    return table;
   }
 
-  return NULL;
+  return table;
 }

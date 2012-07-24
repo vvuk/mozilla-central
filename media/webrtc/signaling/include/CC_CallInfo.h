@@ -361,10 +361,10 @@ namespace CSF
         virtual cc_int32_t getStatusCode() = 0;        
 
         /**
-           get media tracks
+           get media streams
            @param [in] handle - call info handle
-           @return code
+           @return media stream table
          */
-        virtual MediaTrackTable* getMediaTracks() = 0;
+        virtual MediaStreamTable* getMediaStreams() = 0;
     };
 };

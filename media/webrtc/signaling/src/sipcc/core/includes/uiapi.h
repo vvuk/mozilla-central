@@ -192,6 +192,8 @@ void ui_set_local_description(call_events event, line_t nLine, callid_t nCallID,
                  	 uint16_t call_instance_id, char* sdp, cc_int32_t status);
 void ui_set_remote_description(call_events event, line_t nLine, callid_t nCallID,
                  	 uint16_t call_instance_id, char* sdp, cc_int32_t status);
+void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID,
+                     uint16_t call_instance_id, cc_media_remote_track_table_t media_tracks);
 
 
 #endif

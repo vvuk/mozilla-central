@@ -819,6 +819,18 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
   return 0;
 }
 
+/*
+ * TODO: ekr
+ */
+short vcmCreateRemoteStream(
+		     cc_mcapid_t mcap_id,
+             const char *peerconnection,
+             int *pc_stream_id) {
+
+	*pc_stream_id = 9999;
+
+    return 0;
+}
 
 /**
  *   Should we remove this from external API

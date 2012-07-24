@@ -104,19 +104,41 @@ typedef enum {
     MEDIA_TABLE_SESSION
 } media_table_e;
 
-cc_remote_media_track_table_t g_remote_media_track_table = {
-      1,
+cc_media_remote_stream_table_t g_media_remote_stream_table = {
+    0,
+    {
+       {
+        0,
+        0,
+        {
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+        },
+      },
       {
-        {0,FALSE},
-        {1,FALSE},
-        {2,FALSE},
-        {3,FALSE},
-        {4,FALSE},
-        {5,FALSE},
-        {6,FALSE},
-        {7,FALSE},
-      }
+        0,
+        0,
+        {
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+          {0, FALSE},
+        },
+      },
+    }
 };
+
+
 
 /* Forward references */
 static cc_causes_t
@@ -217,22 +239,23 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
  *
  * @return           - pointer to the the media track table for session
  */
-static const cc_remote_media_track_table_t *gsmsdp_get_media_track_table (fsmdef_dcb_t *dcb_p)
+static const cc_media_remote_stream_table_t *gsmsdp_get_media_stream_table (fsmdef_dcb_t *dcb_p)
 {
-    static const char *fname = "gsmsdp_get_media_track_table";
+    static const char *fname = "gsmsdp_get_media_stream_table";
 
-    if ( dcb_p->remote_media_track_tbl == NULL ) {
-         dcb_p->remote_media_track_tbl = (cc_remote_media_track_table_t*) cpr_malloc(sizeof(cc_remote_media_track_table_t));
-         if ( dcb_p->remote_media_track_tbl == NULL ) {
+    if ( dcb_p->remote_media_stream_tbl == NULL ) {
+        dcb_p->remote_media_stream_tbl = (cc_media_remote_stream_table_t*) cpr_malloc(sizeof(cc_media_remote_stream_table_t));
+        if ( dcb_p->remote_media_stream_tbl == NULL ) {
+
              GSM_ERR_MSG(GSM_L_C_F_PREFIX"media track table malloc failed.\n",
                     dcb_p->line, dcb_p->call_id, fname);
              return NULL;
          }
     }
 
-    *(dcb_p->remote_media_track_tbl) = g_remote_media_track_table;
+    *(dcb_p->remote_media_stream_tbl) = g_media_remote_stream_table;
 
-    return (dcb_p->remote_media_track_tbl);
+    return (dcb_p->remote_media_stream_tbl);
 }
 
 
@@ -560,7 +583,7 @@ void gsmsdp_clean_media_list (fsmdef_dcb_t *dcb_p)
 void gsmsdp_init_media_list (fsmdef_dcb_t *dcb_p)
 {
     const cc_media_cap_table_t *media_cap_tbl;
-    const cc_remote_media_track_table_t *remote_media_track_tbl;
+    const cc_media_remote_track_table_t *media_track_tbl;
     const char                 fname[] = "gsmsdp_init_media_list";
 
     /* do the actual media element list initialization */
@@ -573,9 +596,9 @@ void gsmsdp_init_media_list (fsmdef_dcb_t *dcb_p)
                     dcb_p->line, dcb_p->call_id, fname);
     }
 
-    remote_media_track_tbl = gsmsdp_get_media_track_table(dcb_p);
+    media_track_tbl = gsmsdp_get_media_stream_table(dcb_p);
 
-    if (remote_media_track_tbl == NULL) {
+    if (media_track_tbl == NULL) {
         GSM_ERR_MSG(GSM_L_C_F_PREFIX"no media tracks available\n",
                     dcb_p->line, dcb_p->call_id, fname);
     }
@@ -3642,8 +3665,11 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
     sdp_direction_e remote_direction;
     boolean         result;
     int             sdpmode = 0;
-
     char           *session_pwd;
+    cc_action_data_t  data;
+    int             j=0;
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
     num_m_lines = sdp_get_num_media_lines(sdp_p->dest_sdp);
     if (num_m_lines == 0) {
@@ -3709,14 +3735,6 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                     /* new one can not be added */
                     unsupported_line = TRUE;
                     break;
-                }
-
-                config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-                if (sdpmode) {
-                    /* Add track to dcb,
-                     * This needs moving when we complete the media track work
-                     */
-                    gsmsdp_add_track(dcb_p, media);
                 }
 
                 /*
@@ -3887,12 +3905,25 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
             }
 
             if (!unsupported_line) {
-              int j;
 
-              /* Set ICE */
-              for (j=0; j<media->candidate_ct; j++) {
-                gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, media->level,
-                                          sdp_p->src_sdp, media->candidatesp[j]);
+              if (sdpmode) {
+                  int j;
+
+                  /* Set ICE */
+                  for (j=0; j<media->candidate_ct; j++) {
+                    gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, media->level,
+                                              sdp_p->src_sdp, media->candidatesp[j]);
+                  }
+
+                  /*
+                   * Add track to remote streams in dcb
+                   */
+                  int pc_stream_id = 0;
+
+                  lsm_add_remote_stream (dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
+
+                  gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
+
               }
             }
 
@@ -3960,13 +3991,15 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         /*
          * Update UI for Remote Stream Added
          */
-        config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
         if (sdpmode) {
-        	/* <emannion>  need to look at adding remote streams closer before
-        	 *             finishing this implementation
-            ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
-            		dcb_p->caller_id.call_instance_id);
-            */
+        	/*
+        	 * Bubble the stream added event up to the PC UI
+        	 */
+        	for (j=0; j < dcb_p->remote_media_stream_tbl->num_streams; j++ ) {
+
+                ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
+               		    dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
+        	}
         }
     }
     /*
@@ -5659,7 +5692,7 @@ gsmsdp_sdp_differs_from_previous_sdp (boolean rcv_only, fsmdef_media_t *media)
 
 
 /*
- * gsmsdp_add_track
+ * gsmsdp_add_remote_stream
  *
  * Description:
  *
@@ -5668,16 +5701,25 @@ gsmsdp_sdp_differs_from_previous_sdp (boolean rcv_only, fsmdef_media_t *media)
  *
  * Parameters:
  *
+ * idx   - Stream index
+ * pc_stream_id - stream id from vcm layer, will be set as stream id
+ *
  * dcb_p - Pointer to the DCB whose SDP is to be manipulated.
  * media - Pointer to the fsmdef_media_t for the current media entry.
  */
-void gsmsdp_add_track(fsmdef_dcb_t * dcb_p, fsmdef_media_t *media) {
-	cc_media_track_t track;
+void gsmsdp_add_remote_stream(uint16_t idx, int pc_stream_id, fsmdef_dcb_t *dcb_p, fsmdef_media_t *media) {
 
-	// TODO handle for multiple tracks
+ /*
+  * This function is in its infancy, but when complete will create a list
+  * of streams, each with its list of tracks and associated data.
+  * Currently this just creates 1 track per 1 stream.
+  */
 
-	dcb_p->remote_media_track_tbl->track[0].ref_id = media->refid;
-	dcb_p->remote_media_track_tbl->track[0].video = (media->type == 0 ? FALSE : TRUE);
+  dcb_p->remote_media_stream_tbl->num_streams++;
+  dcb_p->remote_media_stream_tbl->streams[idx].num_tracks = 1;
+  dcb_p->remote_media_stream_tbl->streams[idx].media_stream_id = pc_stream_id;
+  dcb_p->remote_media_stream_tbl->streams[idx].track[0].media_stream_track_id = idx+1;
+  dcb_p->remote_media_stream_tbl->streams[idx].track[0].video = (media->type == 0 ? FALSE : TRUE);
 }
 
 

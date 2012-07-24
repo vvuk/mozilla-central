@@ -404,6 +404,7 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
 
   std::string s_sdpstr;
   StatusCode code;
+  MediaStreamTable* stream;
 
   switch (state) {
     case CREATEOFFER:
@@ -465,10 +466,17 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
       break;
 
     case REMOTESTREAMADD:
-      // XXX: FIXME
-      //MediaTrackTable* tracks = info->getMediaTracks();
+      stream = info->getMediaStreams();
       if (mPCObserver) {
-        //mPCObserver->OnAddStream(tracks);
+    	  nsRefPtr<nsDOMMediaStream> mMediaStream;
+    	  // <emannion> can someone update the IDL for OnAddStream
+    	  //            and create the MediaStream to pass up
+    	  // next two lines show how to get data.
+    	  // this will be vastly improved soon
+    	  unsigned int sid = stream->media_stream_id;
+    	  unsigned int tid = stream->track[0].media_stream_track_id;
+
+          // mPCObserver->OnAddStream(mMediaStream);
       }
       break;
 

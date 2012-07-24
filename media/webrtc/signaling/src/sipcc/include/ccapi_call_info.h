@@ -331,11 +331,10 @@ cc_string_t CCAPI_CallInfo_getSDP(cc_callinfo_ref_t handle);
 cc_int32_t  CCAPI_CallInfo_getStatusCode(cc_callinfo_ref_t handle);
 
 /**
- * get media track table
+ * get media stream table
  * @param [in] handle - call info handle
  * @return media track table
  */
-MediaTrackTable*  CCAPI_CallInfo_getMediaTrackTable(cc_callinfo_ref_t handle);
-
+MediaStreamTable* CCAPI_CallInfo_getMediaStreams(cc_callinfo_ref_t handle);
 
 #endif /* _CCAPIAPI_CALL_INFO_H_ */
