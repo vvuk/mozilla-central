@@ -23,7 +23,6 @@ DIRS		= \
 		protocol \
 		system \
 		ipc  \
-	        sctp \
         $(NULL)
 
 ifdef NECKO_WIFI
