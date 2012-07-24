@@ -38,7 +38,6 @@
 #include "CC_SIPCCDeviceInfo.h"
 #include "CSFLog.h"
 #include "vcm.h"
-#include "PeerConnection.h"
 #include "PeerConnectionImpl.h"
 #include "PeerConnectionCtx.h"
 #include "cpr_socket.h"
@@ -52,7 +51,7 @@ PeerConnectionCtx* PeerConnectionCtx::instance;
 PeerConnectionCtx* PeerConnectionCtx::GetInstance() {
   if (instance)
     return instance;
-  
+
   CSFLogDebug(logTag, "Creating PeerConnectionCtx");
   PeerConnectionCtx *ctx = new PeerConnectionCtx();
 
@@ -60,7 +59,7 @@ PeerConnectionCtx* PeerConnectionCtx::GetInstance() {
   PR_ASSERT(NS_SUCCEEDED(res));
   if (!NS_SUCCEEDED(res))
     return NULL;
-  
+
   instance = ctx;
 
   return instance;
@@ -112,11 +111,11 @@ nsresult PeerConnectionCtx::Initialize() {
     return NS_ERROR_FAILURE;
 
   mCCM->addCCObserver(this);
-  mDevice = mCCM->getActiveDevice();	
+  mDevice = mCCM->getActiveDevice();
   if (!mDevice.get())
     return NS_ERROR_FAILURE;
 
-  ChangeSipccState(PeerConnectionInterface::kStarting);
+  ChangeSipccState(PeerConnectionImpl::kStarting);
 
   return NS_OK;
 }
@@ -134,15 +133,15 @@ CSF::CC_CallPtr PeerConnectionCtx::createCall() {
 void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info ) {
   CSFLogDebug(logTag, "onDeviceEvent()");
   cc_service_state_t state = info->getServiceState();
-	
-  if (CC_STATE_INS == state) {	        
-    // SIPCC is up	
-    if (PeerConnectionInterface::kStarting == mSipccState ||
-        PeerConnectionInterface::kIdle == mSipccState) {
-      ChangeSipccState(PeerConnectionInterface::kStarted);
+
+  if (CC_STATE_INS == state) {
+    // SIPCC is up
+    if (PeerConnectionImpl::kStarting == mSipccState ||
+        PeerConnectionImpl::kIdle == mSipccState) {
+      ChangeSipccState(PeerConnectionImpl::kStarted);
     }
   }
-}  
+}
 
 // Demux the call event to the right PeerConnection
 void PeerConnectionCtx::onCallEvent(ccapi_call_event_e callEvent,
@@ -171,7 +170,7 @@ void PeerConnectionCtx::onCallEvent(ccapi_call_event_e callEvent,
 #include <netdb.h>
 
 // POSIX Only Implementation
-std::string GetLocalActiveInterfaceAddressSDP() 
+std::string GetLocalActiveInterfaceAddressSDP()
 {
 	std::string local_ip_address = "0.0.0.0";
 #ifndef WIN32
@@ -188,14 +187,13 @@ std::string GetLocalActiveInterfaceAddressSDP()
 	if(ret == SOCKET_ERROR)
 	{
 	}
- 
+
 	struct sockaddr_storage source_address;
 	socklen_t addrlen = sizeof(source_address);
 	ret = getsockname(
 			sock_desc_, reinterpret_cast<struct sockaddr*>(&source_address),&addrlen);
 
-	
-	//get the  ip address 
+	//get the  ip address
 	local_ip_address = NetAddressToStringSDP(
 						reinterpret_cast<const struct sockaddr*>(&source_address),
 						sizeof(source_address));

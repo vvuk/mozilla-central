@@ -42,7 +42,6 @@
 #include <vector>
 #include "base/linked_ptr.h"
 
-
 #ifndef DECLARE_PTR
 #define DECLARE_PTR(className)\
     class className;\

@@ -166,6 +166,7 @@ COMPONENT_LIBS += \
   storagecomps \
   rdf \
   windowds \
+  peerconnection \
   $(NULL)
 
 ifdef BUILD_CTYPES

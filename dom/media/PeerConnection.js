@@ -9,27 +9,166 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+const PC_CONTRACT = "@mozilla.org/dom/peerconnection;1";
+const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
+
 function PeerConnection() {
-  dump("!!!!!!! PeerConnection constructor called\n\n");
+  this._pc = Cc["@mozilla.org/peerconnection;1"].
+             createInstance(Ci.IPeerConnection);
+  this._observer = new PeerConnectionObserver(this._pc);
+  dump("!!!!!!! mozPeerConnection constructor called " + this._pc + "\n\n");
+  this._pc.initialize(this._observer);
 }
 PeerConnection.prototype = {
 
-  classID: Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}"),
+  _pc: null,
+  _observer: null,
+  _onCreateOfferSuccess: null,
+  _onCreateOfferFailure: null,
+  _onCreateAnswerSuccess: null,
+  _onCreateAnswerFailure: null,
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMGlobalObjectConstructor,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsIDOMPeerConnection,
-                                         Ci.nsIObserver]),
+  classID: PC_CID,
 
-  _outerID: null,
-  _innerID: null,
+  classInfo: XPCOMUtils.generateCI({classID: PC_CID,
+                                    contractID: PC_CONTRACT,
+                                    classDescription: "PeerConnection",
+                                    interfaces: [Ci.nsIDOMRTCPeerConnection],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
 
-  init: function PC_init(win) {
-    dump("!!!!!!! init called with " + win + "!!\n\n")
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMRTCPeerConnection]),
+
+  createOffer: function(onSuccess, onError, constraints) {
+    dump("!!! createOffer called\n");
+    this._onCreateOfferSuccess = onSuccess;
+    this._onCreateAnswerFailure = onError;
+
+    // TODO: Implement constraints/hints.
+    if (!constraints) {
+      constraints = "";
+    }
+    this._pc.createOffer(constraints);
+
+    dump("!!! createOffer returned\n");
   },
 
-  addStream: function PC_addStream(stream) {
-    dump("!!!!!! PeerConnection.addStream called!!!!\n\n");
+  createAnswer: function(offer, onSuccess, onError, constraints, provisional) {
+    dump("!!! createAnswer called\n");
+    this._onCreateAnswerSuccess = onSuccess;
+    this._onCreateAnswerFailure = onError;
+
+    if (!constraints) {
+      constraints = "";
+    }
+
+    // TODO: Implement provisional answer.
+    this._pc.createAnswer(constraints, offer);
+
+    dump("!!! createAnswer returned\n");
+  },
+
+  setLocalDescription: function(action, description) {
+    dump("!!! setLocalDescription called\n");
+    this._pc.setLocalDescription(action, description);
+    dump("!!! setLocalDescription returned\n");
+  },
+
+  setRemoteDescription: function(action, description) {
+    dump("!!! setRemoteDescription called\n");
+    this._pc.setRemoteDescription(action, description);
+    dump("!!! setRemoteDescription returned\n");
+  },
+
+  updateIce: function(config, constraints, restart) {
+    dump("!!! updateIce called\n");
+    dump("!!! updateIce returned\n");
+    return Cr.NS_ERROR_NOT_IMPLEMENTED;
+  },
+
+  addIceCandidate: function(candidate) {
+    dump("!!! addIceCandidate called\n");
+    dump("!!! addIceCandidate returned\n");
+    return Cr.NS_ERROR_NOT_IMPLEMENTED;
+  },
+
+  addStream: function(stream, constraints) {
+    dump("!!! addStream called\n");
+    // TODO: Implement constraints.
+    this._pc.addStream(stream);
+    dump("!!! addStream returned\n");
+  },
+
+  removeStream: function(stream) {
+    dump("!!! removeStream called\n");
+    this._pc.removeStream(stream);
+    dump("!!! removeStream returned\n");
+  },
+
+  close: function() {
+    dump("!!! close called\n");
+    this._pc.closeStreams();
+    this._pc.close();
+    dump("!!! close returned");
+  }
+};
+
+// This is a seperate object because we don't want to expose it to DOM.
+function PeerConnectionObserver(pc) {
+  this._pc = pc;
+}
+PeerConnectionObserver.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver]),
+
+  onCreateOfferSuccess: function(offer) {
+
+  },
+
+  onCreateOfferError: function(code) {
+
+  },
+
+  onCreateAnswerSuccess: function(answer) {
+
+  },
+
+  onCreateAnswerError: function(code) {
+
+  },
+
+  onSetLocalDescriptionSuccess: function(code) {
+
+  },
+
+  onSetRemoteDescriptionSuccess: function(code) {
+
+  },
+
+  onSetLocalDescriptionError: function(code) {
+
+  },
+
+  onSetRemoteDescriptionError: function(code) {
+
+  },
+
+  onStateChange: function(state) {
+
+  },
+
+  // void onAddStream(MediaTrackTable* stream) = 0; XXX: figure out this one later
+
+  onRemoveStream: function() {
+
+  },
+  onAddTrack: function() {
+
+  },
+  onRemoveTrack: function() {
+
+  },
+
+  foundIceCandidate: function(candidate) {
+
   }
 };
 

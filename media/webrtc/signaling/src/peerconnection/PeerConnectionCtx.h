@@ -38,9 +38,9 @@
 #include "CC_Call.h"
 #include "CC_Observer.h"
 
-namespace sipcc {
+#include "PeerConnectionImpl.h"
 
-class PeerConnectionImpl;
+namespace sipcc {
 
 // Currently SIPCC only allows a single stack instance to exist in a process
 // at once. This class implements a singleton object that wraps that
@@ -60,10 +60,10 @@ class PeerConnectionCtx : public CSF::CC_Observer {
   // Create a SIPCC Call
   CSF::CC_CallPtr createCall();
 
-  PeerConnectionInterface::SipccState sipcc_state() { return mSipccState; }
+  PeerConnectionImpl::SipccState sipcc_state() { return mSipccState; }
 
  private:
-  PeerConnectionCtx() :  mSipccState(PeerConnectionInterface::kIdle),
+  PeerConnectionCtx() :  mSipccState(PeerConnectionImpl::kIdle),
                          mCCM(NULL), mDevice(NULL) {}
   // This is a singleton, so don't copy construct it, etc.
   PeerConnectionCtx(const PeerConnectionCtx& other) MOZ_DELETE;
@@ -72,9 +72,8 @@ class PeerConnectionCtx : public CSF::CC_Observer {
 
   nsresult Initialize();
   nsresult Cleanup();
-  
 
-  void ChangeSipccState(PeerConnectionInterface::SipccState state) {
+  void ChangeSipccState(PeerConnectionImpl::SipccState state) {
     mSipccState = state;
   }
 
@@ -83,9 +82,9 @@ class PeerConnectionCtx : public CSF::CC_Observer {
   std::string mAddr;
 
   // SIPCC objects
-  PeerConnectionInterface::SipccState mSipccState;  // TODO(ekr@rtfm.com): refactor this out? What does it do?
+  PeerConnectionImpl::SipccState mSipccState;  // TODO(ekr@rtfm.com): refactor this out? What does it do?
   CSF::CallControlManagerPtr mCCM;
-  CSF::CC_DevicePtr mDevice; 
+  CSF::CC_DevicePtr mDevice;
 
   static PeerConnectionCtx *instance;
 };
