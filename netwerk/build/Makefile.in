@@ -33,8 +33,6 @@ SHARED_LIBRARY_LIBS = \
   $(foreach d,$(filter-out about,$(NECKO_PROTOCOLS)), \
     ../protocol/$(d)/$(LIB_PREFIX)nk$(d)_s.$(LIB_SUFFIX)) \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
-  ../sctp/datachannel/$(LIB_PREFIX)nkdatachan_s.$(LIB_SUFFIX) \
-  ../sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX) \
   $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)
