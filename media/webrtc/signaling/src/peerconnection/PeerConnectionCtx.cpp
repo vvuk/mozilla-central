@@ -149,19 +149,16 @@ void PeerConnectionCtx::onCallEvent(ccapi_call_event_e callEvent,
                                     CSF::CC_CallPtr call,
                                     CSF::CC_CallInfoPtr info) {
   CSFLogDebug(logTag, "onCallEvent()");
-  PeerConnectionImpl* pc = PeerConnectionImpl::AcquireInstance(
-      call->getPeerConnection());
+  mozilla::ScopedDeletePtr<PeerConnectionWrapper> pc(
+    PeerConnectionImpl::AcquireInstance(
+      call->getPeerConnection()));
 
   if (!pc)  // This must be an event on a dead PC. Ignore
     return;
 
   CSFLogDebug(logTag, "Calling PC");
-  pc->onCallEvent(callEvent, call, info);
-
-  pc->ReleaseInstance();
+  pc->impl()->onCallEvent(callEvent, call, info);
 }
-
-
 
 
 #include <sys/socket.h>

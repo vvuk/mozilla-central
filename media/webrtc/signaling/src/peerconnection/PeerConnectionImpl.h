@@ -44,6 +44,7 @@
 #include "CC_Device.h"
 #include "CC_Call.h"
 #include "CC_Observer.h"
+#include "MediaPipeline.h"
 
 namespace sipcc {
 
@@ -70,17 +71,23 @@ public:
     mozilla::StreamTime aDesiredTime) {}
 
   nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
+
   void ExpectAudio();
   void ExpectVideo();
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
   
 private:
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   nsRefPtr<nsDOMMediaStream> mMediaStream;
   nsTArray<mozilla::TrackID> mAudioTracks;
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
-  
+
+
+class PeerConnectionWrapper;
+
 class PeerConnectionImpl : public PeerConnectionInterface,
                            public sigslot::has_slots<> {
 public:
@@ -114,7 +121,7 @@ public:
   virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
 
   // Handle system to allow weak references to be passed through C code
-  static PeerConnectionImpl *AcquireInstance(const std::string& handle);
+  static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
   virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
 
@@ -133,7 +140,8 @@ public:
     return mIceStreams[i];
   }
 
-
+  // Get a specific local stream
+  nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
   
 private:
   void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
@@ -165,6 +173,22 @@ private:
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+};
+
+// This is what is returned when you acquire on a handle
+class PeerConnectionWrapper {
+ public:
+  PeerConnectionWrapper(PeerConnectionImpl *impl) : impl_(impl) {}
+
+  ~PeerConnectionWrapper() {
+    if (impl_)
+      impl_->ReleaseInstance();
+  }
+
+  PeerConnectionImpl *impl() { return impl_; }
+
+ private:
+  PeerConnectionImpl *impl_;
 };
  
 }  // end sipcc namespace

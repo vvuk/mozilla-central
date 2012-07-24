@@ -54,7 +54,10 @@ using namespace std;
 #include "ssl.h"
 #include "prthread.h"
 
+#include "FakeMediaStreams.h"
+#include "FakeMediaStreamsImpl.h"
 #include "PeerConnectionImpl.h"
+#include "runnable_utils.h"
 
 #include "mtransport_test_utils.h"
 MtransportTestUtils test_utils;
@@ -266,9 +269,19 @@ class SignalingAgent {
   void CreateOffer(const std::string hints, bool audio, bool video) {
 
     // Create a media stream as if it came from GUM
-    nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+    mozilla::RefPtr<Fake_AudioStreamSource> audio_stream = 
+      new Fake_AudioStreamSource();
 
+    nsresult ret;
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(audio_stream, &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
+
+    ASSERT_TRUE(NS_SUCCEEDED(ret));
+
+    
     // store in object to be used by RemoveStream
+    nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream(audio_stream);
     domMediaStream_ = domMediaStream;
 
 
@@ -484,6 +497,12 @@ TEST_F(SignalingTest, CreateOfferRemoveStream)
 TEST_F(SignalingTest, OfferAnswer)
 {
   OfferAnswer("", "");
+}
+
+TEST_F(SignalingTest, FullCall)
+{
+  OfferAnswer("", "");
+  ASSERT_TRUE_WAIT(false, 5000);
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)

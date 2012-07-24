@@ -38,8 +38,8 @@ class MediaPipeline {
   MediaPipeline(Direction direction,
                 nsRefPtr<nsDOMMediaStream> stream,
                 RefPtr<MediaSessionConduit> conduit,
-                TransportFlow* rtp_transport,
-                TransportFlow* rtcp_transport) :
+                mozilla::RefPtr<TransportFlow> rtp_transport,
+                mozilla::RefPtr<TransportFlow> rtcp_transport) :
       direction_(direction),
       stream_(stream),
       conduit_(conduit),
@@ -59,8 +59,8 @@ class MediaPipeline {
   Direction direction_;
   nsRefPtr<nsDOMMediaStream> stream_;
   RefPtr<MediaSessionConduit> conduit_;
-  TransportFlow *rtp_transport_;
-  TransportFlow *rtcp_transport_;
+  RefPtr<TransportFlow> rtp_transport_;
+  RefPtr<TransportFlow> rtcp_transport_;
 };
 
 
@@ -70,8 +70,8 @@ class MediaPipelineTransmit : public MediaPipeline {
  public: 
   MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream> stream, 
                         RefPtr<MediaSessionConduit> conduit,
-                        TransportFlow* rtp_transport,
-                        TransportFlow* rtcp_transport) :
+                        mozilla::RefPtr<TransportFlow> rtp_transport,
+                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
       transport_(new PipelineTransport(this)),
       listener_(new PipelineListener(this)) {
@@ -147,8 +147,8 @@ class MediaPipelineReceive : public MediaPipeline,
  public: 
   MediaPipelineReceive(nsRefPtr<nsDOMMediaStream> stream, 
                        RefPtr<MediaSessionConduit> conduit,
-                       TransportFlow* rtp_transport,
-                       TransportFlow* rtcp_transport) :
+                       mozilla::RefPtr<TransportFlow> rtp_transport,
+                       mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(RECEIVE, stream, conduit, rtp_transport, rtcp_transport) {
     PR_ASSERT(rtp_transport_);
 
@@ -181,8 +181,8 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
  public: 
   MediaPipelineReceiveAudio(nsRefPtr<nsDOMMediaStream> stream,
                             RefPtr<AudioSessionConduit> conduit,
-                            TransportFlow* rtp_transport,
-                            TransportFlow* rtcp_transport) :
+                            mozilla::RefPtr<TransportFlow> rtp_transport,
+                            mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipelineReceive(stream, conduit, rtp_transport, rtcp_transport),
       listener_(new PipelineListener(this)) {
     Init();

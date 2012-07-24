@@ -469,14 +469,14 @@ void PeerConnectionImpl::ChangeReadyState(PeerConnectionInterface::ReadyState re
     mPCObserver->OnStateChange(PeerConnectionObserver::kReadyState);
 }
 
-PeerConnectionImpl *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
+PeerConnectionWrapper *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
   if (peerconnections.find(handle) == peerconnections.end())
     return NULL;
   
   PeerConnectionImpl *impl = peerconnections[handle];
   impl->AddRef();
 
-  return impl;
+  return new PeerConnectionWrapper(impl);
 }
 
 void PeerConnectionImpl::ReleaseInstance() {
@@ -509,6 +509,19 @@ void PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
 
 PeerConnectionInterface::IceState PeerConnectionImpl::ice_state() {
   return mIceState;
+}
+
+nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
+  if (index >= mLocalSourceStreams.Length())
+    return NULL;
+  
+  PR_ASSERT(mLocalSourceStreams[index]);
+  return mLocalSourceStreams[index];
+}
+
+void LocalSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  mPipelines[track] = pipeline;
 }
 
 }  // end sipcc namespace

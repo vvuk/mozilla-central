@@ -352,6 +352,7 @@ typedef struct vcm_audioAttrs_t_ {
  */
 typedef struct vcm_attrs_t_ {
   cc_boolean         mute;
+  cc_boolean         is_video;
   vcm_audioAttrs_t audio; /**< audio line attribs */
   vcm_videoAttrs_t video; /**< Video Atrribs */
 } vcm_mediaAttrs_t;
@@ -451,6 +452,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         int *candidate_ct /* Out */
 );
 
+
 /* Get ICE global parameters (ufrag and pwd)
  *
  *  @param[in]  peerconnection - the peerconnection in use
@@ -491,7 +493,8 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
  *  @return 0 success, error failure
  */
 short vcmStartIceChecks(const char *peerconnection);
-  
+
+
 
 /*!
  *  Release the allocated port
@@ -584,6 +587,45 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         vcm_crypto_algorithmID algorithmID,
         vcm_crypto_key_t *tx_key,
         vcm_mediaAttrs_t *attrs);
+
+
+/**
+ *  start tx stream
+ *  Same concept as vcmTxStart but for ICE/PeerConnection-based flowso
+ *
+ *  @param[in]   mcap_id      - media cap id
+ *  @param[in]   group_id     - group identifier to which the stream belongs
+ *  @param[in]   stream_id    - stream id of the given media type.
+ *  @param[in]   level        - the m-line index
+ *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
+ *  @param[i]n   pc_track_id  - the track within the media stream
+ *  @param[in]   call_handle  - call handle
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]   payload      - payload type
+ *  @param[in]   tos          - bit marking
+ *  @param[in]   algorithmID  - crypto alogrithm ID
+ *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   attrs        - media attributes
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
+ *
+ */
+
+  int vcmTxStartICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        int level,
+        int pc_stream_id,
+        int pc_track_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        vcm_media_payload_type_t payload,
+        short tos,
+        vcm_crypto_algorithmID algorithmID,
+        vcm_crypto_key_t *tx_key,
+        vcm_mediaAttrs_t *attrs);
+
+
 
 /*!
  *  Close the receive stream.
@@ -911,11 +953,12 @@ int vcmDtmfBurst(int digit, int duration, int direction);
  */
 int vcmGetILBCMode(); 
 
-
 //Using C++ for gips. This is the end of extern "C" above.
 #ifdef __cplusplus
 }
 #endif
 
+
+  
 
 #endif /* _VCM_H_ */

@@ -707,7 +707,8 @@ typedef struct cc_media_cap_t_ {
     boolean           enabled;       /* this media is enabled or disabled */
     boolean           support_security; /* security is supported          */
     sdp_direction_e   support_direction;/* supported direction            */
-    cc_media_track_id_t  pc_track;        /* The track ID in the peer connection; TODO(ekr@rtfm.com): revisit */
+    cc_media_stream_id_t pc_stream;       /* The media stream in the PC */
+    cc_media_track_id_t  pc_track;        /* The track ID in the media stream */
 } cc_media_cap_t;
 
 typedef struct cc_media_cap_table_t_ {
@@ -752,6 +753,7 @@ typedef struct cc_feature_data_pc_t_ {
 } cc_feature_data_pc_t;
 
 typedef struct cc_feature_data_track_t_ {
+  cc_media_stream_id_t stream_id;
   cc_media_track_id_t  track_id;
   cc_media_type_t      media_type;
 } cc_feature_data_track_t;
