@@ -465,36 +465,36 @@ class SignalingTest : public ::testing::Test {
 };
 
 
-TEST_F(SignalingTest, JustInit)
+TEST_F(SignalingTest, DISABLED_JustInit)
 {
 }
 
-TEST_F(SignalingTest, CreateOfferNoHints)
+TEST_F(SignalingTest, DISABLED_CreateOfferNoHints)
 {
   CreateOffer("");
 }
 
-TEST_F(SignalingTest, CreateSetOffer)
+TEST_F(SignalingTest, DISABLED_CreateSetOffer)
 {
   CreateSetOffer("");
 }
 
-TEST_F(SignalingTest, CreateOfferVideoOnly)
+TEST_F(SignalingTest, DISABLED_CreateOfferVideoOnly)
 {
   CreateOfferVideoOnly("");
 }
 
-TEST_F(SignalingTest, CreateOfferAudioOnly)
+TEST_F(SignalingTest, DISABLED_CreateOfferAudioOnly)
 {
   CreateOfferAudioOnly("");
 }
 
-TEST_F(SignalingTest, CreateOfferRemoveStream)
+TEST_F(SignalingTest, DISABLED_CreateOfferRemoveStream)
 {
 	CreateOfferRemoveStream("");
 }
 
-TEST_F(SignalingTest, OfferAnswer)
+TEST_F(SignalingTest, DISABLED_OfferAnswer)
 {
   OfferAnswer("", "");
 }
@@ -502,7 +502,7 @@ TEST_F(SignalingTest, OfferAnswer)
 TEST_F(SignalingTest, FullCall)
 {
   OfferAnswer("", "");
-  ASSERT_TRUE_WAIT(false, 5000);
+  ASSERT_TRUE_WAIT(false, 10000);
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)

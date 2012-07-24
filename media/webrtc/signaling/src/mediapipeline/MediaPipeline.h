@@ -17,7 +17,7 @@
 #include "MediaConduitInterface.h"
 #include "AudioSegment.h"
 #include "VideoSegment.h"
-#include "TransportFlow.h"
+#include "transportflow.h"
 
 namespace mozilla {
 
