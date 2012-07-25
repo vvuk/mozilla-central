@@ -558,6 +558,41 @@ int vcmRxStart(cc_mcapid_t mcap_id,
         vcm_crypto_key_t *rx_key,
         vcm_mediaAttrs_t *attrs);
 
+
+/**
+ *  start rx stream
+ *  Same concept as vcmRxStart but for ICE/PeerConnection-based flows
+ *
+ *  @param[in]   mcap_id      - media cap id
+ *  @param[in]   group_id     - group identifier to which the stream belongs
+ *  @param[in]   stream_id    - stream id of the given media type.
+ *  @param[in]   level        - the m-line index
+ *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
+ *  @param[i]n   pc_track_id  - the track within the media stream
+ *  @param[in]   call_handle  - call handle
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]   payload      - payload type
+ *  @param[in]   algorithmID  - crypto alogrithm ID
+ *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   attrs        - media attributes
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
+ *
+ */
+
+int vcmRxStartICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        int level,
+        int pc_stream_id,
+        int pc_track_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        vcm_media_payload_type_t payload,
+        vcm_crypto_algorithmID algorithmID,
+        vcm_crypto_key_t *tx_key,
+        vcm_mediaAttrs_t *attrs);
+
 /**
  *  start tx stream
  *  Note: For video calls, for a given call handle there will be

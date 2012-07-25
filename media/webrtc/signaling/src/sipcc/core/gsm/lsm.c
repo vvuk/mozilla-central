@@ -1031,8 +1031,18 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     sdpmode = 0;
                 	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
                         if (dcb->peerconnection) {
-                          fprintf(stderr, "******** THIS IS WHERE MEDIA WOULD START ******** \n");
-                          ret_val = CC_RC_SUCCESS;
+                          ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
+                            media->level,
+                            dcb->media_cap_tbl->cap[media->cap_index].pc_stream,
+                            dcb->media_cap_tbl->cap[media->cap_index].pc_track,
+                            lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                            dcb->peerconnection,
+                            vcmRtpToMediaPayload(media->payload,
+                            media->remote_dynamic_payload_type_value,
+                            media->mode),
+                            FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                            FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                            &attrs);
                         }
                         else if (!sdpmode) {
                           ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,

@@ -1038,7 +1038,6 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
-        short tos,
         vcm_crypto_algorithmID algorithmID,
         vcm_crypto_key_t *tx_key,
         vcm_mediaAttrs_t *attrs)
@@ -1050,11 +1049,20 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
   if (!pc) {
     return VCM_ERROR;
   }
-
+  
   // TODO(ekr@rtfm.com): Remote source?
-  nsRefPtr<sipcc::LocalSourceStreamInfo> stream;
-
-  // pc->impl()->GetLocalStream(pc_stream_id);
+  PRUint32 hints = 0;
+  
+  if (CC_IS_AUDIO(mcap_id)) {
+    hints |= nsDOMMediaStream::HINT_CONTENTS_AUDIO;
+  }
+  if (CC_IS_VIDEO(mcap_id)) {
+    hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
+  }
+    
+  nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
+  nsRefPtr<sipcc::RemoteSourceStreamInfo> stream = new
+    sipcc::RemoteSourceStreamInfo(ms);
   
   // Create the transport flows
   mozilla::RefPtr<TransportFlow> rtp_flow = 
@@ -1076,10 +1084,12 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     // Instantiate an appropriate conduit
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
       mozilla::AudioSessionConduit::Create();
-#if 0
-    if (conduit->ConfigureRecvMediaCodec(config))
+
+    std::vector<mozilla::AudioCodecConfig *> configs;
+    configs.push_back(config_raw);
+
+    if (conduit->ConfigureRecvMediaCodecs(configs))
       return VCM_ERROR;
-#endif
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,

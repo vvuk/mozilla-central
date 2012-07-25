@@ -102,6 +102,16 @@ public:
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMEDIASTREAM
+    
+  static already_AddRefed<Fake_nsDOMMediaStream> CreateInputStream(PRUint32 aHintContents) {
+    Fake_SourceMediaStream *source = new Fake_SourceMediaStream();
+    
+    Fake_nsDOMMediaStream *ds = new Fake_nsDOMMediaStream(source);
+    ds->SetHintContents(aHintContents);
+    ds->AddRef();
+    
+    return ds;
+  }
 
   Fake_MediaStream *GetStream() { return mMediaStream; }
 

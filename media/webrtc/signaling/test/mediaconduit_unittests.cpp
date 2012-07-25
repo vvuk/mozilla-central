@@ -13,7 +13,7 @@ using namespace std;
 #include "mozilla/Scoped.h"
 #include <MediaConduitInterface.h>
 #include "nsStaticComponents.h"
-
+#include "FakeMediaStreamsImpl.h"
 
 #include "resource_mgr.h"
 

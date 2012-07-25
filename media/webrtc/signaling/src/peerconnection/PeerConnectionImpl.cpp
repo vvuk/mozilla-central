@@ -81,6 +81,13 @@ LocalSourceStreamInfo::GetMediaStream()
   return mMediaStream;
 }
 
+
+nsRefPtr<nsDOMMediaStream>
+RemoteSourceStreamInfo::GetMediaStream()
+{
+  return mMediaStream;
+}
+
 /* If the ExpectAudio hint is on we will add a track at the default first
  * audio track ID (0)
  * FIX - Do we need to iterate over the tracks instead of taking these hints?
@@ -549,6 +556,11 @@ nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
 }
 
 void LocalSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  mPipelines[track] = pipeline;
+}
+
+void RemoteSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
   mPipelines[track] = pipeline;
 }

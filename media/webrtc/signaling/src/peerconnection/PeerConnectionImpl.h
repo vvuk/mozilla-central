@@ -70,6 +70,21 @@ private:
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
 
+class RemoteSourceStreamInfo {
+ public:
+  RemoteSourceStreamInfo(nsDOMMediaStream* aMediaStream) :
+      mMediaStream(aMediaStream),
+      mPipelines() {}
+
+  nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);  
+
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo);
+ private:
+  nsRefPtr<nsDOMMediaStream> mMediaStream;  
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
+};
+
 class PeerConnectionWrapper;
 
 class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
@@ -137,6 +152,12 @@ public:
   // Get a specific local stream
   nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
   
+  // Get a specific remote stream
+  nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int index);
+
+  // Add a remote stream. Returns the index in index
+  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info, int *index);
+
 private:
   void ChangeReadyState(ReadyState ready_state);
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
@@ -155,6 +176,10 @@ private:
   // A list of streams returned from GetUserMedia
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
+
+  // A list of streams provided by the other side
+  PRLock *mRemoteSourceStreamsLock;
+  nsTArray<nsRefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
 
   // A handle to refer to this PC with
   std::string mHandle;
