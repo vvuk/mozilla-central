@@ -82,6 +82,39 @@ void recv_thread_destroy(void);
 	((caddr_t) ap + (ap->sa_len ? ROUNDUP(ap->sa_len, sizeof (uint32_t)) : sizeof(uint32_t)))
 #endif
 
+#if defined(__Userspace_os_Windows)
+/* Emulate if_nametoindex() for WinXP */
+int
+winxp_if_nametoindex (const char *ifname)
+{
+  IP_ADAPTER_ADDRESSES *addresses, *addr;
+  ULONG status, size;
+  int index = 0;
+
+  if (!ifname)
+    return 0;
+
+  size = 0;
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, NULL, &size);
+  if (status != ERROR_BUFFER_OVERFLOW)
+    return 0;
+
+  addresses = malloc(size);
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &size);
+  if (status == ERROR_SUCCESS) {
+    for (addr = addresses; addr; addr = addr->Next) {
+      if (addr->AdapterName && !strcmp (ifname, addr->AdapterName)) {
+        index = addr->IfIndex;
+        break;
+      }
+    }
+  }
+
+  free(addresses);
+  return index;
+}
+#endif
+
 #if !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Linux)
 static void
 sctp_get_rtaddrs(int addrs, struct sockaddr *sa, struct sockaddr **rti_info)

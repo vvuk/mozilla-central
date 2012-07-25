@@ -217,6 +217,10 @@ typedef char* caddr_t;
 #define SCTP_IFN_IS_IFT_LOOP(ifn)	((ifn)->ifn_type == IFT_LOOP)
 #define SCTP_ROUTE_IS_REAL_LOOP(ro) ((ro)->ro_rt && (ro)->ro_rt->rt_ifa && (ro)->ro_rt->rt_ifa->ifa_ifp && (ro)->ro_rt->rt_ifa->ifa_ifp->if_type == IFT_LOOP)
 
+#if (WINVER < 0x600)
+#define if_nametoindex(x) winxp_if_nametoindex(x)
+#endif
+
 /*
  * Access to IFN's to help with src-addr-selection
  */
