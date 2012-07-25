@@ -995,6 +995,95 @@ int vcmRxStart(cc_mcapid_t mcap_id,
     return VCM_ERROR;
 }
 
+
+/**
+ *  start rx stream
+ *  Same concept as vcmRxStart but for ICE/PeerConnection-based flows
+ *
+ *  @param[in]   mcap_id      - media cap id
+ *  @param[in]   group_id     - group identifier to which the stream belongs
+ *  @param[in]   stream_id    - stream id of the given media type.
+ *  @param[in]   level        - the m-line index
+ *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
+ *  @param[i]n   pc_track_id  - the track within the media stream
+ *  @param[in]   call_handle  - call handle
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]   payload      - payload type
+ *  @param[in]   algorithmID  - crypto alogrithm ID
+ *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   attrs        - media attributes
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
+ *
+ */
+
+int vcmRxStartICE(cc_mcapid_t mcap_id,
+        cc_groupid_t group_id,
+        cc_streamid_t stream_id,
+        int level,
+        int pc_stream_id,
+        int pc_track_id,
+        cc_call_handle_t  call_handle,
+        const char *peerconnection,
+        vcm_media_payload_type_t payload,
+        short tos,
+        vcm_crypto_algorithmID algorithmID,
+        vcm_crypto_key_t *tx_key,
+        vcm_mediaAttrs_t *attrs)
+{
+  // Find the PC and get the stream
+  mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
+      sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  // TODO(ekr@rtfm.com): Remote source?
+  nsRefPtr<sipcc::LocalSourceStreamInfo> stream;
+
+  // pc->impl()->GetLocalStream(pc_stream_id);
+  
+  // Create the transport flows
+  mozilla::RefPtr<TransportFlow> rtp_flow = 
+      vcmCreateTransportFlow(pc->impl(), level, false);
+  mozilla::RefPtr<TransportFlow> rtcp_flow = 
+      vcmCreateTransportFlow(pc->impl(), level, true);
+  
+  if (CC_IS_AUDIO(mcap_id)) {
+    // Find the appropriate media conduit config
+    mozilla::AudioCodecConfig *config_raw;
+    int ret = vcmPayloadType2AudioCodec(payload, &config_raw);
+    if (ret) {
+      return VCM_ERROR;
+    }
+
+    // Take possession of this pointer
+    mozilla::ScopedDeletePtr<mozilla::AudioCodecConfig> config(config_raw);
+    
+    // Instantiate an appropriate conduit
+    mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
+      mozilla::AudioSessionConduit::Create();
+
+    if (conduit->ConfigureRecvMediaCodec(config))
+      return VCM_ERROR;
+
+    // Now we have all the pieces, create the pipeline
+    stream->StorePipeline(pc_track_id,
+      new mozilla::MediaPipelineReceiveAudio(stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow));
+  } else if (CC_IS_VIDEO(mcap_id)) {
+
+
+
+  } else {
+    ; // Ignore
+  }
+  
+  return 0;
+}
+
+
 /**
  *  Close the receive stream.
  *
