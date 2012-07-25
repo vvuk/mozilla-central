@@ -114,7 +114,7 @@ namespace CSF
         virtual bool isVideoMuted();
         virtual std::string getSDP();
         virtual cc_int32_t getStatusCode();
-        virtual MediaTrackTable* getMediaTracks();
+        virtual MediaStreamTable* getMediaStreams();
 
         virtual void setMediaData(CC_SIPCCCallMediaDataPtr  pMediaData);
 

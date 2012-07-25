@@ -27,10 +27,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifndef FAKE_MEDIA_STREAMIMPL_H_
+#define FAKE_MEDIA_STREAMIMPL_H_
+
 #include "FakeMediaStreams.h"
 
 #include "nspr.h"
 #include "nsError.h"
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_nsDOMMediaStream, nsIDOMMediaStream)
+
+NS_IMETHODIMP
+Fake_nsDOMMediaStream::GetCurrentTime(double *aCurrentTime)
+{
+  PR_ASSERT(PR_FALSE);
+
+  *aCurrentTime = 0;
+  return NS_OK;
+}
 
 nsresult Fake_MediaStreamBase::Start() {
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
@@ -148,6 +162,9 @@ mozilla::layers::PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBi
   , mRecycleBin(aRecycleBin)
 {
 }
+
+
+#endif
 
 
 #endif

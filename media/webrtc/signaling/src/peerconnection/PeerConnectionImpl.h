@@ -1,32 +1,7 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
- 
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef _PEER_CONNECTION_IMPL_H_
 #define _PEER_CONNECTION_IMPL_H_
 
@@ -34,12 +9,20 @@
 #include <vector>
 #include <map>
 
+#include "prlock.h"
 #include "mozilla/RefPtr.h"
+#include "IPeerConnection.h"
+
+#ifdef USE_FAKE_MEDIA_STREAMS
+#include "FakeMediaStreams.h"
+#else
+#include "nsDOMMediaStream.h"
+#endif
+
 #include "nricectx.h"
 #include "nricemediastream.h"
 
-#include "prlock.h"
-#include "PeerConnection.h"
+#include "peer_connection_types.h"
 #include "CallControlManager.h"
 #include "CC_Device.h"
 #include "CC_Call.h"
@@ -50,9 +33,10 @@ namespace sipcc {
 
 class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
-   LocalSourceStreamInfo(nsRefPtr<nsDOMMediaStream>& aMediaStream);
-  ~LocalSourceStreamInfo();
-  
+  LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
+    : mMediaStream(aMediaStream) {}
+  ~LocalSourceStreamInfo() {}
+
   /**
    * Notify that changes to one of the stream tracks have been queued.
    * aTrackEvents can be any combination of TRACK_EVENT_CREATED and
@@ -60,12 +44,13 @@ public:
    * at aTrackOffset (relative to the start of the stream).
    */
   virtual void NotifyQueuedTrackChanges(
-    mozilla::MediaStreamGraph* aGraph, 
+    mozilla::MediaStreamGraph* aGraph,
     mozilla::TrackID aID,
     mozilla::TrackRate aTrackRate,
     mozilla::TrackTicks aTrackOffset,
     PRUint32 aTrackEvents,
-    const mozilla::MediaSegment& aQueuedMedia);
+    const mozilla::MediaSegment& aQueuedMedia
+  );
 
   virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
     mozilla::StreamTime aDesiredTime) {}
@@ -77,7 +62,7 @@ public:
   void ExpectVideo();
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
-  
+
 private:
   std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   nsRefPtr<nsDOMMediaStream> mMediaStream;
@@ -85,40 +70,49 @@ private:
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
 
-
 class PeerConnectionWrapper;
 
-class PeerConnectionImpl : public PeerConnectionInterface,
-                           public sigslot::has_slots<> {
+class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
+                                     public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
-    
-  virtual StatusCode Initialize(PeerConnectionObserver* observer);
- 
-  // JSEP Calls
-  virtual StatusCode CreateOffer(const std::string& hints);
-  virtual StatusCode CreateAnswer(const std::string& hints, const  std::string& offer);
-  virtual StatusCode SetLocalDescription(Action action, const  std::string& sdp);
-  virtual StatusCode SetRemoteDescription(Action action, const std::string& sdp);
-  virtual const std::string& localDescription() const;
-  virtual const std::string& remoteDescription() const;
-  
-  virtual void AddStream(nsRefPtr<nsDOMMediaStream>& aMediaStream);
-  virtual void RemoveStream(nsRefPtr<nsDOMMediaStream>& aMediaStream);
-  virtual void CloseStreams();
 
-  virtual void AddIceCandidate(const std::string& strCandidate); 
+  enum ReadyState {
+    kNew,
+    kNegotiating,
+    kActive,
+    kClosing,
+    kClosed
+  };
 
-  virtual ReadyState ready_state();
-  virtual SipccState sipcc_state();
-  virtual IceState ice_state();
-  
-  virtual void Close();
+  enum SipccState {
+    kIdle,
+    kStarting,
+    kStarted
+  };
+
+  // TODO(ekr@rtfm.com): make this conform to the specifications
+  enum IceState {
+    kIceGathering,
+    kIceWaiting,
+    kIceChecking,
+    kIceConnected,
+    kIceFailed
+  };
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_IPEERCONNECTION
+
+  static PeerConnectionImpl* CreatePeerConnection();
   static void Shutdown();
-  
+
   // Implementation of the only observer we need
-  virtual void onCallEvent(ccapi_call_event_e callEvent, CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info);
+  virtual void onCallEvent(
+    ccapi_call_event_e callEvent,
+    CSF::CC_CallPtr call,
+    CSF::CC_CallInfoPtr info
+  );
 
   // Handle system to allow weak references to be passed through C code
   static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
@@ -134,9 +128,9 @@ public:
   mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
     // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
     // make one.
-    if (i >= mIceStreams.size())
+    if (i >= mIceStreams.size()) {
       return NULL;
-             
+    }
     return mIceStreams[i];
   }
 
@@ -144,12 +138,11 @@ public:
   nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
   
 private:
-  void ChangeReadyState(PeerConnectionInterface::ReadyState ready_state);
-
-  PeerConnectionImpl(const PeerConnectionImpl&rhs);  
-  PeerConnectionImpl& operator=(PeerConnectionImpl);   
-  CSF::CC_CallPtr mCall;  
-  PeerConnectionObserver* mPCObserver;
+  void ChangeReadyState(ReadyState ready_state);
+  PeerConnectionImpl(const PeerConnectionImpl&rhs);
+  PeerConnectionImpl& operator=(PeerConnectionImpl);
+  CSF::CC_CallPtr mCall;
+  IPeerConnectionObserver* mPCObserver;
   ReadyState mReadyState;
 
   // The SDP sent in from JS - here for debugging.
@@ -158,7 +151,7 @@ private:
   // The SDP we are using.
   std::string mLocalSDP;
   std::string mRemoteSDP;
-  
+
   // A list of streams returned from GetUserMedia
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
@@ -190,7 +183,7 @@ class PeerConnectionWrapper {
  private:
   PeerConnectionImpl *impl_;
 };
- 
+
 }  // end sipcc namespace
 
 #endif  // _PEER_CONNECTION_IMPL_H_

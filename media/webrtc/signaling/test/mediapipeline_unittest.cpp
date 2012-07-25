@@ -142,9 +142,12 @@ class TestAgentReceive : public TestAgent {
 
     audio_ = new Fake_nsDOMMediaStream(audio);
 
+    std::vector<mozilla::AudioCodecConfig *> codecs;
+    codecs.push_back(&audio_config_);
+
     mozilla::MediaConduitErrorCode err = 
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
-        ConfigureRecvMediaCodec(&audio_config_);
+        ConfigureRecvMediaCodecs(codecs);
 
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),

@@ -172,6 +172,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
 void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               TrackRate rate,
                                               VideoChunk& chunk) {
+#if 0
   // We now need to send the video frame to the other side
   mozilla::layers::Image *img = chunk.mFrame.GetImage();
   
@@ -203,6 +204,7 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
   // TODO(ekr@rtfm.com): Check return value
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
+#endif
 }
 
 
@@ -273,8 +275,8 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
   while (num_samples--) {
     // TODO(ekr@rtfm.com): Is there a way to avoid mallocating here?
     nsRefPtr<SharedBuffer> samples = SharedBuffer::Create(1000);
-    unsigned int samples_length;
-  
+    int samples_length;
+
     mozilla::MediaConduitErrorCode err =
       static_cast<mozilla::AudioSessionConduit*>(pipeline_->conduit_.get())->GetAudioFrame(
         static_cast<int16_t *>(samples->Data()),

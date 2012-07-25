@@ -225,6 +225,7 @@
     MODULE(nsTelemetryModule)                \
     MODULE(jsinspector)                      \
     MODULE(jsdebugger)                       \
+    MODULE(peerconnection)                   \
     /* end of list */
 
 #define MODULE(_name) \

@@ -717,19 +717,25 @@ typedef struct cc_media_cap_table_t_ {
 } cc_media_cap_table_t;
 
 typedef struct cc_media_track_t_ {
-	unsigned short  ref_id;
+    unsigned int    media_stream_track_id;
     boolean         video;
 } cc_media_track_t;
 
-typedef struct cc_remote_media_track_table_t_ {
-    uint32_t          stream_id;
+typedef struct cc_media_remote_track_table_t_ {
+    uint32_t          num_tracks;
+    uint32_t          media_stream_id;
     cc_media_track_t  track[CC_MAX_TRACKS];
-} cc_remote_media_track_table_t;
+} cc_media_remote_track_table_t;
 
-typedef struct cc_local_media_track_table_t_ {
-    uint32_t          stream_id;
+typedef struct cc_media_remote_stream_table_t_ {
+    uint32_t          num_streams;
+    cc_media_remote_track_table_t  streams[CC_MAX_TRACKS];
+} cc_media_remote_stream_table_t;
+
+typedef struct cc_media_local_track_table_t_ {
+    uint32_t          media_stream_id;
     cc_media_track_t  track[CC_MAX_TRACKS];
-} cc_local_media_track_table_t;
+} cc_media_local_track_table_t;
 
 typedef struct cc_feature_data_generic_t {
     boolean subref_flag;

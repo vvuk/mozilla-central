@@ -26,7 +26,7 @@ EXTRA_COMPONENTS = \
 
 XPIDLSRCS = \
   nsIDOMMediaStream.idl \
-  nsIDOMPeerConnection.idl \
+  nsIDOMRTCPeerConnection.idl \
   nsIDOMNavigatorUserMedia.idl \
   $(NULL)
 
@@ -37,23 +37,14 @@ EXPORTS_mozilla = \
   $(NULL)
 
 CPPSRCS = \
-  MediaManager.cpp
-
-#ifdef MOZ_WEBRTC
-CPPSRCS += \
-  PeerConnectionWebRTC.cpp
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/media/webrtc/signaling/include \
-  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
+  MediaManager.cpp \
   $(NULL)
-#endif
-
-CPPSRCS += $(NULL)
 
 ifdef MOZ_WEBRTC
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/webrtc/trunk/src \
   $(NULL)
+DIRS += bridge
 endif
 
 include $(topsrcdir)/config/config.mk

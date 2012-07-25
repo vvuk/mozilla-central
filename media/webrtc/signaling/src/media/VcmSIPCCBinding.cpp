@@ -827,6 +827,18 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
   return 0;
 }
 
+/*
+ * TODO: ekr
+ */
+short vcmCreateRemoteStream(
+		     cc_mcapid_t mcap_id,
+             const char *peerconnection,
+             int *pc_stream_id) {
+
+	*pc_stream_id = 9999;
+
+    return 0;
+}
 
 /**
  *   Should we remove this from external API
@@ -1064,9 +1076,10 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     // Instantiate an appropriate conduit
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
       mozilla::AudioSessionConduit::Create();
-
+#if 0
     if (conduit->ConfigureRecvMediaCodec(config))
       return VCM_ERROR;
+#endif
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,

@@ -16,63 +16,6 @@
 
 namespace mozilla
 {
-
-/**
- * Simple Wrapper class to return one and only instance of the
- * Voice and Video Engines
- * TODO:Crypt: Improve this - this  is pretty dumb as of this version
- */
-class WebRTCEngineWrapper
-{
-public:
- 
-
-  webrtc::VoiceEngine* GetVoiceEngine()
-  {
-    if(mVoiceEngine)
-    {
-      return mVoiceEngine;
-    } else {
-      mVoiceEngine = webrtc::VoiceEngine::Create();
-      return mVoiceEngine;
-    }
-
-  }
-
-  webrtc::VideoEngine* GetVideoEngine()
-  {
-    if(mVideoEngine)
-    {
-      return mVideoEngine;
-    } else {
-      mVideoEngine = webrtc::VideoEngine::Create();
-      return mVideoEngine;
-    }
-    
-  }
-
- static WebRTCEngineWrapper* Instance();
-
-private:
-  //private constructor
-  WebRTCEngineWrapper(): mVoiceEngine(NULL)
-                        ,mVideoEngine(NULL)
-  {
-
-  }
-
-  ~WebRTCEngineWrapper()
-  {
-    webrtc::VoiceEngine::Delete(mVoiceEngine);
-    webrtc::VideoEngine::Delete(mVideoEngine);
-  }
-
-  webrtc::VoiceEngine* mVoiceEngine;
-  webrtc::VideoEngine* mVideoEngine;
-  static WebRTCEngineWrapper* _instance;
-};
-
-
 /**
  * A Custom scoped template to release a resoure of Type T
  * with a function of Type F
@@ -85,7 +28,10 @@ struct ScopedCustomReleaseTraits0 : public ScopedFreePtrTraits<T>
 {
   static void release(T* ptr)
   {
-    (ptr)->Release();
+    if(ptr)
+    {
+      (ptr)->Release();
+    }
   }
 };
 

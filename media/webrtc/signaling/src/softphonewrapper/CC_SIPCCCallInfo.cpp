@@ -458,9 +458,9 @@ cc_int32_t CC_SIPCCCallInfo::getStatusCode()
     return CCAPI_CallInfo_getStatusCode(callinfo_ref);
 }
 
-MediaTrackTable* CC_SIPCCCallInfo::getMediaTracks()
+MediaStreamTable* CC_SIPCCCallInfo::getMediaStreams()
 {
-    return CCAPI_CallInfo_getMediaTrackTable(callinfo_ref);
+	return CCAPI_CallInfo_getMediaStreams(callinfo_ref);
 }
 
 bool CC_SIPCCCallInfo::isMediaStateAvailable()

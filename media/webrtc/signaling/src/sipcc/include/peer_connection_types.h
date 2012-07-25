@@ -39,39 +39,29 @@
 
 #define MAX_TRACKS 8
 
-enum StatusCode { 
-    PC_OK = 0, 
-    PC_INVALID_HINTS, 
-    PC_INVALID_OFFER, 
-    PC_INVALID_REMOTE_SDP, 
-    PC_INVALID_LOCAL_SDP, 
+enum StatusCode {
+    PC_OK = 0,
+    PC_INVALID_HINTS,
+    PC_INVALID_OFFER,
+    PC_INVALID_REMOTE_SDP,
+    PC_INVALID_LOCAL_SDP,
     PC_NO_OBSERVER,
     PC_SDPCHANGED,
     PC_SETLOCALDESCERROR,
     PC_SETREMOTEDESCERROR,
-    PC_INTERNAL_ERROR,
+    PC_INTERNAL_ERROR
 };
 
-
-//#ifdef __cplusplus
-//extern "C" {
-//#endif
-
 typedef struct MediaTrack {
-	unsigned short  ref_id;
+    unsigned int    media_stream_track_id;
     int             video;
-} MediaTrack_t;
+} MediaTrack;
 
-typedef struct MediaTrackTable {
-	unsigned short    stream_id;
-    MediaTrack_t      track[MAX_TRACKS];
-} MediaTrackTable;
-
-//#ifdef __cplusplus
-//}
-//#endif
-// UPDATE: declare an instance here:
-//extern MediaTrackTable MediaTrackTable_t;
+typedef struct MediaStreamTable {
+    unsigned int    media_stream_id;
+    unsigned int    num_tracks;
+    MediaTrack      track[MAX_TRACKS];
+} MediaStreamTable;
 
 
 #endif /*_PEER_CONNECTION_TYPES_H_*/

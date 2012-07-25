@@ -90,7 +90,8 @@ typedef struct {
   line_t       line_id;
   int          cause;
   string_t 	   sdp;
-  cc_remote_media_track_table_t *remote_media_track_tbl;
+  unsigned int media_stream_id;
+  unsigned int media_stream_track_id;
 } cc_call_state_data_t;
 /* CALL_SESSION_CREATED shall use the call_state as data*/
 

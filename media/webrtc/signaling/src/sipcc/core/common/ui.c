@@ -1748,7 +1748,7 @@ void ui_set_remote_description(call_events event, line_t nLine, callid_t nCallID
  *  @return none
  */
 
-void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID, uint16_t call_instance_id)
+void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID, uint16_t call_instance_id, cc_media_remote_track_table_t media_track)
 {
     static const char fname[] = "ui_on_remote_stream_added";
     session_update_t msg;
@@ -1769,7 +1769,8 @@ void ui_on_remote_stream_added(call_events event, line_t nLine, callid_t nCallID
     msg.update.ccSessionUpd.data.state_data.state = event;
     msg.update.ccSessionUpd.data.state_data.inst = call_instance_id;
     msg.update.ccSessionUpd.data.state_data.line_id = nLine;
-    msg.update.ccSessionUpd.data.state_data.remote_media_track_tbl = dcb->remote_media_track_tbl;
+    msg.update.ccSessionUpd.data.state_data.media_stream_track_id = media_track.track[0].media_stream_track_id;
+    msg.update.ccSessionUpd.data.state_data.media_stream_id = (unsigned int)media_track.media_stream_id;
 
     if ( ccappTaskPostMsg(CCAPP_SESSION_UPDATE, &msg, sizeof(session_update_t), CCAPP_CCPROVIER) != CPR_SUCCESS ) {
         CCAPP_ERROR(CCAPP_F_PREFIX"failed to send CALL_STATE(%d) msg \n", fname, event);

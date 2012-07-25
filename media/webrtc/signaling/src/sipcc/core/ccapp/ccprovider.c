@@ -1383,10 +1383,12 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         calllogger_init_call_log(&data->call_log);
         
         if ( sessUpd->eventID == CREATE_OFFER || sessUpd->eventID == CREATE_ANSWER 
-        || sessUpd->eventID == SET_LOCAL_DESC  || sessUpd->eventID == SET_REMOTE_DESC) {
+            || sessUpd->eventID == SET_LOCAL_DESC  || sessUpd->eventID == SET_REMOTE_DESC
+            || sessUpd->eventID == REMOTE_STREAM_ADD) {
         	data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
         	data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
-        	data->remote_media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.remote_media_track_tbl;
+            data->media_stream_track_id = sessUpd->update.ccSessionUpd.data.state_data.media_stream_track_id;
+            data->media_stream_id = sessUpd->update.ccSessionUpd.data.state_data.media_stream_id;
         }
         
         /*
@@ -1714,7 +1716,8 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
         data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
         data->cause = sessUpd->update.ccSessionUpd.data.state_data.cause;
         data->state = sessUpd->update.ccSessionUpd.data.state_data.state;
-        data->remote_media_track_tbl =  sessUpd->update.ccSessionUpd.data.state_data.remote_media_track_tbl;
+        data->media_stream_track_id = sessUpd->update.ccSessionUpd.data.state_data.media_stream_track_id;
+        data->media_stream_id = sessUpd->update.ccSessionUpd.data.state_data.media_stream_id;
         capset_get_allowed_features(gCCApp.mode, data->state, data->allowed_features);
         ccsnap_gen_callEvent(CCAPI_CALL_EV_STATE, CREATE_CALL_HANDLE_FROM_SESSION_ID(data->sess_id));
         break;

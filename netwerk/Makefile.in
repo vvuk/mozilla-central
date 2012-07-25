@@ -25,6 +25,15 @@ DIRS		= \
 		ipc  \
         $(NULL)
 
+# probably should add MOZ_DATACHANNEL and MOZ_SCTP...
+ifneq ($(MOZ_BUILD_APP),mobile)
+ifneq ($(MOZ_BUILD_APP),b2g)
+DIRS += \
+        sctp \
+	$(NULL)
+endif
+endif
+
 ifdef NECKO_WIFI
 DIRS 		+= wifi
 endif
@@ -32,7 +41,7 @@ endif
 DIRS		+= \
 		build \
 		locales \
-		$(NULL)
+		$(NULL)	
 
 ifdef ENABLE_TESTS
 TOOL_DIRS  += test
