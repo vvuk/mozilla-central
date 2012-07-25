@@ -828,16 +828,50 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
 }
 
 /*
- * TODO: ekr
+ * Create a remote stream
+ *
+ *  @param[in] mcap_id - group identifier to which stream belongs.
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] pc_stream_id - the id of the allocated stream
+ * 
+ *  TODO(ekr@rtfm.com): Revise along with everything else for the
+ *  new stream model.
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
  */
 short vcmCreateRemoteStream(
-		     cc_mcapid_t mcap_id,
-             const char *peerconnection,
-             int *pc_stream_id) {
+  cc_mcapid_t mcap_id,
+  const char *peerconnection,
+  int *pc_stream_id) {
+  PRUint32 hints = 0;
+  
+  CSFLogDebug( logTag, "%s", __FUNCTION__);
 
-	*pc_stream_id = 9999;
+  mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
+      sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
 
-    return 0;
+  if (CC_IS_AUDIO(mcap_id)) {
+    hints |= nsDOMMediaStream::HINT_CONTENTS_AUDIO;
+  }
+  if (CC_IS_VIDEO(mcap_id)) {
+    hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
+  }
+    
+  nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
+  nsRefPtr<sipcc::RemoteSourceStreamInfo> stream = new
+    sipcc::RemoteSourceStreamInfo(ms);
+  
+  nsresult res = pc->impl()->AddRemoteStream(stream, pc_stream_id);
+  if (!NS_SUCCEEDED(res))
+    return VCM_ERROR;
+
+  CSFLogDebug( logTag, "%s: created remote stream with index %d", __FUNCTION__, *pc_stream_id);
+
+  return 0;
 }
 
 /**
@@ -1042,6 +1076,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         vcm_crypto_key_t *tx_key,
         vcm_mediaAttrs_t *attrs)
 {
+  CSFLogDebug( logTag, "%s(%s)", __FUNCTION__, peerconnection);
+
   // Find the PC and get the stream
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
@@ -1049,21 +1085,15 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
   if (!pc) {
     return VCM_ERROR;
   }
-  
-  // TODO(ekr@rtfm.com): Remote source?
-  PRUint32 hints = 0;
-  
-  if (CC_IS_AUDIO(mcap_id)) {
-    hints |= nsDOMMediaStream::HINT_CONTENTS_AUDIO;
+
+  // Find the stream we need
+  nsRefPtr<sipcc::RemoteSourceStreamInfo> stream =
+    pc->impl()->GetRemoteStream(pc_stream_id);
+  if (!stream) {
+    // This should never happen
+    PR_ASSERT(PR_FALSE);
+    return VCM_ERROR;
   }
-  if (CC_IS_VIDEO(mcap_id)) {
-    hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
-  }
-    
-  nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
-  nsRefPtr<sipcc::RemoteSourceStreamInfo> stream = new
-    sipcc::RemoteSourceStreamInfo(ms);
-  
   // Create the transport flows
   mozilla::RefPtr<TransportFlow> rtp_flow = 
       vcmCreateTransportFlow(pc->impl(), level, false);
@@ -1103,6 +1133,7 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     ; // Ignore
   }
   
+  CSFLogDebug( logTag, "%s success", __FUNCTION__);
   return 0;
 }
 
@@ -1559,6 +1590,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
         vcm_crypto_key_t *tx_key,
         vcm_mediaAttrs_t *attrs)
 {
+  CSFLogDebug( logTag, "%s(%s)", __FUNCTION__, peerconnection);
+
   // Find the PC and get the stream
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
@@ -1604,7 +1637,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
   } else {
     ; // Ignore
   }
-  
+
+  CSFLogDebug( logTag, "%s success", __FUNCTION__);  
   return 0;
 }
 

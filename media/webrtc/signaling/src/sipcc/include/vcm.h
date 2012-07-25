@@ -496,11 +496,17 @@ short vcmStartIceChecks(const char *peerconnection);
 
 
 
-/* Create Remote Stream
- *  @param[in]  media capability index
- *  @param[in]  pc handle
- *  @param[out] stream id
- *  @return 0 success, error failure
+/*
+ * Create a remote stream
+ *
+ *  @param[in] mcap_id - group identifier to which stream belongs.
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] pc_stream_id - the id of the allocated stream
+ * 
+ *  TODO(ekr@rtfm.com): Revise along with everything else for the
+ *  new stream model.
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
  */
 short vcmCreateRemoteStream(
              cc_mcapid_t mcap_id,

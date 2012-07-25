@@ -555,6 +555,24 @@ nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
   return mLocalSourceStreams[index];
 }
 
+nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) {
+  if (index >= mRemoteSourceStreams.Length())
+    return NULL;
+  
+  PR_ASSERT(mRemoteSourceStreams[index]);
+  return mRemoteSourceStreams[index];
+}
+
+nsresult 
+PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
+  int *index) {
+  *index = mRemoteSourceStreams.Length();
+
+  mRemoteSourceStreams.AppendElement(info);
+
+  return NS_OK;
+}
+
 void LocalSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
   mPipelines[track] = pipeline;
