@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#if !defined(__Userspace_os_Windows)
+#include <arpa/inet.h>
+#endif
 
 #undef LOG
 #define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
@@ -197,6 +200,8 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   addr4.sin_port = htons(port); 
   addr6.sin6_port = htons(port);
   mState = CONNECTING;
+
+#if !defined(__Userspace_os_Windows)
   if (inet_pton(AF_INET6, addr, &addr6.sin6_addr) == 1) {
     if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr6, sizeof(struct sockaddr_in6)) < 0) {
       LOG(("*** Failed userspace_connect"));
@@ -210,6 +215,29 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   } else {
     LOG(("*** Illegal destination address.\n"));
   }
+#else
+  {
+    struct sockaddr_storage ss;
+    int sslen = sizeof(ss);
+
+    if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET6, NULL, (struct sockaddr*)&ss, &sslen)) {
+      addr6.sin6_addr = ((struct sockaddr_in6 *)&ss)->sin6_addr;
+      if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr6, sizeof(struct sockaddr_in6)) < 0) {
+        LOG(("*** Failed userspace_connect"));
+        return false;
+      }
+    } else if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET, NULL, (struct sockaddr*)&ss, &sslen)) {
+      addr4.sin_addr = ((struct sockaddr_in *)&ss)->sin_addr;
+      if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr4, sizeof(struct sockaddr_in)) < 0) {
+        LOG(("*** Failed userspace_connect"));
+        return false;
+      }
+    } else {
+      LOG(("*** Illegal destination address.\n"));
+    }
+  }
+#endif
+
   mSocket = mMasterSocket;  // XXX Be careful!  
 
   LOG(("connect() succeeded!  Entering connected mode\n"));
@@ -569,6 +597,10 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
   return 1;
 }
 
+struct large_msg {
+  struct rtcweb_datachannel_open msg;
+  char label[256]; // XXX make this correct based on max label length
+};
 
 // XXX FIX! priority
 DataChannel *
@@ -583,7 +615,8 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
 
   PRUint16 stream;
   PRUint16 flags = inOrder ? 0 : DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED;
-  struct rtcweb_datachannel_open msg[4]; /* XXX cheat to get space for label */
+  struct large_msg large;
+  struct rtcweb_datachannel_open *msg = &large.msg;
   size_t len;
   struct sctp_prinfo prinfo;
   struct sctp_sndinfo sndinfo;
