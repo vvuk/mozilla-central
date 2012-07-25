@@ -75,7 +75,7 @@ public:
                                 height,
                                 mozilla::kVideoI420,
                                 0);  
-      usleep(33 * 1000);
+      PR_Sleep(PR_MillisecondsToInterval(33));
       vidStatsGlobal.numRawFramesInserted++;
       numFrames--;
     } while(numFrames >= 0);
@@ -169,12 +169,12 @@ void AudioSendAndReceive::GenerateAndReadSamples()
                                PLAYOUT_SAMPLE_LENGTH,
                                PLAYOUT_SAMPLE_FREQUENCY,10);
 
-      usleep(10*1000);
+      PR_Sleep(PR_MillisecondsToInterval(10));
       mOtherSession->GetAudioFrame(audioOutput, PLAYOUT_SAMPLE_FREQUENCY,
                                    10, sampleLengthDecoded);
       if(sampleLengthDecoded == 0)
       {
-        printf("\n Zero length Sample "); 
+        cerr << " Zero length Sample " << endl;
       }
 
       int wrote_  = fwrite (audioOutput, 1 , sampleLengthInBits, outFile);
@@ -182,6 +182,7 @@ void AudioSendAndReceive::GenerateAndReadSamples()
       {
         finish = true;
         printf("\n Couldn't Write  %d bytes.. Exiting ", sampleLengthInBits);
+        cerr << "Couldn't Write " << sampleLengthInBits << "bytes" << endl;
         break; 
       }
 
@@ -367,14 +368,14 @@ class TransportConduitTest : public ::testing::Test
     int err=0;
     mAudioSession = mozilla::AudioSessionConduit::Create();
     if( !mAudioSession )
-      ASSERT_TRUE(mAudioSession != NULL);
+      ASSERT_NE(mAudioSession, (void*)NULL);
 
     mAudioSession2 = mozilla::AudioSessionConduit::Create();
     if( !mAudioSession2 )
-      ASSERT_TRUE(mAudioSession2 != NULL);
+      ASSERT_NE(mAudioSession2, (void*)NULL);
 
     FakeMediaTransport* xport = new FakeMediaTransport();
-    ASSERT_TRUE(xport != NULL);
+    ASSERT_NE(xport, (void*)NULL);
     xport->SetAudioSession(mAudioSession, mAudioSession2);
     mAudioTransport = xport;
 
@@ -405,16 +406,17 @@ class TransportConduitTest : public ::testing::Test
 
     //start generating samples
     audioTester.Init(mAudioSession,mAudioSession2, fileToPlay,fileToRecord);
-    printf("\n ********************************************************\n");
-    printf("\n           Generating Samples for 6 seconds ");
-    printf("\n *********************************************************\n");
-    sleep(2);
+    cerr << "   ******************************************************** " << endl;
+    cerr << "    Generating Samples for 6 seconds " << endl;
+    cerr << "   ******************************************************** " << endl;
+    PR_Sleep(PR_SecondsToInterval(2));
     audioTester.GenerateAndReadSamples();
-    sleep(2);
-    printf("\n ********************************************************\n");
-    printf("\n Output Audio Recorded to %s ", fileToRecord.c_str()); 
-    printf("\n Run webrtc_ex-playout for verifying the test results ..");
-    printf("\n *********************************************************\n");
+    PR_Sleep(PR_SecondsToInterval(2));
+    cerr << "   ******************************************************** " << endl;
+    cerr << "    Output Audio Recorded to  " << fileToRecord << endl;
+    cerr << "    Run webrtc_standalone_test for verifying the test results " << endl;
+    cerr << "   ******************************************************** " << endl;
+    
   }
 
   //2. Dump audio samples to dummy external transport
@@ -424,18 +426,18 @@ class TransportConduitTest : public ::testing::Test
     //get pointer to VideoSessionConduit
     mVideoSession = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession )
-      ASSERT_TRUE(mVideoSession != NULL);
+      ASSERT_NE(mVideoSession, (void*)NULL);
 
    // This session is for other one
     mVideoSession2 = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession2 )
-      ASSERT_TRUE(mVideoSession2 != NULL);
+      ASSERT_NE(mVideoSession2,(void*)NULL);
 
     mVideoRenderer = new DummyVideoTarget();
-    ASSERT_TRUE(mVideoRenderer != NULL);
+    ASSERT_NE(mVideoRenderer, (void*)NULL);
 
     FakeMediaTransport* xport = new FakeMediaTransport();
-    ASSERT_TRUE(xport != NULL);
+    ASSERT_NE(xport, (void*)NULL);
     xport->SetVideoSession(mVideoSession,mVideoSession2);
     mVideoTransport = xport;
 
@@ -467,23 +469,27 @@ class TransportConduitTest : public ::testing::Test
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     //start generating samples
-    printf("\n **************************************\n");
-    printf("\n  Starting the Video Sample Generation ");
-    printf("\n **************************************\n");
-    sleep(1);
+    cerr << "   *************************************************" << endl;
+    cerr << "    Starting the Video Sample Generation " << endl;
+    cerr << "   *************************************************" << endl;
+    PR_Sleep(PR_SecondsToInterval(2));
     videoTester.Init(mVideoSession);
     videoTester.GenerateAndReadSamples();
-    sleep(1);
-    printf("\n **************************************\n");
-    printf("\n      Done With The Testing                  ");
-    printf("\n VIDEO TEST STATS:                      \n");
-    printf("\n Num Raw Frames Inserted            :%d ",
-                                      vidStatsGlobal.numRawFramesInserted);
-    printf("\n Num Frames Successfuly Rendered    :%d ",
-                                      vidStatsGlobal.numFramesRenderedSuccessfully);
-    printf("\n Num Frames Wrongly Rendered        :%d ",
-                                      vidStatsGlobal.numFramesRenderedWrongly);
-    printf("\n **************************************\n");
+    PR_Sleep(PR_SecondsToInterval(2));
+    cerr << "   **************************************************" << endl;
+    cerr << "    Done With The Testing  " << endl;
+    cerr << "    VIDEO TEST STATS  "  << endl;
+    cerr << "    Num Raw Frames Inserted: "<< 
+                                        vidStatsGlobal.numRawFramesInserted << endl;
+    cerr << "    Num Frames Successfully Rendered: "<< 
+                                        vidStatsGlobal.numFramesRenderedSuccessfully << endl;
+    cerr << "    Num Frames Wrongly Rendered: "<< 
+                                        vidStatsGlobal.numFramesRenderedWrongly << endl;
+   
+    cerr << "    Done With The Testing  " << endl;
+    
+    cerr << "   **************************************************" << endl;
+   
     
   }
 
@@ -494,19 +500,20 @@ class TransportConduitTest : public ::testing::Test
     //get pointer to VideoSessionConduit
     mVideoSession = mozilla::VideoSessionConduit::Create();
     if( !mVideoSession )
-      ASSERT_TRUE(mVideoSession != NULL);
+      ASSERT_NE(mVideoSession, (void*)NULL);
 
     //Test Configure Recv Codec APIS
-    printf("\n **************************************\n");
-    printf("\n  Test Receive Codec Configuration API Now ");
-    printf("\n **************************************\n");
+    cerr << "   *************************************************" << endl;
+    cerr << "    Test Receive Codec Configuration API Now " << endl;
+    cerr << "   *************************************************" << endl;
+   
     std::vector<mozilla::VideoCodecConfig* > rcvCodecList;
     
     //Same APIs
-    printf("\n **************************************\n");
-    printf("\n  1. Same Codec Repeated Twice ");
-    printf("\n **************************************\n");
-    printf("\n Setting VP8 Twice ");
+    cerr << "   *************************************************" << endl;
+    cerr << "    1. Same Codec (VP8) Repeated Twice " << endl;
+    cerr << "   *************************************************" << endl;
+    
     mozilla::VideoCodecConfig cinst1(120, "VP8", 640, 480);
     mozilla::VideoCodecConfig cinst2(120, "VP8", 640, 480);
     rcvCodecList.push_back(&cinst1);
@@ -517,12 +524,12 @@ class TransportConduitTest : public ::testing::Test
     rcvCodecList.pop_back();
 
 
-    sleep(2);
-    printf("\n **************************************\n");
-    printf("\n  2. Codec With Invalid Payload Names ");
-    printf("\n **************************************\n");
-    printf("\n Setting Payload 1 with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676");
-    printf("\n Setting Payload 2 with name of zero length ");
+    PR_Sleep(PR_SecondsToInterval(2));
+    cerr << "   *************************************************" << endl;
+    cerr << "    2. Codec With Invalid Payload Names " << endl;
+    cerr << "   *************************************************" << endl;
+    cerr << "   Setting payload 1 with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676" << endl;
+    cerr << "   Setting payload 2 with name of zero length" << endl;
     
     mozilla::VideoCodecConfig cinst3(124, "I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676", 352, 288);
     mozilla::VideoCodecConfig cinst4(124, "", 352, 288);
@@ -536,41 +543,44 @@ class TransportConduitTest : public ::testing::Test
     rcvCodecList.pop_back();
 
 
-    sleep(2);
-    printf("\n **************************************\n");
-    printf("\n  3. Null Codec Parameter ");
-    printf("\n **************************************\n");
-   
+    PR_Sleep(PR_SecondsToInterval(2));
+    cerr << "   *************************************************" << endl;
+    cerr << "    3. Null Codec Parameter  " << endl;
+    cerr << "   *************************************************" << endl;
+    
     rcvCodecList.push_back(0);
 
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
     rcvCodecList.pop_back();
-
-    printf("\n **************************************\n");
-    printf("\n  Test Send Codec Configuration API Now ");
-    printf("\n **************************************\n");
-    sleep(2);
-
-    printf("\n **************************************\n");
-    printf("\n  1. Same Send Codec Twice ");
-    printf("\n **************************************\n");
+   
+    cerr << "   *************************************************" << endl;
+    cerr << "    Test Send Codec Configuration API Now " << endl;
+    cerr << "   *************************************************" << endl;
+   
+    cerr << "   *************************************************" << endl;
+    cerr << "    1. Same Codec (VP8) Repeated Twice " << endl;
+    cerr << "   *************************************************" << endl;
+    
+  
     err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
     err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
    
-    printf("\n **************************************\n");
-    printf("\n  2. Invalid Send Codec payload Name ");
-    printf("\n **************************************\n");
-    printf("\n Setting Payload with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676");
+   
+    cerr << "   *************************************************" << endl;
+    cerr << "    2. Codec With Invalid Payload Names " << endl;
+    cerr << "   *************************************************" << endl;
+    cerr << "   Setting payload with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676" << endl;
     
     err = mVideoSession->ConfigureSendMediaCodec(&cinst3);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
     
-    printf("\n **************************************\n");
-    printf("\n  3. Null Send Codec Pointer ");
-    printf("\n **************************************\n");    
+    cerr << "   *************************************************" << endl;
+    cerr << "    3. Null Codec Parameter  " << endl;
+    cerr << "   *************************************************" << endl;
+    
     err = mVideoSession->ConfigureSendMediaCodec(NULL);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
     
