@@ -41,13 +41,13 @@ namespace {
 class TestAgent {
  public:
   TestAgent() :
-      audio_flow_(),
+      audio_flow_(new TransportFlow()),
       audio_prsock_(new TransportLayerPrsock()),
       audio_config_(97, "PCMU", 8000, 80, 1, 64000),
       audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
       audio_pipeline_(),
-      video_flow_(),
+      video_flow_(new TransportFlow()),
       video_prsock_(new TransportLayerPrsock()),
       video_config_(120, "VP8", 640, 480),
       video_conduit_(mozilla::VideoSessionConduit::Create()),
@@ -64,7 +64,7 @@ class TestAgent {
                                    fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
     
-    ASSERT_EQ((nsresult)NS_OK, audio_flow_.PushLayer(audio_prsock_));
+    ASSERT_EQ((nsresult)NS_OK, audio_flow_->PushLayer(audio_prsock_));
   }
 
   void Start() {
@@ -94,13 +94,13 @@ class TestAgent {
   }
 
  protected:
-  TransportFlow audio_flow_;
+  mozilla::RefPtr<TransportFlow> audio_flow_;
   TransportLayerPrsock *audio_prsock_;
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;
   mozilla::RefPtr<mozilla::MediaPipeline> audio_pipeline_;
-  TransportFlow video_flow_;
+  mozilla::RefPtr<TransportFlow> video_flow_;
   TransportLayerPrsock *video_prsock_;
   mozilla::VideoCodecConfig video_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> video_conduit_;
@@ -118,7 +118,7 @@ class TestAgentSend : public TestAgent {
         ConfigureSendMediaCodec(&audio_config_);
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, &audio_flow_, &audio_flow_);
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, audio_flow_, audio_flow_);
 
 //    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
@@ -151,7 +151,7 @@ class TestAgentReceive : public TestAgent {
 
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
-      &audio_flow_, &audio_flow_);
+      audio_flow_, audio_flow_);
   }
 
  private:

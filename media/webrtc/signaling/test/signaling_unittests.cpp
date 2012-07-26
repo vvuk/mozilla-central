@@ -211,9 +211,22 @@ TestObserver::OnStateChange(PRUint32 state_type)
 NS_IMETHODIMP
 TestObserver::OnAddStream(nsIDOMMediaStream *stream)
 {
-  cout << "OnAddStream called hints=" << static_cast<nsDOMMediaStream *>(stream)->GetHintContents() << endl;
+  PR_ASSERT(stream);
+
+  nsDOMMediaStream *ms = static_cast<nsDOMMediaStream *>(stream);
+
+  cout << "OnAddStream called hints=" << ms->GetHintContents() << endl;
   state = stateSuccess;
   onAddStreamCalled = true;
+  
+  // We know that the media stream is secretly a Fake_SourceMediaStream, 
+  // so now we can start it pulling from us
+  Fake_SourceMediaStream *fs = static_cast<Fake_SourceMediaStream *>(ms->GetStream());
+  
+  nsresult ret;
+  test_utils.sts_target()->Dispatch(
+    WrapRunnableRet(fs, &Fake_SourceMediaStream::Start, &ret),
+    NS_DISPATCH_SYNC);
   
   return NS_OK;
 }

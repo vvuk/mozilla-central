@@ -862,14 +862,21 @@ short vcmCreateRemoteStream(
   }
     
   nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
+  
+  // TODO(ekr@rtfm.com): Does this go here?
+  static_cast<mozilla::SourceMediaStream *>(ms->GetStream())->SetPullEnabled(true);
+  
   nsRefPtr<sipcc::RemoteSourceStreamInfo> stream = new
     sipcc::RemoteSourceStreamInfo(ms);
+
+  // TODO(ekr@rtfm.com): Add the track info with the first segment
   
   nsresult res = pc->impl()->AddRemoteStream(stream, pc_stream_id);
   if (!NS_SUCCEEDED(res))
     return VCM_ERROR;
-
-  CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d", __FUNCTION__, *pc_stream_id, hints);
+  
+  CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
+    __FUNCTION__, *pc_stream_id, hints);
 
   return 0;
 }
