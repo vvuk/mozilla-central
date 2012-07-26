@@ -158,6 +158,23 @@ public:
   // Add a remote stream. Returns the index in index
   nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info, int *index);
 
+  // Get a transport flow
+  mozilla::RefPtr<TransportFlow> GetTransportFlow(int index, bool rtcp) {
+    int index_inner = index * 2 + (rtcp ? 1 : 0);
+
+    if (mTransportFlows.find(index_inner) == mTransportFlows.end())
+      return NULL;
+
+    return mTransportFlows[index_inner];
+  }
+
+  // Add a transport flow
+  void AddTransportFlow(int index, bool rtcp, mozilla::RefPtr<TransportFlow> flow) {
+    int index_inner = index * 2 + (rtcp ? 1 : 0);
+
+    mTransportFlows[index_inner] = flow;
+  }
+
 private:
   void ChangeReadyState(ReadyState ready_state);
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
@@ -191,6 +208,9 @@ private:
   std::vector<mozilla::RefPtr<NrIceMediaStream> > mIceStreams;
   IceState mIceState;
 
+  // Transport flows: even is RTP, odd is RTCP
+  std::map<int, mozilla::RefPtr<TransportFlow> > mTransportFlows;
+  
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 };

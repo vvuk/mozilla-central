@@ -116,7 +116,7 @@ class TestAgentSend : public TestAgent {
     mozilla::MediaConduitErrorCode err = 
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureSendMediaCodec(&audio_config_);
-    ASSERT_EQ(mozilla::kMediaConduitNoError, err);
+    EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
     audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, audio_flow_, audio_flow_);
 
@@ -148,6 +148,7 @@ class TestAgentReceive : public TestAgent {
     mozilla::MediaConduitErrorCode err = 
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureRecvMediaCodecs(codecs);
+    EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),

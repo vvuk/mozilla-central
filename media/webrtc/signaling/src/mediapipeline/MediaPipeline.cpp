@@ -243,6 +243,7 @@ void MediaPipelineReceive::PacketReceived(TransportFlow *flow,
 }
 
 nsresult MediaPipelineReceiveAudio::Init() {
+  MLOG(PR_LOG_DEBUG, __FUNCTION__);
   stream_->GetStream()->AddListener(listener_);
 
   return NS_OK;
@@ -269,8 +270,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
   // Number of 10 ms samples we need
   int num_samples = floor((time_s / .01f) + .5);
 
-  MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << " from Audio Conduit");
-
+  MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << "sample from Audio Conduit");
   
   while (num_samples--) {
     // TODO(ekr@rtfm.com): Is there a way to avoid mallocating here?
@@ -286,6 +286,8 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
   
     if (err != mozilla::kMediaConduitNoError)
       return;
+
+    MLOG(PR_LOG_DEBUG, "Audio conduit returned buffer of length " << samples_length);
     
     mozilla::AudioSegment segment;
     segment.Init(1);    

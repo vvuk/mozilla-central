@@ -49,7 +49,7 @@ public:
 // Note: only one listener supported
 class Fake_MediaStream {
 public:
-  Fake_MediaStream () : mListener(NULL) {}
+  Fake_MediaStream () : mReceivedSegments(0), mListener(NULL) {}
   virtual ~Fake_MediaStream() { Stop(); }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
@@ -66,7 +66,10 @@ public:
 
   virtual void Periodic() {}
 
+  int GetReceivedSegments() { return mReceivedSegments; }
+
  protected:
+  int mReceivedSegments;
   Fake_MediaStreamListener *mListener;
 };
 
@@ -93,7 +96,9 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
   void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,
                 mozilla::MediaSegment* aSegment) {}
 
-  void AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {}
+  void AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {
+    ++mReceivedSegments;
+  }
 
   void AdvanceKnownTracksTime(mozilla::StreamTime aKnownTime) {}
   
@@ -168,7 +173,7 @@ public:
 
 
 
-class Fake_MediaStreamBase : public Fake_SourceMediaStream {
+class Fake_MediaStreamBase : public Fake_MediaStream {
  public:
   Fake_MediaStreamBase() : mPeriodic(new Fake_MediaPeriodic(this)) {}
 

@@ -67,7 +67,7 @@ static void nr_ice_socket_readable_cb(NR_SOCKET s, int how, void *cb_arg)
 
     /* Deal with the fact that sizeof(int) and sizeof(size_t) may not
        be the same */
-    if (len_s > INT_MAX)
+    if (len_s > (size_t)INT_MAX)
       return;
 
     len = (int)len_s;

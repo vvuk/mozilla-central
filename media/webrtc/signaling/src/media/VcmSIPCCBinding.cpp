@@ -51,9 +51,9 @@
 #include "csf_common.h"
 #include "PeerConnectionImpl.h"
 #include "nsThreadUtils.h"
-#include "TransportFlow.h"
-#include "TransportLayer.h"
-#include "TransportLayerIce.h"
+#include "transportflow.h"
+#include "transportlayer.h"
+#include "transportlayerice.h"
 #include "runnable_utils.h"
 
 #include <stdlib.h>
@@ -1650,19 +1650,6 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
 }
 
 
-static mozilla::RefPtr<TransportFlow>
-vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
-  mozilla::RefPtr<TransportFlow> flow(new TransportFlow());
-
-  flow->PushLayer(new TransportLayerIce("flow", pc->ice_ctx(),
-                                        pc->ice_media_stream(level-1),
-                                        rtcp ? 2 : 1));
-  
-  // TODO(ekr@rtfm.com): Push DTLS onto here
-  
-  return flow;
-}
-
 /**
  *  Close the transmit stream
  *
@@ -2198,4 +2185,26 @@ int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
   }
 
   return 0;
+}
+
+static mozilla::RefPtr<TransportFlow>
+vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
+  mozilla::RefPtr<TransportFlow> flow;
+  
+  flow = pc->GetTransportFlow(level, rtcp);
+
+  if (!flow) {
+    CSFLogDebug(logTag, "Making new transport flow for level=%d rtcp=%s", level, rtcp ? "true" : "false");
+
+    flow = new TransportFlow();
+
+    flow->PushLayer(new TransportLayerIce("flow", pc->ice_ctx(),
+        pc->ice_media_stream(level-1),
+                                        rtcp ? 2 : 1));
+    
+    // TODO(ekr@rtfm.com): Push DTLS onto here
+    pc->AddTransportFlow(level, rtcp, flow);
+  }
+  
+  return flow;
 }
