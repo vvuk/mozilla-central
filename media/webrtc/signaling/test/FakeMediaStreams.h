@@ -41,6 +41,8 @@ public:
 
   Fake_MediaStream *GetStream() { return mMediaStream; }
 
+  static already_AddRefed<Fake_nsDOMMediaStream> CreateInputStream(PRUint32 aHintContents);
+
   // Hints to tell the SDP generator about whether this
   // MediaStream probably has audio and/or video
   enum {

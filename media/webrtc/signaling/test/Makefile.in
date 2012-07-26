@@ -84,8 +84,8 @@ LOCAL_INCLUDES += \
 
 CPP_UNIT_TESTS = \
   signaling_unittests.cpp \
-  mediaconduit_unittests.cpp \
-  webrtc_standalone_test.cpp \
+  #mediaconduit_unittests.cpp \
+  #webrtc_standalone_test.cpp \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk

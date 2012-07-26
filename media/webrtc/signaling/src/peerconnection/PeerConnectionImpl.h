@@ -133,8 +133,10 @@ private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
   CSF::CC_CallPtr mCall;
-  IPeerConnectionObserver* mPCObserver;
   ReadyState mReadyState;
+
+  nsCOMPtr<nsIThread> mThread;
+  nsCOMPtr<IPeerConnectionObserver> mPCObserver;
 
   // The SDP sent in from JS - here for debugging.
   std::string mLocalRequestedSDP;
