@@ -60,7 +60,8 @@ nsresult Fake_SourceMediaStream::Start() {
 }
 
 nsresult Fake_SourceMediaStream::Stop() {
-  mTimer->Cancel();
+  if (mTimer)
+    mTimer->Cancel();
   
   return NS_OK;
 }
