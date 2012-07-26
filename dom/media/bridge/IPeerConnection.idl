@@ -30,7 +30,7 @@ interface IPeerConnectionObserver : nsISupports
   void onStateChange(in unsigned long state);
 
   /* Changes to MediaStreams */
-  // void onAddStream(MediaTrackTable* stream) = 0; XXX: figure out this one later
+  void onAddStream(in nsIDOMMediaStream stream);
   void onRemoveStream();
   void onAddTrack();
   void onRemoveTrack();

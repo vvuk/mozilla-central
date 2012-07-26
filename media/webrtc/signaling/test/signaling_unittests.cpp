@@ -207,12 +207,16 @@ TestObserver::OnStateChange(PRUint32 state_type)
   return NS_OK;
 }
 
-/*
-void OnAddStream(MediaTrackTable* stream)
+
+NS_IMETHODIMP
+TestObserver::OnAddStream(nsIDOMMediaStream *stream)
 {
+  cout << "OnAddStream called hints=" << static_cast<nsDOMMediaStream *>(stream)->GetHintContents() << endl;
   state = stateSuccess;
   onAddStreamCalled = true;
-}*/
+  
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 TestObserver::OnRemoveStream()

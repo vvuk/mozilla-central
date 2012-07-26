@@ -869,7 +869,7 @@ short vcmCreateRemoteStream(
   if (!NS_SUCCEEDED(res))
     return VCM_ERROR;
 
-  CSFLogDebug( logTag, "%s: created remote stream with index %d", __FUNCTION__, *pc_stream_id);
+  CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d", __FUNCTION__, *pc_stream_id, hints);
 
   return 0;
 }
