@@ -188,6 +188,11 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
     Init();
   }
 
+  ~MediaPipelineReceiveAudio() {
+    stream_->GetStream()->RemoveListener(listener_);
+    listener_->Detach();
+  }
+
  private:
   // Separate class to allow ref counting
   class PipelineListener : public MediaStreamListener {

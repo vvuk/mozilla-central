@@ -132,7 +132,7 @@ class TestAgentSend : public TestAgent {
 class TestAgentReceive : public TestAgent {
  public:
   TestAgentReceive() {
-    mozilla::SourceMediaStream *audio = new Fake_AudioStreamSink();
+    mozilla::SourceMediaStream *audio = new Fake_SourceMediaStream();
     audio->SetPullEnabled(true);
 
     mozilla::AudioSegment* segment= new mozilla::AudioSegment();

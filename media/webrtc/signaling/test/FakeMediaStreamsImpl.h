@@ -37,6 +37,7 @@
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_nsDOMMediaStream, nsIDOMMediaStream)
 
+// DOM Media stream
 NS_IMETHODIMP
 Fake_nsDOMMediaStream::GetCurrentTime(double *aCurrentTime)
 {
@@ -46,14 +47,39 @@ Fake_nsDOMMediaStream::GetCurrentTime(double *aCurrentTime)
   return NS_OK;
 }
 
+// Fake_SourceMediaStream
+nsresult Fake_SourceMediaStream::Start() {
+  mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
+  if (!mTimer) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mTimer->InitWithCallback(mPeriodic, 100, nsITimer::TYPE_REPEATING_SLACK);
+
+  return NS_OK;
+}
+
+nsresult Fake_SourceMediaStream::Stop() {
+  mTimer->Cancel();
+  
+  return NS_OK;
+}
+
+void Fake_SourceMediaStream::Periodic() {
+  if (mPullEnabled && mListener) {
+    mListener->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
+  }
+}
+
+
+// Fake_MediaStreamBase
 nsresult Fake_MediaStreamBase::Start() {
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   if (!mTimer) {
     return NS_ERROR_FAILURE;
   }
 
-  // 1 Audio frame per Video frame
-  mTimer->InitWithCallback(this, 100, nsITimer::TYPE_REPEATING_SLACK);
+  mTimer->InitWithCallback(mPeriodic, 100, nsITimer::TYPE_REPEATING_SLACK);
 
   return NS_OK;
 }
@@ -64,9 +90,8 @@ nsresult Fake_MediaStreamBase::Stop() {
   return NS_OK;
 }
 
-NS_IMETHODIMP
-Fake_AudioStreamSource::Notify(nsITimer* aTimer)
-{
+// Fake_AudioStreamSource
+void Fake_AudioStreamSource::Periodic() {
   mozilla::AudioSegment segment;
   segment.Init(1);
   segment.InsertNullDataAtStart(160);
@@ -78,11 +103,23 @@ Fake_AudioStreamSource::Notify(nsITimer* aTimer)
                                         0, // Offset TODO(ekr@rtfm.com) fix
                                         0, // ???
                                         segment);
+}
+
+
+
+// Fake_MediaPeriodic
+NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_MediaPeriodic, nsITimerCallback)
+
+NS_IMETHODIMP
+Fake_MediaPeriodic::Notify(nsITimer *timer) {
+  if (mStream)
+    mStream->Periodic();
 
   return NS_OK;
 }
 
 
+#if 0
 #define WIDTH 320
 #define HEIGHT 240
 #define RATE USECS_PER_S
@@ -126,20 +163,7 @@ Fake_VideoStreamSource::Notify(nsITimer* aTimer)
 
   return NS_OK;
 }
-      
 
-
-NS_IMETHODIMP
-Fake_AudioStreamSink::Notify(nsITimer* aTimer)
-{
-  if (mPullEnabled && mListener) {
-    mListener->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
-  }
-  return NS_OK;
-}
-
-      
-NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_MediaStreamBase, nsITimerCallback)
 
 #if 0
 // Fake up buffer recycle bin
@@ -164,6 +188,7 @@ mozilla::layers::PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBi
 }
 
 
+#endif
 #endif
 
 

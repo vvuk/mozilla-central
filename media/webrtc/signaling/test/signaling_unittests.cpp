@@ -319,7 +319,7 @@ class SignalingAgent {
   void CreateOffer(const char* hints, bool audio, bool video) {
 
     // Create a media stream as if it came from GUM
-    mozilla::RefPtr<Fake_AudioStreamSource> audio_stream = 
+    Fake_AudioStreamSource *audio_stream = 
       new Fake_AudioStreamSource();
 
     nsresult ret;

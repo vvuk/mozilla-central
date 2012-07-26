@@ -64,13 +64,31 @@ public:
   virtual nsresult Start() { return NS_OK; }
   virtual nsresult Stop() { return NS_OK; }
 
+  virtual void Periodic() {}
+
  protected:
   Fake_MediaStreamListener *mListener;
 };
 
+class Fake_MediaPeriodic : public nsITimerCallback {
+public:
+  Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream) {}
+  virtual ~Fake_MediaPeriodic() {}
+  void Detach() {
+    mStream = NULL;
+  }
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSITIMERCALLBACK
+
+protected:
+  Fake_MediaStream *mStream;
+};
+
+
 class Fake_SourceMediaStream : public Fake_MediaStream {
  public:
-  Fake_SourceMediaStream() : mPullEnabled(false) {}
+  Fake_SourceMediaStream() : mPullEnabled(false), mPeriodic(new Fake_MediaPeriodic(this)) {}
 
   void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,
                 mozilla::MediaSegment* aSegment) {}
@@ -82,10 +100,20 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
   void SetPullEnabled(bool aEnabled) {
     mPullEnabled = aEnabled;
   }
+
   virtual Fake_SourceMediaStream *AsSourceStream() { return this; }
+
+  virtual nsresult Start();
+  virtual nsresult Stop();
+
+  virtual void Periodic();
+
  protected:
   bool mPullEnabled;
+  nsRefPtr<Fake_MediaPeriodic> mPeriodic;
+  nsCOMPtr<nsITimer> mTimer;
 };
+
 
 class Fake_nsDOMMediaStream : public nsIDOMMediaStream
 {
@@ -139,17 +167,17 @@ public:
 };
 
 
-class Fake_MediaStreamBase : public Fake_SourceMediaStream,
-                             public nsITimerCallback {
+
+class Fake_MediaStreamBase : public Fake_SourceMediaStream {
  public:
+  Fake_MediaStreamBase() : mPeriodic(new Fake_MediaPeriodic(this)) {}
+
   virtual nsresult Start();
   virtual nsresult Stop();
-
-  NS_DECL_ISUPPORTS
-  NS_IMETHODIMP Notify(nsITimer* aTimer) = 0;
-
+  
  private:
   nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<Fake_MediaPeriodic> mPeriodic;
 };
 
 
@@ -157,26 +185,13 @@ class Fake_AudioStreamSource : public Fake_MediaStreamBase {
  public:
   Fake_AudioStreamSource() : Fake_MediaStreamBase() {}
 
-  NS_DECL_NSITIMERCALLBACK
+  virtual void Periodic();
 };
 
 class Fake_VideoStreamSource : public Fake_MediaStreamBase {
  public:
   Fake_VideoStreamSource() : Fake_MediaStreamBase() {}
-
-  NS_DECL_NSITIMERCALLBACK
-
- protected:
-  nsCOMPtr<nsITimer> mTimer;
 };
-
-class Fake_AudioStreamSink : public Fake_MediaStreamBase {
- public:
-  Fake_AudioStreamSink() : Fake_MediaStreamBase() {}
-
-  NS_DECL_NSITIMERCALLBACK
-};
-
 
 
 typedef Fake_nsDOMMediaStream nsDOMMediaStream;
