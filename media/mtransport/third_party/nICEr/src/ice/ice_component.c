@@ -724,9 +724,11 @@ int nr_ice_component_select_pair(nr_ice_peer_ctx *pctx, nr_ice_component *comp)
       pair=TAILQ_NEXT(pair,entry);
     }
 
-    if(r=pctx->handler->vtbl->select_pair(pctx->handler->obj,
-      comp->stream,comp->component_id,pairs,ct))
-      ABORT(r);
+    if (pctx->handler) {
+      if(r=pctx->handler->vtbl->select_pair(pctx->handler->obj,
+        comp->stream,comp->component_id,pairs,ct))
+        ABORT(r);
+    }
 
     _status=0;
   abort:
