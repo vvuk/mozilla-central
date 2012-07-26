@@ -28,8 +28,7 @@ using namespace std;
 #include "mtransport_test_utils.h"
 MtransportTestUtils test_utils;
 
-static int kDefaultTimeout = 1000;
-
+static int kDefaultTimeout = 3000;
 
 
 namespace test {
@@ -101,7 +100,7 @@ private:
   sipcc::PeerConnectionImpl *pc;
 };
 
-NS_IMPL_ISUPPORTS1(TestObserver, IPeerConnectionObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS1(TestObserver, IPeerConnectionObserver)
 
 NS_IMETHODIMP
 TestObserver::OnCreateOfferSuccess(const char* offer)
@@ -278,7 +277,7 @@ class SignalingAgent {
     pObserver = new TestObserver(pc);
     ASSERT_TRUE(pObserver);
 
-    ASSERT_EQ(pc->Initialize(pObserver), NS_OK);
+    ASSERT_EQ(pc->Initialize(pObserver, nsnull), NS_OK);
 
     ASSERT_TRUE_WAIT(sipcc_state() == sipcc::PeerConnectionImpl::kStarted,
                      kDefaultTimeout);
@@ -309,8 +308,6 @@ class SignalingAgent {
     // Shutdown is synchronous evidently.
     // ASSERT_TRUE(pObserver->WaitForObserverCall());
     // ASSERT_EQ(pc->sipcc_state(), sipcc::PeerConnectionInterface::kIdle);
-
-    delete pObserver;
   }
 
   char* offer() const { return offer_; }
@@ -333,7 +330,6 @@ class SignalingAgent {
     // store in object to be used by RemoveStream
     nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream(audio_stream);
     domMediaStream_ = domMediaStream;
-
 
     PRUint32 aHintContents = 0;
 
@@ -449,7 +445,7 @@ class SignalingAgent {
 
 public:
   mozilla::RefPtr<sipcc::PeerConnectionImpl> pc;
-  TestObserver *pObserver;
+  nsRefPtr<TestObserver> pObserver;
   char* offer_;
   char* answer_;
   nsRefPtr<nsDOMMediaStream> domMediaStream_;

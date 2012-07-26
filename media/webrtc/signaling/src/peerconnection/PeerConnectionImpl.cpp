@@ -5,17 +5,19 @@
 #include <string>
 #include <iostream>
 
+#include "vcm.h"
 #include "CSFLog.h"
 #include "CSFLogStream.h"
 #include "ccapi_call_info.h"
 #include "CC_SIPCCCallInfo.h"
 #include "ccapi_device_info.h"
 #include "CC_SIPCCDeviceInfo.h"
-#include "vcm.h"
+
+#include "nsThreadUtils.h"
+#include "nsProxyRelease.h"
+#include "runnable_utils.h"
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
-#include "nsThreadUtils.h"
-#include "runnable_utils.h"
 
 #ifndef USE_FAKE_MEDIA_STREAMS
 #include "MediaSegment.h"
@@ -24,6 +26,90 @@
 static const char* logTag = "PeerConnectionImpl";
 
 namespace sipcc {
+
+class PeerConnectionObserverDispatch : public nsRunnable {
+
+public:
+  PeerConnectionObserverDispatch(CSF::CC_CallInfoPtr info,
+    IPeerConnectionObserver* observer)
+  {
+    mInfo = info;
+    mObserver = observer;
+  }
+  ~PeerConnectionObserverDispatch(){}
+
+  nsresult Run()
+  {
+    StatusCode code;
+    std::string s_sdpstr;
+
+    cc_call_state_t state = mInfo->getCallState();
+    std::string statestr = mInfo->callStateToString(state);
+
+    switch (state) {
+      case CREATEOFFER:
+        s_sdpstr = mInfo->getSDP();
+        mObserver->OnCreateOfferSuccess(s_sdpstr.c_str());
+        break;
+
+      case CREATEANSWER:
+        s_sdpstr = mInfo->getSDP();
+        mObserver->OnCreateAnswerSuccess(s_sdpstr.c_str());
+        break;
+
+      case CREATEOFFERERROR:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnCreateOfferError(code);
+        break;
+
+      case CREATEANSWERERROR:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnCreateAnswerError(code);
+        break;
+
+      case SETLOCALDESC:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnSetLocalDescriptionSuccess(code);
+        break;
+
+      case SETREMOTEDESC:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnSetRemoteDescriptionSuccess(code);
+        break;
+
+      case SETLOCALDESCERROR:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnSetLocalDescriptionError(code);
+        break;
+
+      case SETREMOTEDESCERROR:
+        code = (StatusCode)mInfo->getStatusCode();
+        mObserver->OnSetRemoteDescriptionError(code);
+        break;
+
+      case REMOTESTREAMADD:
+        //stream = info->getMediaStreams();
+        //nsRefPtr<nsDOMMediaStream> mMediaStream;
+        // <emannion> can someone update the IDL for OnAddStream
+        //            and create the MediaStream to pass up
+        // next two lines show how to get data.
+        // this will be vastly improved soon
+        //unsigned int sid = stream->media_stream_id;
+        //unsigned int tid = stream->track[0].media_stream_track_id;
+        // mObserver->OnAddStream(mMediaStream);
+        break;
+
+      default:
+        CSFLogDebugS(logTag, ": **** CALL STATE IS: " << statestr);
+        break;
+    }
+    return NS_OK;
+  }
+
+private:
+  CSF::CC_CallInfoPtr mInfo;
+  nsCOMPtr<IPeerConnectionObserver> mObserver;
+};
 
 /* We get this callback in order to find out which tracks are audio and which
  * are video. We should get this callback right away for existing streams after
@@ -118,7 +204,7 @@ LocalSourceStreamInfo::VideoTrackCount()
   return mVideoTracks.Length();
 }
 
-PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection() 
+PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();
   return pc;
@@ -131,8 +217,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(PeerConnectionImpl, IPeerConnection)
 
 PeerConnectionImpl::PeerConnectionImpl()
   : mCall(NULL)
-  , mPCObserver(NULL)
   , mReadyState(kNew)
+  , mPCObserver(NULL)
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
   , mIceStreams(NULL)
@@ -143,14 +229,21 @@ PeerConnectionImpl::~PeerConnectionImpl()
   peerconnections.erase(mHandle);
   Close();
   PR_DestroyLock(mLocalSourceStreamsLock);
+
+  /* We should release mPCObserver on the main thread, but also prevent a double free.
+  nsCOMPtr<nsIThread> mainThread;
+  NS_GetMainThread(getter_AddRefs(mainThread));
+  NS_ProxyRelease(mainThread, mPCObserver);
+  */
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer) {
+PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thread) {
   if (!observer) {
     return NS_ERROR_FAILURE;
   }
 
+  mThread = thread;
   mPCObserver = observer;
   PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
 
@@ -201,6 +294,19 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer) {
   mCall->setPeerConnection(mHandle);
   peerconnections[mHandle] = this;
 
+  // TODO: Don't busy-wait here, instead invoke a callback when we're ready.
+  PR_Sleep(2000);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+PeerConnectionImpl::CreateMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
+{
+  // TODO: We should use nsDOMMediaStream::CreateInputStream here, but
+  // that crashes xpcshell. Investigate.
+  nsCOMPtr<nsDOMMediaStream> stream = new nsDOMMediaStream();
+  stream->SetHintContents(hint);
+  NS_ADDREF(*retval = stream);
   return NS_OK;
 }
 
@@ -401,7 +507,6 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
 {
   cc_call_state_t state = info->getCallState();
   std::string statestr = info->callStateToString(state);
-  std::string eventstr = info->callEventToString(callEvent);
 
   if (CCAPI_CALL_EV_CREATED != callEvent && CCAPI_CALL_EV_STATE != callEvent) {
     CSFLogDebugS(logTag, ": **** CALL HANDLE IS: " << mHandle <<
@@ -409,84 +514,26 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
     return;
   }
 
-  std::string s_sdpstr;
-  StatusCode code;
-  MediaStreamTable* stream;
-
   switch (state) {
-    case CREATEOFFER:
-      CSFLogDebug(logTag, "%s: state = CREATEOFFER", __FUNCTION__);
-      s_sdpstr = info->getSDP();
-      if (mPCObserver) {
-        mPCObserver->OnCreateOfferSuccess(s_sdpstr.c_str());
-      }
-      break;
-
-    case CREATEANSWER:
-      CSFLogDebug(logTag, "%s: state = CREATEANSWER", __FUNCTION__);
-      s_sdpstr = info->getSDP();
-      if (mPCObserver) {
-        mPCObserver->OnCreateAnswerSuccess(s_sdpstr.c_str());
-      }
-      break;
-
-    case CREATEOFFERERROR:
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnCreateOfferError(code);
-      }
-      break;
-
-    case CREATEANSWERERROR:
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnCreateAnswerError(code);
-      }
-      break;
-
     case SETLOCALDESC:
       mLocalSDP = mLocalRequestedSDP;
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnSetLocalDescriptionSuccess(code);
-      }
       break;
-
     case SETREMOTEDESC:
       mRemoteSDP = mRemoteRequestedSDP;
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnSetRemoteDescriptionSuccess(code);
-      }
       break;
-
-    case SETLOCALDESCERROR:
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnSetLocalDescriptionError(code);
-      }
-      break;
-
-    case SETREMOTEDESCERROR:
-      code = (StatusCode)info->getStatusCode();
-      if (mPCObserver) {
-        mPCObserver->OnSetRemoteDescriptionError(code);
-      }
-      break;
-
-    case REMOTESTREAMADD:
-      CSFLogDebug(logTag, "%s: state = REMOTESTREAMADD", __FUNCTION__);
-      stream = info->getMediaStreams();
-      if (mPCObserver) {
-        mPCObserver->OnAddStream(GetRemoteStream(stream->media_stream_id)->
-          GetMediaStream());
-      }
-      break;
-
     default:
-      CSFLogDebugS(logTag, ": **** CALL HANDLE IS: " << mHandle <<
-        ": **** CALL STATE IS: " << statestr);
       break;
+  }
+
+  if (mPCObserver) {
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(info, mPCObserver);
+
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
   }
 }
 

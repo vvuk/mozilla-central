@@ -1,4 +1,4 @@
-#include "nsISupports.idl"
+#include "nsIThread.idl"
 #include "nsIDOMMediaStream.idl"
 
 /* Do not confuse with nsIDOMRTCPeerConnection. This interface is purely for
@@ -46,8 +46,11 @@ interface IPeerConnectionObserver : nsISupports
 [scriptable, uuid(942366a9-80fe-4cac-ac97-4fbca45bcbff)]
 interface IPeerConnection : nsISupports
 {
-  /* Must be called first */
-  void initialize(in IPeerConnectionObserver observer);
+  const unsigned long kHintAudio = 0x00000001;
+  const unsigned long kHintVideo = 0x00000002;
+
+  /* Must be called first. Observer events will be dispatched on the thread provided */
+  void initialize(in IPeerConnectionObserver observer, [optional] in nsIThread thread);
 
   /* JSEP calls */
   void createOffer(in string hints);
@@ -69,6 +72,9 @@ interface IPeerConnection : nsISupports
 
   /* Puts the SIPCC engine back to 'kIdle', shuts down threads, deletes state */
   void close();
+
+  /* For testing purposes only! */
+  nsIDOMMediaStream createMediaStream(in unsigned long hint);
 
   readonly attribute string localDescription;
   readonly attribute string remoteDescription;
