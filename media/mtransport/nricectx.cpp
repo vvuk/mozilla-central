@@ -313,6 +313,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
 
 
 NrIceCtx::~NrIceCtx() {
+  MLOG(PR_LOG_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
   nr_ice_peer_ctx_destroy(&peer_);
   nr_ice_ctx_destroy(&ctx_);
   delete ice_handler_vtbl_;

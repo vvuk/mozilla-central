@@ -537,7 +537,9 @@ int nr_ice_media_stream_component_nominated(nr_ice_media_stream *stream,nr_ice_c
       stream->timer=0;
     }
 
-    stream->pctx->handler->vtbl->stream_ready(stream->pctx->handler->obj,stream->local_stream);
+    if (stream->pctx->handler) {
+      stream->pctx->handler->vtbl->stream_ready(stream->pctx->handler->obj,stream->local_stream);
+    }
 
     /* Now tell the peer_ctx that we're done */
     if(r=nr_ice_peer_ctx_stream_done(stream->pctx,stream))
@@ -576,7 +578,9 @@ int nr_ice_media_stream_component_failed(nr_ice_media_stream *stream,nr_ice_comp
       stream->timer=0;
     }
 
-    stream->pctx->handler->vtbl->stream_failed(stream->pctx->handler->obj,stream->local_stream);
+    if (stream->pctx->handler) {
+      stream->pctx->handler->vtbl->stream_failed(stream->pctx->handler->obj,stream->local_stream);
+    }
 
     /* Now tell the peer_ctx that we're done */
     if(r=nr_ice_peer_ctx_stream_done(stream->pctx,stream))

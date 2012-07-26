@@ -68,7 +68,7 @@ class PeerConnectionCtx : public CSF::CC_Observer {
   // This is a singleton, so don't copy construct it, etc.
   PeerConnectionCtx(const PeerConnectionCtx& other) MOZ_DELETE;
   void operator=(const PeerConnectionCtx& other) MOZ_DELETE;
-  ~PeerConnectionCtx() {};
+  virtual ~PeerConnectionCtx() {};
 
   nsresult Initialize();
   nsresult Cleanup();

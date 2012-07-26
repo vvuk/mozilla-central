@@ -642,51 +642,57 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
     LSM_DEBUG(get_debug_string(LSM_DBG_INT1), lcb->call_id, lcb->line, fname,
               "requested port", data->port);
 
+
+    sdpmode = 0;
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+
     if (data->keep == TRUE) {
-
-    	//Todo IPv6: Add interface call for IPv6
-    	(void) vcmRxOpen(media->cap_index, dcb->group_id, media->refid,
-    					lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
-    					media->is_multicast ? &media->dest_addr:&media->src_addr, data->is_multicast,
-    					&port_allocated);
-    	if (port_allocated != -1) {
-    		data->port = (uint16_t)port_allocated;
-    		rc = CC_RC_SUCCESS;
-    	}
-      } else {
-
-        sdpmode = 0;
-    	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+      if (sdpmode && strlen(dcb->peerconnection)) {
+        /* If we are doing ICE, don't try to re-open */
+        port_allocated = data->port;
+      }
+      else {
+        //Todo IPv6: Add interface call for IPv6
+        (void) vcmRxOpen(media->cap_index, dcb->group_id, media->refid,
+          lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), data->port,
+          media->is_multicast ? &media->dest_addr:&media->src_addr, data->is_multicast,
+          &port_allocated);
+      }
+      if (port_allocated != -1) {
+        data->port = (uint16_t)port_allocated;
+        rc = CC_RC_SUCCESS;
+      }
+    } else {
         
-    	if (sdpmode) {
+      if (sdpmode) {
 
-          if (!strlen(dcb->peerconnection)) {
-              vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
-    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
-                                                data->port,                                                        
-    						&port_allocated);
-    		if (port_allocated != -1) {
-    			data->port = (uint16_t)port_allocated;
-    			rc = CC_RC_SUCCESS;
-    		}
-          } else {
-              char **candidates;
-              int candidate_ct;
-              char *default_addr;
+        if (!strlen(dcb->peerconnection)) {
+          vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
+            lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+            data->port,                                                        
+            &port_allocated);
+          if (port_allocated != -1) {
+            data->port = (uint16_t)port_allocated;
+            rc = CC_RC_SUCCESS;
+          }
+        } else {
+          char **candidates;
+          int candidate_ct;
+          char *default_addr;
 
-              vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
-    						lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
-                                                dcb->peerconnection,
-                                                media->level,
-                                                &default_addr, &port_allocated,
-                                                &candidates, &candidate_ct);
+          vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
+            lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
+            dcb->peerconnection,
+            media->level,
+            &default_addr, &port_allocated,
+            &candidates, &candidate_ct);
 
-    		if (port_allocated != -1) {
-    			data->port = (uint16_t)port_allocated;
-    			media->candidate_ct = candidate_ct;
-    			media->candidatesp = candidates;
-    			rc = CC_RC_SUCCESS;
-    		}
+          if (port_allocated != -1) {
+            data->port = (uint16_t)port_allocated;
+            media->candidate_ct = candidate_ct;
+            media->candidatesp = candidates;
+            rc = CC_RC_SUCCESS;
+          }
         }
       }
     }
@@ -1025,8 +1031,18 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     sdpmode = 0;
                 	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
                         if (dcb->peerconnection) {
-                          fprintf(stderr, "******** THIS IS WHERE MEDIA WOULD START ******** \n");
-                          ret_val = CC_RC_SUCCESS;
+                          ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
+                            media->level,
+                            dcb->media_cap_tbl->cap[media->cap_index].pc_stream,
+                            dcb->media_cap_tbl->cap[media->cap_index].pc_track,
+                            lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                            dcb->peerconnection,
+                            vcmRtpToMediaPayload(media->payload,
+                            media->remote_dynamic_payload_type_value,
+                            media->mode),
+                            FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                            FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                            &attrs);
                         }
                         else if (!sdpmode) {
                           ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
@@ -1234,31 +1250,52 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
 
             dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
 
-            sdpmode = 0;
-        	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-        	if (!sdpmode) {
-
-        		if (vcmTxStart(media->cap_index, group_id,
-                             media->refid,
-                             lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                         vcmRtpToMediaPayload(media->payload,
-                                 media->remote_dynamic_payload_type_value,
-                                 media->mode),
-                         (short)dscp,
-                             &media->src_addr,
-                         media->src_port,
-                         &media->dest_addr,
-                         media->dest_port,
-                         FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                         FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
-                         &attrs) == -1) 
-        		{
-                   LSM_DEBUG(DEB_L_C_F_PREFIX"%s: vcmTxStart failed\n",
-                             DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname1), fname);
-                   dcb->dsp_out_of_resources = TRUE;
-                   return;
-        		}
-        	}
+            if (!strlen(dcb->peerconnection)){ 
+              if (vcmTxStart(media->cap_index, group_id,
+                  media->refid,
+                  lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                  vcmRtpToMediaPayload(media->payload,
+                    media->remote_dynamic_payload_type_value,
+                    media->mode),
+                  (short)dscp,
+                  &media->src_addr,
+                  media->src_port,
+                  &media->dest_addr,
+                  media->dest_port,
+                  FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                  FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                  &attrs) == -1) 
+              {
+                LSM_DEBUG(DEB_L_C_F_PREFIX"%s: vcmTxStart failed\n",
+                  DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname1), fname);
+                dcb->dsp_out_of_resources = TRUE;
+                return;
+              }
+            }
+            else {
+              if (vcmTxStartICE(media->cap_index, group_id,
+                  media->refid,
+                  media->level,
+                  /* TODO(emannion): his perhaps needs some error checking for validity.
+                     See gsmsdp_get_media_cap_entry_by_index. */
+                  dcb->media_cap_tbl->cap[media->cap_index].pc_stream,
+                  dcb->media_cap_tbl->cap[media->cap_index].pc_track,
+                  lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                  dcb->peerconnection,
+                  vcmRtpToMediaPayload(media->payload,
+                    media->remote_dynamic_payload_type_value,
+                    media->mode),
+                  (short)dscp,
+                  FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                  FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                  &attrs) == -1) 
+              {
+                LSM_DEBUG(DEB_L_C_F_PREFIX"%s: vcmTxStartICE failed\n",
+                  DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname1), fname);
+                dcb->dsp_out_of_resources = TRUE;
+                return;
+              }
+            }
 
             lsm_update_dscp_value(dcb);
 

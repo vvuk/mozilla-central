@@ -167,6 +167,13 @@ LocalSourceStreamInfo::GetMediaStream()
   return mMediaStream;
 }
 
+
+nsRefPtr<nsDOMMediaStream>
+RemoteSourceStreamInfo::GetMediaStream()
+{
+  return mMediaStream;
+}
+
 /* If the ExpectAudio hint is on we will add a track at the default first
  * audio track ID (0)
  * FIX - Do we need to iterate over the tracks instead of taking these hints?
@@ -210,8 +217,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(PeerConnectionImpl, IPeerConnection)
 
 PeerConnectionImpl::PeerConnectionImpl()
   : mCall(NULL)
-  , mPCObserver(NULL)
   , mReadyState(kNew)
+  , mPCObserver(NULL)
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
   , mIceStreams(NULL)
@@ -538,9 +545,7 @@ PeerConnectionImpl::ChangeReadyState(PeerConnectionImpl::ReadyState ready_state)
   }
 }
 
-PeerConnectionImpl*
-PeerConnectionImpl::AcquireInstance(const std::string& handle)
-{
+PeerConnectionWrapper *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
   if (peerconnections.find(handle) == peerconnections.end()) {
     return NULL;
   }
@@ -548,7 +553,7 @@ PeerConnectionImpl::AcquireInstance(const std::string& handle)
   PeerConnectionImpl *impl = peerconnections[handle];
   impl->AddRef();
 
-  return impl;
+  return new PeerConnectionWrapper(impl);
 }
 
 void
@@ -583,6 +588,42 @@ PeerConnectionImpl::IceCompleted(NrIceCtx *ctx) {
 void
 PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
   CSFLogDebug(logTag, "ICE stream ready : %s", stream->name().c_str());
+}
+
+nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
+  if (index >= mLocalSourceStreams.Length())
+    return NULL;
+  
+  PR_ASSERT(mLocalSourceStreams[index]);
+  return mLocalSourceStreams[index];
+}
+
+nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) {
+  if (index >= mRemoteSourceStreams.Length())
+    return NULL;
+  
+  PR_ASSERT(mRemoteSourceStreams[index]);
+  return mRemoteSourceStreams[index];
+}
+
+nsresult 
+PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
+  int *index) {
+  *index = mRemoteSourceStreams.Length();
+
+  mRemoteSourceStreams.AppendElement(info);
+
+  return NS_OK;
+}
+
+void LocalSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  mPipelines[track] = pipeline;
+}
+
+void RemoteSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  mPipelines[track] = pipeline;
 }
 
 }  // end sipcc namespace

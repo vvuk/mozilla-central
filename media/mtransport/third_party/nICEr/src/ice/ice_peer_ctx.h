@@ -40,7 +40,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 struct nr_ice_peer_ctx_ {
+#if 0
   int state;
+#endif
   char *label;
   
   nr_ice_ctx *ctx;

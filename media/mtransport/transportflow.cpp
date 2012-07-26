@@ -20,6 +20,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
   if (!NS_SUCCEEDED(rv))
     return rv;
 
+
   TransportLayer *old_layer = layers_.empty() ? NULL : layers_.front();
 
   // Re-target my signals to the new layer

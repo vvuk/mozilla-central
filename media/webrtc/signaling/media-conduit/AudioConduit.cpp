@@ -41,13 +41,6 @@ mozilla::RefPtr<AudioSessionConduit> AudioSessionConduit::Create()
 /**
  * Destruction defines for our super-classes 
  */
-
-MediaSessionConduit::~MediaSessionConduit()
-{}
-
-AudioSessionConduit::~AudioSessionConduit()
-{}
-
 WebrtcAudioConduit::~WebrtcAudioConduit()
 {
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
@@ -513,7 +506,7 @@ WebrtcAudioConduit::GetAudioFrame(int16_t speechData[],
      CSFLogError(logTag,"%s Invalid Sampling Frequency ", __FUNCTION__);
      return kMediaConduitMalformedArgument; 
   }
-  
+
   //validate capture time
   if(capture_delay < 0 )
   {

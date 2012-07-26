@@ -13,7 +13,7 @@ using namespace std;
 #include "mozilla/Scoped.h"
 #include <MediaConduitInterface.h>
 #include "nsStaticComponents.h"
-
+#include "FakeMediaStreamsImpl.h"
 
 #include "resource_mgr.h"
 
@@ -202,10 +202,6 @@ void AudioSendAndReceive::GenerateAndReadSamples()
  * As of today we just verify if the frames rendered are exactly
  * the same as frame inserted at the first place
  */
-
-mozilla::VideoRenderer::~VideoRenderer()
-{}
-
 class DummyVideoTarget: public mozilla::VideoRenderer
 {
 public:
@@ -258,10 +254,6 @@ public:
  }
 
 };
-
-
-mozilla::TransportInterface::~TransportInterface()
-{}
 
 /**
  *  Fake Audio and Video External Transport Class

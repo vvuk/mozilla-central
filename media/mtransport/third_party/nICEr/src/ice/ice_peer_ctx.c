@@ -206,7 +206,10 @@ int nr_ice_peer_ctx_destroy(nr_ice_peer_ctx **pctxp)
 
     if(!pctxp || !*pctxp)
       return(0);
-    
+
+    /* Stop calling the handler */
+    (*pctxp)->handler = 0;
+
     NR_ASYNC_SCHEDULE(nr_ice_peer_ctx_destroy_cb,*pctxp);
 
     *pctxp=0;
@@ -265,7 +268,9 @@ static void nr_ice_peer_ctx_fire_done(int s, int how, void *cb_arg)
     nr_ice_peer_ctx *pctx=cb_arg;
 
     /* Fire the handler callback to say we're done */
-    pctx->handler->vtbl->ice_completed(pctx->handler->obj, pctx);
+    if (pctx->handler) {
+      pctx->handler->vtbl->ice_completed(pctx->handler->obj, pctx);
+    }
   }
 
 
@@ -372,10 +377,13 @@ int nr_ice_peer_ctx_deliver_packet_maybe(nr_ice_peer_ctx *pctx, nr_ice_component
       ABORT(R_REJECTED);
 
     /* OK, there's a match. Call the handler */
-    r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): Delivering data", pctx->label);
 
-    pctx->handler->vtbl->msg_recvd(pctx->handler->obj,
-      pctx,comp->stream,comp->component_id,data,len);
+    if (pctx->handler) {
+      r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): Delivering data", pctx->label);
+
+      pctx->handler->vtbl->msg_recvd(pctx->handler->obj,
+        pctx,comp->stream,comp->component_id,data,len);
+    }
 
     _status=0;
   abort:

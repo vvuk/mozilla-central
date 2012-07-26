@@ -35,11 +35,6 @@ mozilla::RefPtr<VideoSessionConduit> VideoSessionConduit::Create()
 
 }
 
-/** Super Class Pure destructor **/
-VideoSessionConduit::~VideoSessionConduit()
-{}
-
-
 WebrtcVideoConduit::~WebrtcVideoConduit()
 {
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
@@ -235,7 +230,6 @@ MediaConduitErrorCode
   {
     CSFLogError(logTag, "%s NULL Transport ", __FUNCTION__);
     return kMediaConduitInvalidTransport;
-
   }
 
   //Assign the transport

@@ -18,10 +18,10 @@ using namespace std;
 #include "ssl.h"
 #include "prthread.h"
 
-// Typedefs all mediastream types to Fake_ versions
-#define USE_FAKE_MEDIA_STREAMS
-
+#include "FakeMediaStreams.h"
+#include "FakeMediaStreamsImpl.h"
 #include "PeerConnectionImpl.h"
+#include "runnable_utils.h"
 #include "nsStaticComponents.h"
 #include "nsIDOMRTCPeerConnection.h"
 
@@ -30,21 +30,6 @@ MtransportTestUtils test_utils;
 
 static int kDefaultTimeout = 3000;
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_nsDOMMediaStream, nsIDOMMediaStream)
-
-NS_IMETHODIMP
-Fake_nsDOMMediaStream::GetCurrentTime(double* time)
-{
-  return NS_OK;
-}
-
-already_AddRefed<Fake_nsDOMMediaStream>
-Fake_nsDOMMediaStream::CreateInputStream(PRUint32 aHintContents)
-{
-  nsRefPtr<Fake_nsDOMMediaStream> stream = new Fake_nsDOMMediaStream();
-  stream->SetHintContents(aHintContents);
-  return stream.forget();
-}
 
 namespace test {
 
@@ -221,12 +206,29 @@ TestObserver::OnStateChange(PRUint32 state_type)
   return NS_OK;
 }
 
-/*
-void OnAddStream(MediaTrackTable* stream)
+
+NS_IMETHODIMP
+TestObserver::OnAddStream(nsIDOMMediaStream *stream)
 {
+  PR_ASSERT(stream);
+
+  nsDOMMediaStream *ms = static_cast<nsDOMMediaStream *>(stream);
+
+  cout << "OnAddStream called hints=" << ms->GetHintContents() << endl;
   state = stateSuccess;
   onAddStreamCalled = true;
-}*/
+  
+  // We know that the media stream is secretly a Fake_SourceMediaStream, 
+  // so now we can start it pulling from us
+  Fake_SourceMediaStream *fs = static_cast<Fake_SourceMediaStream *>(ms->GetStream());
+  
+  nsresult ret;
+  test_utils.sts_target()->Dispatch(
+    WrapRunnableRet(fs, &Fake_SourceMediaStream::Start, &ret),
+    NS_DISPATCH_SYNC);
+  
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 TestObserver::OnRemoveStream()
@@ -314,9 +316,19 @@ class SignalingAgent {
   void CreateOffer(const char* hints, bool audio, bool video) {
 
     // Create a media stream as if it came from GUM
-    nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
+    Fake_AudioStreamSource *audio_stream = 
+      new Fake_AudioStreamSource();
 
+    nsresult ret;
+    test_utils.sts_target()->Dispatch(
+      WrapRunnableRet(audio_stream, &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
+
+    ASSERT_TRUE(NS_SUCCEEDED(ret));
+
+    
     // store in object to be used by RemoveStream
+    nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream(audio_stream);
     domMediaStream_ = domMediaStream;
 
     PRUint32 aHintContents = 0;
@@ -539,6 +551,12 @@ TEST_F(SignalingTest, CreateOfferRemoveStream)
 TEST_F(SignalingTest, OfferAnswer)
 {
   OfferAnswer("", "");
+}
+
+TEST_F(SignalingTest, FullCall)
+{
+  OfferAnswer("", "");
+  ASSERT_TRUE_WAIT(false, 10000);
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)

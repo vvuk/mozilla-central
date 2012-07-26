@@ -464,9 +464,21 @@ int nr_ice_candidate_pair_set_state(nr_ice_peer_ctx *pctx, nr_ice_cand_pair *pai
 
     r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): setting pair %s to %s",
       pctx->label,pair->as_string,nr_ice_cand_pair_states[state]);
-    pair->state=state;
 
-    if(pctx->state!=NR_ICE_PAIR_STATE_WAITING){
+    /* NOTE: This function used to reference pctx->state instead of
+       pair->state and the assignment to pair->state was at the top
+       of this function. Because pctx->state was never changed, this seems to have
+       been a typo. The natural logic is "if the state changed
+       decrement the counter" so this implies we should be checking
+       the pair state rather than the pctx->state.
+
+       This didn't cause big problems because waiting_pairs was only
+       used for pacing, so the pacing just was kind of broken.
+       
+       This note is here as a reminder until we do more testing
+       and make sure that in fact this was a typo.
+    */
+    if(pair->state!=NR_ICE_PAIR_STATE_WAITING){
       if(state==NR_ICE_PAIR_STATE_WAITING)
         pctx->waiting_pairs++;
     }
@@ -476,6 +488,9 @@ int nr_ice_candidate_pair_set_state(nr_ice_peer_ctx *pctx, nr_ice_cand_pair *pai
 
       assert(pctx->waiting_pairs>=0);
     }
+    pair->state=state;
+
+
     if(pair->state==NR_ICE_PAIR_STATE_FAILED){
       if(r=nr_ice_component_failed_pair(pair->remote->component, pair))
         ABORT(r);

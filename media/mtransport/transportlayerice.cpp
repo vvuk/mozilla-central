@@ -77,8 +77,8 @@ extern "C" {
 MLOG_INIT("mtransport");
 
 std::string TransportLayerIce::ID("mt_ice");
-static bool initialized = false;
 
+static bool initialized = false;
 
 TransportLayerIce::TransportLayerIce(const std::string& name,
     mozilla::RefPtr<NrIceCtx> ctx, mozilla::RefPtr<NrIceMediaStream> stream,
@@ -102,7 +102,9 @@ TransportResult TransportLayerIce::SendPacket(const unsigned char *data,
     return (res == NS_BASE_STREAM_WOULD_BLOCK) ?
         TE_WOULDBLOCK : TE_ERROR;
   }
-  
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << " SendPacket(" << len << ") succeeded"); 
+
   return len;
 }
 
@@ -126,7 +128,9 @@ void TransportLayerIce::IcePacketReceived(NrIceMediaStream *stream, int componen
   // for us.
   if (component_ != component)
     return;
-  
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << stream->name() << ","
+    << component << "," << len << ")");
   SignalPacketReceived(this, data, len);
 }
 

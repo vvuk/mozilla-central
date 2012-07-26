@@ -27,6 +27,7 @@
 #include "CC_Device.h"
 #include "CC_Call.h"
 #include "CC_Observer.h"
+#include "MediaPipeline.h"
 
 namespace sipcc {
 
@@ -51,7 +52,11 @@ public:
     const mozilla::MediaSegment& aQueuedMedia
   );
 
+  virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
+    mozilla::StreamTime aDesiredTime) {}
+
   nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
 
   void ExpectAudio();
   void ExpectVideo();
@@ -59,14 +64,31 @@ public:
   unsigned VideoTrackCount();
 
 private:
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   nsRefPtr<nsDOMMediaStream> mMediaStream;
   nsTArray<mozilla::TrackID> mAudioTracks;
   nsTArray<mozilla::TrackID> mVideoTracks;
 };
 
+class RemoteSourceStreamInfo {
+ public:
+  RemoteSourceStreamInfo(nsDOMMediaStream* aMediaStream) :
+      mMediaStream(aMediaStream),
+      mPipelines() {}
+
+  nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);  
+
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo);
+ private:
+  nsRefPtr<nsDOMMediaStream> mMediaStream;  
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
+};
+
+class PeerConnectionWrapper;
+
 class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
-                                     public sigslot::has_slots<>
-{
+                                     public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
@@ -108,7 +130,7 @@ public:
   );
 
   // Handle system to allow weak references to be passed through C code
-  static PeerConnectionImpl *AcquireInstance(const std::string& handle);
+  static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
   virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
 
@@ -127,9 +149,17 @@ public:
     return mIceStreams[i];
   }
 
+  // Get a specific local stream
+  nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
+  
+  // Get a specific remote stream
+  nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int index);
+
+  // Add a remote stream. Returns the index in index
+  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info, int *index);
+
 private:
   void ChangeReadyState(ReadyState ready_state);
-
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
   CSF::CC_CallPtr mCall;
@@ -149,6 +179,10 @@ private:
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
 
+  // A list of streams provided by the other side
+  PRLock *mRemoteSourceStreamsLock;
+  nsTArray<nsRefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
+
   // A handle to refer to this PC with
   std::string mHandle;
 
@@ -159,6 +193,22 @@ private:
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+};
+
+// This is what is returned when you acquire on a handle
+class PeerConnectionWrapper {
+ public:
+  PeerConnectionWrapper(PeerConnectionImpl *impl) : impl_(impl) {}
+
+  ~PeerConnectionWrapper() {
+    if (impl_)
+      impl_->ReleaseInstance();
+  }
+
+  PeerConnectionImpl *impl() { return impl_; }
+
+ private:
+  PeerConnectionImpl *impl_;
 };
 
 }  // end sipcc namespace
