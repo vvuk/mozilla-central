@@ -36,7 +36,7 @@ class MediaPipeline {
   enum Direction { TRANSMIT, RECEIVE };
 
   MediaPipeline(Direction direction,
-                nsRefPtr<nsDOMMediaStream> stream,
+                nsDOMMediaStream* stream,
                 RefPtr<MediaSessionConduit> conduit,
                 mozilla::RefPtr<TransportFlow> rtp_transport,
                 mozilla::RefPtr<TransportFlow> rtcp_transport) :
@@ -57,7 +57,7 @@ class MediaPipeline {
 
  protected:
   Direction direction_;
-  nsRefPtr<nsDOMMediaStream> stream_;
+  nsDOMMediaStream* stream_;
   RefPtr<MediaSessionConduit> conduit_;
   RefPtr<TransportFlow> rtp_transport_;
   RefPtr<TransportFlow> rtcp_transport_;
@@ -68,7 +68,7 @@ class MediaPipeline {
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public: 
-  MediaPipelineTransmit(nsRefPtr<nsDOMMediaStream> stream, 
+  MediaPipelineTransmit(nsDOMMediaStream* stream, 
                         RefPtr<MediaSessionConduit> conduit,
                         mozilla::RefPtr<TransportFlow> rtp_transport,
                         mozilla::RefPtr<TransportFlow> rtcp_transport) :
@@ -145,7 +145,7 @@ class MediaPipelineTransmit : public MediaPipeline {
 class MediaPipelineReceive : public MediaPipeline,
                              public sigslot::has_slots<> {
  public: 
-  MediaPipelineReceive(nsRefPtr<nsDOMMediaStream> stream, 
+  MediaPipelineReceive(nsDOMMediaStream* stream, 
                        RefPtr<MediaSessionConduit> conduit,
                        mozilla::RefPtr<TransportFlow> rtp_transport,
                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
@@ -179,7 +179,7 @@ class MediaPipelineReceive : public MediaPipeline,
 // rendering audio.
 class MediaPipelineReceiveAudio : public MediaPipelineReceive {
  public: 
-  MediaPipelineReceiveAudio(nsRefPtr<nsDOMMediaStream> stream,
+  MediaPipelineReceiveAudio(nsDOMMediaStream* stream,
                             RefPtr<AudioSessionConduit> conduit,
                             mozilla::RefPtr<TransportFlow> rtp_transport,
                             mozilla::RefPtr<TransportFlow> rtcp_transport) :

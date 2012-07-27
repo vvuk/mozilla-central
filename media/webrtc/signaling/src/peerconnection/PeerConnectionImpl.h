@@ -55,7 +55,7 @@ public:
   virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
     mozilla::StreamTime aDesiredTime) {}
 
-  nsRefPtr<nsDOMMediaStream> GetMediaStream();
+  nsDOMMediaStream* GetMediaStream();
   void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
 
   void ExpectAudio();
@@ -76,12 +76,12 @@ class RemoteSourceStreamInfo {
       mMediaStream(aMediaStream),
       mPipelines() {}
 
-  nsRefPtr<nsDOMMediaStream> GetMediaStream();
-  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);  
+  nsDOMMediaStream* GetMediaStream();
+  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo);
  private:
-  nsRefPtr<nsDOMMediaStream> mMediaStream;  
+  nsRefPtr<nsDOMMediaStream> mMediaStream;
   std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
 };
 
@@ -122,8 +122,10 @@ public:
   static PeerConnectionImpl* CreatePeerConnection();
   static void Shutdown();
 
-  already_AddRefed<nsDOMMediaStream> MakeMediaStream(PRUint32 hint);
-  
+  void MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** stream);
+  void MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info);
+  void CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info);
+
   // Implementation of the only observer we need
   virtual void onCallEvent(
     ccapi_call_event_e callEvent,
@@ -153,7 +155,7 @@ public:
 
   // Get a specific local stream
   nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
-  
+
   // Get a specific remote stream
   nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int index);
 
@@ -212,7 +214,7 @@ private:
 
   // Transport flows: even is RTP, odd is RTCP
   std::map<int, mozilla::RefPtr<TransportFlow> > mTransportFlows;
-  
+
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 };

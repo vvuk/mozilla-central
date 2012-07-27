@@ -833,7 +833,7 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
  *  @param[in] mcap_id - group identifier to which stream belongs.
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[out] pc_stream_id - the id of the allocated stream
- * 
+ *
  *  TODO(ekr@rtfm.com): Revise along with everything else for the
  *  new stream model.
  *
@@ -844,7 +844,7 @@ short vcmCreateRemoteStream(
   const char *peerconnection,
   int *pc_stream_id) {
   PRUint32 hints = 0;
-  
+
   CSFLogDebug( logTag, "%s", __FUNCTION__);
 
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
@@ -860,24 +860,13 @@ short vcmCreateRemoteStream(
   if (CC_IS_VIDEO(mcap_id)) {
     hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
   }
-    
-  //nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
-  nsRefPtr<nsIDOMMediaStream> tmp;
-  pc->impl()->CreateMediaStream(hints, getter_AddRefs(tmp));
-  nsDOMMediaStream* ms = static_cast<nsDOMMediaStream*>(tmp.get());
 
-  // TODO(ekr@rtfm.com): Does this go here?
-  static_cast<mozilla::SourceMediaStream *>(ms->GetStream())->SetPullEnabled(true);
-  
-  nsRefPtr<sipcc::RemoteSourceStreamInfo> stream = new
-    sipcc::RemoteSourceStreamInfo(ms);
-
-  // TODO(ekr@rtfm.com): Add the track info with the first segment
-  
-  nsresult res = pc->impl()->AddRemoteStream(stream, pc_stream_id);
+  sipcc::RemoteSourceStreamInfo* info;
+  pc->impl()->CreateRemoteSourceStreamInfo(hints, &info);
+  nsresult res = pc->impl()->AddRemoteStream(info, pc_stream_id);
   if (!NS_SUCCEEDED(res))
     return VCM_ERROR;
-  
+
   CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
     __FUNCTION__, *pc_stream_id, hints);
 

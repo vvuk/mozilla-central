@@ -45,7 +45,7 @@ public:
 
     cc_call_state_t state = mInfo->getCallState();
     std::string statestr = mInfo->callStateToString(state);
-        
+
     switch (state) {
       case CREATEOFFER:
         s_sdpstr = mInfo->getSDP();
@@ -157,17 +157,17 @@ LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   }
 }
 
-nsRefPtr<nsDOMMediaStream>
+nsDOMMediaStream*
 LocalSourceStreamInfo::GetMediaStream()
 {
-  return mMediaStream;
+  return mMediaStream.get();
 }
 
 
-nsRefPtr<nsDOMMediaStream>
+nsDOMMediaStream*
 RemoteSourceStreamInfo::GetMediaStream()
 {
-  return mMediaStream;
+  return mMediaStream.get();
 }
 
 /* If the ExpectAudio hint is on we will add a track at the default first
@@ -233,6 +233,53 @@ PeerConnectionImpl::~PeerConnectionImpl()
   */
 }
 
+// One level of indirection so we can use WrapRunnable in CreateMediaStream.
+void
+PeerConnectionImpl::MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
+{
+  nsRefPtr<nsIDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
+  NS_ADDREF(*retval = stream);
+  return;
+}
+
+void
+PeerConnectionImpl::MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info)
+{
+  // TODO(ekr@rtfm.com): Add the track info with the first segment
+  nsRefPtr<RemoteSourceStreamInfo> remote = new RemoteSourceStreamInfo(stream);
+  NS_ADDREF(*info = remote);
+  return;
+}
+
+void
+PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info)
+{
+  nsIDOMMediaStream* stream;
+
+  if (!mThread || NS_IsMainThread()) {
+    MakeMediaStream(hint, &stream);
+  } else {
+    mThread->Dispatch(WrapRunnable(
+      this, &PeerConnectionImpl::MakeMediaStream, hint, &stream
+    ), NS_DISPATCH_SYNC);
+  }
+
+  nsDOMMediaStream* comstream = static_cast<nsDOMMediaStream*>(stream);
+  static_cast<mozilla::SourceMediaStream*>(comstream->GetStream())->SetPullEnabled(true);
+
+  nsRefPtr<RemoteSourceStreamInfo> remote;
+  if (!mThread || NS_IsMainThread()) {
+    remote = new RemoteSourceStreamInfo(comstream);
+    NS_ADDREF(*info = remote);
+    return;
+  }
+
+  mThread->Dispatch(WrapRunnable(
+    this, &PeerConnectionImpl::MakeRemoteSource, comstream, info
+  ), NS_DISPATCH_SYNC);
+  return;
+}
+
 NS_IMETHODIMP
 PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thread) {
   if (!observer) {
@@ -295,31 +342,17 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thr
   return NS_OK;
 }
 
-// One level of indirection so we can use WrapRunnableRet in CreateMediaStream.
-already_AddRefed<nsDOMMediaStream>
-PeerConnectionImpl::MakeMediaStream(PRUint32 hint)
-{
-  return nsDOMMediaStream::CreateInputStream(hint);
-}
-
 NS_IMETHODIMP
 PeerConnectionImpl::CreateMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
-  // TODO: We should use nsDOMMediaStream::CreateInputStream here, but
-  // that crashes xpcshell. Investigate.
-  nsRefPtr<nsDOMMediaStream> stream;
-
   if (!mThread || NS_IsMainThread()) {
-    stream = nsDOMMediaStream::CreateInputStream(hint);
-    NS_ADDREF(*retval = stream);
+    MakeMediaStream(hint, retval);
     return NS_OK;
   }
 
-  mThread->Dispatch(WrapRunnableRet(
-    this, &PeerConnectionImpl::MakeMediaStream, hint, &stream
+  mThread->Dispatch(WrapRunnable(
+    this, &PeerConnectionImpl::MakeMediaStream, hint, retval
   ), NS_DISPATCH_SYNC);
-
-  NS_ADDREF(*retval = stream);
   return NS_OK;
 }
 
@@ -606,7 +639,7 @@ PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
 nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
   if (index >= mLocalSourceStreams.Length())
     return NULL;
-  
+
   PR_ASSERT(mLocalSourceStreams[index]);
   return mLocalSourceStreams[index];
 }
@@ -614,12 +647,12 @@ nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
 nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) {
   if (index >= mRemoteSourceStreams.Length())
     return NULL;
-  
+
   PR_ASSERT(mRemoteSourceStreams[index]);
   return mRemoteSourceStreams[index];
 }
 
-nsresult 
+nsresult
 PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
   int *index) {
   *index = mRemoteSourceStreams.Length();
