@@ -239,7 +239,6 @@ void
 PeerConnectionImpl::MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
   nsRefPtr<nsDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
-  new Fake_AudioGenerator(stream);
   NS_ADDREF(*retval = stream);
   return;
 }
