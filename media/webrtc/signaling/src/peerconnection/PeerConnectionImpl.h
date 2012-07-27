@@ -69,7 +69,7 @@ class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
   LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
     : mMediaStream(aMediaStream) {
-      new Fake_AudioGenerator(aMediaStream);
+    //      new Fake_AudioGenerator(aMediaStream);
     }
   ~LocalSourceStreamInfo() {}
 

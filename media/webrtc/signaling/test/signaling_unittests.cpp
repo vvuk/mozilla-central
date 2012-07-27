@@ -87,6 +87,8 @@ public:
 
   virtual ~TestObserver() {}
 
+  std::vector<nsDOMMediaStream *> GetStreams() { return streams; }
+
   NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTIONOBSERVER
 
@@ -98,6 +100,7 @@ public:
 
 private:
   sipcc::PeerConnectionImpl *pc;
+  std::vector<nsDOMMediaStream *> streams;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(TestObserver, IPeerConnectionObserver)
@@ -217,16 +220,18 @@ TestObserver::OnAddStream(nsIDOMMediaStream *stream)
   cout << "OnAddStream called hints=" << ms->GetHintContents() << endl;
   state = stateSuccess;
   onAddStreamCalled = true;
-  
-  // We know that the media stream is secretly a Fake_SourceMediaStream, 
+
+  // We know that the media stream is secretly a Fake_SourceMediaStream,
   // so now we can start it pulling from us
   Fake_SourceMediaStream *fs = static_cast<Fake_SourceMediaStream *>(ms->GetStream());
-  
+
   nsresult ret;
   test_utils.sts_target()->Dispatch(
     WrapRunnableRet(fs, &Fake_SourceMediaStream::Start, &ret),
     NS_DISPATCH_SYNC);
-  
+
+  streams.push_back(ms);
+
   return NS_OK;
 }
 
@@ -326,7 +331,6 @@ class SignalingAgent {
 
     ASSERT_TRUE(NS_SUCCEEDED(ret));
 
-    
     // store in object to be used by RemoveStream
     nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream(audio_stream);
     domMediaStream_ = domMediaStream;
@@ -345,6 +349,7 @@ class SignalingAgent {
     domMediaStream->SetHintContents(aHintContents);
 
     pc->AddStream(domMediaStream);
+    domMediaStream_ = domMediaStream;
 
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;
@@ -443,6 +448,22 @@ class SignalingAgent {
     }
 #endif
 
+  int GetPacketsReceived(int stream) {
+    std::vector<nsDOMMediaStream *> streams = pObserver->GetStreams();
+
+    if (streams.size() <= stream) {
+      return 0;
+    }
+
+    return streams[stream]->GetStream()->AsSourceStream()->GetSegmentsAdded();
+  }
+
+  int GetPacketsSent(int stream) {
+    return static_cast<Fake_MediaStreamBase *>(
+        domMediaStream_->GetStream())->GetSegmentsAdded();
+  }
+
+
 public:
   mozilla::RefPtr<sipcc::PeerConnectionImpl> pc;
   nsRefPtr<TestObserver> pObserver;
@@ -513,7 +534,7 @@ public:
     a1_.CreateOfferRemoveStream(hints, false, true);
   }
 
-private:
+ protected:
   SignalingAgent a1_;  // Canonically "caller"
   SignalingAgent a2_;  // Canonically "callee"
 };
@@ -556,7 +577,13 @@ TEST_F(SignalingTest, OfferAnswer)
 TEST_F(SignalingTest, FullCall)
 {
   OfferAnswer("", "");
-  ASSERT_TRUE_WAIT(false, 10000);
+  PR_Sleep(5000); // Wait for some data to get written
+
+  // Check that we wrote a bunch of data
+  ASSERT_GE(a1_.GetPacketsSent(0), 40);
+  //ASSERT_GE(a2_.GetPacketsSent(0), 40);
+  //ASSERT_GE(a1_.GetPacketsReceived(0), 40);
+  ASSERT_GE(a2_.GetPacketsReceived(0), 40);
 }
 
 //TEST_F(SignalingTest, CreateOfferHints)

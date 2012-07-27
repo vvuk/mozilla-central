@@ -49,7 +49,7 @@ public:
 // Note: only one listener supported
 class Fake_MediaStream {
 public:
-  Fake_MediaStream () : mReceivedSegments(0), mListener(NULL) {}
+  Fake_MediaStream () : mListener(NULL) {}
   virtual ~Fake_MediaStream() { Stop(); }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
@@ -66,42 +66,45 @@ public:
 
   virtual void Periodic() {}
 
-  int GetReceivedSegments() { return mReceivedSegments; }
-
  protected:
-  int mReceivedSegments;
   Fake_MediaStreamListener *mListener;
 };
 
 class Fake_MediaPeriodic : public nsITimerCallback {
 public:
-  Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream) {}
+Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream),
+                                                mCount(0) {}
   virtual ~Fake_MediaPeriodic() {}
   void Detach() {
     mStream = NULL;
   }
+
+  int GetTimesCalled() { return mCount; }
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
 protected:
   Fake_MediaStream *mStream;
+  int mCount;
 };
 
 
 class Fake_SourceMediaStream : public Fake_MediaStream {
  public:
-  Fake_SourceMediaStream() : mPullEnabled(false), mPeriodic(new Fake_MediaPeriodic(this)) {}
+  Fake_SourceMediaStream() : mPullEnabled(false),
+                             mSegmentsAdded(0),
+                             mPeriodic(new Fake_MediaPeriodic(this)) {}
 
   void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,
                 mozilla::MediaSegment* aSegment) {}
 
   void AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {
-    ++mReceivedSegments;
+    ++mSegmentsAdded;
   }
 
   void AdvanceKnownTracksTime(mozilla::StreamTime aKnownTime) {}
-  
+
   void SetPullEnabled(bool aEnabled) {
     mPullEnabled = aEnabled;
   }
@@ -113,7 +116,12 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
 
   virtual void Periodic();
 
+  virtual int GetSegmentsAdded() {
+    return mSegmentsAdded;
+  }
+
  protected:
+  int mSegmentsAdded;
   bool mPullEnabled;
   nsRefPtr<Fake_MediaPeriodic> mPeriodic;
   nsCOMPtr<nsITimer> mTimer;
@@ -124,7 +132,7 @@ class Fake_nsDOMMediaStream : public nsIDOMMediaStream
 {
 public:
   Fake_nsDOMMediaStream() : mMediaStream(new Fake_MediaStream()) {}
-  Fake_nsDOMMediaStream(Fake_MediaStream *stream) : 
+  Fake_nsDOMMediaStream(Fake_MediaStream *stream) :
       mMediaStream(stream) {}
 
   virtual ~Fake_nsDOMMediaStream() {
@@ -179,7 +187,12 @@ class Fake_MediaStreamBase : public Fake_MediaStream {
 
   virtual nsresult Start();
   virtual nsresult Stop();
-  
+
+
+  virtual int GetSegmentsAdded() {
+    return mPeriodic->GetTimesCalled();
+  }
+
  private:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<Fake_MediaPeriodic> mPeriodic;

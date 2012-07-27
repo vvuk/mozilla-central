@@ -157,7 +157,6 @@ class TestAgentReceive : public TestAgent {
   }
 
  private:
-  
 };
 
 
@@ -166,7 +165,7 @@ class MediaPipelineTest : public ::testing::Test {
   MediaPipelineTest() : p1_() {
     fds_[0] = fds_[1] = NULL;
   }
-  
+
   void SetUp() {
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);

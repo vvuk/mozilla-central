@@ -115,7 +115,7 @@ NS_IMETHODIMP
 Fake_MediaPeriodic::Notify(nsITimer *timer) {
   if (mStream)
     mStream->Periodic();
-
+  ++mCount;
   return NS_OK;
 }
 
