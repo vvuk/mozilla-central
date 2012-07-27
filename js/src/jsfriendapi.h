@@ -15,6 +15,12 @@
 
 JS_BEGIN_EXTERN_C
 
+/*
+ * Only save the source of scripts that are compileAndGo or are created with
+ * JS_CompileFunction*.
+ */
+#define JSOPTION_ONLY_CNG_SOURCE JS_BIT(20)
+
 extern JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
 
@@ -53,6 +59,15 @@ JS_GetCustomIteratorCount(JSContext *cx);
 
 extern JS_FRIEND_API(JSBool)
 JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret);
+
+/*
+ * Determine whether the given object is backed by a DeadObjectProxy.
+ *
+ * Such objects hold no other objects (they have no outgoing reference edges)
+ * and will throw if you touch them (e.g. by reading/writing a property).
+ */
+extern JS_FRIEND_API(JSBool)
+JS_IsDeadWrapper(JSObject *obj);
 
 /*
  * Used by the cycle collector to trace through the shape and all
@@ -159,6 +174,11 @@ JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *obj, const JSFunctionSpecWit
 JS_END_EXTERN_C
 
 #ifdef __cplusplus
+
+typedef bool (* JS_SourceHook)(JSContext *cx, JSScript *script, jschar **src, uint32_t *length);
+
+extern JS_FRIEND_API(void)
+JS_SetSourceHook(JSRuntime *rt, JS_SourceHook hook);
 
 namespace js {
 
@@ -612,6 +632,7 @@ SizeOfJSContext();
     D(DEBUG_GC)                                 \
     D(DEBUG_MODE_GC)                            \
     D(TRANSPLANT)                               \
+    D(RESET)                                    \
                                                 \
     /* Reasons from Firefox */                  \
     D(DOM_WINDOW_UTILS)                         \

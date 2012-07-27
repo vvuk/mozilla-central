@@ -635,6 +635,12 @@ NS_IMETHODIMP nsContentTreeOwner::SetParentNativeWindow(nativeWindow aParentNati
    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+NS_IMETHODIMP nsContentTreeOwner::GetNativeHandle(nsAString& aNativeHandle)
+{
+   NS_ENSURE_STATE(mXULWindow);
+   return mXULWindow->GetNativeHandle(aNativeHandle);
+}
+
 NS_IMETHODIMP nsContentTreeOwner::GetVisibility(bool* aVisibility)
 {
    NS_ENSURE_STATE(mXULWindow);
@@ -842,12 +848,12 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   // open a modal-type window, we're going to create a new <iframe mozbrowser>
   // and return its window here.
   nsCOMPtr<nsIDocShell> docshell = do_GetInterface(aParent);
-  bool inBrowserFrame = false;
+  bool isInContentBoundary = false;
   if (docshell) {
-    docshell->GetContainedInBrowserFrame(&inBrowserFrame);
+    docshell->GetIsBelowContentBoundary(&isInContentBoundary);
   }
 
-  if (inBrowserFrame &&
+  if (isInContentBoundary &&
       !(aChromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                         nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {

@@ -23,6 +23,7 @@
 
 #include "jsobjinlines.h"
 
+#include "builtin/Iterator-inl.h"
 #include "vm/RegExpObject-inl.h"
 
 using namespace js;
@@ -618,8 +619,8 @@ CanReify(Value *vp)
 {
     JSObject *obj;
     return vp->isObject() &&
-           (obj = &vp->toObject())->getClass() == &IteratorClass &&
-           (obj->getNativeIterator()->flags & JSITER_ENUMERATE);
+           (obj = &vp->toObject())->isPropertyIterator() &&
+           (obj->asPropertyIterator().getNativeIterator()->flags & JSITER_ENUMERATE);
 }
 
 struct AutoCloseIterator
@@ -638,7 +639,7 @@ struct AutoCloseIterator
 static bool
 Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 {
-    JSObject *iterObj = &vp->toObject();
+    PropertyIteratorObject *iterObj = &vp->toObject().asPropertyIterator();
     NativeIterator *ni = iterObj->getNativeIterator();
 
     AutoCloseIterator close(cx, iterObj);
@@ -880,43 +881,7 @@ SecurityWrapper<Base>::regexp_toShared(JSContext *cx, JSObject *obj, RegExpGuard
 template class js::SecurityWrapper<DirectWrapper>;
 template class js::SecurityWrapper<CrossCompartmentWrapper>;
 
-class JS_FRIEND_API(DeadObjectProxy) : public BaseProxyHandler
-{
-  private:
-    static int sDeadObjectFamily;
-  public:
-
-    explicit DeadObjectProxy();
-
-    /* ES5 Harmony fundamental wrapper traps. */
-    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                                       PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                                          PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool defineProperty(JSContext *cx, JSObject *wrapper, jsid id,
-                                PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp) MOZ_OVERRIDE;
-    virtual bool enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props) MOZ_OVERRIDE;
-
-    /* Spidermonkey extensions. */
-    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc, Value *vp);
-    virtual bool construct(JSContext *cx, JSObject *proxy, unsigned argc, Value *argv, Value *rval);
-    virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
-                            CallArgs args) MOZ_OVERRIDE;
-    virtual bool hasInstance(JSContext *cx, JSObject *proxy, const Value *vp, bool *bp);
-    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
-    virtual JSString *obj_toString(JSContext *cx, JSObject *proxy);
-    virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, unsigned indent);
-    virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g);
-    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
-    virtual bool iteratorNext(JSContext *cx, JSObject *proxy, Value *vp);
-    virtual bool getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
-                                     uint32_t index, Value *vp, bool *present);
-
-
-    static DeadObjectProxy singleton;
-};
+namespace js {
 
 DeadObjectProxy::DeadObjectProxy()
   : BaseProxyHandler(&sDeadObjectFamily)
@@ -1053,6 +1018,8 @@ DeadObjectProxy::getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *rec
 DeadObjectProxy DeadObjectProxy::singleton;
 int DeadObjectProxy::sDeadObjectFamily;
 
+} // namespace js
+
 void
 js::NukeCrossCompartmentWrapper(JSObject *wrapper)
 {
@@ -1128,16 +1095,25 @@ bool
 js::RemapWrapper(JSContext *cx, JSObject *wobj, JSObject *newTarget)
 {
     JS_ASSERT(IsCrossCompartmentWrapper(wobj));
+    JS_ASSERT(!IsCrossCompartmentWrapper(newTarget));
     JSObject *origTarget = Wrapper::wrappedObject(wobj);
     JS_ASSERT(origTarget);
     Value origv = ObjectValue(*origTarget);
     JSCompartment *wcompartment = wobj->compartment();
     WrapperMap &pmap = wcompartment->crossCompartmentWrappers;
 
+    // If we're mapping to a different target (as opposed to just recomputing
+    // for the same target), we must not have an existing wrapper for the new
+    // target, otherwise this will break.
+    JS_ASSERT_IF(origTarget != newTarget, !pmap.has(ObjectValue(*newTarget)));
+
+    // The old value should still be in the cross-compartment wrapper map, and
+    // the lookup should return wobj.
+    JS_ASSERT(&pmap.lookup(origv)->value.toObject() == wobj);
+    pmap.remove(origv);
+
     // When we remove origv from the wrapper map, its wrapper, wobj, must
     // immediately cease to be a cross-compartment wrapper. Neuter it.
-    JS_ASSERT(pmap.lookup(origv));
-    pmap.remove(origv);
     NukeCrossCompartmentWrapper(wobj);
 
     // First, we wrap it in the new compartment. This will return
@@ -1154,14 +1130,18 @@ js::RemapWrapper(JSContext *cx, JSObject *wobj, JSObject *newTarget)
     JS_ASSERT(tobj != wobj);
     if (!wobj->swap(cx, tobj))
         return false;
-    pmap.put(ObjectValue(*newTarget), ObjectValue(*wobj));
 
+    // Before swapping, this wrapper came out of wrap(), which enforces the
+    // invariant that the wrapper in the map points directly to the key.
+    JS_ASSERT(Wrapper::wrappedObject(wobj) == newTarget);
+
+    pmap.put(ObjectValue(*newTarget), ObjectValue(*wobj));
     return true;
 }
 
 // Remap all cross-compartment wrappers pointing to |oldTarget| to point to
 // |newTarget|. All wrappers are recomputed.
-bool
+JS_FRIEND_API(bool)
 js::RemapAllWrappersForObject(JSContext *cx, JSObject *oldTarget,
                               JSObject *newTarget)
 {

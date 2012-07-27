@@ -45,7 +45,6 @@ pref("network.http.proxy.pipelining", true);
 pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
 pref("network.http.max-connections", 6);
-pref("network.http.max-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-server", 4);
 pref("network.http.max-persistent-connections-per-proxy", 4);
 
@@ -246,7 +245,10 @@ pref("ui.dragThresholdY", 25);
 // Layers Acceleration
 pref("layers.acceleration.disabled", false);
 pref("layers.offmainthreadcomposition.enabled", true);
+pref("layers.offmainthreadcomposition.animate-opacity", true);
+pref("layers.offmainthreadcomposition.animate-transform", true);
 pref("layers.async-video.enabled", true);
+pref("layers.async-pan-zoom.enabled", true);
 
 // Web Notifications
 pref("notification.feature.enabled", true);

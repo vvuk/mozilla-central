@@ -9,6 +9,11 @@ interface TestExternalInterface;
 interface TestNonCastableInterface {
 };
 
+callback interface TestCallbackInterface {
+  readonly attribute long foo;
+  void doSomething();
+};
+
 enum TestEnum {
   "a",
   "b"
@@ -18,11 +23,17 @@ callback TestCallback = void();
 
 TestInterface implements ImplementedInterface;
 
+// This interface is only for use in the constructor below
+interface OnlyForUseInConstructor {
+};
+
 [Constructor,
  Constructor(DOMString str),
  Constructor(unsigned long num, boolean? bool),
  Constructor(TestInterface? iface),
- Constructor(TestNonCastableInterface iface)]
+ Constructor(TestNonCastableInterface iface)
+ // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
+ ]
 interface TestInterface {
   // Integer types
   // XXXbz add tests for infallible versions of all the integer stuff
@@ -150,6 +161,27 @@ interface TestInterface {
   void passOptionalNonNullExternal(optional TestExternalInterface arg);
   void passOptionalExternalWithDefault(optional TestExternalInterface? arg = null);
 
+  // Callback interface types
+  TestCallbackInterface receiveCallbackInterface();
+  TestCallbackInterface? receiveNullableCallbackInterface();
+  TestCallbackInterface receiveWeakCallbackInterface();
+  TestCallbackInterface? receiveWeakNullableCallbackInterface();
+  // A verstion to test for casting to TestCallbackInterface&
+  void passCallbackInterface(TestCallbackInterface arg);
+  // A version we can use to test for the exact type passed in
+  void passCallbackInterface2(TestCallbackInterface arg);
+  void passNullableCallbackInterface(TestCallbackInterface? arg);
+  attribute TestCallbackInterface nonNullCallbackInterface;
+  attribute TestCallbackInterface? nullableCallbackInterface;
+  // Optional arguments
+  void passOptionalCallbackInterface(optional TestCallbackInterface? arg);
+  void passOptionalNonNullCallbackInterface(optional TestCallbackInterface arg);
+  void passOptionalCallbackInterfaceWithDefault(optional TestCallbackInterface? arg = null);
+
+  // Miscellaneous interface tests
+  IndirectlyImplementedInterface receiveConsequentialInterface();
+  void passConsequentialInterface(IndirectlyImplementedInterface arg);
+
   // Sequence types
   sequence<long> receiveSequence();
   sequence<long>? receiveNullableSequence();
@@ -266,6 +298,8 @@ interface TestInterface {
   void passSequenceOfDictionaries(sequence<Dict> x);
   void passDictionaryOrLong(optional Dict x);
   void passDictionaryOrLong(long x);
+
+  void passDictContainingDict(optional DictContainingDict arg);
 };
 
 interface TestNonWrapperCacheInterface {
@@ -280,6 +314,7 @@ interface ImplementedInterfaceParent {
 
 ImplementedInterfaceParent implements IndirectlyImplementedInterface;
 
+[NoInterfaceObject]
 interface IndirectlyImplementedInterface {
   void indirectlyImplementedMethod();
   attribute boolean indirectlyImplementedProperty;
@@ -325,4 +360,8 @@ dictionary ParentDict : GrandparentDict {
   long c = 5;
   TestInterface someInterface;
   TestExternalInterface someExternalInterface;
+};
+
+dictionary DictContainingDict {
+  Dict memberDict;
 };

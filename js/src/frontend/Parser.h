@@ -22,11 +22,10 @@
 #include "frontend/ParseNode.h"
 #include "frontend/TreeContext.h"
 
-typedef struct BindData BindData;
-
 namespace js {
+namespace frontend {
 
-class StaticBlockObject;
+struct BindData;
 
 enum FunctionSyntaxKind { Expression, Statement };
 enum LetContext { LetExpresion, LetStatement };
@@ -54,9 +53,8 @@ struct Parser : private AutoGCRooter
     const bool          compileAndGo:1;
 
   public:
-    Parser(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin,
-           const jschar *chars, size_t length, const char *fn, unsigned ln, JSVersion version,
-           bool foldConstants, bool compileAndGo);
+    Parser(JSContext *cx, const CompileOptions &options,
+           const jschar *chars, size_t length, bool foldConstants);
     ~Parser();
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -106,7 +104,7 @@ struct Parser : private AutoGCRooter
     inline bool reportWarning(ParseNode *pn, unsigned errorNumber, ...);
     inline bool reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...);
     inline bool reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...);
-    typedef bool (js::Parser::*Reporter)(ParseNode *pn, unsigned errorNumber, ...);
+    typedef bool (Parser::*Reporter)(ParseNode *pn, unsigned errorNumber, ...);
 
   private:
     ParseNode *allocParseNode(size_t size) {
@@ -320,6 +318,7 @@ Parser::reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...)
 bool
 DefineArg(ParseNode *pn, JSAtom *atom, unsigned i, Parser *parser);
 
+} /* namespace frontend */
 } /* namespace js */
 
 /*

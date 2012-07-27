@@ -8,12 +8,13 @@
 #ifndef mozilla_layout_RenderFrameParent_h
 #define mozilla_layout_RenderFrameParent_h
 
+#include <map>
+
+#include "LayersBackend.h"
 #include "mozilla/layout/PRenderFrameParent.h"
 #include "mozilla/layers/ShadowLayersManager.h"
-
-#include <map>
 #include "nsDisplayList.h"
-#include "LayersBackend.h"
+#include "RenderFrameUtils.h"
 
 class nsContentView;
 class nsFrameLoader;
@@ -21,11 +22,18 @@ class nsSubDocumentFrame;
 
 namespace mozilla {
 
+class InputEvent;
+
 namespace layers {
+class AsyncPanZoomController;
+class GestureEventListener;
+class TargetConfig;
 class ShadowLayersParent;
 }
 
 namespace layout {
+
+class RemoteContentController;
 
 class RenderFrameParent : public PRenderFrameParent,
                           public mozilla::layers::ShadowLayersManager
@@ -34,13 +42,20 @@ class RenderFrameParent : public PRenderFrameParent,
   typedef mozilla::layers::ContainerLayer ContainerLayer;
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
+  typedef mozilla::layers::TargetConfig TargetConfig;
   typedef mozilla::layers::ShadowLayersParent ShadowLayersParent;
   typedef FrameMetrics::ViewID ViewID;
 
 public:
   typedef std::map<ViewID, nsRefPtr<nsContentView> > ViewMap;
 
+  /**
+   * Select the desired scrolling behavior.  If ASYNC_PAN_ZOOM is
+   * chosen, then RenderFrameParent will watch input events and use
+   * them to asynchronously pan and zoom.
+   */
   RenderFrameParent(nsFrameLoader* aFrameLoader,
+                    ScrollingBehavior aScrollingBehavior,
                     mozilla::layers::LayersBackend* aBackendType,
                     int* aMaxTextureSize,
                     uint64_t* aId);
@@ -57,6 +72,7 @@ public:
   void ContentViewScaleChanged(nsContentView* aView);
 
   virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
+                                   const TargetConfig& aTargetConfig,
                                    bool isFirstPaint) MOZ_OVERRIDE;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder* aBuilder,
@@ -73,6 +89,11 @@ public:
 
   void SetBackgroundColor(nscolor aColor) { mBackgroundColor = gfxRGBA(aColor); };
 
+  void NotifyInputEvent(const nsInputEvent& aEvent,
+                        nsInputEvent* aOutEvent);
+
+  void NotifyDimensionsChanged(int width, int height);
+
 protected:
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
@@ -84,6 +105,7 @@ protected:
 private:
   void BuildViewMap();
   void TriggerRepaint();
+  void DispatchEventForPanZoomController(const InputEvent& aEvent);
 
   ShadowLayersParent* GetShadowLayers() const;
   uint64_t GetLayerTreeId() const;
@@ -96,6 +118,11 @@ private:
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsRefPtr<ContainerLayer> mContainer;
+  // When our scrolling behavior is ASYNC_PAN_ZOOM, we have a nonnull
+  // AsyncPanZoomController.  It's associated with the shadow layer
+  // tree on the compositor thread.
+  nsRefPtr<layers::AsyncPanZoomController> mPanZoomController;
+  nsRefPtr<RemoteContentController> mContentController;
 
   // This contains the views for all the scrollable frames currently in the
   // painted region of our remote content.
@@ -139,16 +166,14 @@ public:
     , mRemoteFrame(aRemoteFrame)
   {}
 
-  NS_OVERRIDE
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
-                                   const ContainerParameters& aParameters)
-  { return mozilla::LAYER_ACTIVE; }  
+                                   const ContainerParameters& aParameters) MOZ_OVERRIDE
+  { return mozilla::LAYER_ACTIVE_FORCE; }
 
-  NS_OVERRIDE
   virtual already_AddRefed<Layer>
   BuildLayer(nsDisplayListBuilder* aBuilder, LayerManager* aManager,
-             const ContainerParameters& aContainerParameters);
+             const ContainerParameters& aContainerParameters) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 
@@ -178,7 +203,7 @@ public:
     , mId(aId)
   {}
 
-  NS_OVERRIDE nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+  nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
   {
     *aSnap = false;
     return mRect;
@@ -190,8 +215,8 @@ public:
     return 0;
   }
 
-  NS_OVERRIDE void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                           HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+               HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("Remote-Shadow", TYPE_REMOTE_SHADOW)
 

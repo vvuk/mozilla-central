@@ -58,6 +58,7 @@ using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+using namespace js::frontend;
 
 template<class T, class U>
 struct IdentityOp
@@ -1760,9 +1761,9 @@ ParseXMLSource(JSContext *cx, HandleString src)
     }
 
     {
-        Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
-                      chars, length, filename, lineno, cx->findVersion(),
-                      /* foldConstants = */ true, /* compileAndGo = */ false);
+        CompileOptions options(cx);
+        options.setFileAndLine(filename, lineno);
+        Parser parser(cx, options, chars, length, /* foldConstants = */ true);
         if (parser.init()) {
             JSObject *scopeChain = GetCurrentScopeChain(cx);
             if (!scopeChain) {
@@ -7309,8 +7310,9 @@ NewXMLObject(JSContext *cx, JSXML *xml)
 }
 
 JSObject *
-js_GetXMLObject(JSContext *cx, JSXML *xml)
+js_GetXMLObject(JSContext *cx, JSXML *xmlArg)
 {
+    Rooted<JSXML*> xml(cx, xmlArg);
     JSObject *obj;
 
     obj = xml->object;
@@ -7398,12 +7400,12 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     cx->runtime->gcExactScanningEnabled = false;
 
     JS_ASSERT(obj->isNative());
-    GlobalObject *global = &obj->asGlobal();
+    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
-    JSObject *xmlProto = global->createBlankPrototype(cx, &XMLClass);
+    RootedObject xmlProto(cx, global->createBlankPrototype(cx, &XMLClass));
     if (!xmlProto)
         return NULL;
-    JSXML *xml = js_NewXML(cx, JSXML_CLASS_TEXT);
+    Rooted<JSXML*> xml(cx, js_NewXML(cx, JSXML_CLASS_TEXT));
     if (!xml)
         return NULL;
     xmlProto->setPrivate(xml);
@@ -7448,7 +7450,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Define the isXMLName function. */
-    if (!JS_DefineFunction(cx, obj, js_isXMLName_str, xml_isXMLName, 1, 0))
+    if (!JS_DefineFunction(cx, global, js_isXMLName_str, xml_isXMLName, 1, 0))
         return NULL;
 
     return xmlProto;
@@ -7469,7 +7471,7 @@ namespace js {
 bool
 GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
 {
-    HeapSlot &v = getSlotRef(FUNCTION_NS);
+    Value v = getSlot(FUNCTION_NS);
     if (v.isUndefined()) {
         JSRuntime *rt = cx->runtime;
         JSLinearString *prefix = rt->atomState.typeAtoms[JSTYPE_FUNCTION];
@@ -7488,7 +7490,8 @@ GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
         if (!JSObject::clearType(cx, obj))
             return false;
 
-        v.set(this, FUNCTION_NS, ObjectValue(*obj));
+        v = ObjectValue(*obj);
+        setSlot(FUNCTION_NS, v);
     }
 
     *vp = v;
@@ -7936,7 +7939,7 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
         JS_ASSERT(filter->kid);
 
         /* Check if the filter expression wants to append the element. */
-        if (js_ValueToBoolean(sp[-1]) &&
+        if (ToBoolean(sp[-1]) &&
             !Append(cx, filter->result, filter->kid)) {
             return JS_FALSE;
         }

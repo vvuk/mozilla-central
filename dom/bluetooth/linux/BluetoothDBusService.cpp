@@ -403,8 +403,10 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 
     DBusMessageIter iter;
 
-    NS_ASSERTION(dbus_message_iter_init(aMsg, &iter),
-                 "Can't create message iterator!");
+    if (!dbus_message_iter_init(aMsg, &iter)) {
+      NS_WARNING("Can't create iterator!");
+      return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
 
     InfallibleTArray<BluetoothNamedValue> value;
     const char* addr;
@@ -546,12 +548,12 @@ BluetoothDBusService::SendDiscoveryMessage(const nsAString& aAdapterPath,
 
   nsRefPtr<BluetoothReplyRunnable> runnable = aRunnable;
 
-  const char* s = NS_ConvertUTF16toUTF8(aAdapterPath).get();
+  NS_ConvertUTF16toUTF8 s(aAdapterPath);
   if (!dbus_func_args_async(mConnection,
                             1000,
                             GetVoidCallback,
                             (void*)aRunnable,
-                            s,
+                            s.get(),
                             DBUS_ADAPTER_IFACE,
                             aMessageName,
                             DBUS_TYPE_INVALID)) {

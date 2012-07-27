@@ -145,6 +145,7 @@ public class GeckoAppShell
     public static native void loadNSSLibsNative(String apkName, boolean shouldExtract);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native Message getNextMessageFromQueue(MessageQueue queue);
+    public static native void onSurfaceTextureFrameAvailable(Object surfaceTexture, int id);
 
     public static void registerGlobalExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -313,6 +314,13 @@ public class GeckoAppShell
         // setup plugin path directories
         try {
             String[] dirs = context.getPluginDirectories();
+            // Check to see if plugins were blocked.
+            if (dirs == null) {
+                GeckoAppShell.putenv("MOZ_PLUGINS_BLOCKED=1");
+                GeckoAppShell.putenv("MOZ_PLUGIN_PATH=");
+                return;
+            }
+
             StringBuffer pluginSearchPath = new StringBuffer();
             for (int i = 0; i < dirs.length; i++) {
                 Log.i(LOGTAG, "dir: " + dirs[i]);
@@ -336,14 +344,18 @@ public class GeckoAppShell
             if (Build.VERSION.SDK_INT >= 8) {
                 downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 updatesDir  = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-            } else {
-                updatesDir = downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
+            }
+            if (downloadDir == null) {
+                downloadDir = new File(Environment.getExternalStorageDirectory().getPath(), "download");
+            }
+            if (updatesDir == null) {
+                updatesDir = downloadDir;
             }
             GeckoAppShell.putenv("DOWNLOADS_DIRECTORY=" + downloadDir.getPath());
             GeckoAppShell.putenv("UPDATES_DIRECTORY="   + updatesDir.getPath());
         }
         catch (Exception e) {
-            Log.i(LOGTAG, "No download directory has been found: " + e);
+            Log.i(LOGTAG, "No download directory has been found: ", e);
         }
     }
 
@@ -848,35 +860,6 @@ public class GeckoAppShell
         });
     }
 
-    public static void installWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
-        int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
-        GeckoProfile profile = GeckoProfile.get(GeckoApp.mAppContext, "webapp" + index);
-        File prefs = profile.getFile("prefs.js");
-
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            in = GeckoApp.mAppContext.getResources().openRawResource(R.raw.webapp_prefs_js);
-            out = new FileOutputStream(prefs);
-            byte buf[]=new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-        } catch(FileNotFoundException ex) {
-        } catch(IOException ex) {
-        } finally {
-            try {
-                if (out != null)
-                    out.close();
-                if (in != null)
-                    in.close();
-            } catch(IOException ex) {
-            }
-        }
-        createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
-    }
-
     public static void uninstallWebApp(final String uniqueURI) {
         // On uninstall, we need to do a couple of things:
         //   1. nuke the running app process.
@@ -1067,8 +1050,13 @@ public class GeckoAppShell
         Intent intent = new Intent(Intent.ACTION_SEND);
         boolean isDataURI = aSrc.startsWith("data:");
         OutputStream os = null;
-
         File dir = GeckoApp.getTempDirectory();
+
+        if (dir == null) {
+            showImageShareFailureToast();
+            return;
+        }
+
         GeckoApp.deleteTempFiles();
 
         try {
@@ -1114,11 +1102,7 @@ public class GeckoAppShell
                intent.putExtra(Intent.EXTRA_TEXT, aSrc);
                intent.setType("text/plain");
             } else {
-               // Don't fail silently, tell the user that we weren't able to share the image
-               Toast toast = Toast.makeText(GeckoApp.mAppContext,
-                                            GeckoApp.mAppContext.getResources().getString(R.string.share_image_failed),
-                                            Toast.LENGTH_SHORT);
-               toast.show();
+               showImageShareFailureToast();
                return;
             }
         } finally {
@@ -1126,6 +1110,14 @@ public class GeckoAppShell
         }
         GeckoApp.mAppContext.startActivity(Intent.createChooser(intent,
                 GeckoApp.mAppContext.getResources().getString(R.string.share_title)));
+    }
+
+    // Don't fail silently, tell the user that we weren't able to share the image
+    private static final void showImageShareFailureToast() {
+        Toast toast = Toast.makeText(GeckoApp.mAppContext,
+                                     GeckoApp.mAppContext.getResources().getString(R.string.share_image_failed),
+                                     Toast.LENGTH_SHORT);
+        toast.show();
     }
 
     static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
@@ -1706,35 +1698,6 @@ public class GeckoAppShell
         GeckoApp.mAppContext.removePluginView(view, isFullScreen);
     }
 
-    public static Surface createSurface() {
-        Log.i(LOGTAG, "createSurface");
-        return GeckoApp.mAppContext.createSurface();
-    }
-
-    public static void showSurface(Surface surface,
-                                   int x, int y,
-                                   int w, int h,
-                                   boolean inverted,
-                                   boolean blend)
-    {
-        Log.i(LOGTAG, "showSurface:" + surface + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " inverted: " + inverted + " blend: " + blend);
-        try {
-            GeckoApp.mAppContext.showSurface(surface, x, y, w, h, inverted, blend);
-        } catch (Exception e) {
-            Log.i(LOGTAG, "Error in showSurface:", e);
-        }
-    }
-
-    public static void hideSurface(Surface surface) {
-        Log.i(LOGTAG, "hideSurface:" + surface);
-        GeckoApp.mAppContext.hideSurface(surface);
-    }
-
-    public static void destroySurface(Surface surface) {
-        Log.i(LOGTAG, "destroySurface:" + surface);
-        GeckoApp.mAppContext.destroySurface(surface);
-    }
-
     public static Class<?> loadPluginClass(String className, String libName) {
         Log.i(LOGTAG, "in loadPluginClass... attempting to access className, then libName.....");
         Log.i(LOGTAG, "className: " + className);
@@ -2300,6 +2263,17 @@ public class GeckoAppShell
         return data;
     }
 
+    public static void registerSurfaceTextureFrameListener(Object surfaceTexture, final int id) {
+        ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
+            public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+                GeckoAppShell.onSurfaceTextureFrameAvailable(surfaceTexture, id);
+            }
+        });
+    }
+
+    public static void unregisterSurfaceTextureFrameListener(Object surfaceTexture) {
+        ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(null);
+    }
 }
 
 class ScreenshotHandler implements Runnable {
@@ -2580,7 +2554,9 @@ class ScreenshotHandler implements Runnable {
                     case SCREENSHOT_THUMBNAIL:
                     {
                         Tab tab = Tabs.getInstance().getTab(tabId);
-                        GeckoApp.mAppContext.handleThumbnailData(tab, data);
+                        if (tab != null) {
+                            GeckoApp.mAppContext.handleThumbnailData(tab, data);
+                        }
                         break;
                     }
                 }

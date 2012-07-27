@@ -86,6 +86,7 @@
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+using js::frontend::Parser;
 
 bool
 JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
@@ -321,7 +322,7 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
         }
         switch (c) {
           case 'b':
-            *va_arg(ap, JSBool *) = js_ValueToBoolean(*sp);
+            *va_arg(ap, JSBool *) = ToBoolean(*sp);
             break;
           case 'c':
             if (!JS_ValueToUint16(cx, *sp, va_arg(ap, uint16_t *)))
@@ -479,7 +480,7 @@ JS_ConvertValue(JSContext *cx, jsval v, JSType type, jsval *vp)
             *vp = DOUBLE_TO_JSVAL(d);
         break;
       case JSTYPE_BOOLEAN:
-        *vp = BOOLEAN_TO_JSVAL(js_ValueToBoolean(v));
+        *vp = BooleanValue(ToBoolean(v));
         return JS_TRUE;
       default: {
         char numBuf[12];
@@ -631,7 +632,7 @@ JS_ValueToBoolean(JSContext *cx, jsval v, JSBool *bp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, v);
-    *bp = js_ValueToBoolean(v);
+    *bp = ToBoolean(v);
     return JS_TRUE;
 }
 
@@ -720,6 +721,7 @@ JSRuntime::JSRuntime()
     ownerThread_(NULL),
 #endif
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
+    freeLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     execAlloc_(NULL),
     bumpAlloc_(NULL),
 #ifdef JS_METHODJIT
@@ -730,6 +732,7 @@ JSRuntime::JSRuntime()
     interpreterFrames(NULL),
     cxCallback(NULL),
     destroyCompartmentCallback(NULL),
+    compartmentNameCallback(NULL),
     activityCallback(NULL),
     activityCallbackArg(NULL),
 #ifdef JS_THREADSAFE
@@ -746,7 +749,8 @@ JSRuntime::JSRuntime()
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
-    gcVerifyData(NULL),
+    gcVerifyPreData(NULL),
+    gcVerifyPostData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
     gcLastGCTime(0),
@@ -773,6 +777,11 @@ JSRuntime::JSRuntime()
     gcDisableStrictProxyCheckingCount(0),
     gcIncrementalState(gc::NO_INCREMENTAL),
     gcLastMarkSlice(false),
+    gcSweepOnBackgroundThread(false),
+    gcSweepPhase(0),
+    gcSweepCompartmentIndex(0),
+    gcSweepKindIndex(0),
+    gcArenasAllocatedDuringSweep(NULL),
     gcInterFrameGC(0),
     gcSliceBudget(SliceBudget::Unlimited),
     gcIncrementalEnabled(true),
@@ -800,6 +809,7 @@ JSRuntime::JSRuntime()
     negativeInfinityValue(UndefinedValue()),
     positiveInfinityValue(UndefinedValue()),
     emptyString(NULL),
+    sourceHook(NULL),
     debugMode(false),
     spsProfiler(thisFromCtor()),
     profilingScripts(false),
@@ -809,6 +819,9 @@ JSRuntime::JSRuntime()
     data(NULL),
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
+#ifdef JS_THREADSAFE
+    sourceCompressorThread(thisFromCtor()),
+#endif
     defaultFreeOp_(thisFromCtor(), false, false),
     debuggerMutations(0),
     securityCallbacks(const_cast<JSSecurityCallbacks *>(&NullSecurityCallbacks)),
@@ -828,6 +841,7 @@ JSRuntime::JSRuntime()
     sameCompartmentWrapObjectCallback(NULL),
     preWrapObjectCallback(NULL),
     preserveWrapperCallback(NULL),
+    scriptSources(NULL),
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
@@ -893,6 +907,11 @@ JSRuntime::init(uint32_t maxbytes)
     if (!scriptFilenameTable.init())
         return false;
 
+#ifdef JS_THREADSAFE
+    if (!sourceCompressorThread.init())
+        return false;
+#endif
+
     if (!evalCache.init())
         return false;
 
@@ -917,6 +936,10 @@ JSRuntime::~JSRuntime()
      * some filenames around because of gcKeepAtoms.
      */
     FreeScriptFilenames(this);
+
+#ifdef JS_THREADSAFE
+    sourceCompressorThread.finish();
+#endif
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
@@ -1382,6 +1405,12 @@ JS_SetDestroyCompartmentCallback(JSRuntime *rt, JSDestroyCompartmentCallback cal
     rt->destroyCompartmentCallback = callback;
 }
 
+JS_PUBLIC_API(void)
+JS_SetCompartmentNameCallback(JSRuntime *rt, JSCompartmentNameCallback callback)
+{
+    rt->compartmentNameCallback = callback;
+}
+
 JS_PUBLIC_API(JSWrapObjectCallback)
 JS_SetWrapObjectCallbacks(JSRuntime *rt,
                           JSWrapObjectCallback callback,
@@ -1596,8 +1625,10 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
      * for that GC. Hence, we finish any ongoing incremental GC before the
      * transplant to avoid leaks.
      */
-    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL)
+    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL) {
+        PrepareForIncrementalGC(cx->runtime);
         FinishIncrementalGC(cx->runtime, gcreason::TRANSPLANT);
+    }
 
     JSCompartment *destination = target->compartment();
     WrapperMap &map = destination->crossCompartmentWrappers;
@@ -1864,9 +1895,7 @@ static JSStdName standard_class_names[] = {
     {js_InitXMLClass,           EAGER_ATOM(isXMLName), CLASP(XML)},
 #endif
 
-#if JS_HAS_GENERATORS
-    {js_InitIteratorClasses,    EAGER_ATOM_AND_CLASP(Iterator)},
-#endif
+    {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
 
     /* Typed Arrays */
     {js_InitTypedArrayClasses,  EAGER_CLASS_ATOM(ArrayBuffer),  &ArrayBufferClass},
@@ -4512,22 +4541,16 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj_)
+JS_PUBLIC_API(JSBool)
+JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
 {
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj_);
-
-    Rooted<JSObject*> obj(cx, obj_);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    Rooted<Value> target(cx, args.thisv());
+    JSObject *iterobj = ElementIteratorObject::create(cx, target);
+    if (!iterobj)
+        return false;
+    vp->setObject(*iterobj);
+    return true;
 }
 
 JS_PUBLIC_API(jsval)
@@ -4570,11 +4593,12 @@ JS_GetArrayLength(JSContext *cx, JSObject *obj, uint32_t *lengthp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_SetArrayLength(JSContext *cx, JSObject *obj, uint32_t length)
+JS_SetArrayLength(JSContext *cx, JSObject *objArg, uint32_t length)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
+    assertSameCompartment(cx, objArg);
+    RootedObject obj(cx, objArg);
     return js_SetLengthProperty(cx, obj, length);
 }
 
@@ -4915,77 +4939,204 @@ struct AutoLastFrameCheck {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-static JSScript *
-CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj_,
-                                   JSPrincipals *principals, JSPrincipals *originPrincipals,
-                                   const jschar *chars, size_t length,
-                                   const char *filename, unsigned lineno, JSVersion version)
+/* Use the fastest available getc. */
+#if defined(HAVE_GETC_UNLOCKED)
+# define fast_getc getc_unlocked
+#elif defined(HAVE__GETC_NOLOCK)
+# define fast_getc _getc_nolock
+#else
+# define fast_getc getc
+#endif
+
+typedef Vector<char, 8, TempAllocPolicy> FileContents;
+
+static bool
+ReadCompleteFile(JSContext *cx, FILE *fp, FileContents &buffer)
 {
-    RootedObject obj(cx, obj_);
+    /* Get the complete length of the file, if possible. */
+    struct stat st;
+    int ok = fstat(fileno(fp), &st);
+    if (ok != 0)
+        return false;
+    if (st.st_size > 0) {
+        if (!buffer.reserve(st.st_size))
+            return false;
+    }
+
+    // Read in the whole file. Note that we can't assume the data's length
+    // is actually st.st_size, because 1) some files lie about their size
+    // (/dev/zero and /dev/random), and 2) reading files in text mode on
+    // Windows collapses "\r\n" pairs to single \n characters.
+    for (;;) {
+        int c = fast_getc(fp);
+        if (c == EOF)
+            break;
+        if (!buffer.append(c))
+            return false;
+    }
+
+    return true;
+}
+
+JS::CompileOptions::CompileOptions(JSContext *cx)
+    : principals(NULL),
+      originPrincipals(NULL),
+      version(cx->findVersion()),
+      versionSet(false),
+      utf8(false),
+      filename(NULL),
+      lineno(1),
+      compileAndGo(cx->hasRunOption(JSOPTION_COMPILE_N_GO)),
+      noScriptRval(cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL))
+{
+}
+
+JSScript *
+JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
+            const jschar *chars, size_t length)
+{
+    Maybe<AutoVersionAPI> mava;
+    if (options.versionSet) {
+        mava.construct(cx, options.version);
+        // AutoVersionAPI propagates some compilation flags through.
+        options.version = mava.ref().version();
+    }
+
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, principals);
+    assertSameCompartment(cx, obj, options.principals, options.originPrincipals);
     AutoLastFrameCheck lfc(cx);
 
-    bool compileAndGo = cx->hasRunOption(JSOPTION_COMPILE_N_GO);
-    bool noScriptRval = cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL);
-    return frontend::CompileScript(cx, obj, NULL, principals, originPrincipals,
-                                   compileAndGo, noScriptRval, chars, length,
-                                   filename, lineno, version);
+    return frontend::CompileScript(cx, obj, NULL, options, chars, length);
+}
+
+JSScript *
+JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
+            const char *bytes, size_t length)
+{
+    jschar *chars;
+    if (options.utf8)
+        chars = InflateString(cx, bytes, &length, CESU8Encoding);
+    else
+        chars = InflateString(cx, bytes, &length);
+    if (!chars)
+        return NULL;
+
+    JSScript *script = Compile(cx, obj, options, chars, length);
+    cx->free_(chars);
+    return script;
+}
+
+JSScript *
+JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, FILE *fp)
+{
+    FileContents buffer(cx);
+    if (!ReadCompleteFile(cx, fp, buffer))
+        return NULL;
+
+    JSScript *script = Compile(cx, obj, options, buffer.begin(), buffer.length());
+    return script;
+}
+
+JSScript *
+JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, const char *filename)
+{
+    FILE *fp;
+    if (!filename || strcmp(filename, "-") == 0) {
+        fp = stdin;
+    } else {
+        fp = fopen(filename, "r");
+        if (!fp) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_OPEN,
+                                 filename, "No such file or directory");
+            return NULL;
+        }
+    }
+
+    JSScript *script = Compile(cx, obj, options, fp);
+    if (fp != stdin)
+        fclose(fp);
+    return script;
 }
 
 extern JS_PUBLIC_API(JSScript *)
-JS_CompileUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
+JS_CompileUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj_,
                                        JSPrincipals *principals,
                                        const jschar *chars, size_t length,
                                        const char *filename, unsigned lineno,
                                        JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return CompileUCScriptForPrincipalsCommon(cx, obj, principals, NULL, chars, length,
-                                              filename, lineno, avi.version());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Compile(cx, obj, options, chars, length);
 }
 
 extern JS_PUBLIC_API(JSScript *)
-JS_CompileUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
+JS_CompileUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj_,
                                              JSPrincipals *principals,
                                              JSPrincipals *originPrincipals,
                                              const jschar *chars, size_t length,
                                              const char *filename, unsigned lineno,
                                              JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return CompileUCScriptForPrincipalsCommon(cx, obj, principals, originPrincipals,
-                                              chars, length, filename, lineno, avi.version());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setOriginPrincipals(originPrincipals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Compile(cx, obj, options, chars, length);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj, JSPrincipals *principals,
+JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj_, JSPrincipals *principals,
                                 const jschar *chars, size_t length,
                                 const char *filename, unsigned lineno)
 {
-    return CompileUCScriptForPrincipalsCommon(cx, obj, principals, NULL, chars, length,
-                                              filename, lineno, cx->findVersion());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return Compile(cx, obj, options, chars, length);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileUCScript(JSContext *cx, JSObject *obj, const jschar *chars, size_t length,
+JS_CompileUCScript(JSContext *cx, JSObject *obj_, const jschar *chars, size_t length,
                    const char *filename, unsigned lineno)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_CompileUCScriptForPrincipals(cx, obj, NULL, chars, length, filename, lineno);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return Compile(cx, obj, options, chars, length);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
+JS_CompileScriptForPrincipalsVersion(JSContext *cx, JSObject *obj_,
                                      JSPrincipals *principals,
                                      const char *bytes, size_t length,
                                      const char *filename, unsigned lineno,
                                      JSVersion version)
 {
-    AutoVersionAPI ava(cx, version);
-    return JS_CompileScriptForPrincipals(cx, obj, principals, bytes, length, filename, lineno);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Compile(cx, obj, options, bytes, length);
 }
 
 JS_PUBLIC_API(JSScript *)
@@ -4996,29 +5147,28 @@ JS_CompileScriptForPrincipals(JSContext *cx, JSObject *obj_,
 {
     RootedObject obj(cx, obj_);
 
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
 
-    jschar *chars = InflateString(cx, bytes, &length);
-    if (!chars)
-        return NULL;
-    JSScript *script =
-        JS_CompileUCScriptForPrincipals(cx, obj, principals, chars, length, filename, lineno);
-    cx->free_(chars);
-    return script;
+    return Compile(cx, obj, options, bytes, length);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileScript(JSContext *cx, JSObject *obj, const char *bytes, size_t length,
+JS_CompileScript(JSContext *cx, JSObject *obj_, const char *bytes, size_t length,
                  const char *filename, unsigned lineno)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_CompileScriptForPrincipals(cx, obj, NULL, bytes, length, filename, lineno);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return Compile(cx, obj, options, bytes, length);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *obj_, const char *bytes, size_t length)
+JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *obj_,
+                          const char *bytes, size_t length)
 {
     RootedObject obj(cx, obj_);
 
@@ -5044,9 +5194,9 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *obj_, 
     result = JS_TRUE;
     exnState = JS_SaveExceptionState(cx);
     {
-        Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
-                      chars, length, /* filename = */ NULL, /* lineno = */ 1, cx->findVersion(), 
-                      /* foldConstants = */ true, /* compileAndGo = */ false);
+        CompileOptions options(cx);
+        options.setCompileAndGo(false);
+        Parser parser(cx, options, chars, length, /* foldConstants = */ true);
         if (parser.init()) {
             older = JS_SetErrorReporter(cx, NULL);
             if (!parser.parse(obj) &&
@@ -5066,141 +5216,57 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSBool bytes_are_utf8, JSObject *obj_, 
     return result;
 }
 
-/* Use the fastest available getc. */
-#if defined(HAVE_GETC_UNLOCKED)
-# define fast_getc getc_unlocked
-#elif defined(HAVE__GETC_NOLOCK)
-# define fast_getc _getc_nolock
-#else
-# define fast_getc getc
-#endif
-
-static JSScript *
-CompileUTF8FileHelper(JSContext *cx, JSObject *obj_, JSPrincipals *principals,
-                      const char* filename, FILE *fp)
-{
-    RootedObject obj(cx, obj_);
-
-    struct stat st;
-    int ok = fstat(fileno(fp), &st);
-    if (ok != 0)
-        return NULL;
-
-    char *buf = NULL;
-    size_t len = st.st_size;
-    size_t i = 0;
-    JSScript *script;
-
-    /* Read in the whole file, then compile it. */
-    if (fp == stdin) {
-        if (len == 0)
-            len = 8;  /* start with a small buffer, expand as necessary */
-
-        int c;
-        bool hitEOF = false;
-        while (!hitEOF) {
-            len *= 2;
-            char* tmpbuf = (char *) cx->realloc_(buf, len * sizeof(char));
-            if (!tmpbuf) {
-                cx->free_(buf);
-                return NULL;
-            }
-            buf = tmpbuf;
-
-            while (i < len) {
-                c = fast_getc(fp);
-                if (c == EOF) {
-                    hitEOF = true;
-                    break;
-                }
-                buf[i++] = c;
-            }
-        }
-    } else {
-        buf = (char *) cx->malloc_(len * sizeof(char));
-        if (!buf)
-            return NULL;
-
-        int c;
-        // The |i < len| is necessary for files that lie about their length,
-        // e.g. /dev/zero and /dev/random.  See bug 669434.
-        while (i < len && (c = fast_getc(fp)) != EOF)
-            buf[i++] = c;
-    }
-
-    JS_ASSERT(i <= len);
-    len = i;
-    size_t decodelen = len;
-    jschar *decodebuf = (jschar *)cx->malloc_(decodelen * sizeof(jschar));
-    if (JS_DecodeUTF8(cx, buf, len, decodebuf, &decodelen)) {
-        bool compileAndGo = cx->hasRunOption(JSOPTION_COMPILE_N_GO);
-        bool noScriptRval = cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL);
-        script = frontend::CompileScript(cx, obj, NULL, principals, NULL,
-                                         compileAndGo, noScriptRval, decodebuf, decodelen,
-                                         filename, 1, cx->findVersion());
-    } else {
-        script = NULL;
-    }
-    cx->free_(buf);
-    cx->free_(decodebuf);
-    return script;
-}
-
 JS_PUBLIC_API(JSScript *)
 JS_CompileUTF8File(JSContext *cx, JSObject *obj_, const char *filename)
 {
     RootedObject obj(cx, obj_);
 
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    AutoLastFrameCheck lfc(cx);
+    CompileOptions options(cx);
+    options.setUTF8(true)
+           .setFileAndLine(filename, 1);
 
-    FILE *fp;
-    if (!filename || strcmp(filename, "-") == 0) {
-        fp = stdin;
-    } else {
-        fp = fopen(filename, "r");
-        if (!fp) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_OPEN,
-                                 filename, "No such file or directory");
-            return NULL;
-        }
-    }
-
-    JSScript *script = CompileUTF8FileHelper(cx, obj, NULL, filename, fp);
-    if (fp != stdin)
-        fclose(fp);
-    return script;
+    return Compile(cx, obj, options, filename);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileUTF8FileHandleForPrincipals(JSContext *cx, JSObject *obj, const char *filename,
+JS_CompileUTF8FileHandleForPrincipals(JSContext *cx, JSObject *obj_, const char *filename,
                                       FILE *file, JSPrincipals *principals)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, principals);
-    AutoLastFrameCheck lfc(cx);
+    RootedObject obj(cx, obj_);
 
-    return CompileUTF8FileHelper(cx, obj, principals, filename, file);
+    CompileOptions options(cx);
+    options.setUTF8(true)
+           .setFileAndLine(filename, 1)
+           .setPrincipals(principals);
+
+    return Compile(cx, obj, options, file);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileUTF8FileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj, const char *filename,
+JS_CompileUTF8FileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj_, const char *filename,
                                              FILE *file, JSPrincipals *principals, JSVersion version)
 {
-    AutoVersionAPI ava(cx, version);
-    return JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file, principals);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setUTF8(true)
+           .setFileAndLine(filename, 1)
+           .setPrincipals(principals)
+           .setVersion(version);
+
+    return Compile(cx, obj, options, file);
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_CompileUTF8FileHandle(JSContext *cx, JSObject *obj, const char *filename, FILE *file)
+JS_CompileUTF8FileHandle(JSContext *cx, JSObject *obj_, const char *filename, FILE *file)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file, NULL);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setUTF8(true)
+           .setFileAndLine(filename, 1);
+
+    return Compile(cx, obj, options, file);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -5210,19 +5276,22 @@ JS_GetGlobalFromScript(JSScript *script)
     return &script->global();
 }
 
-static JSFunction *
-CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj_,
-                                     JSPrincipals *principals, const char *name,
-                                     unsigned nargs, const char **argnames,
-                                     const jschar *chars, size_t length,
-                                     const char *filename, unsigned lineno, JSVersion version)
+JS_PUBLIC_API(JSFunction *)
+JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
+                    const char *name, unsigned nargs, const char **argnames,
+                    const jschar *chars, size_t length)
 {
-    RootedObject obj(cx, obj_);
+    Maybe<AutoVersionAPI> mava;
+    if (options.versionSet) {
+        mava.construct(cx, options.version);
+        // AutoVersionAPI propagates some compilation flags through.
+        options.version = mava.ref().version();
+    }
 
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, principals);
+    assertSameCompartment(cx, obj, options.principals, options.originPrincipals);
     AutoLastFrameCheck lfc(cx);
 
     RootedAtom funAtom(cx);
@@ -5244,11 +5313,8 @@ CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj_,
     if (!fun)
         return NULL;
 
-    if (!frontend::CompileFunctionBody(cx, fun, principals, NULL, &bindings,
-                                       chars, length, filename, lineno, version))
-    {
+    if (!frontend::CompileFunctionBody(cx, fun, options, &bindings, chars, length))
         return NULL;
-    }
 
     if (obj && funAtom) {
         Rooted<jsid> id(cx, AtomToId(funAtom));
@@ -5260,38 +5326,69 @@ CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj_,
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_CompileUCFunctionForPrincipalsVersion(JSContext *cx, JSObject *obj,
+JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
+                    const char *name, unsigned nargs, const char **argnames,
+                    const char *bytes, size_t length)
+{
+    jschar *chars;
+    if (options.utf8)
+        chars = InflateString(cx, bytes, &length, CESU8Encoding);
+    else
+        chars = InflateString(cx, bytes, &length);
+    if (!chars)
+        return NULL;
+
+    JSFunction *fun = CompileFunction(cx, obj, options, name, nargs, argnames, chars, length);
+    cx->free_(chars);
+    return fun;
+}
+
+JS_PUBLIC_API(JSFunction *)
+JS_CompileUCFunctionForPrincipalsVersion(JSContext *cx, JSObject *obj_,
                                          JSPrincipals *principals, const char *name,
                                          unsigned nargs, const char **argnames,
                                          const jschar *chars, size_t length,
                                          const char *filename, unsigned lineno,
                                          JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return CompileUCFunctionForPrincipalsCommon(cx, obj, principals, name, nargs, argnames, chars,
-                                                length, filename, lineno, avi.version());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars, length);
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj,
+JS_CompileUCFunctionForPrincipals(JSContext *cx, JSObject *obj_,
                                   JSPrincipals *principals, const char *name,
                                   unsigned nargs, const char **argnames,
                                   const jschar *chars, size_t length,
                                   const char *filename, unsigned lineno)
 {
-    return CompileUCFunctionForPrincipalsCommon(cx, obj, principals, name, nargs, argnames, chars,
-                                                length, filename, lineno, cx->findVersion());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars, length);
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_CompileUCFunction(JSContext *cx, JSObject *obj, const char *name,
+JS_CompileUCFunction(JSContext *cx, JSObject *obj_, const char *name,
                      unsigned nargs, const char **argnames,
                      const jschar *chars, size_t length,
                      const char *filename, unsigned lineno)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_CompileUCFunctionForPrincipals(cx, obj, NULL, name, nargs, argnames,
-                                             chars, length, filename, lineno);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars, length);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -5303,79 +5400,60 @@ JS_CompileFunctionForPrincipals(JSContext *cx, JSObject *obj_,
 {
     RootedObject obj(cx, obj_);
 
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    jschar *chars = InflateString(cx, bytes, &length);
-    if (!chars)
-        return NULL;
-    JSFunction *fun = JS_CompileUCFunctionForPrincipals(cx, obj, principals, name,
-                                                        nargs, argnames, chars, length,
-                                                        filename, lineno);
-    cx->free_(chars);
-    return fun;
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return CompileFunction(cx, obj, options, name, nargs, argnames, bytes, length);
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_CompileFunction(JSContext *cx, JSObject *obj, const char *name,
+JS_CompileFunction(JSContext *cx, JSObject *obj_, const char *name,
                    unsigned nargs, const char **argnames,
                    const char *bytes, size_t length,
                    const char *filename, unsigned lineno)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_CompileFunctionForPrincipals(cx, obj, NULL, name, nargs, argnames, bytes, length,
-                                           filename, lineno);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return CompileFunction(cx, obj, options, name, nargs, argnames, bytes, length);
 }
 
 JS_PUBLIC_API(JSString *)
 JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    JSPrinter *jp;
-    JSString *str;
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-#ifdef DEBUG
-    if (cx->compartment != script->compartment())
-        CompartmentChecker::fail(cx->compartment, script->compartment());
-#endif
-    jp = js_NewPrinter(cx, name, NULL,
-                       indent & ~JS_DONT_PRETTY_PRINT,
-                       !(indent & JS_DONT_PRETTY_PRINT),
-                       false, false);
-    if (!jp)
-        return NULL;
-    if (js_DecompileScript(jp, script))
-        str = js_GetPrinterOutput(jp);
-    else
-        str = NULL;
-    js_DestroyPrinter(jp);
-    return str;
+    RootedFunction fun(cx, script->function());
+    if (fun)
+        return JS_DecompileFunction(cx, fun, indent);
+    return script->sourceData(cx);
 }
 
 JS_PUBLIC_API(JSString *)
-JS_DecompileFunction(JSContext *cx, JSFunction *fun, unsigned indent)
+JS_DecompileFunction(JSContext *cx, JSFunction *funArg, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, fun);
-    return js_DecompileToString(cx, "JS_DecompileFunction", fun,
-                                indent & ~JS_DONT_PRETTY_PRINT,
-                                !(indent & JS_DONT_PRETTY_PRINT),
-                                false, false, js_DecompileFunction);
+    assertSameCompartment(cx, funArg);
+    RootedFunction fun(cx, funArg);
+    return FunctionToString(cx, fun, false, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
 JS_PUBLIC_API(JSString *)
-JS_DecompileFunctionBody(JSContext *cx, JSFunction *fun, unsigned indent)
+JS_DecompileFunctionBody(JSContext *cx, JSFunction *funArg, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, fun);
-    return js_DecompileToString(cx, "JS_DecompileFunctionBody", fun,
-                                indent & ~JS_DONT_PRETTY_PRINT,
-                                !(indent & JS_DONT_PRETTY_PRINT),
-                                false, false, js_DecompileFunctionBody);
+    assertSameCompartment(cx, funArg);
+    RootedFunction fun(cx, funArg);
+    return FunctionToString(cx, fun, true, !(indent & JS_DONT_PRETTY_PRINT));
 }
 
 JS_NEVER_INLINE JS_PUBLIC_API(JSBool)
@@ -5420,76 +5498,113 @@ JS_ExecuteScriptVersion(JSContext *cx, JSObject *obj, JSScript *script, jsval *r
     return JS_ExecuteScript(cx, obj, script, rval);
 }
 
-bool
-EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj_,
-                                    JSPrincipals *principals, JSPrincipals *originPrincipals,
-                                    const jschar *chars, unsigned length,
-                                    const char *filename, unsigned lineno,
-                                    jsval *rval, JSVersion compileVersion)
+extern JS_PUBLIC_API(bool)
+JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
+             const jschar *chars, size_t length, jsval *rval)
 {
+    Maybe<AutoVersionAPI> mava;
+    if (options.versionSet) {
+        mava.construct(cx, options.version);
+        // AutoVersionAPI propagates some compilation flags through.
+        options.version = mava.ref().version();
+    }
+
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-
-    RootedObject obj(cx, obj_);
-
-    bool compileAndGo = true;
-    bool noScriptRval = !rval;
-
+    AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj, options.principals, options.originPrincipals);
     AutoLastFrameCheck lfc(cx);
-    JSScript *script = frontend::CompileScript(cx, obj, NULL, principals, originPrincipals,
-                                               compileAndGo, noScriptRval, chars, length,
-                                               filename, lineno, compileVersion);
+
+    options.setCompileAndGo(true);
+    options.setNoScriptRval(!rval);
+    JSScript *script = frontend::CompileScript(cx, obj, NULL, options, chars, length);
     if (!script)
         return false;
 
-    JS_ASSERT(script->getVersion() == compileVersion);
+    JS_ASSERT(script->getVersion() == options.version);
 
     return Execute(cx, script, *obj, rval);
 }
 
+extern JS_PUBLIC_API(bool)
+JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
+             const char *bytes, size_t length, jsval *rval)
+{
+    jschar *chars;
+    if (options.utf8)
+        chars = InflateString(cx, bytes, &length, CESU8Encoding);
+    else
+        chars = InflateString(cx, bytes, &length);
+    if (!chars)
+        return NULL;
+
+    bool ok = Evaluate(cx, obj, options, chars, length, rval);
+    cx->free_(chars);
+    return ok;
+}
+
 JS_PUBLIC_API(JSBool)
-JS_EvaluateUCScriptForPrincipals(JSContext *cx, JSObject *obj,
+JS_EvaluateUCScriptForPrincipals(JSContext *cx, JSObject *obj_,
                                  JSPrincipals *principals,
                                  const jschar *chars, unsigned length,
                                  const char *filename, unsigned lineno,
                                  jsval *rval)
 {
-    return EvaluateUCScriptForPrincipalsCommon(cx, obj, principals, NULL, chars, length,
-                                               filename, lineno, rval, cx->findVersion());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, chars, length, rval);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
+JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj_,
                                         JSPrincipals *principals,
                                         const jschar *chars, unsigned length,
                                         const char *filename, unsigned lineno,
                                         jsval *rval, JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return EvaluateUCScriptForPrincipalsCommon(cx, obj, principals, NULL, chars, length,
-                                               filename, lineno, rval, avi.version());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Evaluate(cx, obj, options, chars, length, rval);
 }
 
 extern JS_PUBLIC_API(JSBool)
-JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
+JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj_,
                                               JSPrincipals *principals,
                                               JSPrincipals *originPrincipals,
                                               const jschar *chars, unsigned length,
                                               const char *filename, unsigned lineno,
                                               jsval *rval, JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return EvaluateUCScriptForPrincipalsCommon(cx, obj, principals, originPrincipals,
-                                               chars, length, filename, lineno, rval,
-                                               avi.version());
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setOriginPrincipals(originPrincipals)
+           .setFileAndLine(filename, lineno)
+           .setVersion(version);
+
+    return Evaluate(cx, obj, options, chars, length, rval);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_EvaluateUCScript(JSContext *cx, JSObject *obj, const jschar *chars, unsigned length,
+JS_EvaluateUCScript(JSContext *cx, JSObject *obj_, const jschar *chars, unsigned length,
                     const char *filename, unsigned lineno, jsval *rval)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_EvaluateUCScriptForPrincipals(cx, obj, NULL, chars, length, filename, lineno, rval);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, chars, length, rval);
 }
 
 /* Ancient unsigned nbytes is part of API/ABI, so use size_t length local. */
@@ -5500,33 +5615,39 @@ JS_EvaluateScriptForPrincipals(JSContext *cx, JSObject *obj_, JSPrincipals *prin
 {
     RootedObject obj(cx, obj_);
 
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    size_t length = nbytes;
-    jschar *chars = InflateString(cx, bytes, &length);
-    if (!chars)
-        return JS_FALSE;
-    JSBool ok = JS_EvaluateUCScriptForPrincipals(cx, obj, principals, chars, length,
-                                                 filename, lineno, rval);
-    cx->free_(chars);
-    return ok;
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_EvaluateScriptForPrincipalsVersion(JSContext *cx, JSObject *obj, JSPrincipals *principals,
+JS_EvaluateScriptForPrincipalsVersion(JSContext *cx, JSObject *obj_, JSPrincipals *principals,
                                       const char *bytes, unsigned nbytes,
-                                      const char *filename, unsigned lineno, jsval *rval, JSVersion version)
+                                      const char *filename, unsigned lineno, jsval *rval,
+                                      JSVersion version)
 {
-    AutoVersionAPI avi(cx, version);
-    return JS_EvaluateScriptForPrincipals(cx, obj, principals, bytes, nbytes, filename, lineno,
-                                          rval);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setPrincipals(principals)
+           .setVersion(version)
+           .setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
 }
 
 JS_PUBLIC_API(JSBool)
-JS_EvaluateScript(JSContext *cx, JSObject *obj, const char *bytes, unsigned nbytes,
+JS_EvaluateScript(JSContext *cx, JSObject *obj_, const char *bytes, unsigned nbytes,
                   const char *filename, unsigned lineno, jsval *rval)
 {
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    return JS_EvaluateScriptForPrincipals(cx, obj, NULL, bytes, nbytes, filename, lineno, rval);
+    RootedObject obj(cx, obj_);
+
+    CompileOptions options(cx);
+    options.setFileAndLine(filename, lineno);
+
+    return Evaluate(cx, obj, options, bytes, nbytes, rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -6753,21 +6874,27 @@ JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency)
                    "  1: additional GCs at common danger points\n"
                    "  2: GC every F allocations (default: 100)\n"
                    "  3: GC when the window paints (browser only)\n"
-                   "  4: Verify write barriers between instructions\n"
-                   "  5: Verify write barriers between paints\n"
+                   "  4: Verify pre write barriers between instructions\n"
+                   "  5: Verify pre write barriers between paints\n"
                    "  6: Verify stack rooting (ignoring XML and Reflect)\n"
                    "  7: Verify stack rooting (all roots)\n"
                    "  8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
                    "  9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
-                   " 10: Incremental GC in multiple slices\n");
+                   " 10: Incremental GC in multiple slices\n"
+                   " 11: Verify post write barriers between instructions\n"
+                   " 12: Verify post write barriers between paints\n");
         }
         const char *p = strchr(env, ',');
         zeal = atoi(env);
         frequency = p ? atoi(p + 1) : JS_DEFAULT_ZEAL_FREQ;
     }
 
-    if (zeal == 0 && cx->runtime->gcVerifyData)
-        VerifyBarriers(cx->runtime);
+    if (zeal == 0) {
+        if (cx->runtime->gcVerifyPreData)
+            VerifyBarriers(cx->runtime, PreBarrierVerifier);
+        if (cx->runtime->gcVerifyPostData)
+            VerifyBarriers(cx->runtime, PostBarrierVerifier);
+    }
 
     bool schedule = zeal >= js::gc::ZealAllocValue;
     cx->runtime->gcZeal_ = zeal;
@@ -6813,7 +6940,7 @@ JS_IsIdentifier(JSContext *cx, JSString *str, JSBool *isIdentifier)
     if (!linearStr)
         return false;
 
-    *isIdentifier = js::IsIdentifier(linearStr);
+    *isIdentifier = js::frontend::IsIdentifier(linearStr);
     return true;
 }
 

@@ -252,6 +252,15 @@ nsIFrame::MarkAsAbsoluteContainingBlock() {
   Properties().Set(AbsoluteContainingBlockProperty(), new nsAbsoluteContainingBlock(GetAbsoluteListID()));
 }
 
+void
+nsIFrame::ClearDisplayItemCache()
+{
+  if (GetStateBits() & NS_FRAME_HAS_CACHED_BACKGROUND) {
+    Properties().Delete(CachedBackgroundImage());
+    RemoveStateBits(NS_FRAME_HAS_CACHED_BACKGROUND);
+  }
+}
+
 bool
 nsIFrame::CheckAndClearPaintedState()
 {
@@ -1451,15 +1460,28 @@ nsFrame::DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
   return DisplayOutlineUnconditional(aBuilder, aLists);
 }
 
+inline static bool IsSVGContentWithCSSClip(const nsIFrame *aFrame)
+{
+  // The CSS spec says that the 'clip' property only applies to absolutely
+  // positioned elements, whereas the SVG spec says that it applies to SVG
+  // elements regardless of the value of the 'position' property. Here we obey
+  // the CSS spec for outer-<svg> (since that's what we generally do), but
+  // obey the SVG spec for other SVG elements to which 'clip' applies.
+  nsIAtom *tag = aFrame->GetContent()->Tag();
+  return (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
+    (tag == nsGkAtoms::svg || tag == nsGkAtoms::foreignObject);
+}
+
 bool
 nsIFrame::GetClipPropClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
                               const nsSize& aSize) const
 {
   NS_PRECONDITION(aRect, "Must have aRect out parameter");
 
-  if (!aDisp->IsAbsolutelyPositioned() ||
-      !(aDisp->mClipFlags & NS_STYLE_CLIP_RECT))
+  if (!(aDisp->mClipFlags & NS_STYLE_CLIP_RECT) ||
+      !(aDisp->IsAbsolutelyPositioned() || IsSVGContentWithCSSClip(this))) {
     return false;
+  }
 
   *aRect = aDisp->mClip;
   if (NS_STYLE_CLIP_RIGHT_AUTO & aDisp->mClipFlags) {
@@ -1751,39 +1773,29 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   nsRect dirtyRect = aDirtyRect;
 
   bool inTransform = aBuilder->IsInTransform();
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
-      disp->HasTransform()) {
+  if (IsTransformed()) {
     if (aBuilder->IsForPainting() &&
         nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, this)) {
       dirtyRect = GetVisualOverflowRectRelativeToSelf();
     } else {
-      if (Preserves3D()) {
-        // Preserve3D frames are difficult. Trying to  back-transform arbitrary rects
-        // gives us really weird results. I believe this is from points that lie beyond the
-        // vanishing point. As a workaround we transform the overflow rect into screen space
-        // and compare in that coordinate system.
+      // Trying to  back-transform arbitrary rects gives us really weird results. I believe 
+      // this is from points that lie beyond the vanishing point. As a workaround we transform t
+      // he overflow rect into screen space and compare in that coordinate system.
         
-        // Transform the overflow rect into screen space
-        nsRect overflow = GetVisualOverflowRectRelativeToSelf();
-        nsPoint offset = aBuilder->ToReferenceFrame(this);
-        overflow += offset;
-        overflow = nsDisplayTransform::TransformRect(overflow, this, offset);
+      // Transform the overflow rect into screen space
+      nsRect overflow = GetVisualOverflowRectRelativeToSelf();
+      nsPoint offset = aBuilder->ToReferenceFrame(this);
+      overflow += offset;
+      overflow = nsDisplayTransform::TransformRect(overflow, this, offset);
 
-        dirtyRect += offset;
+      dirtyRect += offset;
 
-        if (dirtyRect.Intersects(overflow)) {
-          dirtyRect = GetVisualOverflowRectRelativeToSelf();
-        } else {
-          dirtyRect.SetEmpty();
-        }
+      if (dirtyRect.Intersects(overflow)) {
+        // If they intersect, we take our whole overflow rect. We could instead take the intersection
+        // and then reverse transform it but I doubt this extra work is worthwhile.
+        dirtyRect = GetVisualOverflowRectRelativeToSelf();
       } else {
-        // Transform dirtyRect into our frame's local coordinate space. Note that
-        // the new value is the bounds of the old value's transformed vertices, so
-        // the area covered by dirtyRect may increase here.
-        if (!nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0), &dirtyRect)) {
-          // we have a singular transform - surely we must be drawing nothing.
-          dirtyRect.SetEmpty();
-        }
+        dirtyRect.SetEmpty();
       }
       if (!Preserves3DChildren() && !dirtyRect.Intersects(GetVisualOverflowRectRelativeToSelf())) {
         return NS_OK;
@@ -1803,8 +1815,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
       nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(this, dirtyRect);
   }
 
-  // Mark the display list items for absolutely positioned children
   MarkAbsoluteFramesForDisplayList(aBuilder, dirtyRect);
+
   // Preserve3DChildren() also guarantees that applyAbsPosClipping and usingSVGEffects are false
   // We only modify the preserve-3d rect if we are the top of a preserve-3d heirarchy
   if (Preserves3DChildren()) {
@@ -1915,7 +1927,9 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   /* Else, if the list is non-empty and there is CSS group opacity without SVG
    * effects, wrap it up in an opacity item.
    */
-  else if (disp->mOpacity < 1.0f && !resultList.IsEmpty()) {
+  else if (disp->mOpacity < 1.0f &&
+           !nsSVGUtils::CanOptimizeOpacity(this) &&
+           !resultList.IsEmpty()) {
     rv = resultList.AppendNewToTop(
         new (aBuilder) nsDisplayOpacity(aBuilder, this, &resultList));
     if (NS_FAILED(rv))
@@ -1933,8 +1947,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
    * We also traverse into sublists created by nsDisplayWrapList or nsDisplayOpacity, so that
    * we find all the correct children.
    */
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
-      disp->HasTransform() && !resultList.IsEmpty()) {
+  if (IsTransformed() && !resultList.IsEmpty()) {
     if (Preserves3DChildren()) {
       rv = WrapPreserve3DList(this, aBuilder, &resultList);
       if (NS_FAILED(rv))
@@ -1965,11 +1978,14 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsIFrame* child = aChild;
   if (child->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
     return NS_OK;
+  
+  bool isSVG = (child->GetStateBits() & NS_FRAME_SVG_LAYOUT);
 
   // true if this is a real or pseudo stacking context
   bool pseudoStackingContext =
     (aFlags & DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT) != 0;
-  if ((aFlags & DISPLAY_CHILD_INLINE) &&
+  if (!isSVG &&
+      (aFlags & DISPLAY_CHILD_INLINE) &&
       !child->IsFrameOfType(eLineParticipant)) {
     // child is a non-inline frame in an inline context, i.e.,
     // it acts like inline-block or inline-table. Therefore it is a
@@ -2020,7 +2036,6 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     }
   }
 
-  // Mark the display list items for absolutely positioned children
   child->MarkAbsoluteFramesForDisplayList(aBuilder, dirty);
 
   if (childType != nsGkAtoms::placeholderFrame &&
@@ -2070,15 +2085,24 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     || child->IsTransformed()
     || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
 
-  bool isPositioned = disp->IsPositioned();
-  if (isVisuallyAtomic || isPositioned || disp->IsFloating() ||
+  bool isPositioned = !isSVG && disp->IsPositioned();
+  if (isVisuallyAtomic || isPositioned || (!isSVG && disp->IsFloating()) ||
+      ((disp->mClipFlags & NS_STYLE_CLIP_RECT) &&
+       IsSVGContentWithCSSClip(child)) ||
       (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // If you change this, also change IsPseudoStackingContextFromStyle()
     pseudoStackingContext = true;
   }
 
+  // This controls later whether we build an nsDisplayWrapList or an
+  // nsDisplayFixedPosition. We check if we're already building a fixed-pos
+  // item and disallow nesting, to prevent the situation of bug #769541
+  // occurring.
+  bool buildFixedPositionItem = disp->mPosition == NS_STYLE_POSITION_FIXED
+    && !child->GetParent()->GetParent() && !isSVG && !aBuilder->IsInFixedPosition();
+
   nsDisplayListBuilder::AutoBuildingDisplayList
-    buildingForChild(aBuilder, child, pseudoStackingContext);
+    buildingForChild(aBuilder, child, pseudoStackingContext, buildFixedPositionItem);
 
   nsRect overflowClip;
   nscoord overflowClipRadii[8];
@@ -2178,16 +2202,32 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       // Make sure the root of a fixed position frame sub-tree gets the
       // correct displaylist item type.
       nsDisplayItem* item;
-      if (!child->GetParent()->GetParent() &&
-          disp->mPosition == NS_STYLE_POSITION_FIXED) {
-        item = new (aBuilder) nsDisplayFixedPosition(aBuilder, child, &list);
+      if (buildFixedPositionItem) {
+        item = new (aBuilder) nsDisplayFixedPosition(aBuilder, child, child, &list);
       } else {
         item = new (aBuilder) nsDisplayWrapList(aBuilder, child, &list);
       }
-      rv = aLists.PositionedDescendants()->AppendNewToTop(item);
+      if (isSVG) {
+        rv = aLists.Content()->AppendNewToTop(item);
+      } else {
+        rv = aLists.PositionedDescendants()->AppendNewToTop(item);
+      }
       NS_ENSURE_SUCCESS(rv, rv);
+
+      // Make sure that extra positioned descendants don't escape having
+      // their fixed-position metadata applied to them.
+      if (buildFixedPositionItem) {
+        while (!extraPositionedDescendants.IsEmpty()) {
+          item = extraPositionedDescendants.RemoveBottom();
+          nsDisplayList fixedPosDescendantList;
+          fixedPosDescendantList.AppendToTop(item);
+          aLists.PositionedDescendants()->AppendNewToTop(
+              new (aBuilder) nsDisplayFixedPosition(aBuilder, item->GetUnderlyingFrame(),
+                                                    child, &fixedPosDescendantList));
+        }
+      }
     }
-  } else if (disp->IsFloating()) {
+  } else if (!isSVG && disp->IsFloating()) {
     if (!list.IsEmpty()) {
       rv = aLists.Floats()->AppendNewToTop(new (aBuilder)
           nsDisplayWrapList(aBuilder, child, &list));
@@ -4674,6 +4714,7 @@ void
 nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
                              nsIFrame* aForChild, PRUint32 aFlags)
 {
+  ClearDisplayItemCache();
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
   if (nsSVGIntegrationUtils::UsingEffectsForFrame(this)) {
     nsRect r = nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(this,
@@ -6907,7 +6948,7 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
       Invalidate(aOverflowAreas.VisualOverflow());
     }
   }
-  // XXXSDL For SVG the invalidation happens in UpdateBounds for now, so we
+  // XXXSDL For SVG the invalidation happens in ReflowSVG for now, so we
   // don't currently invalidate SVG here:
   if (anyOverflowChanged && hasTransform &&
       !(GetStateBits() & NS_FRAME_SVG_LAYOUT)) {

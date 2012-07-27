@@ -67,8 +67,6 @@
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMEventListener.h"
-#include "nsIDOMPopStateEvent.h"
-#include "nsIDOMHashChangeEvent.h"
 #include "nsContentUtils.h"
 #include "nsDOMWindowUtils.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
@@ -174,7 +172,6 @@
 #include "nsIDOMSerializer.h"
 #include "nsXMLHttpRequest.h"
 #include "nsWebSocket.h"
-#include "nsIDOMCloseEvent.h"
 #include "nsEventSource.h"
 #include "nsIDOMSettingsManager.h"
 #include "nsIDOMContactManager.h"
@@ -209,7 +206,6 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsIDOMSmartCardEvent.h"
 #include "nsIDOMXULCommandEvent.h"
-#include "nsIDOMPageTransitionEvent.h"
 #include "nsIDOMMessageEvent.h"
 #include "nsPaintRequest.h"
 #include "nsIDOMNotifyPaintEvent.h"
@@ -299,10 +295,9 @@
 #include "nsIDOMCSSStyleRule.h"
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsDOMCSSValueList.h"
-#include "nsIDOMDeviceProximityEvent.h"
-#include "nsIDOMUserProximityEvent.h"
-#include "nsIDOMDeviceLightEvent.h"
-#include "nsIDOMDeviceOrientationEvent.h"
+#define MOZ_GENERATED_EVENTS_INCLUDES
+#include "GeneratedEvents.h"
+#undef MOZ_GENERATED_EVENTS_INCLUDES
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsIDOMRange.h"
 #include "nsIDOMNodeIterator.h"
@@ -486,7 +481,6 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "nsIDOMMediaQueryList.h"
 
 #include "nsDOMTouchEvent.h"
-#include "nsIDOMCustomEvent.h"
 #include "nsDOMMutationObserver.h"
 
 #include "nsWrapperCacheInlines.h"
@@ -524,6 +518,8 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 
 #include "nsIDOMNavigatorSystemMessages.h"
 
+#include "mozilla/dom/Activity.h"
+
 #include "DOMError.h"
 #include "DOMRequest.h"
 #include "nsIOpenWindowEventDetail.h"
@@ -532,7 +528,7 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "DOMFileHandle.h"
 #include "FileRequest.h"
 #include "LockedFile.h"
-
+#include "GeneratedEvents.h"
 #include "mozilla/Likely.h"
 
 #undef None // something included above defines this preprocessor symbol, maybe Xlib headers
@@ -817,18 +813,14 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(PopupBlockedEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Light
-  NS_DEFINE_CLASSINFO_DATA(DeviceLightEvent, nsDOMGenericSH,
+
+#define MOZ_GENERATED_EVENT_LIST
+#define MOZ_GENERATED_EVENT(_event_interface)                \
+  NS_DEFINE_CLASSINFO_DATA(_event_interface, nsDOMGenericSH, \
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Proximity
-  NS_DEFINE_CLASSINFO_DATA(DeviceProximityEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // User Proximity
-  NS_DEFINE_CLASSINFO_DATA(UserProximityEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  // Device Orientation
-  NS_DEFINE_CLASSINFO_DATA(DeviceOrientationEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+#include "GeneratedEvents.h"
+#undef MOZ_GENERATED_EVENT_LIST
+
   NS_DEFINE_CLASSINFO_DATA(DeviceMotionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(DeviceAcceleration, nsDOMGenericSH,
@@ -1338,8 +1330,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(SmartCardEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(PageTransitionEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WindowUtils, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1578,10 +1568,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(ScrollAreaEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(PopStateEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HashChangeEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(EventListenerInfo, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
@@ -1601,9 +1587,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(WebSocket, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(CloseEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(IDBFactory, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1644,17 +1627,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(MediaQueryList, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(CustomEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MutationObserver, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MutationRecord, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozSettingsEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozContactChangeEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozApplicationEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_B2G_RIL
@@ -1699,6 +1676,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(LockedFile, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(MozActivity, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1723,6 +1702,7 @@ static const nsContractIDMapData kConstructorMap[] =
                              "@mozilla.org/document-transformer;1?type=xslt")
   NS_DEFINE_CONSTRUCTOR_DATA(EventSource, NS_EVENTSOURCE_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(MutationObserver, NS_DOMMUTATIONOBSERVER_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(MozActivity, NS_DOMACTIVITY_CONTRACTID)
 };
 
 #define NS_DEFINE_EVENT_CTOR(_class)                        \
@@ -1736,23 +1716,19 @@ static const nsContractIDMapData kConstructorMap[] =
   }
 
 NS_DEFINE_EVENT_CTOR(Event)
-NS_DEFINE_EVENT_CTOR(CustomEvent)
-NS_DEFINE_EVENT_CTOR(PopStateEvent)
-NS_DEFINE_EVENT_CTOR(HashChangeEvent)
-NS_DEFINE_EVENT_CTOR(PageTransitionEvent)
-NS_DEFINE_EVENT_CTOR(CloseEvent)
 NS_DEFINE_EVENT_CTOR(MozSettingsEvent)
-NS_DEFINE_EVENT_CTOR(MozContactChangeEvent)
-NS_DEFINE_EVENT_CTOR(MozApplicationEvent)
 NS_DEFINE_EVENT_CTOR(UIEvent)
 NS_DEFINE_EVENT_CTOR(MouseEvent)
-NS_DEFINE_EVENT_CTOR(DeviceLightEvent)
-NS_DEFINE_EVENT_CTOR(DeviceProximityEvent)
-NS_DEFINE_EVENT_CTOR(UserProximityEvent)
 #ifdef MOZ_B2G_RIL
 NS_DEFINE_EVENT_CTOR(MozWifiStatusChangeEvent)
 NS_DEFINE_EVENT_CTOR(MozWifiConnectionInfoEvent)
 #endif
+
+#define MOZ_GENERATED_EVENT_LIST
+#define MOZ_GENERATED_EVENT(_event_interface) \
+  NS_DEFINE_EVENT_CTOR(_event_interface)
+#include "GeneratedEvents.h"
+#undef MOZ_GENERATED_EVENT_LIST
 
 nsresult
 NS_DOMStorageEventCtor(nsISupports** aInstancePtrResult)
@@ -1786,24 +1762,18 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFileFile::NewFile)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozBlobBuilder, NS_NewBlobBuilder)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(Event)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CustomEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PopStateEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(HashChangeEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PageTransitionEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CloseEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozSettingsEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozContactChangeEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozApplicationEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UIEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(DeviceProximityEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UserProximityEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(DeviceLightEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(StorageEvent)
 #ifdef MOZ_B2G_RIL
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozWifiStatusChangeEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozWifiConnectionInfoEvent)
 #endif
+#define MOZ_GENERATED_EVENT_LIST
+#define MOZ_GENERATED_EVENT(_event_interface) \
+  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(_event_interface)
+#include "GeneratedEvents.h"
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozSmsFilter, sms::SmsFilter::NewSmsFilter)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(XMLHttpRequest, NS_XMLHttpRequestCtor)
 };
@@ -2490,6 +2460,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorBluetooth)
 #endif
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
+
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Plugin, nsIDOMPlugin)
@@ -2615,25 +2586,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(DeviceLightEvent, nsIDOMDeviceLightEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceLightEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
+#define MOZ_GENERATED_EVENT_LIST
+#define MOZ_GENERATED_EVENT(_event_interface)                         \
+  DOM_CLASSINFO_MAP_BEGIN(_event_interface, nsIDOM##_event_interface) \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM##_event_interface)                 \
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES                                   \
   DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceProximityEvent, nsIDOMDeviceProximityEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceProximityEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(UserProximityEvent, nsIDOMUserProximityEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMUserProximityEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DeviceOrientationEvent, nsIDOMDeviceOrientationEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceOrientationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+#include "GeneratedEvents.h"
+#undef MOZ_GENERATED_EVENT_LIST
 
   DOM_CLASSINFO_MAP_BEGIN(DeviceMotionEvent, nsIDOMDeviceMotionEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDeviceMotionEvent)
@@ -2652,11 +2612,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(SmartCardEvent, nsIDOMSmartCardEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSmartCardEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(PageTransitionEvent, nsIDOMPageTransitionEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPageTransitionEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MutationEvent, nsIDOMMutationEvent)
@@ -2693,16 +2648,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDragEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(PopStateEvent, nsIDOMPopStateEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPopStateEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(HashChangeEvent, nsIDOMHashChangeEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHashChangeEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
@@ -4343,11 +4288,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(CloseEvent, nsIDOMCloseEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCloseEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(IDBFactory, nsIIDBFactory)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBFactory)
   DOM_CLASSINFO_MAP_END
@@ -4432,11 +4372,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaQueryList)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(CustomEvent, nsIDOMCustomEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCustomEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(MutationObserver, nsIDOMMutationObserver)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMutationObserver)
   DOM_CLASSINFO_MAP_END
@@ -4448,16 +4383,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(MozSettingsEvent, nsIDOMMozSettingsEvent)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozSettingsEvent)
      DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozContactChangeEvent, nsIDOMMozContactChangeEvent)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozContactChangeEvent)
-     DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozApplicationEvent, nsIDOMMozApplicationEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozApplicationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_B2G_RIL
@@ -4541,6 +4466,12 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(LockedFile, nsIDOMLockedFile)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLockedFile)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(MozActivity, nsIDOMMozActivity)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozActivity)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
 #ifdef DEBUG
@@ -6012,6 +5943,9 @@ DefineIDBInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
   }
   else if (aIID->Equals(NS_GET_IID(nsIIDBTransaction))) {
     interface = IDBConstant::IDBTransaction;
+  }
+  else {
+    MOZ_NOT_REACHED("unexpected IID");
   }
 
   for (int8_t i = 0; i < (int8_t)mozilla::ArrayLength(sIDBConstants); ++i) {

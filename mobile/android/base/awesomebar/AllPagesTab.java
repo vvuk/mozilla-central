@@ -53,7 +53,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private ArrayList<SearchEngine> mSearchEngines;
     private SuggestClient mSuggestClient;
     private AsyncTask<String, Void, ArrayList<String>> mSuggestTask;
-    private ListView mView = null;
     private AwesomeBarCursorAdapter mCursorAdapter = null;
 
     private class SearchEntryViewHolder {
@@ -103,10 +102,10 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             ((Activity)mContext).registerForContextMenu(mView);
             mView.setTag(TAG);
             AwesomeBarCursorAdapter adapter = getCursorAdapter();
-            mView.setAdapter(adapter);
+            ((ListView)mView).setAdapter(adapter);
             mView.setOnTouchListener(mListListener);
         }
-        return mView;
+        return (ListView)mView;
     }
 
     public void destroy() {
@@ -543,8 +542,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         if (keywordCol != -1)
             keyword = cursor.getString(keywordCol);
 
-        // Use the bookmark id for the Bookmarks tab and the history id for the Top Sites tab 
-        int id = cursor.getInt(cursor.getColumnIndexOrThrow(Combined._ID));
+        // Use the history id in order to allow removing history entries
+        int id = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
 
         subject = new ContextMenuSubject(id,
                                         cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),

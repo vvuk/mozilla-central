@@ -151,13 +151,6 @@ function server_headers(metadata, response) {
   response.bodyOutputStream.write(body, body.length);
 }
 
-function server_redirect(metadata, response) {
-  let body = "Redirecting";
-  response.setStatusLine(metadata.httpVersion, 307, "TEMPORARY REDIRECT");
-  response.setHeader("Location", "http://localhost:8081/resource");
-  response.bodyOutputStream.write(body, body.length);
-}
-
 let quotaValue;
 Observers.add("weave:service:quota:remaining",
               function (subject) { quotaValue = subject; });
@@ -180,8 +173,7 @@ function run_test() {
     "/backoff": server_backoff,
     "/pac2": server_pac,
     "/quota-notice": server_quota_notice,
-    "/quota-error": server_quota_error,
-    "/redirect": server_redirect
+    "/quota-error": server_quota_error
   });
 
   Svc.Prefs.set("network.numRetries", 1); // speed up test
@@ -663,6 +655,14 @@ add_test(function test_uri_construction() {
   run_next_test();
 });
 
+/**
+ * End of tests that rely on a single HTTP server.
+ * All tests after this point must begin and end their own.
+ */
+add_test(function eliminate_server() {
+  server.stop(run_next_test);
+});
+
 add_test(function test_new_channel() {
   _("Ensure a redirect to a new channel is handled properly.");
 
@@ -674,7 +674,17 @@ add_test(function test_new_channel() {
     response.setHeader("Content-Type", "text/plain");
     response.bodyOutputStream.write(body, body.length);
   }
-  let server2 = httpd_setup({"/resource": resourceHandler}, 8081);
+
+  function redirectHandler(metadata, response) {
+    let body = "Redirecting";
+    response.setStatusLine(metadata.httpVersion, 307, "TEMPORARY REDIRECT");
+    response.setHeader("Location", "http://localhost:8080/resource");
+    response.bodyOutputStream.write(body, body.length);
+  }
+
+  let server = httpd_setup({"/resource": resourceHandler,
+                            "/redirect": redirectHandler},
+                            8080);
 
   let request = new AsyncResource("http://localhost:8080/redirect");
   request.get(function onRequest(error, content) {
@@ -684,10 +694,6 @@ add_test(function test_new_channel() {
     do_check_true("content-type" in content.headers);
     do_check_eq("text/plain", content.headers["content-type"]);
 
-    server2.stop(run_next_test);
+    server.stop(run_next_test);
   });
-});
-
-add_test(function tear_down() {
-  server.stop(run_next_test);
 });

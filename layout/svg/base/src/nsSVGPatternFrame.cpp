@@ -299,9 +299,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
       // The CTM of each frame referencing us can be different
       nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
       if (SVGFrame) {
-        SVGFrame->NotifySVGChanged(
-                          nsISVGChildFrame::DO_NOT_NOTIFY_RENDERING_OBSERVERS |
-                          nsISVGChildFrame::TRANSFORM_CHANGED);
+        SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
       }
       nsSVGUtils::PaintFrameWithEffects(&context, nsnull, kid);
     }
@@ -606,7 +604,7 @@ nsSVGPatternFrame::GetPatternMatrix(const gfxMatrix &patternTransform,
   gfxFloat minx = bbox.X();
   gfxFloat miny = bbox.Y();
 
-  PRUint16 type = GetEnumValue(nsSVGPatternElement::PATTERNCONTENTUNITS);
+  PRUint16 type = GetEnumValue(nsSVGPatternElement::PATTERNUNITS);
   if (type == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     minx += callerBBox.X();
     miny += callerBBox.Y();

@@ -338,85 +338,36 @@ else
     AC_CHECK_PROGS(STRIP, strip, :)
     AC_CHECK_PROGS(WINDRES, windres, :)
     if test -z "$HOST_CC"; then
-        HOST_CC='$(CC)'
+        HOST_CC="$CC"
     fi
     if test -z "$HOST_CFLAGS"; then
-        HOST_CFLAGS='$(CFLAGS)'
+        HOST_CFLAGS="$CFLAGS"
     fi
     if test -z "$HOST_CXX"; then
-        HOST_CXX='$(CXX)'
+        HOST_CXX="$CXX"
     fi
     if test -z "$HOST_CXXFLAGS"; then
-        HOST_CXXFLAGS='$(CXXFLAGS)'
+        HOST_CXXFLAGS="$CXXFLAGS"
     fi
     if test -z "$HOST_LDFLAGS"; then
-        HOST_LDFLAGS='$(LDFLAGS)'
+        HOST_LDFLAGS="$LDFLAGS"
     fi
     if test -z "$HOST_RANLIB"; then
-        HOST_RANLIB='$(RANLIB)'
+        HOST_RANLIB="$RANLIB"
     fi
     if test -z "$HOST_AR"; then
-        HOST_AR='$(AR)'
+        HOST_AR="$AR"
     fi
     if test -z "$HOST_AR_FLAGS"; then
-        HOST_AR_FLAGS='$(AR_FLAGS)'
+        HOST_AR_FLAGS="$AR_FLAGS"
     fi
 fi
 
-GNU_AS=
-GNU_LD=
-GNU_CC=
-GNU_CXX=
-CC_VERSION='N/A'
-CXX_VERSION='N/A'
-if test "$GCC" = "yes"; then
-    GNU_CC=1
-    CC_VERSION=`$CC -v 2>&1 | grep 'gcc version'`
-fi
-if test "$GXX" = "yes"; then
-    GNU_CXX=1
-    CXX_VERSION=`$CXX -v 2>&1 | grep 'gcc version'`
-fi
-if test "`echo | $AS -o conftest.out -v 2>&1 | grep -c GNU`" != "0"; then
-    GNU_AS=1
-fi
-rm -f conftest.out
-if test "`echo | $LD -v 2>&1 | grep -c GNU`" != "0"; then
-    GNU_LD=1
-fi
-if test "$GNU_CC"; then
-    if `$CC -print-prog-name=ld` -v 2>&1 | grep -c GNU >/dev/null; then
-        GCC_USE_GNU_LD=1
-    fi
+if test -n "$MOZ_WINCONSOLE"; then
+    AC_DEFINE(MOZ_WINCONSOLE)
 fi
 
-INTEL_CC=
-INTEL_CXX=
-if test "$GCC" = yes; then
-   if test "`$CC -help 2>&1 | grep -c 'Intel(R) C++ Compiler'`" != "0"; then
-     INTEL_CC=1
-   fi
-fi
-
-if test "$GXX" = yes; then
-   if test "`$CXX -help 2>&1 | grep -c 'Intel(R) C++ Compiler'`" != "0"; then
-     INTEL_CXX=1
-   fi
-fi
-
-CLANG_CC=
-CLANG_CXX=
-if test "$GCC" = yes; then
-   if test "`$CC -v 2>&1 | grep -c 'clang version'`" != "0"; then
-     CLANG_CC=1
-   fi
-fi
-
-if test "$GXX" = yes; then
-   if test "`$CXX -v 2>&1 | grep -c 'clang version'`" != "0"; then
-     CLANG_CXX=1
-   fi
-fi
+MOZ_TOOL_VARIABLES
 
 dnl ========================================================
 dnl Special win32 checks
@@ -799,6 +750,9 @@ if test -n "$_WIN32_MSVC"; then
     AC_DEFINE(HAVE_IO_H)
     AC_DEFINE(HAVE_SETBUF)
     AC_DEFINE(HAVE_ISATTY)
+    if test $_MSC_VER -ge 1600; then
+        AC_DEFINE(HAVE_NULLPTR)
+    fi
 fi
 
 fi # COMPILE_ENVIRONMENT
@@ -2824,6 +2778,21 @@ dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
     fi
 fi
 
+dnl Check for nullptr (bug 626472)
+AC_LANG_CPLUSPLUS
+AC_MSG_CHECKING(for nullptr)
+AC_CACHE_VAL(ac_cv_nullptr,
+ [AC_TRY_COMPILE([],
+                 [int* foo = nullptr;],
+                 [ac_cv_nullptr=true],
+                 [ac_cv_nullptr=false])])
+if test "$ac_cv_nullptr" = true ; then
+  AC_DEFINE(HAVE_NULLPTR)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
 AC_LANG_C
 
 dnl Check for .hidden assembler directive and visibility attribute.
@@ -3695,7 +3664,7 @@ if test -n "$MOZ_LINKER" -a -z "$MOZ_OLD_LINKER" -a "$OS_TARGET" = "Android"; th
     [echo 'int foo() { return 0; }' > conftest.cpp
      if AC_TRY_COMMAND(${CXX-g++} -o conftest${DLL_SUFFIX} $CXXFLAGS $DSO_LDOPTS $LDFLAGS conftest.cpp $LIBS 1>&5) &&
         test -s conftest${DLL_SUFFIX}; then
-       if readelf -d conftest${DLL_SUFFIX} | grep TEXTREL > /dev/null; then
+       if ${TOOLCHAIN_PREFIX}readelf -d conftest${DLL_SUFFIX} | grep TEXTREL > /dev/null; then
          ac_cv_crt_has_text_relocations=yes
        else
          ac_cv_crt_has_text_relocations=no
@@ -4223,7 +4192,6 @@ MOZ_HELP_VIEWER=
 MOZ_SPELLCHECK=1
 MOZ_JAVA_COMPOSITOR=
 MOZ_ONLY_TOUCH_EVENTS=
-MOZ_SVG_DLISTS=
 MOZ_TOOLKIT_SEARCH=1
 MOZ_UI_LOCALE=en-US
 MOZ_UNIVERSALCHARDET=1
@@ -4245,6 +4213,7 @@ MOZ_ANDROID_HISTORY=
 MOZ_WEBSMS_BACKEND=
 MOZ_GRAPHITE=1
 ACCESSIBILITY=1
+MOZ_SYS_MSG=
 
 case "$target_os" in
     mingw*)
@@ -5382,7 +5351,7 @@ MOZ_ARG_WITH_BOOL(system-libvpx,
 [  --with-system-libvpx    Use system libvpx (located with pkgconfig)],
     MOZ_NATIVE_LIBVPX=1)
 
-MOZ_LIBVPX_INCLUDES=
+MOZ_LIBVPX_CFLAGS=
 MOZ_LIBVPX_LIBS=
 
 if test -n "$MOZ_VP8"; then
@@ -5399,18 +5368,20 @@ if test -n "$MOZ_VP8"; then
         dnl === libvpx Version check ===
         dnl ============================
         dnl Check to see if we have a system libvpx package.
-        PKG_CHECK_MODULES(LIBVPX, vpx >= 1.0.0)
+        PKG_CHECK_MODULES(MOZ_LIBVPX, vpx >= 1.0.0)
 
         MOZ_CHECK_HEADER([vpx/vpx_decoder.h], [], 
          [AC_MSG_ERROR([Couldn't find vpx/vpx_decoder.h which is required for build with system libvpx. Use --without-system-libvpx to build with in-tree libvpx.])])
 
+        _SAVE_LIBS=$LIBS
         AC_CHECK_LIB(vpx, vpx_codec_dec_init_ver, [], 
          [AC_MSG_ERROR([--with-system-libvpx requested but symbol vpx_codec_dec_init_ver not found])])
+        LIBS=$_SAVE_LIBS
     fi
 fi
 
 AC_SUBST(MOZ_NATIVE_LIBVPX)
-AC_SUBST(MOZ_LIBVPX_INCLUDES)
+AC_SUBST(MOZ_LIBVPX_CFLAGS)
 AC_SUBST(MOZ_LIBVPX_LIBS)
 
 if test "$MOZ_WEBM"; then
@@ -5624,7 +5595,7 @@ if test "$MOZ_GSTREAMER"; then
                       gstreamer-plugins-base-$GST_API_VERSION)
     if test -n "$GSTREAMER_LIBS"; then
        _SAVE_LDFLAGS=$LDFLAGS
-       LDFLAGS="$LDFLAGS -lgstvideo-$GST_API_VERSION"
+       LDFLAGS="$LDFLAGS $GSTREAMER_LIBS -lgstvideo-$GST_API_VERSION"
        AC_TRY_LINK(,[return 0;],_HAVE_LIBGSTVIDEO=1,_HAVE_LIBGSTVIDEO=)
        if test -n "$_HAVE_LIBGSTVIDEO" ; then
           GSTREAMER_LIBS="$GSTREAMER_LIBS -lgstvideo-$GST_API_VERSION"
@@ -5849,7 +5820,7 @@ if test -n "$MOZ_CRASHREPORTER"; then
     AC_MSG_ERROR([Breakpad tools do not support compiling on $HOST_OS_ARCH while targeting $OS_ARCH.  Use --disable-crashreporter.])
   fi
 
-  if test "$OS_ARCH" == "WINNT" -a -z "$HAVE_64BIT_OS"; then
+  if test "$OS_ARCH" = "WINNT" -a -z "$HAVE_64BIT_OS"; then
     MOZ_CRASHREPORTER_INJECTOR=1
     AC_DEFINE(MOZ_CRASHREPORTER_INJECTOR)
   fi
@@ -6052,13 +6023,6 @@ dnl CSS3 Flexbox Support
 dnl ========================================================
 if test -n "$MOZ_FLEXBOX"; then
   AC_DEFINE(MOZ_FLEXBOX)
-fi
-
-dnl ========================================================
-dnl SVG Display Lists
-dnl ========================================================
-if test -n "$MOZ_SVG_DLISTS"; then
-  AC_DEFINE(MOZ_SVG_DLISTS)
 fi
 
 dnl ========================================================
@@ -7167,32 +7131,7 @@ if test -n "$JS_CRASH_DIAGNOSTICS"; then
     AC_DEFINE(JS_CRASH_DIAGNOSTICS)
 fi
 
-dnl ======================================================
-dnl = Enable compiling with ccache
-dnl ======================================================
-MOZ_ARG_WITH_STRING(ccache,
-[  --with-ccache[=path/to/ccache]
-                          Enable compiling with ccache],
-    CCACHE=$withval, CCACHE="no")
-
-if test "$CCACHE" != "no"; then
-    if test -z "$CCACHE" -o "$CCACHE" = "yes"; then
-        CCACHE=
-    else
-        if test ! -e "$CCACHE"; then
-            AC_MSG_ERROR([$CCACHE not found])
-        fi
-    fi
-    MOZ_PATH_PROGS(CCACHE, $CCACHE ccache)
-    if test -z "$CCACHE" -o "$CCACHE" = ":"; then
-        AC_MSG_ERROR([ccache not found])
-    elif test -x "$CCACHE"; then
-        CC="$CCACHE $CC"
-        CXX="$CCACHE $CXX"
-    else
-        AC_MSG_ERROR([$CCACHE is not executable])
-    fi
-fi
+MOZ_CHECK_CCACHE
 
 dnl ========================================================
 dnl = Enable static checking using gcc-dehydra
@@ -7286,7 +7225,7 @@ if test "$USE_ELF_HACK" = 1; then
         [echo "int main() {return 0;}" > conftest.${ac_ext}
          if AC_TRY_COMMAND(${CC-cc} -o conftest${ac_exeext} $LDFLAGS conftest.${ac_ext} $LIBS 1>&2) &&
             test -s conftest${ac_exeext}; then
-            if readelf -l conftest${ac_exeext} | grep GNU_RELRO > /dev/null; then
+            if ${TOOLCHAIN_PREFIX}readelf -l conftest${ac_exeext} | grep GNU_RELRO > /dev/null; then
                 LINK_WITH_PT_GNU_RELRO=yes
             else
                 LINK_WITH_PT_GNU_RELRO=no
@@ -7384,7 +7323,7 @@ MOZ_ARG_ENABLE_BOOL(b2g-ril,
     MOZ_B2G_RIL=1,
     MOZ_B2G_RIL= )
 if test -n "$MOZ_B2G_RIL"; then
-   AC_DEFINE(MOZ_B2G_RIL)
+    AC_DEFINE(MOZ_B2G_RIL)
 fi
 AC_SUBST(MOZ_B2G_RIL)
 
@@ -7396,14 +7335,16 @@ MOZ_ARG_ENABLE_BOOL(b2g-bt,
     MOZ_B2G_BT=1,
     MOZ_B2G_BT= )
 if test -n "$MOZ_B2G_BT"; then
-   AC_DEFINE(MOZ_B2G_BT)
+    AC_DEFINE(MOZ_B2G_BT)
 fi
 AC_SUBST(MOZ_B2G_BT)
 
 dnl ========================================================
 dnl = Enable Support for System Messages API
 dnl ========================================================
-
+if test -n "$MOZ_SYS_MSG"; then
+    AC_DEFINE(MOZ_SYS_MSG)
+fi
 AC_SUBST(MOZ_SYS_MSG)
 
 dnl ========================================================
@@ -8752,14 +8693,16 @@ xpcom/xpcom-config.h
 xpcom/xpcom-private.h
 )
 
-# Hack around an Apple bug that effects the egrep that comes with OS X 10.7.
-# "arch -arch i386 egrep" always uses the 32-bit Intel part of the egrep fat
-# binary, even on 64-bit systems. We (apparently) only need this hack when
-# egrep's "pattern" is particularly long (as in the following code).
-# See bug 655339.
+# Hack around an Apple bug that affects the egrep that comes with OS X 10.7.
+# "env ARCHPREFERENCE=i386,x86_64 arch egrep" first tries to use the 32-bit
+# Intel part of the egrep fat binary, even on 64-bit systems, and falls back on
+# the 64-bit part if it's not a fat binary, as can happen with MacPorts. We
+# (apparently) only need this hack when egrep's "pattern" is particularly long
+# (as in the following code) and the first egrep on our $PATH is Apple's.  See
+# bug 655339.
 case "$host" in
 *-apple-darwin11*)
-    FIXED_EGREP="arch -arch i386 egrep"
+    FIXED_EGREP="env ARCHPREFERENCE=i386,x86_64 arch egrep"
     ;;
 *)
     FIXED_EGREP="egrep"
@@ -8844,7 +8787,7 @@ dnl Create a virtualenv where we can install local Python packages
 AC_MSG_RESULT([Creating Python virtualenv])
 rm -rf _virtualenv
 mkdir -p _virtualenv
-MACOSX_DEPLOYMENT_TARGET= PYTHONDONTWRITEBYTECODE= $PYTHON $_topsrcdir/other-licenses/virtualenv/virtualenv.py --system-site-packages ./_virtualenv
+MACOSX_DEPLOYMENT_TARGET= PYTHONDONTWRITEBYTECODE= $PYTHON $_topsrcdir/python/virtualenv/virtualenv.py --system-site-packages ./_virtualenv
 case "$host_os" in
 mingw*)
     PYTHON=$MOZ_BUILD_ROOT/_virtualenv/Scripts/python.exe
@@ -8855,6 +8798,15 @@ mingw*)
 esac
 
 AC_SUBST(PYTHON)
+
+# Populate the virtualenv
+AC_MSG_RESULT([Populating Python virtualenv])
+MACOSX_DEPLOYMENT_TARGET= LDFLAGS="${HOST_LDFLAGS}" \
+  CC="${HOST_CC}" CXX="${HOST_CXX}" \
+  CFLAGS="${HOST_CFLAGS}" CXXFLAGS="${HOST_CXXFLAGS}" \
+  $PYTHON $_topsrcdir/build/virtualenv/populate_virtualenv.py \
+    $_topsrcdir $_topsrcdir/build/virtualenv/packages.txt \
+  || exit 1
 
 dnl Load the list of Makefiles to generate.
 dnl   To add new Makefiles, edit allmakefiles.sh.
@@ -8928,10 +8880,6 @@ if test -n "$MOZ_WEBRTC"; then
       AC_MSG_ERROR([failed to generate gtest Makefiles])
    fi
 fi
-
-# Populate the virtualenv
-AC_MSG_RESULT([Populating Python virtualenv])
-$MAKE -C build/virtualenv MACOSX_DEPLOYMENT_TARGET=  || exit 1
 
 # Generate a JSON config file for unittest harnesses etc to read
 # build configuration details from in a standardized way.

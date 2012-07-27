@@ -13,6 +13,8 @@
 #ifdef MOZ_ENABLE_D3D9_LAYER
 # include "LayerManagerD3D9.h"
 #endif //MOZ_ENABLE_D3D9_LAYER
+#include "mozilla/dom/TabParent.h"
+#include "mozilla/layers/AsyncPanZoomController.h"
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/ShadowLayersParent.h"
 #include "nsContentUtils.h"
@@ -24,6 +26,7 @@
 #include "LayersBackend.h"
 
 typedef nsContentView::ViewConfig ViewConfig;
+using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 namespace mozilla {
@@ -314,7 +317,7 @@ ClearContainer(ContainerLayer* aContainer)
 // used for small software rendering tasks, like drawWindow.  That's
 // currently implemented by a BasicLayerManager without a backing
 // widget, and hence in non-retained mode.
-static bool
+inline static bool
 IsTempLayerManager(LayerManager* aManager)
 {
   return (mozilla::layers::LAYERS_BASIC == aManager->GetBackendType() &&
@@ -453,8 +456,40 @@ GetFrom(nsFrameLoader* aFrameLoader)
   return nsContentUtils::LayerManagerForDocument(doc);
 }
 
+class RemoteContentController : public GeckoContentController {
+public:
+  RemoteContentController(RenderFrameParent* aRenderFrame)
+    : mUILoop(MessageLoop::current())
+    , mRenderFrame(aRenderFrame)
+  { }
+
+  virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) MOZ_OVERRIDE
+  {
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::RequestContentRepaint,
+                          aFrameMetrics));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->UpdateFrame(aFrameMetrics);
+    }
+  }
+
+  void ClearRenderFrame() { mRenderFrame = nsnull; }
+
+private:
+  MessageLoop* mUILoop;
+  RenderFrameParent* mRenderFrame;
+};
+
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
-                                     mozilla::layers::LayersBackend* aBackendType,
+                                     ScrollingBehavior aScrollingBehavior,
+                                     LayersBackend* aBackendType,
                                      int* aMaxTextureSize,
                                      uint64_t* aId)
   : mLayersId(0)
@@ -477,6 +512,13 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
     // Our remote frame will push layers updates to the compositor,
     // and we'll keep an indirect reference to that tree.
     *aId = mLayersId = CompositorParent::AllocateLayerTreeId();
+    if (aScrollingBehavior == ASYNC_PAN_ZOOM) {
+      mContentController = new RemoteContentController(this);
+      mPanZoomController = new AsyncPanZoomController(
+        mContentController, AsyncPanZoomController::USE_GESTURE_DETECTOR);
+      CompositorParent::SetPanZoomControllerForLayerTree(mLayersId,
+                                                         mPanZoomController);
+    }
   }
 }
 
@@ -515,6 +557,7 @@ RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 
 void
 RenderFrameParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
+                                       const TargetConfig& aTargetConfig,
                                        bool isFirstPaint)
 {
   // View map must only contain views that are associated with the current
@@ -616,8 +659,34 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 }
 
 void
+RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
+                                    nsInputEvent* aOutEvent)
+{
+  if (mPanZoomController) {
+    mPanZoomController->HandleInputEvent(aEvent, aOutEvent);
+  }
+}
+
+void
+RenderFrameParent::NotifyDimensionsChanged(int width, int height)
+{
+  if (mPanZoomController) {
+    mPanZoomController->UpdateViewportSize(width, height);
+  }
+}
+
+void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
+  if (mLayersId != 0) {
+    CompositorParent::DeallocateLayerTreeId(mLayersId);
+    if (mContentController) {
+      // Stop our content controller from requesting repaints of our
+      // content.
+      mContentController->ClearRenderFrame();
+    }
+  }
+
   if (mFrameLoader && mFrameLoader->GetCurrentRemoteFrame() == this) {
     // XXX this might cause some weird issues ... we'll just not
     // redraw the part of the window covered by this until the "next"

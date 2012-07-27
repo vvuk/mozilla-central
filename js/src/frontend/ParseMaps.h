@@ -15,10 +15,22 @@
 #include "js/Vector.h"
 
 namespace js {
+namespace frontend {
 
 struct Definition;
+class DefinitionList;
 
+typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
+typedef InlineMap<JSAtom *, Definition *, 24> AtomDefnMap;
 typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
+
+/*
+ * For all unmapped atoms recorded in al, add a mapping from the atom's index
+ * to its address. map->length must already be set to the number of atoms in
+ * the list and map->vector must point to pre-allocated memory.
+ */
+void
+InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
 
 /*
  * A pool that permits the reuse of the backing storage for the defn, index, or
@@ -310,14 +322,6 @@ class DefinitionList
 #endif
 };
 
-namespace tl {
-
-template <> struct IsPodType<DefinitionList> {
-    static const bool result = true;
-};
-
-} /* namespace tl */
-
 /*
  * AtomDecls is a map of atoms to (sequences of) Definitions. It is used by
  * TreeContext to store declarations. A declaration associates a name with a
@@ -335,11 +339,6 @@ template <> struct IsPodType<DefinitionList> {
  * introduced by previous declarations (and which are now shadowed), using the
  * method addShadow. When we leave the block associated with the let, the method
  * remove is used to unshadow the declaration immediately preceding it.
- *
- * Due to hoisting, a declaration with block scope can sometimes shadow a
- * declaration with function scope that appears *after* it. In this case, we
- * pretend that we actually encountered the latter declaration *before* the
- * former, using the method addHoist.
  */
 class AtomDecls
 {
@@ -372,7 +371,6 @@ class AtomDecls
     /* Add-or-update a known-unique definition for |atom|. */
     inline bool addUnique(JSAtom *atom, Definition *defn);
     bool addShadow(JSAtom *atom, Definition *defn);
-    bool addHoist(JSAtom *atom, Definition *defn);
 
     /* Updating the definition for an entry that is known to exist is infallible. */
     void updateFirst(JSAtom *atom, Definition *defn) {
@@ -414,6 +412,16 @@ typedef AtomIndexMap::Ptr       AtomIndexPtr;
 typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
 typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
 typedef AtomDefnListMap::Range  AtomDefnListRange;
+
+} /* namespace frontend */
+
+namespace tl {
+
+template <> struct IsPodType<frontend::DefinitionList> {
+    static const bool result = true;
+};
+
+} /* namespace tl */
 
 } /* namepsace js */
 

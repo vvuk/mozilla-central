@@ -2722,6 +2722,10 @@ nsXPCComponents_Utils::LookupMethod(const JS::Value& object,
         if (!ac.enter(cx, obj))
             return NS_ERROR_FAILURE;
 
+        // Morph slim wrappers.
+        if (IS_SLIM_WRAPPER(obj) && !MorphSlimWrapper(cx, obj))
+            return NS_ERROR_FAILURE;
+
         // Now, try to create an Xray wrapper around the object. This won't work
         // if the object isn't Xray-able. In that case, we throw.
         JSObject *xray = WrapperFactory::WrapForSameCompartmentXray(cx, obj);
@@ -3398,7 +3402,10 @@ GetPrincipalFromString(JSContext *cx, JSString *codebase, nsIPrincipal **princip
         do_GetService(kScriptSecurityManagerContractID);
     NS_ENSURE_TRUE(secman, NS_ERROR_FAILURE);
 
-    rv = secman->GetCodebasePrincipal(uri, principal);
+    // We could allow passing in the app-id and browser-element info to the
+    // sandbox constructor. But creating a sandbox based on a string is a
+    // deprecated API so no need to add features to it.
+    rv = secman->GetNoAppCodebasePrincipal(uri, principal);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(*principal, NS_ERROR_FAILURE);
 
@@ -4291,6 +4298,35 @@ nsXPCComponents_Utils::MakeObjectPropsNormal(const jsval &vobj, JSContext *cx)
     }
 
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCComponents_Utils::IsDeadWrapper(const jsval &obj, bool *out)
+{
+    *out = false;
+    if (JSVAL_IS_PRIMITIVE(obj))
+        return NS_ERROR_INVALID_ARG;
+
+    *out = JS_IsDeadWrapper(JSVAL_TO_OBJECT(obj));
+    return NS_OK;
+}
+
+/* void recomputerWrappers(jsval vobj); */
+NS_IMETHODIMP
+nsXPCComponents_Utils::RecomputeWrappers(const jsval &vobj, JSContext *cx)
+{
+    // Determine the compartment of the given object, if any.
+    JSCompartment *c = vobj.isObject()
+                       ? js::GetObjectCompartment(js::UnwrapObject(&vobj.toObject()))
+                       : NULL;
+
+    // If no compartment was given, recompute all.
+    if (!c)
+        return js::RecomputeWrappers(cx, js::AllCompartments(), js::AllCompartments());
+
+    // Otherwise, recompute wrappers for the given compartment.
+    return js::RecomputeWrappers(cx, js::SingleCompartment(c), js::AllCompartments()) &&
+           js::RecomputeWrappers(cx, js::AllCompartments(), js::SingleCompartment(c));
 }
 
 /* string canCreateWrapper (in nsIIDPtr iid); */

@@ -1,6 +1,17 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* Copyright 2012 Mozilla Foundation and Mozilla contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 /**
  * This file implements the RIL worker thread. It communicates with
@@ -49,6 +60,7 @@ let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = false;
 let RILQUIRKS_V5_LEGACY = true;
 let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = false;
 let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = false;
+let RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = false;
 
 /**
  * This object contains helpers buffering incoming data & deconstructing it
@@ -573,6 +585,7 @@ let RIL = {
    * One of the RADIO_STATE_* constants.
    */
   radioState: GECKO_RADIOSTATE_UNAVAILABLE,
+  _isInitialRadioState: true,
 
   /**
    * ICC status. Keeps a reference of the data response to the
@@ -716,6 +729,10 @@ let RIL = {
       case "Qualcomm RIL 1.0":
         let product_model = libcutils.property_get("ro.product.model");
         if (DEBUG) debug("Detected product model " + product_model);
+        if (product_model == "otoro1") {
+          if (DEBUG) debug("Enabling RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS.");
+          RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = true;
+        }
         if (DEBUG) {
           debug("Detected Qualcomm RIL 1.0, " +
                 "disabling RILQUIRKS_V5_LEGACY and " +
@@ -981,6 +998,7 @@ let RIL = {
     this.getMSISDN();
     this.getAD();
     this.getUST();
+    this.getMBDN();
   },
 
   /**
@@ -1283,6 +1301,41 @@ let RIL = {
     });
   },
 
+   /**
+   * Get ICC MBDN. (Mailbox Dialling Number)
+   *
+   * @see TS 131.102, clause 4.2.60
+   */
+  getMBDN: function getMBDN() {
+    function callback(options) {
+      let parseCallback = function parseCallback(contact) {
+        if (DEBUG) {
+          debug("MBDN, alphaId="+contact.alphaId+" number="+contact.number);
+        }
+        if (this.iccInfo.mbdn != contact.number) {
+          this.iccInfo.mbdn = contact.number;
+          contact.type = "iccmbdn";
+          this.sendDOMMessage(contact);
+        }
+      };
+
+      this.parseDiallingNumber(options, parseCallback);
+    }
+
+    this.iccIO({
+      command:   ICC_COMMAND_GET_RESPONSE,
+      fileId:    ICC_EF_MBDN,
+      pathId:    EF_PATH_MF_SIM + EF_PATH_DF_GSM,
+      p1:        0, // For GET_RESPONSE, p1 = 0
+      p2:        0, // For GET_RESPONSE, p2 = 0
+      p3:        GET_RESPONSE_EF_SIZE_BYTES,
+      data:      null,
+      pin2:      null,
+      type:      EF_TYPE_LINEAR_FIXED,
+      callback:  callback,
+    });
+  },
+
   decodeSimTlvs: function decodeSimTlvs(tlvsLen) {
     let index = 0;
     let tlvs = [];
@@ -1401,7 +1454,7 @@ let RIL = {
     if (this._processingNetworkInfo) {
       if (DEBUG) {
         debug("Already requesting network info: " +
-              JSON.stringify(this._pendingNetworkInfo))
+              JSON.stringify(this._pendingNetworkInfo));
       }
       return;
     }
@@ -1496,14 +1549,18 @@ let RIL = {
    */
   dial: function dial(options) {
     let dial_request_type = REQUEST_DIAL;
-    if (this.voiceRegistrationState.emergencyCallsOnly) {
+    if (this.voiceRegistrationState.emergencyCallsOnly ||
+        options.isDialEmergency) {
       if (!this._isEmergencyNumber(options.number)) {
-        if (DEBUG) {
-          // TODO: Notify an error here so that the DOM will see an error event.
-          debug(options.number + " is not a valid emergency number.");
-        }
+        // Notify error in establishing the call with an invalid number.
+        options.callIndex = -1;
+        options.type = "callError";
+        options.error =
+          RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER];
+        this.sendDOMMessage(options);
         return;
       }
+
       if (RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL) {
         dial_request_type = REQUEST_DIAL_EMERGENCY_CALL;
       }
@@ -1785,15 +1842,14 @@ let RIL = {
       return;
     }
 
-    let token = Buf.newParcel(REQUEST_DEACTIVATE_DATA_CALL);
+    let token = Buf.newParcel(REQUEST_DEACTIVATE_DATA_CALL, options);
     Buf.writeUint32(2);
     Buf.writeString(options.cid);
     Buf.writeString(options.reason || DATACALL_DEACTIVATE_NO_REASON);
     Buf.sendParcel();
 
     datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
-    this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: datacall});
+    this.sendDOMMessage(datacall);
   },
 
   /**
@@ -2340,7 +2396,7 @@ let RIL = {
     }
   },
 
-  _processDataCallList: function _processDataCallList(datacalls) {
+  _processDataCallList: function _processDataCallList(datacalls, newDataCallOptions) {
     for each (let currentDataCall in this.currentDataCalls) {
       let updatedDataCall;
       if (datacalls) {
@@ -2351,8 +2407,8 @@ let RIL = {
       if (!updatedDataCall) {
         delete this.currentDataCalls[currentDataCall.callIndex];
         currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-        this.sendDOMMessage({type: "datacallstatechange",
-                             datacall: currentDataCall});
+        currentDataCall.type = "datacallstatechange";
+        this.sendDOMMessage(currentDataCall);
         continue;
       }
 
@@ -2361,16 +2417,27 @@ let RIL = {
         currentDataCall.status = updatedDataCall.status;
         currentDataCall.active = updatedDataCall.active;
         currentDataCall.state = updatedDataCall.state;
-        this.sendDOMMessage({type: "datacallstatechange",
-                             datacall: currentDataCall});
+        currentDataCall.type = "datacallstatechange";
+        this.sendDOMMessage(currentDataCall);
       }
     }
 
     for each (let newDataCall in datacalls) {
       this.currentDataCalls[newDataCall.cid] = newDataCall;
       this._setDataCallGeckoState(newDataCall);
-      this.sendDOMMessage({type: "datacallstatechange",
-                           datacall: newDataCall});
+      if (newDataCallOptions) {
+        newDataCall.radioTech = newDataCallOptions.radioTech;
+        newDataCall.apn = newDataCallOptions.apn;
+        newDataCall.user = newDataCallOptions.user;
+        newDataCall.passwd = newDataCallOptions.passwd;
+        newDataCall.chappap = newDataCallOptions.chappap;
+        newDataCall.pdptype = newDataCallOptions.pdptype;
+        newDataCallOptions = null;
+      } else if (DEBUG) {
+        debug("Unexpected new data call: " + JSON.stringify(newDataCall));
+      }
+      newDataCall.type = "datacallstatechange";
+      this.sendDOMMessage(newDataCall);
     }
   },
 
@@ -2764,6 +2831,12 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS(length, options) {
       pin1:           Buf.readUint32(),
       pin2:           Buf.readUint32()
     });
+    if (RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS) {
+      Buf.readUint32();
+      Buf.readUint32();
+      Buf.readUint32();
+      Buf.readUint32();
+    }
   }
 
   if (DEBUG) debug("iccStatus: " + JSON.stringify(iccStatus));
@@ -3123,21 +3196,25 @@ RIL.readSetupDataCall_v5 = function readSetupDataCall_v5(options) {
 
 RIL[REQUEST_SETUP_DATA_CALL] = function REQUEST_SETUP_DATA_CALL(length, options) {
   if (options.rilRequestError) {
-    // On Data Call error, we shall notify caller
-    this.sendDOMMessage({type: "datacallerror"});
+    options.type = "datacallerror";
+    this.sendDOMMessage(options);
     return;
   }
 
   if (RILQUIRKS_V5_LEGACY) {
+    // Populate the `options` object with the data call information. That way
+    // we retain the APN and other info about how the data call was set up.
     this.readSetupDataCall_v5(options);
     this.currentDataCalls[options.cid] = options;
-    this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: options});
+    options.type = "datacallstatechange";
+    this.sendDOMMessage(options);
     // Let's get the list of data calls to ensure we know whether it's active
     // or not.
     this.getDataCallList();
     return;
   }
+  // Pass `options` along. That way we retain the APN and other info about
+  // how the data call was set up.
   this[REQUEST_DATA_CALL_LIST](length, options);
 };
 RIL[REQUEST_SIM_IO] = function REQUEST_SIM_IO(length, options) {
@@ -3205,8 +3282,8 @@ RIL[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_DATA_CALL(length
   let datacall = this.currentDataCalls[options.cid];
   delete this.currentDataCalls[options.cid];
   datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-  this.sendDOMMessage({type: "datacallstatechange",
-                       datacall: datacall});
+  datacall.type = "datacallstatechange";
+  this.sendDOMMessage(datacall);
 };
 RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, options) {
   if (options.rilRequestError) {
@@ -3301,15 +3378,15 @@ RIL[REQUEST_GET_MUTE] = null;
 RIL[REQUEST_QUERY_CLIP] = null;
 RIL[REQUEST_LAST_DATA_CALL_FAIL_CAUSE] = null;
 
-RIL.readDataCall_v5 = function readDataCall_v5() {
+RIL.readDataCall_v5 = function readDataCall_v5(options) {
   if (!options) {
     options = {};
   }
-  cid = Buf.readUint32().toString();
-  active = Buf.readUint32(); // DATACALL_ACTIVE_*
-  type = Buf.readString();
-  apn = Buf.readString();
-  address = Buf.readString();
+  options.cid = Buf.readUint32().toString();
+  options.active = Buf.readUint32(); // DATACALL_ACTIVE_*
+  options.type = Buf.readString();
+  options.apn = Buf.readString();
+  options.address = Buf.readString();
   return options;
 };
 
@@ -3359,14 +3436,18 @@ RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
   for (let i = 0; i < num; i++) {
     let datacall;
     if (version < 6) {
-      datacall = this.readDataCall_v5(options);
+      datacall = this.readDataCall_v5();
     } else {
-      datacall = this.readDataCall_v6(options);
+      datacall = this.readDataCall_v6();
     }
     datacalls[datacall.cid] = datacall;
   }
 
-  this._processDataCallList(datacalls);
+  let newDataCallOptions = null;
+  if (options.rilRequestType == REQUEST_SETUP_DATA_CALL) {
+    newDataCallOptions = options;
+  }
+  this._processDataCallList(datacalls, newDataCallOptions);
 };
 RIL[REQUEST_RESET_RADIO] = null;
 RIL[REQUEST_OEM_HOOK_RAW] = null;
@@ -3422,6 +3503,15 @@ RIL[REQUEST_REPORT_SMS_MEMORY_STATUS] = null;
 RIL[REQUEST_REPORT_STK_SERVICE_IS_RUNNING] = null;
 RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED() {
   let radioState = Buf.readUint32();
+
+  // Ensure radio state at boot time.
+  if (this._isInitialRadioState) {
+    this._isInitialRadioState = false;
+    if (radioState != RADIO_STATE_OFF) {
+      this.setRadioPower({on: false});
+      return;
+    }
+  }
 
   let newState;
   if (radioState == RADIO_STATE_UNAVAILABLE) {

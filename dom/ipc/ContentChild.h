@@ -63,7 +63,8 @@ public:
                                        base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
-                                         const bool& aIsBrowserFrame);
+                                         const bool& aIsBrowserElement,
+                                         const PRUint32& aAppId);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
     virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
@@ -75,8 +76,8 @@ public:
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild*);
 
-    NS_OVERRIDE virtual PHalChild* AllocPHal();
-    NS_OVERRIDE virtual bool DeallocPHal(PHalChild*);
+    virtual PHalChild* AllocPHal() MOZ_OVERRIDE;
+    virtual bool DeallocPHal(PHalChild*) MOZ_OVERRIDE;
 
     virtual PIndexedDBChild* AllocPIndexedDB();
     virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);

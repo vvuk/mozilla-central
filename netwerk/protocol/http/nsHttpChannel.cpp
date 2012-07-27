@@ -544,7 +544,7 @@ nsHttpChannel::SpeculativeConnect()
         return;
 
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    mConnectionInfo->SetPrivate(UsingPrivateBrowsing());
+    mConnectionInfo->SetPrivate(mPrivateBrowsing);
     gHttpHandler->SpeculativeConnect(mConnectionInfo,
                                      callbacks, NS_GetCurrentThread());
 }
@@ -839,7 +839,7 @@ nsHttpChannel::SetupTransaction()
         mCaps |= NS_HTTP_TIMING_ENABLED;
 
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
-    mConnectionInfo->SetPrivate(UsingPrivateBrowsing());
+    mConnectionInfo->SetPrivate(mPrivateBrowsing);
 
     if (mUpgradeProtocolCallback) {
         mRequestHead.SetHeader(nsHttp::Upgrade, mUpgradeProtocol, false);
@@ -1635,7 +1635,7 @@ nsHttpChannel::AsyncRedirectChannelToHttps()
     rv = ioService->NewChannelFromURI(upgradedURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = SetupReplacementChannel(upgradedURI, newChannel, true, false);
+    rv = SetupReplacementChannel(upgradedURI, newChannel, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Inform consumers about this fake redirect
@@ -1732,7 +1732,7 @@ nsHttpChannel::AsyncDoReplaceWithProxy(nsIProxyInfo* pi)
     if (NS_FAILED(rv))
         return rv;
 
-    rv = SetupReplacementChannel(mURI, newChannel, true, true);
+    rv = SetupReplacementChannel(mURI, newChannel, true);
     if (NS_FAILED(rv))
         return rv;
 
@@ -2280,7 +2280,7 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
     rv = gHttpHandler->NewChannel(mURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = SetupReplacementChannel(mURI, newChannel, true, false);
+    rv = SetupReplacementChannel(mURI, newChannel, true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Make sure the new channel loads from the fallback key.
@@ -2447,7 +2447,7 @@ nsHttpChannel::OpenCacheEntry(bool usingSSL)
             // us from writing to the offline cache as a normal cache entry.
             mCacheQuery = new HttpCacheQuery(
                                 this, appCacheClientID,
-                                nsICache::STORE_OFFLINE, UsingPrivateBrowsing(),
+                                nsICache::STORE_OFFLINE, mPrivateBrowsing,
                                 cacheKey, nsICache::ACCESS_READ,
                                 mLoadFlags & LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
                                 usingSSL, true);
@@ -2548,10 +2548,9 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
 
     nsresult rv;
 
-    bool isPrivate = UsingPrivateBrowsing();
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy(isPrivate);
+    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
     nsDependentCString clientID(
-        GetCacheSessionNameForStoragePolicy(storagePolicy, isPrivate));
+        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing));
 
     nsCAutoString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -2563,8 +2562,7 @@ nsHttpChannel::OpenNormalCacheEntry(bool usingSSL)
  
     mCacheQuery = new HttpCacheQuery(
                                 this, clientID, storagePolicy,
-                                UsingPrivateBrowsing(), cacheKey,
-                                accessRequested,
+                                mPrivateBrowsing, cacheKey, accessRequested,
                                 mLoadFlags & LOAD_BYPASS_LOCAL_CACHE_IF_BUSY,
                                 usingSSL, false);
 
@@ -3955,15 +3953,13 @@ nsHttpChannel::ClearBogusContentEncodingIfNeeded()
 nsresult
 nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI, 
                                        nsIChannel   *newChannel,
-                                       bool          preserveMethod,
-                                       bool          forProxy)
+                                       bool          preserveMethod)
 {
     LOG(("nsHttpChannel::SetupReplacementChannel "
          "[this=%p newChannel=%p preserveMethod=%d]",
          this, newChannel, preserveMethod));
 
-    nsresult rv = HttpBaseChannel::SetupReplacementChannel(newURI, newChannel,
-                                                           preserveMethod, forProxy);
+    nsresult rv = HttpBaseChannel::SetupReplacementChannel(newURI, newChannel, preserveMethod);
     if (NS_FAILED(rv))
         return rv;
 
@@ -3984,28 +3980,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
             return NS_ERROR_NOT_RESUMABLE;
         }
         resumableChannel->ResumeAt(mStartPos, mEntityID);
-    }
-
-    if (forProxy) {
-        // Transfer the cache info to the new channel, if needed.
-        nsCOMPtr<nsICachingChannel> cachingChannel = do_QueryInterface(newChannel);
-        if (cachingChannel) {
-            // cacheKey is just mPostID wrapped in an nsISupportsPRUint32,
-            // we don't need to transfer it if it's 0.
-            if (mPostID) {
-                nsCOMPtr<nsISupports> cacheKey;
-                GetCacheKey(getter_AddRefs(cacheKey));
-                if (cacheKey) {
-                    cachingChannel->SetCacheKey(cacheKey);
-                }
-            }
-        }
-
-        nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel = do_QueryInterface(newChannel);
-        if (appCacheChannel) {
-            // app cache for write
-            appCacheChannel->SetApplicationCacheForWrite(mApplicationCacheForWrite);
-        }
     }
 
     return NS_OK;
@@ -4131,7 +4105,7 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
     rv = ioService->NewChannelFromURI(mRedirectURI, getter_AddRefs(newChannel));
     if (NS_FAILED(rv)) return rv;
 
-    rv = SetupReplacementChannel(mRedirectURI, newChannel, !rewriteToGET, false);
+    rv = SetupReplacementChannel(mRedirectURI, newChannel, !rewriteToGET);
     if (NS_FAILED(rv)) return rv;
 
     PRUint32 redirectFlags;
@@ -4243,6 +4217,19 @@ NS_IMETHODIMP nsHttpChannel::OnAuthCancelled(bool userCancel)
     }
     
     return NS_OK;
+}
+
+NS_IMETHODIMP nsHttpChannel::GetAsciiHostForAuth(nsACString &host)
+{
+    if (mAuthProvider)
+        return mAuthProvider->GetAsciiHostForAuth(host);
+
+    nsresult rv;
+    nsCOMPtr<nsIURI> uri;
+    rv = GetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv))
+        return rv;
+    return uri->GetAsciiHost(host);
 }
 
 //-----------------------------------------------------------------------------
@@ -5255,11 +5242,11 @@ class nsHttpChannelCacheKey MOZ_FINAL : public nsISupportsPRUint32,
     
     // Both interfaces declares toString method with the same signature.
     // Thus we have to delegate only to nsISupportsPRUint32 implementation.
-    NS_SCRIPTABLE NS_IMETHOD GetData(nsACString & aData) 
+    NS_IMETHOD GetData(nsACString & aData) 
     { 
         return mSupportsCString->GetData(aData);
     }
-    NS_SCRIPTABLE NS_IMETHOD SetData(const nsACString & aData)
+    NS_IMETHOD SetData(const nsACString & aData)
     { 
         return mSupportsCString->SetData(aData);
     }
@@ -5873,10 +5860,9 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     // one point by using only READ_ONLY access-policy. I think this is safe.
 
     // First, find session holding the cache-entry - use current storage-policy
-    bool isPrivate = UsingPrivateBrowsing();
-    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy(isPrivate);
-    const char * clientID = GetCacheSessionNameForStoragePolicy(storagePolicy,
-                                                                isPrivate);
+    nsCacheStoragePolicy storagePolicy = DetermineStoragePolicy();
+    const char * clientID =
+        GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing);
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s]",
          this, clientID, PRIntn(storagePolicy), key.get()));
@@ -5891,7 +5877,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
                                  getter_AddRefs(session));
     }
     if (NS_SUCCEEDED(rv)) {
-        rv = session->SetIsPrivate(UsingPrivateBrowsing());
+        rv = session->SetIsPrivate(mPrivateBrowsing);
     }
     if (NS_SUCCEEDED(rv)) {
         rv = session->DoomEntry(key, nsnull);
@@ -5902,10 +5888,10 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
 }
 
 nsCacheStoragePolicy
-nsHttpChannel::DetermineStoragePolicy(bool isPrivate)
+nsHttpChannel::DetermineStoragePolicy()
 {
     nsCacheStoragePolicy policy = nsICache::STORE_ANYWHERE;
-    if (isPrivate)
+    if (mPrivateBrowsing)
         policy = nsICache::STORE_IN_MEMORY;
     else if (mLoadFlags & INHIBIT_PERSISTENT_CACHING)
         policy = nsICache::STORE_IN_MEMORY;

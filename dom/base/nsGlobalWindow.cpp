@@ -1976,7 +1976,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       js::SetProxyExtra(mJSObject, 0, js::PrivateValue(NULL));
 
-      outerObject = JS_TransplantObject(cx, mJSObject, outerObject);
+      outerObject = xpc::TransplantObject(cx, mJSObject, outerObject);
       if (!outerObject) {
         NS_ERROR("unable to transplant wrappers, probably OOM");
         return NS_ERROR_FAILURE;
@@ -2965,9 +2965,9 @@ nsGlobalWindow::GetScriptableParent(nsIDOMWindow** aParent)
     return NS_OK;
   }
 
-  bool isMozBrowser = false;
-  mDocShell->GetIsBrowserFrame(&isMozBrowser);
-  if (isMozBrowser) {
+  bool isContentBoundary = false;
+  mDocShell->GetIsContentBoundary(&isContentBoundary);
+  if (isContentBoundary) {
     nsCOMPtr<nsIDOMWindow> parent = static_cast<nsIDOMWindow*>(this);
     parent.swap(*aParent);
     return NS_OK;
@@ -2990,11 +2990,8 @@ nsGlobalWindow::GetRealParent(nsIDOMWindow** aParent)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(mDocShell));
-  NS_ENSURE_TRUE(docShellAsItem, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIDocShellTreeItem> parent;
-  docShellAsItem->GetSameTypeParent(getter_AddRefs(parent));
+  nsCOMPtr<nsIDocShell> parent;
+  mDocShell->GetParentIgnoreBrowserFrame(getter_AddRefs(parent));
 
   if (parent) {
     nsCOMPtr<nsIScriptGlobalObject> globalObject(do_GetInterface(parent));
@@ -3073,11 +3070,19 @@ NS_IMETHODIMP
 nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 {
   FORWARD_TO_OUTER(GetContent, (aContent), NS_ERROR_NOT_INITIALIZED);
-
   *aContent = nsnull;
 
-  nsCOMPtr<nsIDocShellTreeItem> primaryContent;
+  // If we're contained in <iframe mozbrowser>, then GetContent is the same as
+  // window.top.
+  if (mDocShell) {
+    bool belowContentBoundary = false;
+    mDocShell->GetIsBelowContentBoundary(&belowContentBoundary);
+    if (belowContentBoundary) {
+      return GetScriptableTop(aContent);
+    }
+  }
 
+  nsCOMPtr<nsIDocShellTreeItem> primaryContent;
   if (!nsContentUtils::IsCallerChrome()) {
     // If we're called by non-chrome code, make sure we don't return
     // the primary content window if the calling tab is hidden. In
@@ -3091,7 +3096,6 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 
       if (!visible) {
         nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(mDocShell));
-
         treeItem->GetSameTypeRootTreeItem(getter_AddRefs(primaryContent));
       }
     }
@@ -3110,6 +3114,7 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 
   return NS_OK;
 }
+
 
 NS_IMETHODIMP
 nsGlobalWindow::GetPrompter(nsIPrompt** aPrompt)
@@ -4567,6 +4572,11 @@ nsGlobalWindow::Dump(const nsAString& aStr)
 #endif
 
   if (cstr) {
+#ifdef XP_WIN
+    if (IsDebuggerPresent()) {
+      OutputDebugStringA(cstr);
+    }
+#endif
 #ifdef ANDROID
     __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
 #endif
@@ -6446,12 +6456,13 @@ nsGlobalWindow::Close()
 {
   FORWARD_TO_OUTER(Close, (), NS_ERROR_NOT_INITIALIZED);
 
-  bool isMozBrowser = false;
+  bool isContentBoundary = false;
   if (mDocShell) {
-    mDocShell->GetIsBrowserFrame(&isMozBrowser);
+    mDocShell->GetIsContentBoundary(&isContentBoundary);
   }
 
-  if ((!isMozBrowser && IsFrame()) || !mDocShell || IsInModalState()) {
+  if ((!isContentBoundary && IsFrame()) ||
+      !mDocShell || IsInModalState()) {
     // window.close() is called on a frame in a frameset, on a window
     // that's already closed, or on a window for which there's
     // currently a modal dialog open. Ignore such calls.
@@ -6980,9 +6991,9 @@ nsGlobalWindow::GetScriptableFrameElement(nsIDOMElement** aFrameElement)
     return NS_OK;
   }
 
-  bool isMozBrowser = false;
-  mDocShell->GetIsBrowserFrame(&isMozBrowser);
-  if (isMozBrowser) {
+  bool isContentBoundary = false;
+  mDocShell->GetIsContentBoundary(&isContentBoundary);
+  if (isContentBoundary) {
     return NS_OK;
   }
 
@@ -7000,19 +7011,16 @@ nsGlobalWindow::GetRealFrameElement(nsIDOMElement** aFrameElement)
 
   *aFrameElement = NULL;
 
-  nsCOMPtr<nsIDocShellTreeItem> docShellTI(do_QueryInterface(mDocShell));
-
-  if (!docShellTI) {
+  if (!mDocShell) {
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> parent;
-  docShellTI->GetSameTypeParent(getter_AddRefs(parent));
+  nsCOMPtr<nsIDocShell> parent;
+  mDocShell->GetParentIgnoreBrowserFrame(getter_AddRefs(parent));
 
-  if (!parent || parent == docShellTI) {
+  if (!parent || parent == mDocShell) {
     // We're at a chrome boundary, don't expose the chrome iframe
     // element to content code.
-
     return NS_OK;
   }
 
@@ -8176,10 +8184,10 @@ nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
     return NS_OK;
   }
 
-  nsRefPtr<nsComputedDOMStyle> compStyle;
-  nsresult rv = NS_NewComputedDOMStyle(aElt, aPseudoElt, presShell,
-                                       getter_AddRefs(compStyle));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<dom::Element> element = do_QueryInterface(aElt);
+  NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
+  nsRefPtr<nsComputedDOMStyle> compStyle =
+    NS_NewComputedDOMStyle(element, aPseudoElt, presShell);
 
   *aReturn = compStyle.forget().get();
 
@@ -9392,9 +9400,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
 
     nsRefPtr<nsTimeout> copy = timeout;
 
-    rv = timeout->mTimer->InitWithFuncCallback(TimerCallback, timeout,
-                                               realInterval,
-                                               nsITimer::TYPE_ONE_SHOT);
+    rv = timeout->InitTimer(TimerCallback, realInterval);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -9629,10 +9635,7 @@ nsGlobalWindow::RescheduleTimeout(nsTimeout* aTimeout, const TimeStamp& now,
   // platforms whether delay is positive or negative (which we
   // know is always positive here, but cast anyways for
   // consistency).
-  nsresult rv = aTimeout->mTimer->
-    InitWithFuncCallback(TimerCallback, aTimeout,
-                         delay.ToMilliseconds(),
-                         nsITimer::TYPE_ONE_SHOT);
+  nsresult rv = aTimeout->InitTimer(TimerCallback, delay.ToMilliseconds());
 
   if (NS_FAILED(rv)) {
     NS_ERROR("Error initializing timer for DOM timeout!");
@@ -9974,11 +9977,7 @@ nsresult nsGlobalWindow::ResetTimersForNonBackgroundWindow()
       timeout->mFiringDepth = firingDepth;
       timeout->Release();
 
-      nsresult rv =
-        timeout->mTimer->InitWithFuncCallback(TimerCallback,
-                                              timeout,
-                                              delay.ToMilliseconds(),
-                                              nsITimer::TYPE_ONE_SHOT);
+      nsresult rv = timeout->InitTimer(TimerCallback, delay.ToMilliseconds());
 
       if (NS_FAILED(rv)) {
         NS_WARNING("Error resetting non background timer for DOM timeout!");
@@ -10491,8 +10490,7 @@ nsGlobalWindow::ResumeTimeouts(bool aThawChildren)
       t->mTimer = do_CreateInstance("@mozilla.org/timer;1");
       NS_ENSURE_TRUE(t->mTimer, NS_ERROR_OUT_OF_MEMORY);
 
-      rv = t->mTimer->InitWithFuncCallback(TimerCallback, t, delay,
-                                           nsITimer::TYPE_ONE_SHOT);
+      rv = t->InitTimer(TimerCallback, delay);
       if (NS_FAILED(rv)) {
         t->mTimer = nsnull;
         return rv;

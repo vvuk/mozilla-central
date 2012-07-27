@@ -33,6 +33,7 @@
 #include "nsBoxFrame.h"
 #include "nsViewportFrame.h"
 #include "nsSVGEffects.h"
+#include "nsSVGElement.h"
 #include "nsSVGClipPathFrame.h"
 #include "sampler.h"
 
@@ -63,7 +64,9 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mSyncDecodeImages(false),
       mIsPaintingToWindow(false),
       mHasDisplayPort(false),
-      mHasFixedItems(false)
+      mHasFixedItems(false),
+      mIsInFixedPosition(false),
+      mIsCompositingCheap(false)
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,
@@ -647,8 +650,10 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
 
   layerManager->SetRoot(root);
   layerBuilder->WillEndTransaction(layerManager);
+  bool temp = aBuilder->SetIsCompositingCheap(layerManager->IsCompositingCheap());
   layerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer,
                                aBuilder);
+  aBuilder->SetIsCompositingCheap(temp);
   layerBuilder->DidEndTransaction(layerManager);
 
   if (aFlags & PAINT_FLUSH_LAYERS) {
@@ -855,9 +860,7 @@ static bool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
   // z-indices here, because that might overflow a 32-bit int.
   PRInt32 index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
   PRInt32 index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
-  if (index1 == index2)
-    return IsContentLEQ(aItem1, aItem2, aClosure);
-  return index1 < index2;
+  return index1 <= index2;
 }
 
 void nsDisplayList::ExplodeAnonymousChildLists(nsDisplayListBuilder* aBuilder) {
@@ -1087,6 +1090,65 @@ static bool RoundedRectContainsRect(const nsRect& aRoundedRect,
                                       const nsRect& aContainedRect) {
   nsRegion rgn = nsLayoutUtils::RoundedRectIntersectRect(aRoundedRect, aRadii, aContainedRect);
   return rgn.Contains(aContainedRect);
+}
+
+bool
+nsDisplayBackground::IsSingleFixedPositionImage(nsDisplayListBuilder* aBuilder, const nsRect& aClipRect)
+{
+  if (mIsThemed)
+    return false;
+
+  nsPresContext* presContext = mFrame->PresContext();
+  nsStyleContext* bgSC;
+  if (!nsCSSRendering::FindBackground(presContext, mFrame, &bgSC))
+    return false;
+
+  bool drawBackgroundImage;
+  bool drawBackgroundColor;
+  nsCSSRendering::DetermineBackgroundColor(presContext,
+                                           bgSC,
+                                           mFrame,
+                                           drawBackgroundImage,
+                                           drawBackgroundColor);
+
+  // For now we don't know how to draw image layers with a background color.
+  if (!drawBackgroundImage || drawBackgroundColor)
+    return false;
+
+  const nsStyleBackground *bg = bgSC->GetStyleBackground();
+
+  // We could pretty easily support multiple image layers, but for now we
+  // just punt here.
+  if (bg->mLayers.Length() != 1)
+    return false;
+
+  PRUint32 flags = aBuilder->GetBackgroundPaintFlags();
+  nsPoint offset = ToReferenceFrame();
+  nsRect borderArea = nsRect(offset, mFrame->GetSize());
+
+  const nsStyleBackground::Layer &layer = bg->mLayers[0];
+
+  if (layer.mAttachment != NS_STYLE_BG_ATTACHMENT_FIXED)
+    return false;
+
+  nsBackgroundLayerState state =
+    nsCSSRendering::PrepareBackgroundLayer(presContext,
+                                           mFrame,
+                                           flags,
+                                           borderArea,
+                                           aClipRect,
+                                           *bg,
+                                           layer);
+
+  nsImageRenderer* imageRenderer = &state.mImageRenderer;
+  // We only care about images here, not gradients.
+  if (!imageRenderer->IsRasterImage())
+    return false;
+
+  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  mDestRect = nsLayoutUtils::RectToGfxRect(state.mFillArea, appUnitsPerDevPixel);
+
+  return true;
 }
 
 bool
@@ -1455,6 +1517,7 @@ nsDisplayBackground::ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
 void
 nsDisplayBackground::Paint(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext* aCtx) {
+
   nsPoint offset = ToReferenceFrame();
   PRUint32 flags = aBuilder->GetBackgroundPaintFlags();
   nsDisplayItem* nextItem = GetAbove();
@@ -2010,8 +2073,10 @@ nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
 
 nsDisplayFixedPosition::nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder,
                                                nsIFrame* aFrame,
+                                               nsIFrame* aFixedPosFrame,
                                                nsDisplayList* aList)
-    : nsDisplayOwnLayer(aBuilder, aFrame, aList) {
+    : nsDisplayOwnLayer(aBuilder, aFrame, aList)
+    , mFixedPosFrame(aFixedPosFrame) {
   MOZ_COUNT_CTOR(nsDisplayFixedPosition);
 }
 
@@ -2032,7 +2097,7 @@ nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
   // any positioning set (left/top/right/bottom) indicates that the
   // corresponding side of its container should be the anchor point,
   // defaulting to top-left.
-  nsIFrame* viewportFrame = mFrame->GetParent();
+  nsIFrame* viewportFrame = mFixedPosFrame->GetParent();
   nsPresContext *presContext = viewportFrame->PresContext();
 
   // Fixed position frames are reflowed into the scroll-port size if one has
@@ -2059,7 +2124,7 @@ nsDisplayFixedPosition::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   gfxPoint anchor(anchorRect.x, anchorRect.y);
 
-  const nsStylePosition* position = mFrame->GetStylePosition();
+  const nsStylePosition* position = mFixedPosFrame->GetStylePosition();
   if (position->mOffset.GetRightUnit() != eStyleUnit_Auto)
     anchor.x = anchorRect.XMost();
   if (position->mOffset.GetBottomUnit() != eStyleUnit_Auto)
@@ -3295,6 +3360,19 @@ nsDisplaySVGEffects::BuildLayer(nsDisplayListBuilder* aBuilder,
                                 LayerManager* aManager,
                                 const ContainerParameters& aContainerParameters)
 {
+  const nsIContent* content = mFrame->GetContent();
+  bool hasSVGLayout = (mFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT);
+  if (hasSVGLayout) {
+    nsISVGChildFrame *svgChildFrame = do_QueryFrame(mFrame);
+    if (!svgChildFrame || !mFrame->GetContent()->IsSVG()) {
+      NS_ASSERTION(false, "why?");
+      return nsnull;
+    }
+    if (!static_cast<const nsSVGElement*>(content)->HasValidDimensions()) {
+      return nsnull; // The SVG spec says not to draw filters for this
+    }
+  }
+
   float opacity = mFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f)
     return nsnull;

@@ -64,8 +64,9 @@ public:
   NS_IMETHOD Destroy();
 
   NS_IMETHOD Show(bool aState);
-  NS_IMETHOD IsVisible(bool& aState)
-  { aState = mVisible; return NS_OK; }
+
+  virtual bool IsVisible() const
+  { return mVisible; }
 
   NS_IMETHOD ConstrainPosition(bool     /*ignored aAllowSlop*/,
                                PRInt32* aX,
@@ -91,8 +92,8 @@ public:
   // widget is supposed to entail
   NS_IMETHOD Enable(bool aState)
   { mEnabled = aState;  return NS_OK; }
-  NS_IMETHOD IsEnabled(bool *aState)
-  { *aState = mEnabled;  return NS_OK; }
+  virtual bool IsEnabled() const
+  { return mEnabled; }
 
   NS_IMETHOD SetFocus(bool aRaise = false);
 

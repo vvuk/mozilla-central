@@ -1268,6 +1268,7 @@ window[tabsontop="false"] richlistitem[type~="action"][actiontype="switchtab"][s
 
 #socialUserDisplayName {
   -moz-appearance: none;
+  color: #fff;
   border: none;
   background-color: transparent;
   margin-top: 0;
@@ -2803,7 +2804,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 #highlighter-nodeinfobar-text {
   /* 100% - size of the buttons + margins */
-  max-width: -moz-calc(100% - 2 * (26px + 6px));
+  max-width: calc(100% - 2 * (26px + 6px));
   padding-bottom: 1px;
 }
 
@@ -2869,7 +2870,7 @@ html|*#highlighter-nodeinfobar-pseudo-classes {
 .highlighter-nodeinfobar-arrow {
   width: 14px;
   height: 14px;
-  -moz-margin-start: -moz-calc(50% - 7px);
+  -moz-margin-start: calc(50% - 7px);
   transform: rotate(-45deg);
   border: 1px solid transparent;
   background-clip: padding-box;
@@ -3326,6 +3327,7 @@ stack[anonid=browserStack][responsivemode] {
   list-style-image: url("chrome://browser/skin/devtools/tools-icons-small.png");
 }
 
+.developer-toolbar-button[open=true],
 .developer-toolbar-button:active:hover,
 .developer-toolbar-button[checked=true] {
   border-color: hsla(210,8%,5%,.6);
@@ -3353,6 +3355,14 @@ stack[anonid=browserStack][responsivemode] {
 
 #developer-toolbar-debugger {
   -moz-image-region: rect(48px, 16px, 64px, 0);
+}
+
+#developer-toolbar-other-tools {
+  -moz-image-region: rect(64px, 16px, 80px, 0);
+}
+
+#developer-toolbar-other-tools > .toolbarbutton-menu-dropmarker {
+  display: none;
 }
 
 /* Error counter */
@@ -3417,8 +3427,6 @@ stack[anonid=browserStack][responsivemode] {
 /* === social toolbar provider menu  === */
 
 #social-statusarea-user {
-  background-color: white;
-  color: black;
   cursor: default;
   font-family: "lucida grande",tahoma,verdana,arial,sans-serif;
   font-size: 12px;
@@ -3458,6 +3466,7 @@ stack[anonid=browserStack][responsivemode] {
   margin: -4px 0 0 0;
   padding: 0;
   border-radius: 0px;
+  background-color: white;
 }
 
 #social-notification-panel .panel-arrow[side="top"] {

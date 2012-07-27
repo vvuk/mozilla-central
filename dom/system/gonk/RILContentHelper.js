@@ -1,6 +1,17 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* Copyright 2012 Mozilla Foundation and Mozilla contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 "use strict";
 
@@ -36,6 +47,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:SelectNetworkAuto",
   "RIL:CallStateChanged",
   "RIL:VoicemailNotification",
+  "RIL:VoicemailNumberChanged",
   "RIL:CallError",
   "RIL:GetCardLock:Return:OK",
   "RIL:GetCardLock:Return:KO",
@@ -128,17 +140,17 @@ function RILContentHelper() {
   this.initMessageListener(RIL_IPC_MSG_NAMES);
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
-  // Request initial state.
-  let radioState = cpmm.QueryInterface(Ci.nsISyncMessageSender)
-                       .sendSyncMessage("RIL:GetRadioState")[0];
+  // Request initial context.
+  let rilContext = cpmm.QueryInterface(Ci.nsISyncMessageSender)
+                       .sendSyncMessage("RIL:GetRilContext")[0];
 
-  if (!radioState) {
-    debug("Received null radioState from chrome process.");
+  if (!rilContext) {
+    debug("Received null rilContext from chrome process.");
     return;
   }
-  this.cardState = radioState.cardState;
-  this.updateConnectionInfo(radioState.voice, this.voiceConnectionInfo);
-  this.updateConnectionInfo(radioState.data, this.dataConnectionInfo);
+  this.cardState = rilContext.cardState;
+  this.updateConnectionInfo(rilContext.voice, this.voiceConnectionInfo);
+  this.updateConnectionInfo(rilContext.data, this.dataConnectionInfo);
 }
 
 RILContentHelper.prototype = {
@@ -338,6 +350,8 @@ RILContentHelper.prototype = {
   _enumerateTelephonyCallbacks: null,
 
   voicemailStatus: null,
+  voicemailNumber: null,
+  voicemailDisplayName: null,
 
   registerCallback: function registerCallback(callbackType, callback) {
     let callbacks = this[callbackType];
@@ -404,6 +418,11 @@ RILContentHelper.prototype = {
   dial: function dial(number) {
     debug("Dialing " + number);
     cpmm.sendAsyncMessage("RIL:Dial", number);
+  },
+
+  dialEmergency: function dialEmergency(number) {
+    debug("Dialing emergency " + number);
+    cpmm.sendAsyncMessage("RIL:DialEmergency", number);
   },
 
   hangUp: function hangUp(callIndex) {
@@ -545,6 +564,10 @@ RILContentHelper.prototype = {
         break;
       case "RIL:VoicemailNotification":
         this.handleVoicemailNotification(msg.json);
+        break;
+      case "RIL:VoicemailNumberChanged":
+        this.voicemailNumber = msg.json.number;
+        this.voicemailDisplayName = msg.json.alphaId;
         break;
       case "RIL:GetCardLock:Return:OK":
       case "RIL:SetCardLock:Return:OK":

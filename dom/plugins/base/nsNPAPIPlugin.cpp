@@ -93,6 +93,7 @@ using mozilla::plugins::PluginModuleParent;
 
 #ifdef XP_WIN
 #include <windows.h>
+#include "nsWindowsHelpers.h"
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -278,20 +279,6 @@ static bool GMA9XXGraphics()
     ::CGLDestroyRendererInfo(renderer);
   }
   return hasIntelGMA9XX;
-}
-#endif
-
-#ifdef XP_WIN
-static bool
-IsVistaOrLater()
-{
-  OSVERSIONINFO info;
-
-  ZeroMemory(&info, sizeof(OSVERSIONINFO));
-  info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-  GetVersionEx(&info);
-
-  return info.dwMajorVersion >= 6;
 }
 #endif
 
@@ -1999,7 +1986,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsCOMPtr<nsIPluginInstanceOwner> owner;
     inst->GetOwner(getter_AddRefs(owner));
-    NS_ENSURE_TRUE(owner, nsnull);
+    NS_ENSURE_TRUE(owner, NPERR_NO_ERROR);
 
     if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {
       return NPERR_NO_ERROR;

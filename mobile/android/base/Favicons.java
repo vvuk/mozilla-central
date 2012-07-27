@@ -152,6 +152,10 @@ public class Favicons {
         return mHttpClient;
     }
 
+    public String getFaviconUrlForPageUrl(String pageUrl) {
+        return mDbHelper.getFaviconUrlForPageUrl(pageUrl);
+    }
+
     public long loadFavicon(String pageUrl, String faviconUrl,
             OnFaviconLoadedListener listener) {
 
@@ -319,7 +323,7 @@ public class Favicons {
                     faviconUrl = new URL(mFaviconUrl);
                 }
             } catch (MalformedURLException e) {
-                Log.d(LOGTAG, "The provided favicon URL is not valid: " + e);
+                Log.d(LOGTAG, "The provided favicon URL is not valid", e);
                 return null;
             }
 

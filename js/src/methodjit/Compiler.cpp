@@ -111,7 +111,7 @@ mjit::Compiler::compile()
 
     CompileStatus status = performCompilation();
     if (status != Compile_Okay && status != Compile_Retry) {
-        if (!outerScript->ensureHasJITInfo(cx))
+        if (!outerScript->ensureHasMJITInfo(cx))
             return Compile_Error;
         JSScript::JITScriptHandle *jith = outerScript->jitHandle(isConstructing, cx->compartment->needsBarrier());
         JSScript::ReleaseCode(cx->runtime->defaultFreeOp(), jith);
@@ -930,7 +930,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
     if (frame->hasPushedSPSFrame() && !cx->runtime->spsProfiler.enabled())
         return Compile_Skipped;
 
-    if (script->hasJITInfo()) {
+    if (script->hasMJITInfo()) {
         JSScript::JITScriptHandle *jith = script->jitHandle(construct, cx->compartment->needsBarrier());
         if (jith->isUnjittable())
             return Compile_Abort;
@@ -953,7 +953,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
 
     uint64_t gcNumber = cx->runtime->gcNumber;
 
-    if (!script->ensureHasJITInfo(cx))
+    if (!script->ensureHasMJITInfo(cx))
         return Compile_Error;
 
     JSScript::JITScriptHandle *jith = script->jitHandle(construct, cx->compartment->needsBarrier());
@@ -3822,7 +3822,9 @@ void
 mjit::Compiler::interruptCheckHelper()
 {
     Jump jump;
-    if (cx->runtime->gcZeal() == js::gc::ZealVerifierValue) {
+    if (cx->runtime->gcZeal() == js::gc::ZealVerifierPreValue ||
+        cx->runtime->gcZeal() == js::gc::ZealVerifierPostValue)
+    {
         /* For barrier verification, always take the interrupt so we can verify. */
         jump = masm.jump();
     } else {
@@ -4784,6 +4786,21 @@ mjit::Compiler::jsop_getprop(PropertyName *name, JSValueType knownType,
         return true;
     }
 
+    /* Handle lenth accesses of optimize 'arguments'. */
+    if (name == cx->runtime->atomState.lengthAtom &&
+        cx->typeInferenceEnabled() &&
+        analysis->poppedTypes(PC, 0)->isMagicArguments(cx) &&
+        knownPushedType(0) == JSVAL_TYPE_INT32)
+    {
+        frame.pop();
+        RegisterID reg = frame.allocReg();
+        masm.load32(Address(JSFrameReg, StackFrame::offsetOfNumActual()), reg);
+        frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
+        if (script->hasScriptCounts)
+            bumpPropCount(PC, PCCounts::PROP_DEFINITE);
+        return true;
+    }
+
     if (top->mightBeType(JSVAL_TYPE_OBJECT) &&
         JSOp(*PC) == JSOP_LENGTH && cx->typeInferenceEnabled() &&
         !hasTypeBarriers(PC) && knownPushedType(0) == JSVAL_TYPE_INT32) {
@@ -4862,18 +4879,6 @@ mjit::Compiler::jsop_getprop(PropertyName *name, JSValueType knownType,
                 bumpPropCount(PC, PCCounts::PROP_DEFINITE);
             if (!isObject)
                 stubcc.rejoin(Changes(1));
-            return true;
-        }
-
-        /*
-         * Check if we are accessing the 'length' of the lazy arguments for the
-         * current frame.
-         */
-        if (types->isMagicArguments(cx)) {
-            frame.pop();
-            frame.pushWord(Address(JSFrameReg, StackFrame::offsetOfNumActual()), JSVAL_TYPE_INT32);
-            if (script->hasScriptCounts)
-                bumpPropCount(PC, PCCounts::PROP_DEFINITE);
             return true;
         }
     }
@@ -6029,7 +6034,8 @@ mjit::Compiler::iterNext(ptrdiff_t offset)
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, T1, &IteratorClass);
+    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, T1,
+                                     &PropertyIteratorObject::class_);
     stubcc.linkExit(notFast, Uses(1));
 
     /* Get private from iter obj. */
@@ -6080,7 +6086,8 @@ mjit::Compiler::iterMore(jsbytecode *target)
     RegisterID tempreg = frame.allocReg();
 
     /* Test clasp */
-    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, tempreg, &IteratorClass);
+    Jump notFast = masm.testObjClass(Assembler::NotEqual, reg, tempreg,
+                                     &PropertyIteratorObject::class_);
     stubcc.linkExitForBranch(notFast);
 
     /* Get private from iter obj. */
@@ -6119,7 +6126,8 @@ mjit::Compiler::iterEnd()
     frame.unpinReg(reg);
 
     /* Test clasp */
-    Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, T1, &IteratorClass);
+    Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, T1,
+                                         &PropertyIteratorObject::class_);
     stubcc.linkExit(notIterator, Uses(1));
 
     /* Get private from iter obj. */

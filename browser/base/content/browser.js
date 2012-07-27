@@ -1404,12 +1404,10 @@ var gBrowserInit = {
     // Enable developer toolbar?
     let devToolbarEnabled = gPrefService.getBoolPref("devtools.toolbar.enabled");
     if (devToolbarEnabled) {
-      document.getElementById("menu_devToolbar").hidden = false;
-      document.getElementById("Tools:DevToolbar").removeAttribute("disabled");
+      let cmd = document.getElementById("Tools:DevToolbar");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
       document.getElementById("Tools:DevToolbarFocus").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_devToolbar").hidden = false;
-#endif
 
       // Show the toolbar if it was previously visible
       if (gPrefService.getBoolPref("devtools.toolbar.visible")) {
@@ -1420,33 +1418,25 @@ var gBrowserInit = {
     // Enable Inspector?
     let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
     if (enabled) {
-      document.getElementById("menu_pageinspect").hidden = false;
-      document.getElementById("Tools:Inspect").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_pageInspect").hidden = false;
-#endif
-      document.getElementById("developer-toolbar-inspector").hidden = false;
+      let cmd = document.getElementById("Tools:Inspect");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Debugger?
     let enabled = gPrefService.getBoolPref("devtools.debugger.enabled");
     if (enabled) {
-      document.getElementById("menu_debugger").hidden = false;
-      document.getElementById("Tools:Debugger").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_debugger").hidden = false;
-#endif
-      document.getElementById("developer-toolbar-debugger").hidden = false;
+      let cmd = document.getElementById("Tools:Debugger");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Remote Debugger?
     let enabled = gPrefService.getBoolPref("devtools.debugger.remote-enabled");
     if (enabled) {
-      document.getElementById("menu_remoteDebugger").hidden = false;
-      document.getElementById("Tools:RemoteDebugger").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_remoteDebugger").hidden = false;
-#endif
+      let cmd = document.getElementById("Tools:RemoteDebugger");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Chrome Debugger?
@@ -1454,45 +1444,34 @@ var gBrowserInit = {
                   gPrefService.getBoolPref("devtools.debugger.chrome-enabled") &&
                   gPrefService.getBoolPref("devtools.debugger.remote-enabled");
     if (enabled) {
-      document.getElementById("menu_chromeDebugger").hidden = false;
-      document.getElementById("Tools:ChromeDebugger").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_chromeDebugger").hidden = false;
-#endif
+      let cmd = document.getElementById("Tools:ChromeDebugger");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Error Console?
     // XXX Temporarily always-enabled, see bug 601201
     let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled");
     if (consoleEnabled) {
-      document.getElementById("javascriptConsole").hidden = false;
-      document.getElementById("key_errorConsole").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_errorConsole").hidden = false;
-#endif
+      let cmd = document.getElementById("Tools:ErrorConsole");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Scratchpad in the UI, if the preference allows this.
     let scratchpadEnabled = gPrefService.getBoolPref(Scratchpad.prefEnabledName);
     if (scratchpadEnabled) {
-      document.getElementById("menu_scratchpad").hidden = false;
-      document.getElementById("Tools:Scratchpad").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_scratchpad").hidden = false;
-#endif
+      let cmd = document.getElementById("Tools:Scratchpad");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     // Enable Style Editor?
     let styleEditorEnabled = gPrefService.getBoolPref(StyleEditor.prefEnabledName);
     if (styleEditorEnabled) {
-      document.getElementById("menu_styleeditor").hidden = false;
-      document.getElementById("Tools:StyleEditor").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_styleeditor").hidden = false;
-#endif
-      // We don't show the Style Editor button in the developer toolbar for now.
-      // See bug 771203
-      // document.getElementById("developer-toolbar-styleeditor").hidden = false;
+      let cmd = document.getElementById("Tools:StyleEditor");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
@@ -1507,11 +1486,9 @@ var gBrowserInit = {
     // Enable Responsive UI?
     let responsiveUIEnabled = gPrefService.getBoolPref("devtools.responsiveUI.enabled");
     if (responsiveUIEnabled) {
-      document.getElementById("menu_responsiveUI").hidden = false;
-      document.getElementById("Tools:ResponsiveUI").removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_responsiveUI").hidden = false;
-#endif
+      let cmd = document.getElementById("Tools:ResponsiveUI");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
     }
 
     let appMenuButton = document.getElementById("appmenu-button");
@@ -4724,15 +4701,9 @@ var TabsInTitlebar = {
     this._readPref();
     Services.prefs.addObserver(this._prefName, this, false);
 
-    // Don't trust the initial value of the sizemode attribute; wait for the resize event.
+    // Don't trust the initial value of the sizemode attribute; wait for
+    // the resize event (handled in tabbrowser.xml).
     this.allowedBy("sizemode", false);
-    window.addEventListener("resize", function (event) {
-      if (event.target != window)
-        return;
-      let sizemode = document.documentElement.getAttribute("sizemode");
-      TabsInTitlebar.allowedBy("sizemode",
-                               sizemode == "maximized" || sizemode == "fullscreen");
-    }, false);
 
     this._initialized = true;
 #endif
@@ -4905,10 +4876,17 @@ function toggleSidebar(commandID, forceOpen) {
 
   if (sidebarBroadcaster.getAttribute("checked") == "true") {
     if (!forceOpen) {
+      // Replace the document currently displayed in the sidebar with about:blank
+      // so that we can free memory by unloading the page. We need to explicitly
+      // create a new content viewer because the old one doesn't get destroyed
+      // until about:blank has loaded (which does not happen as long as the
+      // element is hidden).
+      sidebar.setAttribute("src", "about:blank");
+      sidebar.docShell.createAboutBlankContentViewer(null);
+
       sidebarBroadcaster.removeAttribute("checked");
       sidebarBox.setAttribute("sidebarcommand", "");
       sidebarTitle.value = "";
-      sidebar.setAttribute("src", "about:blank");
       sidebarBox.hidden = true;
       sidebarSplitter.hidden = true;
       content.focus();

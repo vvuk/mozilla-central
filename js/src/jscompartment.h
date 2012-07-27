@@ -14,6 +14,7 @@
 #include "jsobj.h"
 #include "jsscope.h"
 
+#include "gc/StoreBuffer.h"
 #include "vm/GlobalObject.h"
 #include "vm/RegExpObject.h"
 
@@ -144,6 +145,11 @@ struct JSCompartment
   public:
     js::gc::ArenaLists           arenas;
 
+#ifdef JSGC_GENERATIONAL
+    js::gc::Nursery              gcNursery;
+    js::gc::StoreBuffer          gcStoreBuffer;
+#endif
+
   private:
     bool                         needsBarrier_;
   public:
@@ -168,6 +174,7 @@ struct JSCompartment
 
     CompartmentGCState           gcState;
     bool                         gcPreserveCode;
+    bool                         gcStarted;
 
   public:
     bool isCollecting() const {
@@ -218,6 +225,19 @@ struct JSCompartment
 
     void setPreservingCode(bool preserving) {
         gcPreserveCode = preserving;
+    }
+
+    bool wasGCStarted() const {
+        return gcStarted;
+    }
+
+    void setGCStarted(bool started) {
+        JS_ASSERT(rt->isHeapBusy());
+        gcStarted = started;
+    }
+
+    bool isGCSweeping() {
+        return wasGCStarted() && rt->gcIncrementalState == js::gc::SWEEP;
     }
 
     size_t                       gcBytes;

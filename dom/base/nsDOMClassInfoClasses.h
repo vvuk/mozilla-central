@@ -43,10 +43,10 @@ DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(CompositionEvent)
 DOMCI_CLASS(PopupBlockedEvent)
-DOMCI_CLASS(DeviceLightEvent)
-DOMCI_CLASS(DeviceProximityEvent)
-DOMCI_CLASS(UserProximityEvent)
-DOMCI_CLASS(DeviceOrientationEvent)
+#define MOZ_GENERATED_EVENT_LIST
+#define MOZ_GENERATED_EVENT(_event_interface) DOMCI_CLASS(_event_interface)
+#include "GeneratedEvents.h"
+#undef MOZ_GENERATED_EVENT_LIST
 DOMCI_CLASS(DeviceMotionEvent)
 DOMCI_CLASS(DeviceAcceleration)
 DOMCI_CLASS(DeviceRotationRate)
@@ -324,9 +324,6 @@ DOMCI_CLASS(ImageData)
 
 // SmartCard Events
 DOMCI_CLASS(SmartCardEvent)
-  
-// PageTransition Events
-DOMCI_CLASS(PageTransitionEvent)
 
 // WindowUtils
 DOMCI_CLASS(WindowUtils)
@@ -467,8 +464,6 @@ DOMCI_CLASS(PaintRequest)
 DOMCI_CLASS(PaintRequestList)
 
 DOMCI_CLASS(ScrollAreaEvent)
-DOMCI_CLASS(PopStateEvent)
-DOMCI_CLASS(HashChangeEvent)
 
 DOMCI_CLASS(EventListenerInfo)
 
@@ -484,7 +479,6 @@ DOMCI_CLASS(DesktopNotificationCenter)
 
 // WebSocket
 DOMCI_CLASS(WebSocket)
-DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)
 DOMCI_CLASS(IDBFileHandle)
@@ -507,15 +501,11 @@ DOMCI_CLASS(MozCSSKeyframeRule)
 DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(MediaQueryList)
-DOMCI_CLASS(CustomEvent)
 
 DOMCI_CLASS(MutationObserver)
 DOMCI_CLASS(MutationRecord)
 
 DOMCI_CLASS(MozSettingsEvent)
-DOMCI_CLASS(MozContactChangeEvent)
-
-DOMCI_CLASS(MozApplicationEvent)
 
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozWifiStatusChangeEvent)
@@ -541,3 +531,5 @@ DOMCI_CLASS(OpenWindowEventDetail)
 DOMCI_CLASS(DOMFileHandle)
 DOMCI_CLASS(FileRequest)
 DOMCI_CLASS(LockedFile)
+
+DOMCI_CLASS(MozActivity)

@@ -251,6 +251,11 @@ class CompartmentChecker
             check(obj->compartment());
     }
 
+    template<typename T>
+    void check(Handle<T> handle) {
+        check(handle.get());
+    }
+
     void check(JSString *str) {
         if (!str->isAtom())
             check(str->compartment());
@@ -558,7 +563,7 @@ JSContext::ensureParseMapPool()
 {
     if (parseMapPool_)
         return true;
-    parseMapPool_ = js::OffTheBooks::new_<js::ParseMapPool>(this);
+    parseMapPool_ = js::OffTheBooks::new_<js::frontend::ParseMapPool>(this);
     return parseMapPool_;
 }
 

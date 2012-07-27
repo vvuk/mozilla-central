@@ -65,7 +65,7 @@ NewTryNote(JSContext *cx, BytecodeEmitter *bce, JSTryNoteKind kind, unsigned sta
 static bool
 SetSrcNoteOffset(JSContext *cx, BytecodeEmitter *bce, unsigned index, unsigned which, ptrdiff_t offset);
 
-struct js::StmtInfoBCE : public js::StmtInfoBase
+struct frontend::StmtInfoBCE : public StmtInfoBase
 {
     StmtInfoBCE     *down;          /* info for enclosing statement */
     StmtInfoBCE     *downScope;     /* next enclosing lexical scope */
@@ -599,6 +599,8 @@ EmitNonLocalJumpFixup(JSContext *cx, BytecodeEmitter *bce, StmtInfoBCE *toStmt)
                 stmt = stmt->down;
                 if (stmt == toStmt)
                     break;
+                if (NewSrcNote(cx, bce, SRC_HIDDEN) < 0)
+                    return false;
                 if (Emit1(cx, bce, JSOP_LEAVEFORLETIN) < 0)
                     return false;
                 if (!PopIterator(cx, bce))
@@ -1178,7 +1180,6 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
           case JSOP_DECNAME:  *op = JSOP_DECGNAME; break;
           case JSOP_NAMEDEC:  *op = JSOP_GNAMEDEC; break;
           case JSOP_SETCONST:
-          case JSOP_DELNAME:
             /* Not supported. */
             return false;
           default: JS_NOT_REACHED("gname");
@@ -1210,12 +1211,14 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(pn->isKind(PNK_NAME));
 
-    /* Don't attempt if 'pn' is already bound, deoptimized, or a nop. */
-    if ((pn->pn_dflags & PND_BOUND) || pn->isDeoptimized() || pn->getOp() == JSOP_NOP)
+    /* Don't attempt if 'pn' is already bound or deoptimized or a nop. */
+    JSOp op = pn->getOp();
+    if (pn->isBound() || pn->isDeoptimized() || op == JSOP_NOP)
         return true;
 
     /* JSOP_CALLEE is pre-bound by definition. */
-    JS_ASSERT(!pn->isOp(JSOP_CALLEE));
+    JS_ASSERT(op != JSOP_CALLEE);
+    JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
     /*
      * The parser already linked name uses to definitions when (where not
@@ -1233,8 +1236,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         return true;
     }
 
-    JSOp op = pn->getOp();
-    JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
     JS_ASSERT_IF(dn->kind() == Definition::CONST, pn->pn_dflags & PND_CONST);
 
     /*
@@ -1249,16 +1250,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     switch (op) {
       case JSOP_NAME:
       case JSOP_SETCONST:
-        break;
-      case JSOP_DELNAME:
-        if (dn->kind() != Definition::UNKNOWN) {
-            if (bce->callerFrame && dn->isTopLevel())
-                JS_ASSERT(bce->script->compileAndGo);
-            else
-                pn->setOp(JSOP_FALSE);
-            pn->pn_dflags |= PND_BOUND;
-            return true;
-        }
         break;
       default:
         if (pn->isConst()) {
@@ -1394,7 +1385,6 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * heavyweight, ensuring that the function name is represented in
              * the scope chain so that assignment will throw a TypeError.
              */
-            JS_ASSERT(op != JSOP_DELNAME);
             if (!bce->sc->funIsHeavyweight()) {
                 op = JSOP_CALLEE;
                 pn->pn_dflags |= PND_CONST;
@@ -2830,7 +2820,9 @@ EmitDestructuringLHS(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmit
         if (pn->isKind(PNK_NAME)) {
             if (!BindNameToSlot(cx, bce, pn))
                 return false;
-            if (pn->isConst() && !pn->isInitialized())
+
+            /* Allow 'const [x,y] = o', make 'const x,y; [x,y] = o' a nop. */
+            if (pn->isConst() && !pn->isDefn())
                 return Emit1(cx, bce, JSOP_POP) >= 0;
         }
 
@@ -4864,15 +4856,16 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         // Inherit most things (principals, version, etc) from the parent.
         Rooted<JSScript*> parent(cx, bce->script);
         Rooted<JSObject*> enclosingScope(cx, EnclosingStaticScope(bce));
-        Rooted<JSScript*> script(cx, JSScript::Create(cx,
-                                                      enclosingScope,
-                                                      /* savedCallerFun = */ false,
-                                                      parent->principals,
-                                                      parent->originPrincipals,
-                                                      parent->compileAndGo,
-                                                      /* noScriptRval = */ false,
-                                                      parent->getVersion(),
-                                                      parent->staticLevel + 1));
+        CompileOptions options(cx);
+        options.setPrincipals(parent->principals)
+               .setOriginPrincipals(parent->originPrincipals)
+               .setCompileAndGo(parent->compileAndGo)
+               .setNoScriptRval(false)
+               .setVersion(parent->getVersion());
+        Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false, options,
+                                                      parent->staticLevel + 1,
+                                                      bce->script->source,
+                                                      funbox->bufStart, funbox->bufEnd));
         if (!script)
             return false;
 
