@@ -68,8 +68,7 @@ class Fake_AudioGenerator {
 class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
   LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
-      : mMediaStream(aMediaStream) {}
-
+    : mMediaStream(aMediaStream) {}
   ~LocalSourceStreamInfo() {}
 
   /**

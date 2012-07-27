@@ -80,10 +80,10 @@ add_test(function createOfferAnswer() {
   pc1.initialize(observer1, mainThread);
   pc2.initialize(observer2, mainThread);
 
-  let stream1 = pc1.createMediaStream(Ci.IPeerConnection.kHintAudio);
+  let stream1 = pc1.createFakeMediaStream(Ci.IPeerConnection.kHintAudio);
   pc1.addStream(stream1);
 
-  let stream2 = pc2.createMediaStream(Ci.IPeerConnection.kHintAudio);
+  let stream2 = pc2.createFakeMediaStream(Ci.IPeerConnection.kHintAudio);
   pc2.addStream(stream2);
 
   // start the chain.

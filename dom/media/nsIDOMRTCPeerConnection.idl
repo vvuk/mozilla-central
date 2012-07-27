@@ -27,10 +27,14 @@ interface nsIDOMRTCPeerConnection : nsISupports
     [optional] in bool createProvisionalAnswer);
 
   void setLocalDescription(in DOMString action,
-    in jsval description);
+    in jsval description,
+    [optional] in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
 
   void setRemoteDescription(in DOMString action,
-    in jsval description);
+    in jsval description,
+    [optional] in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
 
   void updateIce([optional] in jsval configuration,
     [optional] in jsval constraints,

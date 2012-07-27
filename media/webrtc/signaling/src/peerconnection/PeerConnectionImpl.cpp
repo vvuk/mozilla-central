@@ -348,11 +348,10 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 {
   if (!mThread || NS_IsMainThread()) {
     MakeMediaStream(hint, retval);
-  }
-  else {
+  } else {
     mThread->Dispatch(WrapRunnable(
-        this, &PeerConnectionImpl::MakeMediaStream, hint, retval
-                                   ), NS_DISPATCH_SYNC);
+      this, &PeerConnectionImpl::MakeMediaStream, hint, retval
+    ), NS_DISPATCH_SYNC);
   }
 
   if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {

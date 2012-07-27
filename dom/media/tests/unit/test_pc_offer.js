@@ -43,7 +43,7 @@ add_test(function createOffer() {
   };
 
   pc.initialize(observer, Services.tm.currentThread);
-  let stream = pc.createMediaStream(Ci.IPeerConnection.kHintAudio);
+  let stream = pc.createFakeMediaStream(Ci.IPeerConnection.kHintAudio);
   pc.addStream(stream);
   pc.createOffer("");
 });
