@@ -122,7 +122,15 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
+ifdef MOZ_PSM
+tier_platform_dirs	+= security/build
+endif
+
 ifdef MOZ_WEBRTC
+tier_platform_dirs +=     media/mtransport/third_party
+tier_platform_dirs +=     media/mtransport/build
+tier_platform_dirs +=     media/mtransport/standalone
+
 tier_platform_dirs += \
   media/webrtc \
   $(NULL)
@@ -266,4 +274,9 @@ tier_platform_dirs += testing/xpcshell
 tier_platform_dirs += testing/tools/screenshot
 tier_platform_dirs += testing/peptest
 tier_platform_dirs += testing/mozbase
+ifdef MOZ_WEBRTC
+tier_platform_dirs += media/webrtc/signaling/test
+tier_platform_dirs += media/mtransport/test
 endif
+endif
+

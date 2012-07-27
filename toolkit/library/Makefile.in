@@ -166,6 +166,7 @@ COMPONENT_LIBS += \
   storagecomps \
   rdf \
   windowds \
+  peerconnection \
   $(NULL)
 
 ifdef BUILD_CTYPES
@@ -373,6 +374,15 @@ EXTRA_DSO_LDOPTS += $(MOZ_PIXMAN_LIBS)
 endif
 
 EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,gkmedias,$(DIST)/lib) 
+
+ifdef MOZ_WEBRTC
+EXTRA_DSO_LDOPTS += \
+		  $(DEPTH)/media/mtransport/build/$(LIB_PREFIX)mtransport.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/signaling/signaling_ecc/$(LIB_PREFIX)ecc.$(LIB_SUFFIX) \
+		  $(DEPTH)/media/webrtc/signaling/signaling_sipcc/$(LIB_PREFIX)sipcc.$(LIB_SUFFIX) \
+		  $(NULL)
+endif
+
 
 ifdef MOZ_SYDNEYAUDIO
 ifeq ($(OS_ARCH),Linux)

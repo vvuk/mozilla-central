@@ -273,3 +273,4 @@ LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/bluetooth
 endif #}
 
 DEFINES += -D_IMPL_NS_LAYOUT
+

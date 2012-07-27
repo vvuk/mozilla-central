@@ -35,6 +35,15 @@ SHARED_LIBRARY_LIBS = \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
   $(NULL)
 
+ifneq ($(MOZ_BUILD_APP),mobile)
+ifneq ($(MOZ_BUILD_APP),b2g)
+SHARED_LIBRARY_LIBS += \
+  ../sctp/datachannel/$(LIB_PREFIX)nkdatachan_s.$(LIB_SUFFIX) \
+  ../sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+endif
+
 ifeq ($(OS_ARCH),WINNT)
     SHARED_LIBRARY_LIBS += \
         ../system/win32/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)

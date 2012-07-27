@@ -1,40 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Netscape security libraries.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1994-2000
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Dr Vipul Gupta <vipul.gupta@sun.com> and
- *   Douglas Stebila <douglas@stebila.ca>, Sun Microsystems Laboratories
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /*
  * This file implements the Symkey wrapper and the PKCS context
  * Interfaces.
@@ -1711,7 +1677,7 @@ PK11_PubDerive(SECKEYPrivateKey *privKey, SECKEYPublicKey *pubKey,
 	    keyType = PK11_GetKeyType(target,keySize);
 	    key_size = keySize;
 	    if (key_size == 0) {
-		if (pk11_GetPredefinedKeyLength(keyType)) {
+		if ((key_size = pk11_GetPredefinedKeyLength(keyType))) {
 		    templateCount --;
 		} else {
 		    /* sigh, some tokens can't figure this out and require
@@ -1796,7 +1762,9 @@ pk11_PubDeriveECKeyWithKDF(
 	PORT_SetError(SEC_ERROR_BAD_KEY);
 	return NULL;
     }
-    if ((kdf < CKD_NULL) || (kdf > CKD_SHA1_KDF)) {
+    if ((kdf != CKD_NULL) && (kdf != CKD_SHA1_KDF) &&
+	(kdf != CKD_SHA224_KDF) && (kdf != CKD_SHA256_KDF) &&
+	(kdf != CKD_SHA384_KDF) && (kdf != CKD_SHA512_KDF)) {
 	PORT_SetError(SEC_ERROR_INVALID_ALGORITHM);
 	return NULL;
     }
@@ -1819,17 +1787,40 @@ pk11_PubDeriveECKeyWithKDF(
     keyType = PK11_GetKeyType(target,keySize);
     key_size = keySize;
     if (key_size == 0) {
-	if (pk11_GetPredefinedKeyLength(keyType)) {
+	if ((key_size = pk11_GetPredefinedKeyLength(keyType))) {
 	    templateCount --;
 	} else {
 	    /* sigh, some tokens can't figure this out and require
 	     * CKA_VALUE_LEN to be set */
 	    switch (kdf) {
 	    case CKD_NULL:
-		key_size = (pubKey->u.ec.publicValue.len-1)/2;
+		if (pubKey->u.ec.publicValue.data[0] == 0x04) {
+		    /* key encoded in uncompressed form */
+		    key_size = (pubKey->u.ec.publicValue.len-1)/2;
+		} else if ((pubKey->u.ec.publicValue.data[0] == 0x02) ||
+			   (pubKey->u.ec.publicValue.data[0] == 0x03)) {
+		    /* key encoded in compressed form */
+		    key_size = pubKey->u.ec.publicValue.len-1;
+		} else {
+		    /* key encoding not recognized */
+		    PK11_FreeSymKey(symKey);
+		    return NULL;
+		}
 		break;
 	    case CKD_SHA1_KDF:
 		key_size = SHA1_LENGTH;
+		break;
+	    case CKD_SHA224_KDF:
+		key_size = SHA224_LENGTH;
+		break;
+	    case CKD_SHA256_KDF:
+		key_size = SHA256_LENGTH;
+		break;
+	    case CKD_SHA384_KDF:
+		key_size = SHA384_LENGTH;
+		break;
+	    case CKD_SHA512_KDF:
+		key_size = SHA512_LENGTH;
 		break;
 	    default:
 		PORT_Assert(!"Invalid CKD");

@@ -6,10 +6,12 @@
 #ifndef MOZILLA_AUDIOSEGMENT_H_
 #define MOZILLA_AUDIOSEGMENT_H_
 
+#include "AudioSegment.h"
 #include "MediaSegment.h"
 #include "nsISupportsImpl.h"
 #include "nsAudioStream.h"
 #include "SharedBuffer.h"
+#include "VideoSegment.h"
 
 namespace mozilla {
 

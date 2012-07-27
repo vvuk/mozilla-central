@@ -1,0 +1,58 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+#include "nsIDOMMediaStream.idl"
+
+/* Quick hack */
+[scriptable, function, uuid(eb9c563c-3b09-4565-9317-eca96ae0c538)]
+interface RTCPeerConnectionCallback : nsISupports
+{
+  void onCallback(in jsval value);
+};
+
+/* See http://dev.w3.org/2011/webrtc/editor/webrtc.html */
+[scriptable, uuid(94628e70-e96f-4170-871c-f993a49f065a)]
+interface nsIDOMRTCPeerConnection : nsISupports
+{
+  void createOffer(in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback,
+    [optional] in jsval constraints);
+
+  void createAnswer(in jsval offer,
+    in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback,
+    [optional] in jsval constraints,
+    [optional] in bool createProvisionalAnswer);
+
+  void setLocalDescription(in DOMString action,
+    in jsval description,
+    [optional] in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
+
+  void setRemoteDescription(in DOMString action,
+    in jsval description,
+    [optional] in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
+
+  void updateIce([optional] in jsval configuration,
+    [optional] in jsval constraints,
+    [optional] in bool restart);
+
+  void addIceCandidate(in jsval candidate);
+
+  void addStream(in nsIDOMMediaStream stream,
+    [optional] in jsval constraints);
+
+  void removeStream(in nsIDOMMediaStream stream);
+  void close();
+
+  readonly attribute DOMString iceState;
+  readonly attribute DOMString readyState;
+  readonly attribute jsval localDescription;
+  readonly attribute jsval remoteDescription;
+
+  readonly attribute jsval localStreams; // MediaStream[]
+  readonly attribute jsval remoteStreams; // MediaStream[]
+};
