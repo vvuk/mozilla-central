@@ -16,7 +16,7 @@
 // TODO(ekr@rtfm.com): Move this to some generic location
 template <class T> class scoped_c_ptr {
  public:
-  scoped_c_ptr(T *t, void (*d)(T *)) : t_(t), d_(d) {} 
+  scoped_c_ptr(T *t, void (*d)(T *)) : t_(t), d_(d) {}
   scoped_c_ptr(void (*d)(T *)) : t_(NULL), d_(d) {}
 
   void reset(T *t) { t_ = t; }
@@ -31,7 +31,7 @@ template <class T> class scoped_c_ptr {
     t_ = t;
   }
 
- private:       
+ private:
   // TODO: implement copy and assignment operators
   // to remove danger
   T *t_;
@@ -42,7 +42,7 @@ template <class T> class scoped_c_ptr {
 mozilla::RefPtr<DtlsIdentity> DtlsIdentity::Generate(const std::string name) {
   SECStatus rv;
 
-  std::string subject_name_string = "CN=" + name;  
+  std::string subject_name_string = "CN=" + name;
   CERTName *subject_name = CERT_AsciiToName(
       const_cast<char *>(subject_name_string.c_str()));
   if (!subject_name) {

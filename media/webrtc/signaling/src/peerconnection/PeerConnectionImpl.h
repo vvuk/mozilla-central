@@ -20,6 +20,7 @@
 #include "nsDOMMediaStream.h"
 #endif
 
+#include "dtlsidentity.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
 
@@ -251,6 +252,9 @@ private:
 
   // Transport flows: even is RTP, odd is RTCP
   std::map<int, mozilla::RefPtr<TransportFlow> > mTransportFlows;
+
+  // The DTLS identity
+  mozilla::RefPtr<DtlsIdentity> mIdentity;
 
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;

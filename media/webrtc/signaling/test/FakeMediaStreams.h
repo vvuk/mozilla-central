@@ -92,8 +92,8 @@ protected:
 
 class Fake_SourceMediaStream : public Fake_MediaStream {
  public:
-  Fake_SourceMediaStream() : mPullEnabled(false),
-                             mSegmentsAdded(0),
+  Fake_SourceMediaStream() : mSegmentsAdded(0),
+                             mPullEnabled(false),
                              mPeriodic(new Fake_MediaPeriodic(this)) {}
 
   void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,

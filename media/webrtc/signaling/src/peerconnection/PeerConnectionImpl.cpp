@@ -219,7 +219,9 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
   , mIceStreams(NULL)
-  , mIceState(kIceGathering) {}
+  , mIceState(kIceGathering)
+  , mIdentity(NULL)
+ {}
 
 PeerConnectionImpl::~PeerConnectionImpl()
 {
@@ -337,6 +339,9 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thr
   // Store under mHandle
   mCall->setPeerConnection(mHandle);
   peerconnections[mHandle] = this;
+
+  // Create the DTLS Identity
+  mIdentity = DtlsIdentity::Generate("self");
 
   // TODO: Don't busy-wait here, instead invoke a callback when we're ready.
   PR_Sleep(2000);
