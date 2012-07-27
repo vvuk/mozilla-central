@@ -27,23 +27,18 @@ add_test(function createOffer() {
     QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver]),
     onCreateOfferSuccess: function(offer) {
       do_check_neq(offer, false);
-      do_print("!!!!!!!!!!!!!! got offer: \n" + offer);
       pc.setLocalDescription(0, offer);
     },
     onCreateOfferError: function(code) {
       do_check_true(false);
-      do_print("!!!!!!!!!!!!!! got error " + error);
+      run_next_test();
     },
     onSetLocalDescriptionSuccess: function(code) {
-      do_print("!!!!!!!!!!!!! onSetLocalDescriptionSuccess: " + code);
       run_next_test();
     },
     onSetLocalDescriptionError: function(code) {
       do_check_true(false);
-      do_print("!!!!!!!!!!!!! got error " + code);
-    },
-    onStateChange: function(state) {
-      do_print("!!!!!!!!!!!! state changed to " + state);
+      run_next_test();
     }
   };
 
