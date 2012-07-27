@@ -179,6 +179,8 @@ public:
     mTransportFlows[index_inner] = flow;
   }
 
+  // Get the main thread
+  nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
 private:
   void ChangeReadyState(ReadyState ready_state);
   PeerConnectionImpl(const PeerConnectionImpl&rhs);

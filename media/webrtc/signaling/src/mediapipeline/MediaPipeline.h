@@ -36,11 +36,13 @@ class MediaPipeline {
   enum Direction { TRANSMIT, RECEIVE };
 
   MediaPipeline(Direction direction,
+                nsCOMPtr<nsIThread> main_thread,
                 nsDOMMediaStream* stream,
                 RefPtr<MediaSessionConduit> conduit,
                 mozilla::RefPtr<TransportFlow> rtp_transport,
                 mozilla::RefPtr<TransportFlow> rtcp_transport) :
       direction_(direction),
+      main_thread_(main_thread),
       stream_(stream),
       conduit_(conduit),
       rtp_transport_(rtp_transport),
@@ -61,6 +63,7 @@ class MediaPipeline {
   RefPtr<MediaSessionConduit> conduit_;
   RefPtr<TransportFlow> rtp_transport_;
   RefPtr<TransportFlow> rtcp_transport_;
+  nsCOMPtr<nsIThread> main_thread_;
 };
 
 
@@ -68,11 +71,13 @@ class MediaPipeline {
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public: 
-  MediaPipelineTransmit(nsDOMMediaStream* stream, 
+  MediaPipelineTransmit(nsCOMPtr<nsIThread> main_thread,
+                        nsDOMMediaStream* stream, 
                         RefPtr<MediaSessionConduit> conduit,
                         mozilla::RefPtr<TransportFlow> rtp_transport,
                         mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipeline(TRANSMIT, stream, conduit, rtp_transport, rtcp_transport),
+      MediaPipeline(TRANSMIT, main_thread, stream, conduit, rtp_transport,
+                    rtcp_transport),
       transport_(new PipelineTransport(this)),
       listener_(new PipelineListener(this)) {
     Init();  // TODO(ekr@rtfm.com): ignoring error
@@ -145,11 +150,13 @@ class MediaPipelineTransmit : public MediaPipeline {
 class MediaPipelineReceive : public MediaPipeline,
                              public sigslot::has_slots<> {
  public: 
-  MediaPipelineReceive(nsDOMMediaStream* stream, 
+  MediaPipelineReceive(nsCOMPtr<nsIThread> main_thread,
+                       nsDOMMediaStream* stream, 
                        RefPtr<MediaSessionConduit> conduit,
                        mozilla::RefPtr<TransportFlow> rtp_transport,
                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipeline(RECEIVE, stream, conduit, rtp_transport, rtcp_transport) {
+      MediaPipeline(RECEIVE, main_thread, stream, conduit, rtp_transport,
+                    rtcp_transport) {
     PR_ASSERT(rtp_transport_);
 
     if (rtcp_transport_) {
@@ -179,11 +186,13 @@ class MediaPipelineReceive : public MediaPipeline,
 // rendering audio.
 class MediaPipelineReceiveAudio : public MediaPipelineReceive {
  public: 
-  MediaPipelineReceiveAudio(nsDOMMediaStream* stream,
+  MediaPipelineReceiveAudio(nsCOMPtr<nsIThread> main_thread,
+                            nsDOMMediaStream* stream,
                             RefPtr<AudioSessionConduit> conduit,
                             mozilla::RefPtr<TransportFlow> rtp_transport,
                             mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipelineReceive(stream, conduit, rtp_transport, rtcp_transport),
+      MediaPipelineReceive(main_thread, stream, conduit, rtp_transport,
+                           rtcp_transport),
       listener_(new PipelineListener(this)) {
     Init();
   }

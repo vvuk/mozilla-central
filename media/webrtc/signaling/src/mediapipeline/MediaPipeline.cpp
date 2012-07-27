@@ -18,6 +18,8 @@
 #include "ImageLayers.h"
 #include "MediaSegment.h"
 
+#include "runnable_utils.h"
+
 // Logging context
 MLOG_INIT("mediapipeline");
 
@@ -26,7 +28,14 @@ namespace mozilla {
 
 nsresult MediaPipelineTransmit::Init() {
   // TODO(ekr@rtfm.com): Check for errors
-  stream_->GetStream()->AddListener(listener_);
+  if (main_thread_) {
+    main_thread_->Dispatch(WrapRunnable(
+      stream_->GetStream(), &mozilla::MediaStream::AddListener, listener_),
+      NS_DISPATCH_SYNC);
+  }
+  else {
+    stream_->GetStream()->AddListener(listener_);
+  }
   conduit_->AttachTransport(transport_);
 
   return NS_OK;
@@ -244,7 +253,14 @@ void MediaPipelineReceive::PacketReceived(TransportFlow *flow,
 
 nsresult MediaPipelineReceiveAudio::Init() {
   MLOG(PR_LOG_DEBUG, __FUNCTION__);
-  stream_->GetStream()->AddListener(listener_);
+  if (main_thread_) {
+    main_thread_->Dispatch(WrapRunnable(
+      stream_->GetStream(), &mozilla::MediaStream::AddListener, listener_),
+      NS_DISPATCH_SYNC);
+  }
+  else {
+    stream_->GetStream()->AddListener(listener_);
+  }
 
   return NS_OK;
 }

@@ -118,7 +118,7 @@ class TestAgentSend : public TestAgent {
         ConfigureSendMediaCodec(&audio_config_);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(audio_, audio_conduit_, audio_flow_, audio_flow_);
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL, audio_, audio_conduit_, audio_flow_, audio_flow_);
 
 //    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
@@ -150,7 +150,8 @@ class TestAgentReceive : public TestAgent {
         ConfigureRecvMediaCodecs(codecs);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(audio_,
+    audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(NULL,
+      audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
       audio_flow_, audio_flow_);
   }

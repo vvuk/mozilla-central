@@ -1133,7 +1133,9 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,
-      new mozilla::MediaPipelineReceiveAudio(stream->GetMediaStream(),
+      new mozilla::MediaPipelineReceiveAudio(
+        pc->impl()->GetMainThread(),
+        stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
   } else if (CC_IS_VIDEO(mcap_id)) {
 
@@ -1638,7 +1640,9 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,
-      new mozilla::MediaPipelineTransmit(stream->GetMediaStream(),
+      new mozilla::MediaPipelineTransmit(
+        pc->impl()->GetMainThread(),
+        stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
   } else if (CC_IS_VIDEO(mcap_id)) {
 
