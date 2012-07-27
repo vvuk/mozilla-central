@@ -15,6 +15,7 @@
 
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
+
 #include "runnable_utils.h"
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
@@ -237,7 +238,8 @@ PeerConnectionImpl::~PeerConnectionImpl()
 void
 PeerConnectionImpl::MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
-  nsRefPtr<nsIDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
+  nsRefPtr<nsDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
+  new Fake_AudioGenerator(stream);
   NS_ADDREF(*retval = stream);
   return;
 }

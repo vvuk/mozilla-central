@@ -12,6 +12,7 @@
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
 #include "IPeerConnection.h"
+#include "nsComponentManagerUtils.h"
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 #include "FakeMediaStreams.h"
@@ -235,6 +236,39 @@ class PeerConnectionWrapper {
 
  private:
   PeerConnectionImpl *impl_;
+};
+
+/* Temporary for providing audio data */
+class Fake_AudioGenerator {
+ public:
+  Fake_AudioGenerator(nsDOMMediaStream* aStream) {
+    mStream = aStream;
+
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+    PR_ASSERT(mTimer);
+
+    // Make a track
+    mozilla::AudioSegment *segment = new mozilla::AudioSegment();
+    segment->Init(1); // 1 Channel
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
+
+    // Set the timer
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+  }
+
+  static void Callback(nsITimer* timer, void *arg) {
+    Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
+
+    mozilla::AudioSegment segment;
+    segment.Init(1);
+    segment.InsertNullDataAtStart(160);
+
+    gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
+  }
+
+ private:
+  nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<nsDOMMediaStream> mStream;
 };
 
 }  // end sipcc namespace
