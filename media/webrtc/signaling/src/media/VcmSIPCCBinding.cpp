@@ -867,6 +867,17 @@ short vcmCreateRemoteStream(
   if (!NS_SUCCEEDED(res))
     return VCM_ERROR;
 
+  if (CC_IS_AUDIO(mcap_id)) {
+    mozilla::AudioSegment *segment = new mozilla::AudioSegment();
+    segment->Init(1); // 1 Channel
+    // TODO(ekr@rtfm.com): Clean up Track IDs
+    info->GetMediaStream()->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
+  }
+  if (CC_IS_VIDEO(mcap_id)) {
+    ;
+  }
+
+
   CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
     __FUNCTION__, *pc_stream_id, hints);
 

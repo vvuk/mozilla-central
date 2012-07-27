@@ -294,7 +294,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
     segment.AppendFrames(samples.forget(), samples_length * 2,
       0, samples_length, nsAudioStream::FORMAT_S16_LE);
 
-    source->AppendToTrack(0,  // TODO(ekr@rtfm.com): Track ID
+    source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
   }
 }
