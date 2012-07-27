@@ -79,7 +79,7 @@ interface IPeerConnection : nsISupports
   void close();
 
   /* For testing purposes only! */
-  nsIDOMMediaStream createMediaStream(in unsigned long hint);
+  nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
 
   readonly attribute string localDescription;
   readonly attribute string remoteDescription;

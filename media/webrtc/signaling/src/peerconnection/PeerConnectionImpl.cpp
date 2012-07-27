@@ -344,16 +344,21 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thr
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
+PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
   if (!mThread || NS_IsMainThread()) {
     MakeMediaStream(hint, retval);
-    return NS_OK;
+  }
+  else {
+    mThread->Dispatch(WrapRunnable(
+        this, &PeerConnectionImpl::MakeMediaStream, hint, retval
+                                   ), NS_DISPATCH_SYNC);
   }
 
-  mThread->Dispatch(WrapRunnable(
-    this, &PeerConnectionImpl::MakeMediaStream, hint, retval
-  ), NS_DISPATCH_SYNC);
+  if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
+    new Fake_AudioGenerator(static_cast<nsDOMMediaStream*>(*retval));
+  }
+
   return NS_OK;
 }
 
