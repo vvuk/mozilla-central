@@ -861,8 +861,11 @@ short vcmCreateRemoteStream(
     hints |= nsDOMMediaStream::HINT_CONTENTS_VIDEO;
   }
     
-  nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
-  
+  //nsRefPtr<nsDOMMediaStream> ms = nsDOMMediaStream::CreateInputStream(hints);
+  nsRefPtr<nsIDOMMediaStream> tmp;
+  pc->impl()->CreateMediaStream(hints, getter_AddRefs(tmp));
+  nsDOMMediaStream* ms = static_cast<nsDOMMediaStream*>(tmp.get());
+
   // TODO(ekr@rtfm.com): Does this go here?
   static_cast<mozilla::SourceMediaStream *>(ms->GetStream())->SetPullEnabled(true);
   

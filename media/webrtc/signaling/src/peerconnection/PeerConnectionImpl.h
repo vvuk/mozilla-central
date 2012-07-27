@@ -122,6 +122,8 @@ public:
   static PeerConnectionImpl* CreatePeerConnection();
   static void Shutdown();
 
+  already_AddRefed<nsDOMMediaStream> MakeMediaStream(PRUint32 hint);
+  
   // Implementation of the only observer we need
   virtual void onCallEvent(
     ccapi_call_event_e callEvent,

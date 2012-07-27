@@ -49,14 +49,19 @@ interface IPeerConnection : nsISupports
   const unsigned long kHintAudio = 0x00000001;
   const unsigned long kHintVideo = 0x00000002;
 
+  const long kActionNone = -1;
+  const long kActionOffer = 0;
+  const long kActionAnswer = 1;
+  const long kActionPRAnswer = 2;
+
   /* Must be called first. Observer events will be dispatched on the thread provided */
   void initialize(in IPeerConnectionObserver observer, [optional] in nsIThread thread);
 
   /* JSEP calls */
   void createOffer(in string hints);
   void createAnswer(in string hints, in string offer);
-  void setLocalDescription(in unsigned long action, in string sdp);
-  void setRemoteDescription(in unsigned long action, in string sdp);
+  void setLocalDescription(in long action, in string sdp);
+  void setRemoteDescription(in long action, in string sdp);
 
   /* Adds the stream created by GetUserMedia */
   void addStream(in nsIDOMMediaStream stream);

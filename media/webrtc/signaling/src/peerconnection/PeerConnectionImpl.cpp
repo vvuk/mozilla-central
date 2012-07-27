@@ -295,13 +295,30 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thr
   return NS_OK;
 }
 
+// One level of indirection so we can use WrapRunnableRet in CreateMediaStream.
+already_AddRefed<nsDOMMediaStream>
+PeerConnectionImpl::MakeMediaStream(PRUint32 hint)
+{
+  return nsDOMMediaStream::CreateInputStream(hint);
+}
+
 NS_IMETHODIMP
 PeerConnectionImpl::CreateMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
   // TODO: We should use nsDOMMediaStream::CreateInputStream here, but
   // that crashes xpcshell. Investigate.
-  nsCOMPtr<nsDOMMediaStream> stream = new nsDOMMediaStream();
-  stream->SetHintContents(hint);
+  nsRefPtr<nsDOMMediaStream> stream;
+
+  if (!mThread || NS_IsMainThread()) {
+    stream = nsDOMMediaStream::CreateInputStream(hint);
+    NS_ADDREF(*retval = stream);
+    return NS_OK;
+  }
+
+  mThread->Dispatch(WrapRunnableRet(
+    this, &PeerConnectionImpl::MakeMediaStream, hint, &stream
+  ), NS_DISPATCH_SYNC);
+
   NS_ADDREF(*retval = stream);
   return NS_OK;
 }
@@ -322,16 +339,16 @@ PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::SetLocalDescription(PRUint32 action, const char* sdp) {
+PeerConnectionImpl::SetLocalDescription(PRInt32 action, const char* sdp) {
   mLocalRequestedSDP = sdp;
-  mCall->setLocalDescription((cc_jsep_action_t)action, sdp);
+  mCall->setLocalDescription((cc_jsep_action_t)action, mLocalRequestedSDP);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::SetRemoteDescription(PRUint32 action, const char* sdp) {
+PeerConnectionImpl::SetRemoteDescription(PRInt32 action, const char* sdp) {
   mRemoteRequestedSDP = sdp;
-  mCall->setRemoteDescription((cc_jsep_action_t)action, sdp);
+  mCall->setRemoteDescription((cc_jsep_action_t)action, mRemoteRequestedSDP);
   return NS_OK;
 }
 
