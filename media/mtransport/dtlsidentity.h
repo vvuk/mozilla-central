@@ -50,7 +50,7 @@
 class DtlsIdentity : public mozilla::RefCounted<DtlsIdentity> {
  public:
   ~DtlsIdentity();
-  
+
   static mozilla::RefPtr<DtlsIdentity> Generate(const std::string name);
 
   CERTCertificate *cert() { return cert_; }

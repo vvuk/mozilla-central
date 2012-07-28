@@ -42,11 +42,11 @@ class MediaPipeline {
                 mozilla::RefPtr<TransportFlow> rtp_transport,
                 mozilla::RefPtr<TransportFlow> rtcp_transport) :
       direction_(direction),
-      main_thread_(main_thread),
       stream_(stream),
       conduit_(conduit),
       rtp_transport_(rtp_transport),
-      rtcp_transport_(rtcp_transport) {
+      rtcp_transport_(rtcp_transport),
+      main_thread_(main_thread) {
   }
 
   virtual ~MediaPipeline() {
