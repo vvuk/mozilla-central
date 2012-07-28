@@ -90,7 +90,6 @@ public:
 
       case REMOTESTREAMADD:
         stream = mInfo->getMediaStreams();
-
         mObserver->OnAddStream(mPC->GetRemoteStream(stream->media_stream_id)->
           GetMediaStream());
         break;
