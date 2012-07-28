@@ -56,6 +56,9 @@ interface nsIDOMRTCPeerConnection : nsISupports
   readonly attribute jsval localStreams; // MediaStream[]
   readonly attribute jsval remoteStreams; // MediaStream[]
 
+  /* TODO: Use real EventTarget */
+  attribute RTCPeerConnectionCallback onRemoteStreamAdded;
+
   /* For testing only! Please remove later */
   nsIDOMMediaStream createFakeMediaStream(in string type);
 };

@@ -162,6 +162,8 @@ PeerConnection.prototype = {
     dump("!!! close returned");
   },
 
+  onRemoteStreamAdded: null,
+
   // For testing only.
   createFakeMediaStream: function(type) {
     if (type == "video") {
@@ -260,6 +262,9 @@ PeerConnectionObserver.prototype = {
 
   onAddStream: function(stream) {
     dump("!!! onAddStream called: " + stream + "\n");
+    if (this._dompc.onRemoteStreamAdded) {
+      this._dompc.onRemoteStreamAdded.onCallback(stream);
+    }
     this._executeNext();
   },
 

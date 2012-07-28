@@ -5,9 +5,10 @@
 <body>
 
 <h1>Simple PeerConnection Test</h1>
-<div><audio id="tehaudio"></audio></div><br/>
+<div><audio id="tehaudio" controls></audio></div><br/>
 <div><button id="tehbutton" onClick="start();">Start!</button></div><br/>
 <div id="log"></div>
+<div><audio id="localaudio" muted></audio></div><br/>
 
 <script type="application/javascript;version=1.8">
   function log(msg) {
@@ -15,7 +16,9 @@
     div.innerHTML = div.innerHTML + "<p>" + msg + "</p>";
   }
 
+  let audio = document.getElementById("tehaudio");
   let button = document.getElementById("tehbutton");
+  let localaudio = document.getElementById("localaudio");
 
   let pc1;
   let pc2;
@@ -60,17 +63,33 @@
   }
 
   function start() {
+    button.innerHTML = "Stop!";
+    button.onClick = stop;
+
     pc1 = new mozPeerConnection();
     pc2 = new mozPeerConnection();
 
+    pc1.onRemoteStreamAdded = function(stream) {
+      log("pc1 got remote stream from pc2 " + stream);
+    }
+    pc2.onRemoteStreamAdded = function(stream) {
+      log("pc2 got remote stream from pc1 " + stream);
+      audio.src = stream;
+      audio.play();
+    }
+
     navigator.mozGetUserMedia({audio:true}, function(stream) {
+      // Add the stream obtained from gUM to an <audio> element to start
+      // the audio flow. We mute it on this end, and assign the "remote"
+      // stream when it arrives at pc2 to an unmuted <audio>.
+      localaudio.src = stream;
+      localaudio.play();
+
       pc1.addStream(stream);
       pc2.addStream(pc2.createFakeMediaStream("audio"));
 
+      // Start the signaling.
       pc1.createOffer(step1, failed);
-
-      button.innerHTML = "Stop!";
-      button.onClick = stop;
     }, failed);
   }
 
