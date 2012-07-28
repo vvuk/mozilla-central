@@ -181,10 +181,10 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
 void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               TrackRate rate,
                                               VideoChunk& chunk) {
-#if 0
+#ifdef MOZILLA_INTERNAL_API
   // We now need to send the video frame to the other side
   mozilla::layers::Image *img = chunk.mFrame.GetImage();
-  
+
   mozilla::layers::Image::Format format = img->GetFormat();
 
   if (format != mozilla::layers::Image::PLANAR_YCBCR) {
@@ -192,7 +192,7 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
     PR_ASSERT(PR_FALSE);
     return;
   }
-  
+
   // Cast away constness b/c some of the accessors are non-const
   layers::PlanarYCbCrImage* yuv =
     const_cast<layers::PlanarYCbCrImage *>(
@@ -220,12 +220,14 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 void MediaPipelineReceive::RtpPacketReceived(TransportFlow *flow,
                                              const unsigned char *data,
                                              size_t len) {
+  ++rtp_packets_received_;
   (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
 }
 
 void MediaPipelineReceive::RtcpPacketReceived(TransportFlow *flow,
                                               const unsigned char *data,
                                               size_t len) {
+  ++rtcp_packets_received_;
   (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
 }
 
@@ -277,17 +279,17 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
   }
 
   double time_s = MediaTimeToSeconds(desired);
-  
+
   // Clip the number of seconds asked for to 1 second
   if (time_s > 1) {
     time_s = 1.0f;
   }
-  
+
   // Number of 10 ms samples we need
   int num_samples = floor((time_s / .01f) + .5);
 
   MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << "sample from Audio Conduit");
-  
+
   while (num_samples--) {
     // TODO(ekr@rtfm.com): Is there a way to avoid mallocating here?
     nsRefPtr<SharedBuffer> samples = SharedBuffer::Create(1000);
@@ -299,17 +301,20 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
         16000,  // Sampling rate fixed at 16 kHz for now
         0,  // TODO(ekr@rtfm.com): better estimate of capture delay
         samples_length);
-  
+
     if (err != mozilla::kMediaConduitNoError)
       return;
 
     MLOG(PR_LOG_DEBUG, "Audio conduit returned buffer of length " << samples_length);
-    
+
     mozilla::AudioSegment segment;
-    segment.Init(1);    
-    segment.AppendFrames(samples.forget(), samples_length * 2,
+    segment.Init(1);
+    segment.AppendFrames(samples.forget(), samples_length,
       0, samples_length, nsAudioStream::FORMAT_S16_LE);
 
+    char buf[32];
+    snprintf(buf, 32, "%p", source);
+    MLOG(PR_LOG_DEBUG, "Appended segments to stream " << buf);
     source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
   }
