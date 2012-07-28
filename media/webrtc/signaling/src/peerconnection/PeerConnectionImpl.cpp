@@ -360,6 +360,10 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 
   if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
     new Fake_AudioGenerator(static_cast<nsDOMMediaStream*>(*retval));
+  } else {
+  #ifdef MOZILLA_INTERNAL_API
+    new Fake_VideoGenerator(static_cast<nsDOMMediaStream*>(*retval));
+  #endif
   }
 
   return NS_OK;

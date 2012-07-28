@@ -31,6 +31,13 @@
 #include "CC_Observer.h"
 #include "MediaPipeline.h"
 
+#ifdef MOZILLA_INTERNAL_API
+#include "Layers.h"
+#include "VideoUtils.h"
+#include "ImageLayers.h"
+#include "VideoSegment.h"
+#endif
+
 namespace sipcc {
 
 /* Temporary for providing audio data */
@@ -65,6 +72,78 @@ class Fake_AudioGenerator {
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<nsDOMMediaStream> mStream;
 };
+
+/* Temporary for providing video data */
+#ifdef MOZILLA_INTERNAL_API
+class Fake_VideoGenerator {
+ public:
+  Fake_VideoGenerator(nsDOMMediaStream* aStream) {
+    mStream = aStream;
+
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+    PR_ASSERT(mTimer);
+
+    // Make a track
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, USECS_PER_S, 0, segment);
+    mStream->GetStream()->AsSourceStream()->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+
+    // Set the timer. Set to 10 fps.
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+  }
+
+  static void Callback(nsITimer* timer, void *arg) {
+    Fake_VideoGenerator* gen = static_cast<Fake_VideoGenerator*>(arg);
+
+    const PRUint32 WIDTH = 640;
+    const PRUint32 HEIGHT = 480;
+
+    // Allocate a single blank Image
+    mozilla::layers::Image::Format format = mozilla::layers::Image::PLANAR_YCBCR;
+    nsRefPtr<mozilla::layers::ImageContainer> container =
+      mozilla::layers::LayerManager::CreateImageContainer();
+
+    nsRefPtr<mozilla::layers::Image> image = container->CreateImage(&format, 1);
+
+    int len = ((WIDTH * HEIGHT) * 3 / 2);
+    mozilla::layers::PlanarYCbCrImage* planar =
+      static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
+    PRUint8* frame = (PRUint8*) PR_Malloc(len);
+    memset(frame, 0x80, len); // Gray
+
+    const PRUint8 lumaBpp = 8;
+    const PRUint8 chromaBpp = 4;
+
+    mozilla::layers::PlanarYCbCrImage::Data data;
+    data.mYChannel = frame;
+    data.mYSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mYStride = WIDTH * lumaBpp / 8.0;
+    data.mCbCrStride = WIDTH * chromaBpp / 8.0;
+    data.mCbChannel = frame + HEIGHT * data.mYStride;
+    data.mCrChannel = data.mCbChannel + HEIGHT * data.mCbCrStride / 2;
+    data.mCbCrSize = gfxIntSize(WIDTH / 2, HEIGHT / 2);
+    data.mPicX = 0;
+    data.mPicY = 0;
+    data.mPicSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mStereoMode = mozilla::layers::STEREO_MODE_MONO;
+
+    // SetData copies data, so we can free the frame
+    planar->SetData(data);
+    PR_Free(frame);
+
+    // AddTrack takes ownership of segment
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    // 10 fps.
+    segment->AppendFrame(image.forget(), USECS_PER_S / 10, gfxIntSize(WIDTH, HEIGHT));
+
+    gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, segment);
+  }
+
+ private:
+  nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<nsDOMMediaStream> mStream;
+};
+#endif
 
 class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
