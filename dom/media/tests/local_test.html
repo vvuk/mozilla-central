@@ -1,0 +1,86 @@
+<html>
+<head>
+  <title>Simple PeerConnection Test</title>
+</head>
+<body>
+
+<h1>Simple PeerConnection Test</h1>
+<div><audio id="tehaudio"></audio></div><br/>
+<div><button id="tehbutton" onClick="start();">Start!</button></div><br/>
+<div id="log"></div>
+
+<script type="application/javascript;version=1.8">
+  function log(msg) {
+    let div = document.getElementById("log");
+    div.innerHTML = div.innerHTML + "<p>" + msg + "</p>";
+  }
+
+  let button = document.getElementById("tehbutton");
+
+  let pc1;
+  let pc2;
+
+  let pc1_offer;
+  let pc2_answer;
+
+  function failed(code) {
+    log("Failure callback: " + code);
+  }
+
+  // pc1.createOffer finished, call pc1.setLocal
+  function step1(offer) {
+    pc1_offer = offer;
+    pc1.setLocalDescription("offer", offer, step2, failed);
+  }
+
+  // pc1.setLocal finished, call pc2.setRemote
+  function step2() {
+    pc2.setRemoteDescription("offer", pc1_offer, step3, failed);
+  };
+
+  // pc2.setRemote finished, call pc2.createAnswer
+  function step3() {
+    pc2.createAnswer(pc1_offer, step4, failed);
+  }
+
+  // pc2.createAnswer finished, call pc2.setLocal
+  function step4(answer) {
+    pc2_answer = answer;
+    pc2.setLocalDescription("answer", answer, step5, failed);
+  }
+
+  // pc2.setLocal finished, call pc1.setRemote
+  function step5() {
+    pc1.setRemoteDescription("answer", pc2_answer, step6, failed);
+  }
+
+  // pc1.setRemote finished, media should be running!
+  function step6() {
+    log("HIP HIP HOORAY");
+  }
+
+  function start() {
+    pc1 = new mozPeerConnection();
+    pc2 = new mozPeerConnection();
+
+    navigator.mozGetUserMedia({audio:true}, function(stream) {
+      pc1.addStream(stream);
+      pc2.addStream(pc2.createFakeMediaStream("audio"));
+
+      pc1.createOffer(step1, failed);
+
+      button.innerHTML = "Stop!";
+      button.onClick = stop;
+    }, failed);
+  }
+
+  function stop() {
+    pc1.close();
+    pc2.close();
+
+    button.innerHTML = "Start!";
+    button.onClick = start;
+  }
+</script>
+
+</html>

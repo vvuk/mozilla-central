@@ -55,4 +55,7 @@ interface nsIDOMRTCPeerConnection : nsISupports
 
   readonly attribute jsval localStreams; // MediaStream[]
   readonly attribute jsval remoteStreams; // MediaStream[]
+
+  /* For testing only! Please remove later */
+  nsIDOMMediaStream createFakeMediaStream(in string type);
 };
