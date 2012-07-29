@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cmath>
 
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
@@ -31,6 +32,7 @@
 #include "CC_Observer.h"
 #include "MediaPipeline.h"
 
+
 #ifdef MOZILLA_INTERNAL_API
 #include "Layers.h"
 #include "VideoUtils.h"
@@ -43,9 +45,7 @@ namespace sipcc {
 /* Temporary for providing audio data */
 class Fake_AudioGenerator {
  public:
-  Fake_AudioGenerator(nsDOMMediaStream* aStream) {
-    mStream = aStream;
-
+Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
     PR_ASSERT(mTimer);
 
@@ -61,9 +61,16 @@ class Fake_AudioGenerator {
   static void Callback(nsITimer* timer, void *arg) {
     Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
 
+    nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(1000);
+    for (int i=0; i<160; i++) {
+      reinterpret_cast<int16_t *>(samples->Data())[i] = (gen->mCount % 16) * 100;
+      ++gen->mCount;
+    }
+
     mozilla::AudioSegment segment;
     segment.Init(1);
-    segment.InsertNullDataAtStart(160);
+    segment.AppendFrames(samples.forget(), 160,
+      0, 160, nsAudioStream::FORMAT_S16_LE);
 
     gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
   }
@@ -71,6 +78,7 @@ class Fake_AudioGenerator {
  private:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
 };
 
 /* Temporary for providing video data */

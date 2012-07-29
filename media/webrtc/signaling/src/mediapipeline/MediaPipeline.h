@@ -100,7 +100,7 @@ class MediaPipelineTransmit : public MediaPipeline {
   class PipelineTransport : public TransportInterface {
    public:
     // Implement the TransportInterface functions
-    PipelineTransport(MediaPipelineTransmit *pipeline) : 
+    PipelineTransport(MediaPipelineTransmit *pipeline) :
         pipeline_(pipeline) {}
     void Detach() { pipeline_ = NULL; }
 
@@ -119,7 +119,7 @@ class MediaPipelineTransmit : public MediaPipeline {
         pipeline_(pipeline) {}
     void Detach() { pipeline_ = NULL; }
 
-      
+
     // Implement MediaStreamListener
     virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                                           TrackRate rate,
@@ -134,9 +134,9 @@ class MediaPipelineTransmit : public MediaPipeline {
   friend class PipelineListener;
 
  private:
-  virtual void ProcessAudioChunk(AudioSessionConduit *conduit, 
+  virtual void ProcessAudioChunk(AudioSessionConduit *conduit,
                                  TrackRate rate, mozilla::AudioChunk& chunk);
-  virtual void ProcessVideoChunk(VideoSessionConduit *conduit, 
+  virtual void ProcessVideoChunk(VideoSessionConduit *conduit,
                                  TrackRate rate, mozilla::VideoChunk& chunk);
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
 
@@ -252,7 +252,8 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
                             mozilla::RefPtr<TransportFlow> rtp_transport,
                             mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipelineReceive(main_thread, stream, conduit, rtp_transport,
-                           rtcp_transport) {
+                           rtcp_transport),
+      renderer_(new PipelineRenderer(this)) {
     Init();
   }
 
@@ -260,7 +261,37 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
   }
 
  private:
+  class PipelineRenderer : public mozilla::VideoRenderer {
+   public:
+    PipelineRenderer(MediaPipelineReceiveVideo *);
+    void Detach() { pipeline_ = NULL; }
+
+    // Implement VideoRenderer
+    virtual void FrameSizeChange(unsigned int width,
+                                 unsigned int height,
+                                 unsigned int number_of_streams) {
+      width_ = width;
+      height_ = height;
+    }
+
+    virtual void RenderVideoFrame(const unsigned char* buffer,
+                                  unsigned int buffer_size,
+                                  uint32_t time_stamp,
+                                  int64_t render_time);
+
+
+   private:
+    MediaPipelineReceiveVideo *pipeline_;  // Raw pointer to avoid cycles
+#ifdef MOZILLA_INTERNAL_API
+    nsRefPtr<mozilla::layers::ImageContainer> image_container_;
+#endif
+    int width_;
+    int height_;
+  };
+  friend class PipelineRenderer;
+
   nsresult Init();
+  mozilla::RefPtr<PipelineRenderer> renderer_;
 };
 
 

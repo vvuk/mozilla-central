@@ -54,11 +54,11 @@ public:
  * 3. Concrete implementation of this interface is responsible for 
  *    processing and/or rendering the obtained raw video frame to appropriate
  *    output , say, <video>
- */ 
-class VideoRenderer 
+ */
+class VideoRenderer
 {
  public:
-  virtual ~VideoRenderer() {} ; 
+  virtual ~VideoRenderer() {} ;
 
   /**
    * Callback Function reportng any change in the video-frame dimensions
@@ -75,11 +75,11 @@ class VideoRenderer
    * @param buffer: pointer to decoded video frame
    * @param buffer_size: size of the decoded frame
    * @param time_stamp: Decoder timestamp, typically 90KHz as per RTP
-   * @render_time: Wall-clock time at the decoder for synchronizartion 
+   * @render_time: Wall-clock time at the decoder for synchronizartion
    *                purposes in milliseconds
    * NOTE: It is the responsibility of the concrete implementations of this
    * class to own copy of the frame if needed for time longer than scope of
-   * this callback. 
+   * this callback.
    * Such implementations should be quick in processing the frames and return
    * immediately.
    */
@@ -89,18 +89,17 @@ class VideoRenderer
                                 int64_t render_time) = 0;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VideoRenderer)
-
 };
 
 
 /**
- * Generic Interface for representing Audio/Video Session 
+ * Generic Interface for representing Audio/Video Session
  * MediaSession conduit is identified by 2 main components
  * 1. Attached Transport Interface for inbound and outbound RTP transport
  * 2. Attached Renderer Interface for rendering media data off the network
  * This class hides specifics of Media-Engine implementation from the consumers
  * of this interface.
- * Also provides codec configuration API for the media sent and recevied 
+ * Also provides codec configuration API for the media sent and recevied
  */
 class MediaSessionConduit 
 {

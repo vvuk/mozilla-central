@@ -139,7 +139,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
   // TODO(ekr@rtfm.com): Do more than one channel
   nsAutoArrayPtr<int16_t> samples(new int16_t[chunk.mDuration]);
 
-  if (chunk.mBuffer) { 
+  if (chunk.mBuffer) {
     switch(chunk.mBufferFormat) {
       case nsAudioStream::FORMAT_U8:
       case nsAudioStream::FORMAT_FLOAT32:
@@ -161,7 +161,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
             samples[i] = short((PRInt32(s) * volume) >> 16);
           }
         }
-        break; 
+        break;
       default:
         PR_ASSERT(PR_FALSE);
         return;
@@ -322,7 +322,57 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
 nsresult MediaPipelineReceiveVideo::Init() {
   MLOG(PR_LOG_DEBUG, __FUNCTION__);
 
+  static_cast<mozilla::VideoSessionConduit *>(conduit_.get())->
+      AttachRenderer(renderer_);
+
   return NS_OK;
+}
+
+MediaPipelineReceiveVideo::PipelineRenderer::PipelineRenderer(
+    MediaPipelineReceiveVideo *pipeline) :
+    pipeline_(pipeline),
+#ifdef MOZILLA_INTERNAL_API
+    image_container_(mozilla::layers::LayerManager::CreateImageContainer()),
+#endif
+    width_(640), height_(480) {}
+
+void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
+    const unsigned char* buffer,
+    unsigned int buffer_size,
+    uint32_t time_stamp,
+    int64_t render_time) {
+#ifdef MOZILLA_INTERNAL_API
+  mozilla::SourceMediaStream *source =
+    pipeline_->stream_->GetStream()->AsSourceStream();
+
+  // Create a video frame and append it to the track.
+  mozilla::layers::Image::Format format = mozilla::layers::Image::PLANAR_YCBCR;
+  nsRefPtr<mozilla::layers::Image> image = image_container_->CreateImage(&format, 1);
+
+  mozilla::layers::PlanarYCbCrImage* videoImage = static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
+  PRUint8* frame = const_cast<PRUint8*>(static_cast<const PRUint8*> (buffer));
+  const PRUint8 lumaBpp = 8;
+  const PRUint8 chromaBpp = 4;
+
+  mozilla::layers::PlanarYCbCrImage::Data data;
+  data.mYChannel = frame;
+  data.mYSize = gfxIntSize(width_, height_);
+  data.mYStride = width_ * lumaBpp/ 8;
+  data.mCbCrStride = width_ * chromaBpp / 8;
+  data.mCbChannel = frame + height_ * data.mYStride;
+  data.mCrChannel = data.mCbChannel + height_ * data.mCbCrStride / 2;
+  data.mCbCrSize = gfxIntSize(width_/ 2, height_/ 2);
+  data.mPicX = 0;
+  data.mPicY = 0;
+  data.mPicSize = gfxIntSize(width_, height_);
+  data.mStereoMode = mozilla::layers::STEREO_MODE_MONO;
+
+  videoImage->SetData(data);
+
+  VideoSegment segment;
+  segment.AppendFrame(image.forget(), 1, gfxIntSize(width_, height_));
+  source->AppendToTrack(1, &(segment));
+#endif
 }
 
 
