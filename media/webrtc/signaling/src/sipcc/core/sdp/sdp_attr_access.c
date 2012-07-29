@@ -4032,6 +4032,83 @@ sdp_result_e sdp_attr_set_ice_attribute(void *sdp_ptr, u16 level,
     return (SDP_SUCCESS);
 }
 
+/* Function:    sdp_attr_get_rtcp_mux_attribute
+ * Description: Returns the value of an rtcp-mux attribute at a given level
+ *
+ * Parameters:  sdp_ptr     The SDP handle returned by sdp_init_description.
+ *              level       The level to check for the attribute.
+ *              cap_num     The capability number associated with the
+ *                          attribute if any.  If none, should be zero.
+ *              inst_num    The attribute instance number to check.
+ *              rtcp_mux    Returns an rtcp-mux attrib bool
+ * Returns:
+ *              SDP_SUCCESS           Attribute param was set successfully.
+ *              SDP_INVALID_SDP_PTR   SDP pointer invalid
+ *              SDP_INVALID_PARAMETER Specified attribute is not defined.
+ */
+sdp_result_e sdp_attr_get_rtcp_mux_attribute (void *sdp_ptr, u16 level,
+                                  u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num,
+                                  tinybool *rtcp_mux)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_SDP_PTR);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, sdp_attr, inst_num);
+    if (attr_p != NULL) {
+    	*rtcp_mux = attr_p->attr.boolean_val;
+        return (SDP_SUCCESS);
+    } else {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                SDP_ERROR("%s rtcp-mux attribute, level %u instance %u "
+                          "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    return (SDP_FAILURE);
+}
+
+/* Function:    sdp_attr_set_rtcp_mux_attribute
+ * Description: Sets the value of an rtcp_mux attribute parameter
+ *              String is copied into SDP memory.
+ * Parameters:  sdp_ptr        The SDP handle returned by sdp_init_description.
+ *              level          The level to set the attribute.
+ *              cap_num        The capability number associated with the
+ *                             attribute if any.  If none, should be zero.
+ *              inst_num       The attribute instance number to check.
+ *              rtcp_mux       rtcp-mux attribute bool to set
+ * Returns:     SDP_SUCCESS            Attribute param was set successfully.
+ *              SDP_INVALID_PARAMETER  Specified attribute is not defined.
+ */
+sdp_result_e sdp_attr_set_rtcp_mux_attribute(void *sdp_ptr, u16 level,
+                              u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num, const tinybool rtcp_mux)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_SDP_PTR);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, sdp_attr, inst_num);
+    if (attr_p == NULL) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s rtcp-mux attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    attr_p->attr.boolean_val = rtcp_mux;
+    return (SDP_SUCCESS);
+}
+
 /* Function:    sdp_attr_set_rtpmap_clockrate
  * Description: Sets the value of the rtpmap attribute clockrate parameter
  *              for the given attribute.

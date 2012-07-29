@@ -272,6 +272,7 @@
 #define CFGID_ROAPCLIENT                             CFGID_ROAPCLIENT_BOOL
 #define CFGID_VERSION                                CFGID_VERSION_STRING
 #define CFGID_SDPMODE                                CFGID_SDPMODE_BOOL
+#define CFGID_RTCPMUX                                CFGID_RTCPMUX_BOOL
 
 /*********************************************************
  *

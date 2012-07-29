@@ -5167,3 +5167,14 @@ sdp_result_e sdp_parse_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, const ch
     }
     return (SDP_SUCCESS);
 }
+
+sdp_result_e sdp_build_attr_rtcp_mux_attr (sdp_t *sdp_p, sdp_attr_t *attr_p,
+                                          char **ptr, u16 len) {
+    return sdp_build_attr_from_str(sdp_p, "rtcp-mux", ptr, len);
+}
+
+sdp_result_e sdp_parse_attr_rtcp_mux_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr) {
+    attr_p->attr.boolean_val = TRUE;
+
+    return (SDP_SUCCESS);
+}
