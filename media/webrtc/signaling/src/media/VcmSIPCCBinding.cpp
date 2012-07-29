@@ -434,7 +434,6 @@ map_VCM_Media_Payload_type( vcm_media_payload_type_t payload )
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_G726_32K,             cip_mmgr_MediaDefinitions_MEDIA_TYPE_G726_32K);
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_G726_24K,             cip_mmgr_MediaDefinitions_MEDIA_TYPE_G726_24K);
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_G726_16K,             cip_mmgr_MediaDefinitions_MEDIA_TYPE_G726_16K);
-        MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_VP8,                  cip_mmgr_MediaDefinitions_MEDIA_TYPE_VP8);
 
         mappingInitialised = true;
     }
@@ -453,8 +452,6 @@ map_VCM_Media_Payload_type( vcm_media_payload_type_t payload )
         return ((payload & 0XFFFF0000) | RTP_H264_P0);
     case VCM_Media_Payload_ISAC:
         return ((payload & 0XFFFF0000) | cip_mmgr_MediaDefinitions_MEDIA_TYPE_ISAC);
-    case VCM_Media_Payload_VP8:
-        return ((payload & 0XFFFF0000) | cip_mmgr_MediaDefinitions_MEDIA_TYPE_VP8);
     default:
         //use the static array
         if (vcmIndex < VCM_Media_Payload_Max)
@@ -848,8 +845,7 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
 short vcmCreateRemoteStream(
   cc_mcapid_t mcap_id,
   const char *peerconnection,
-  int *pc_stream_id,
-  vcm_media_payload_type_t payload) {
+  int *pc_stream_id) {
   PRUint32 hints = 0;
 
   CSFLogDebug( logTag, "%s", __FUNCTION__);

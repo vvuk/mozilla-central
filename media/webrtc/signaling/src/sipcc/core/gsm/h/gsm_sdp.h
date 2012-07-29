@@ -67,7 +67,7 @@
     for (media = GSMSDP_FIRST_MEDIA_ENTRY(dcb); (media != NULL); \
          media = GSMSDP_NEXT_MEDIA_ENTRY(media))
 
-cc_causes_t gsmsdp_create_local_sdp(fsmdef_dcb_t *dcb_p, boolean force_streams_enabled);
+cc_causes_t gsmsdp_create_local_sdp(fsmdef_dcb_t *dcb_p); 
 void gsmsdp_create_options_sdp(cc_sdp_t **sdp_pp);
 void gsmsdp_reset_local_sdp_media(fsmdef_dcb_t *dcb, fsmdef_media_t *media, 
                                   boolean hold);
@@ -85,8 +85,7 @@ cc_causes_t gsmsdp_process_offer_sdp(fsm_fcb_t *fcb,
                                      boolean init);
 cc_causes_t
 gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
-                              boolean initial_offer, boolean offer, boolean notify_stream_added);
-
+                              boolean initial_offer, boolean offer);
 boolean gsmsdp_sdp_differs_from_previous_sdp(boolean rcv_only,
                                              fsmdef_media_t *media);
 cc_causes_t gsmsdp_encode_sdp(cc_sdp_t *sdp_p, cc_msgbody_info_t *msg_body);

@@ -5313,9 +5313,8 @@ void lsm_add_remote_stream (line_t line, callid_t call_id, fsmdef_media_t *media
             return;
         }
 
-        vcmCreateRemoteStream(media->cap_index, dcb->peerconnection, pc_stream_id,
-                vcmRtpToMediaPayload(media->payload,
-                media->local_dynamic_payload_type_value,media->mode));
+        vcmCreateRemoteStream(media->cap_index,
+                dcb->peerconnection, pc_stream_id);
 
     }
 }

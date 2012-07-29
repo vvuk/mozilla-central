@@ -1779,9 +1779,6 @@ u32 sdp_get_media_payload_type (void *sdp_ptr, u16 level, u16 payload_num,
                         } else {
                             return (SET_PAYLOAD_TYPE_WITH_DYNAMIC(ptype, RTP_H264_P1));
                         }
-                    }
-                    if (cpr_strcasecmp(encname, SIPSDP_ATTR_ENCNAME_VP8) == 0) {
-                        return (SET_PAYLOAD_TYPE_WITH_DYNAMIC(ptype, RTP_VP8));
                     }                    
                 }
             }

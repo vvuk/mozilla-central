@@ -224,6 +224,9 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
     if (sdpmode) {
     	dcb_p->media_cap_tbl->cap[CC_VIDEO_1].enabled = FALSE;
     	dcb_p->media_cap_tbl->cap[CC_AUDIO_1].enabled = FALSE;
+    	dcb_p->media_cap_tbl->cap[CC_VIDEO_1].support_direction = SDP_DIRECTION_INACTIVE;
+    	dcb_p->media_cap_tbl->cap[CC_AUDIO_1].support_direction = SDP_DIRECTION_INACTIVE;
+    	dcb_p->video_pref = SDP_DIRECTION_INACTIVE;
     }
 
     return (dcb_p->media_cap_tbl);
@@ -3669,12 +3672,11 @@ gsmsdp_negotiate_remove_media_line (fsmdef_dcb_t *dcb_p,
  * sdp_p - Pointer to the local and remote SDP
  * initial_offer - Boolean indicating if the remote SDP came in the first OFFER of this session
  * offer - Boolean indicating if the remote SDP came in an OFFER.
- * notify_stream_added - Boolean indicating the UI should be notified of streams added
  *
  */
 cc_causes_t
 gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
-                             boolean initial_offer, boolean offer, boolean notify_stream_added)
+                             boolean initial_offer, boolean offer)
 {
     static const char fname[] = "gsmsdp_negotiate_media_lines";
     cc_causes_t     cause = CC_CAUSE_OK;
@@ -3966,16 +3968,15 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                     gsmsdp_set_rtcp_mux_attribute (SDP_ATTR_RTCP_MUX, media->level, sdp_p->src_sdp, TRUE);
                   }
 
-                  if (notify_stream_added) {
-                      /*
-                       * Add track to remote streams in dcb
-                       */
-                      int pc_stream_id = 0;
+                  /*
+                   * Add track to remote streams in dcb
+                   */
+                  int pc_stream_id = 0;
 
-                      lsm_add_remote_stream (dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
+                  lsm_add_remote_stream (dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
 
-                      gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
-                  }
+                  gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
+
               }
             }
 
@@ -4047,13 +4048,10 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         	/*
         	 * Bubble the stream added event up to the PC UI
         	 */
-        	if (notify_stream_added) {
+        	for (j=0; j < dcb_p->remote_media_stream_tbl->num_streams; j++ ) {
 
-        	    for (j=0; j < dcb_p->remote_media_stream_tbl->num_streams; j++ ) {
-
-                    ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
-               		        dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
-        	    }
+                ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
+               		    dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
         	}
         }
     }
@@ -4378,15 +4376,13 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
  * Parameters:
  *
  * dcb_p - Pointer to the DCB whose local SDP is to be updated.
- * force_streams_enabled - temporarily generate SDP even when no
- *                         streams are added
  *
  * returns    cc_causes_t
  *            CC_CAUSE_OK - indicates success
  *            CC_CAUSE_ERROR - indicates failure
  */
 cc_causes_t
-gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled)
+gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p)
 {
     static const char fname[] = "gsmsdp_create_local_sdp";
     uint16_t        level;
@@ -4420,7 +4416,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled)
         /*
          * Add each enabled media line to the SDP
          */
-        if (media_cap->enabled || force_streams_enabled) {
+        if (media_cap->enabled) {
             level = level + 1;  /* next level */ 
             ip_mode = platform_get_ip_address_mode();
             if (ip_mode >= CPR_IP_MODE_IPV6) {
@@ -5440,7 +5436,7 @@ gsmsdp_negotiate_answer_sdp (fsm_fcb_t *fcb_p, cc_msgbody_info_t *msg_body)
  
     gsmsdp_set_remote_sdp(dcb_p, dcb_p->sdp);
 
-    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, FALSE, FALSE, TRUE);
+    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, FALSE, FALSE);
     GSM_DEBUG(DEB_F_PREFIX"returns with %d\n",DEB_F_PREFIX_ARGS(GSM, fname), status);
     return (status);
 }
@@ -5478,7 +5474,7 @@ gsmsdp_negotiate_offer_sdp (fsm_fcb_t *fcb_p,
      * If a new error code has been added to sdp processing please make sure
      * the sip side is aware of it
      */
-    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, init, TRUE, FALSE);
+    status = gsmsdp_negotiate_media_lines(fcb_p, dcb_p->sdp, init, TRUE);
     return (status);
 }
 
@@ -5522,7 +5518,7 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
          * of a session. Otherwise, we will send what we have.
          */
         if (init) {
-            if ( CC_CAUSE_OK != gsmsdp_create_local_sdp(dcb_p, FALSE)) {
+            if ( CC_CAUSE_OK != gsmsdp_create_local_sdp(dcb_p)) { 
                 return CC_CAUSE_ERROR;
             }
         } else {
