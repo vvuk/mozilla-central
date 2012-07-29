@@ -55,22 +55,22 @@ Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mStream->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
 
     // Set the timer
-    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_PRECISE);
   }
 
   static void Callback(nsITimer* timer, void *arg) {
     Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
 
-    nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(1000);
-    for (int i=0; i<160; i++) {
-      reinterpret_cast<int16_t *>(samples->Data())[i] = (gen->mCount % 16) * 100;
+    nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(4000);
+    for (int i=0; i<1600; i++) {
+      reinterpret_cast<int16_t *>(samples->Data())[i] = (gen->mCount % 8) * 4000;
       ++gen->mCount;
     }
 
     mozilla::AudioSegment segment;
     segment.Init(1);
-    segment.AppendFrames(samples.forget(), 160,
-      0, 160, nsAudioStream::FORMAT_S16_LE);
+    segment.AppendFrames(samples.forget(), 1600,
+      0, 1600, nsAudioStream::FORMAT_S16_LE);
 
     gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
   }

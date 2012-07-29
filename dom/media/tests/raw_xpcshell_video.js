@@ -100,11 +100,17 @@ let mainThread = Services.tm.currentThread;
 pc1.initialize(observer1, mainThread);
 pc2.initialize(observer2, mainThread);
 
-let stream1 = pc1.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
-pc1.addStream(stream1);
+let stream1v = pc1.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
+pc1.addStream(stream1v);
 
-let stream2 = pc2.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
-pc2.addStream(stream2);
+let stream1a = pc1.createFakeMediaStream(Ci.IPeerConnection.kHintAudio | 0x80);
+pc1.addStream(stream1a);
+
+let stream2v = pc2.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
+pc2.addStream(stream2v);
+
+let stream2a = pc2.createFakeMediaStream(Ci.IPeerConnection.kHintAudio | 0x80);
+pc2.addStream(stream2a);
 
 // start the chain.
 pc1.createOffer("");

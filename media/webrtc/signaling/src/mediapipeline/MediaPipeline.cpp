@@ -115,7 +115,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
     if (pipeline_->conduit_->type() != MediaSessionConduit::VIDEO) {
       // TODO(ekr): How do we handle muxed video and video streams
-      MLOG(PR_LOG_ERROR, "Video data provided for a video pipeline");
+      MLOG(PR_LOG_ERROR, "Video data provided for an audio pipeline");
       return;
     }
     VideoSegment* video = const_cast<VideoSegment *>(

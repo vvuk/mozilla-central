@@ -356,6 +356,14 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thr
 NS_IMETHODIMP
 PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
+  bool mute = false;
+
+  // Hack to allow you to mute the stream
+  if (hint & 0x80) {
+    mute = true;
+    hint &= ~0x80;
+  }
+
   if (!mThread || NS_IsMainThread()) {
     MakeMediaStream(hint, retval);
   } else {
@@ -364,12 +372,14 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
     ), NS_DISPATCH_SYNC);
   }
 
-  if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
-    new Fake_AudioGenerator(static_cast<nsDOMMediaStream*>(*retval));
-  } else {
+  if (!mute) {
+    if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
+      new Fake_AudioGenerator(static_cast<nsDOMMediaStream*>(*retval));
+    } else {
   #ifdef MOZILLA_INTERNAL_API
-    new Fake_VideoGenerator(static_cast<nsDOMMediaStream*>(*retval));
-  #endif
+      new Fake_VideoGenerator(static_cast<nsDOMMediaStream*>(*retval));
+#endif
+    }
   }
 
   return NS_OK;
