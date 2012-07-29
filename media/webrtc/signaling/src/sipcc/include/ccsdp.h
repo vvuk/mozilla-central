@@ -219,6 +219,7 @@ typedef enum {
     SDP_ATTR_ICE_CANDIDATE,
     SDP_ATTR_ICE_UFRAG,
     SDP_ATTR_ICE_PWD,
+    SDP_ATTR_RTCP_MUX,
     SDP_MAX_ATTR_TYPES,
     SDP_ATTR_INVALID
 } sdp_attr_e;

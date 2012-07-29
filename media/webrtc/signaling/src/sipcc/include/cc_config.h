@@ -179,6 +179,7 @@
 #define CFGID_ROAPCLIENT_BOOL                  CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 107
 #define CFGID_VERSION_STRING                   CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 108
 #define CFGID_SDPMODE_BOOL                     CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 109
+#define CFGID_RTCPMUX_BOOL                     CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 110
 
 /* All non Line specific params should be added above */
 /* All Line specific params should be added below */
