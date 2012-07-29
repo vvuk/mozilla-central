@@ -1113,11 +1113,11 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     return VCM_ERROR;
   }
   // Create the transport flows
-  mozilla::RefPtr<TransportFlow> rtp_flow = 
+  mozilla::RefPtr<TransportFlow> rtp_flow =
       vcmCreateTransportFlow(pc->impl(), level, false);
-  mozilla::RefPtr<TransportFlow> rtcp_flow = 
+  mozilla::RefPtr<TransportFlow> rtcp_flow =
       vcmCreateTransportFlow(pc->impl(), level, true);
-  
+
   if (CC_IS_AUDIO(mcap_id)) {
     // Find the appropriate media conduit config
     mozilla::AudioCodecConfig *config_raw;
@@ -1128,7 +1128,7 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
 
     // Take possession of this pointer
     mozilla::ScopedDeletePtr<mozilla::AudioCodecConfig> config(config_raw);
-    
+
     // Instantiate an appropriate conduit
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
       mozilla::AudioSessionConduit::Create();
@@ -1146,13 +1146,37 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
   } else if (CC_IS_VIDEO(mcap_id)) {
+    // Find the appropriate media conduit config
+    mozilla::VideoCodecConfig *config_raw;
+    int ret = vcmPayloadType2VideoCodec(payload, &config_raw);
+    if (ret) {
+      return VCM_ERROR;
+    }
 
+    // Take possession of this pointer
+    mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
 
+    // Instantiate an appropriate conduit
+    mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
+      mozilla::VideoSessionConduit::Create();
+
+    std::vector<mozilla::VideoCodecConfig *> configs;
+    configs.push_back(config_raw);
+
+    if (conduit->ConfigureRecvMediaCodecs(configs))
+      return VCM_ERROR;
+
+    // Now we have all the pieces, create the pipeline
+    stream->StorePipeline(pc_track_id,
+      new mozilla::MediaPipelineReceiveVideo(
+        pc->impl()->GetMainThread(),
+        stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow));
 
   } else {
     ; // Ignore
   }
-  
+
   CSFLogDebug( logTag, "%s success", __FUNCTION__);
   return 0;
 }

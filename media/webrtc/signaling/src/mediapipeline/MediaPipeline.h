@@ -222,7 +222,6 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
         pipeline_(pipeline) {}
     void Detach() { pipeline_ = NULL; }
 
-      
     // Implement MediaStreamListener
     virtual void NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                                           TrackRate rate,
@@ -239,6 +238,29 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
   nsresult Init();
 
   mozilla::RefPtr<PipelineListener> listener_;
+};
+
+
+
+// A specialization of pipeline for reading from the network and
+// rendering video.
+class MediaPipelineReceiveVideo : public MediaPipelineReceive {
+ public:
+  MediaPipelineReceiveVideo(nsCOMPtr<nsIThread> main_thread,
+                            nsDOMMediaStream* stream,
+                            RefPtr<VideoSessionConduit> conduit,
+                            mozilla::RefPtr<TransportFlow> rtp_transport,
+                            mozilla::RefPtr<TransportFlow> rtcp_transport) :
+      MediaPipelineReceive(main_thread, stream, conduit, rtp_transport,
+                           rtcp_transport) {
+    Init();
+  }
+
+  ~MediaPipelineReceiveVideo() {
+  }
+
+ private:
+  nsresult Init();
 };
 
 

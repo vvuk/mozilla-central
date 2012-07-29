@@ -442,6 +442,7 @@ PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream)
     new LocalSourceStreamInfo(stream);
   cc_media_track_id_t media_stream_id = mLocalSourceStreams.Length();
 
+  // TODO(ekr@rtfm.com): these integers should be the track IDs
   if (hints & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
     localSourceStream->ExpectAudio();
     mCall->addStream(media_stream_id, 0, AUDIO);
@@ -449,7 +450,7 @@ PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream)
 
   if (hints & nsDOMMediaStream::HINT_CONTENTS_VIDEO) {
     localSourceStream->ExpectVideo();
-    mCall->addStream(media_stream_id, 0, VIDEO);
+    mCall->addStream(media_stream_id, 1, VIDEO);
   }
 
   // Make it the listener for info from the MediaStream and add it to the list
@@ -683,11 +684,22 @@ PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
 
 void LocalSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  PR_ASSERT(mPipelines.find(track) == mPipelines.end());
+  if (mPipelines.find(track) != mPipelines.end()) {
+    CSFLogDebug(logTag, "Storing duplicate track");
+    return;
+  }
   mPipelines[track] = pipeline;
 }
 
 void RemoteSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+  PR_ASSERT(mPipelines.find(track) == mPipelines.end());
+  if (mPipelines.find(track) != mPipelines.end()) {
+    CSFLogDebug(logTag, "Storing duplicate track");
+    return;
+  }
+
   mPipelines[track] = pipeline;
 }
 

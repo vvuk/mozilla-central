@@ -319,6 +319,12 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
   }
 }
 
+nsresult MediaPipelineReceiveVideo::Init() {
+  MLOG(PR_LOG_DEBUG, __FUNCTION__);
+
+  return NS_OK;
+}
+
 
 }  // end namespace
 
