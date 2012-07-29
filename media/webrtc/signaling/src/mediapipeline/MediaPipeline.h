@@ -149,14 +149,17 @@ class MediaPipelineTransmit : public MediaPipeline {
 // rendering video.
 class MediaPipelineReceive : public MediaPipeline,
                              public sigslot::has_slots<> {
- public: 
+ public:
   MediaPipelineReceive(nsCOMPtr<nsIThread> main_thread,
-                       nsDOMMediaStream* stream, 
+                       nsDOMMediaStream* stream,
                        RefPtr<MediaSessionConduit> conduit,
                        mozilla::RefPtr<TransportFlow> rtp_transport,
                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(RECEIVE, main_thread, stream, conduit, rtp_transport,
-                    rtcp_transport) {
+                    rtcp_transport),
+      segments_added_(0),
+      rtp_packets_received_(0),
+      rtcp_packets_received_(0) {
     PR_ASSERT(rtp_transport_);
 
     if (rtcp_transport_) {
@@ -173,7 +176,16 @@ class MediaPipelineReceive : public MediaPipeline,
                                                    PacketReceived);
     }
   }
-  
+
+  int segments_added() const { return segments_added_; }
+  int rtp_packets_received() const { return rtp_packets_received_; }
+  int rtcp_packets_received() const { return rtp_packets_received_; }
+
+ protected:
+  int segments_added_;
+  int rtp_packets_received_;
+  int rtcp_packets_received_;
+
  private:
   bool IsRtp(const unsigned char *data, size_t len);
   void RtpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);

@@ -931,8 +931,9 @@ MediaStreamGraphImpl::WillUnderrun(MediaStream* aStream, GraphTime aTime,
   // We should block after bufferEnd.
   if (bufferEnd <= aTime) {
     LOG(PR_LOG_DEBUG, ("MediaStream %p will block due to data underrun, "
-                       "bufferEnd %f",
-                       aStream, MediaTimeToSeconds(bufferEnd)));
+                       "bufferEnd %f aTime=%f",
+                       aStream, MediaTimeToSeconds(bufferEnd),
+                       MediaTimeToSeconds(aTime)));
     return true;
   }
   // We should keep blocking if we're currently blocked and we don't have

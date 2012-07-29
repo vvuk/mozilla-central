@@ -104,6 +104,9 @@ int VcmSIPCCBinding::mVideoCodecMask = 0;
  */
 static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload,
                                      mozilla::AudioCodecConfig **config);
+
+static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload,
+                                     mozilla::VideoCodecConfig **config);
 static mozilla::RefPtr<TransportFlow> vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp);
 
 // The media provider passsed in here will be owned by VcmSIPCCBinding, and so it destroys
@@ -871,8 +874,7 @@ short vcmCreateRemoteStream(
     mozilla::AudioSegment *segment = new mozilla::AudioSegment();
     segment->Init(1); // 1 Channel
     // TODO(ekr@rtfm.com): Clean up Track IDs
-    info->GetMediaStream()->GetStream()->AsSourceStream()->
-        AddTrack(1, 16000, 0, segment);
+    info->GetMediaStream()->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
 
     // We aren't going to add any more tracks
     info->GetMediaStream()->GetStream()->AsSourceStream()->
@@ -1625,7 +1627,6 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
   mozilla::RefPtr<TransportFlow> rtcp_flow = 
       vcmCreateTransportFlow(pc->impl(), level, true);
 
-  
   if (CC_IS_AUDIO(mcap_id)) {
     // Find the appropriate media conduit config
     mozilla::AudioCodecConfig *config_raw;
@@ -1636,7 +1637,7 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
 
     // Take possession of this pointer
     mozilla::ScopedDeletePtr<mozilla::AudioCodecConfig> config(config_raw);
-    
+
     // Instantiate an appropriate conduit
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
       mozilla::AudioSessionConduit::Create();
@@ -1651,14 +1652,34 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
   } else if (CC_IS_VIDEO(mcap_id)) {
+    // Find the appropriate media conduit config
+    mozilla::VideoCodecConfig *config_raw;
+    int ret = vcmPayloadType2VideoCodec(payload, &config_raw);
+    if (ret) {
+      return VCM_ERROR;
+    }
 
+    // Take possession of this pointer
+    mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
 
+    // Instantiate an appropriate conduit
+    mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
+      mozilla::VideoSessionConduit::Create();
 
+    if (conduit->ConfigureSendMediaCodec(config))
+      return VCM_ERROR;
+
+    // Now we have all the pieces, create the pipeline
+    stream->StorePipeline(pc_track_id,
+      new mozilla::MediaPipelineTransmit(
+        pc->impl()->GetMainThread(),
+        stream->GetMediaStream(),
+        conduit, rtp_flow, rtcp_flow));
   } else {
     ; // Ignore
   }
 
-  CSFLogDebug( logTag, "%s success", __FUNCTION__);  
+  CSFLogDebug( logTag, "%s success", __FUNCTION__);
   return 0;
 }
 
@@ -2151,8 +2172,8 @@ int vcmGetILBCMode()
 // TODO(ekr@rtfm.com): There's a lot of crazy mapping going on
 // here. Is there a reason to go through the VCM mappings?
 
-int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
-                              mozilla::AudioCodecConfig **config) {
+static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
+                                     mozilla::AudioCodecConfig **config) {
   int wire_payload = -1;
   int payload = map_VCM_Media_Payload_type(payload_in);
   *config = NULL;
@@ -2200,10 +2221,38 @@ int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
   return 0;
 }
 
+
+// TODO(ekr@rtfm.com): There's a lot of crazy mapping going on
+// here. Is there a reason to go through the VCM mappings?
+
+static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
+                              mozilla::VideoCodecConfig **config) {
+  int wire_payload = -1;
+  int payload = map_VCM_Media_Payload_type(payload_in);
+  *config = NULL;
+
+  if (CHECK_DYNAMIC_PAYLOAD_TYPE(payload)) {
+    wire_payload = EXTRACT_DYNAMIC_PAYLOAD_TYPE(payload);
+    payload = CLEAR_DYNAMIC_PAYLOAD_TYPE(payload);
+  }
+  else {
+    wire_payload = payload;
+  }
+
+  if (wire_payload == -1) {
+    PR_ASSERT(PR_FALSE);
+  }
+
+  /* TODO(snandaku@cisco.com): implement this properly */
+  *config = new mozilla::VideoCodecConfig(wire_payload, "VP8", 640, 480);
+  
+  return 0;
+}
+
 static mozilla::RefPtr<TransportFlow>
 vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
   mozilla::RefPtr<TransportFlow> flow;
-  
+
   flow = pc->GetTransportFlow(level, rtcp);
 
   if (!flow) {
@@ -2214,10 +2263,10 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
     flow->PushLayer(new TransportLayerIce("flow", pc->ice_ctx(),
         pc->ice_media_stream(level-1),
                                         rtcp ? 2 : 1));
-    
+
     // TODO(ekr@rtfm.com): Push DTLS onto here
     pc->AddTransportFlow(level, rtcp, flow);
   }
-  
+
   return flow;
 }

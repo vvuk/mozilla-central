@@ -203,6 +203,9 @@ LocalSourceStreamInfo::VideoTrackCount()
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();
+
+  CSFLogDebug(logTag, "Created PeerConnection=%p", pc);
+
   return pc;
 }
 
@@ -241,6 +244,9 @@ PeerConnectionImpl::MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
   nsRefPtr<nsDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
   NS_ADDREF(*retval = stream);
+  CSFLogDebug(logTag, "PeerConnection %p: Created media stream %p inner=%p",
+              this, stream.get(), stream->GetStream());
+
   return;
 }
 

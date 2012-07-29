@@ -78,6 +78,8 @@
       audio.play();
     }
 
+    log("About to call getusermedia");
+
     navigator.mozGetUserMedia({audio:true}, function(stream) {
       // Add the stream obtained from gUM to an <audio> element to start
       // the audio flow. We mute it on this end, and assign the "remote"
