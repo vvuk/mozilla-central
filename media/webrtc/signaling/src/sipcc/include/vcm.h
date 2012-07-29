@@ -511,7 +511,8 @@ short vcmStartIceChecks(const char *peerconnection);
 short vcmCreateRemoteStream(
              cc_mcapid_t mcap_id,
              const char *peerconnection,
-             int *pc_stream_id);
+             int *pc_stream_id,
+             vcm_media_payload_type_t payload);
 
 /*!
  *  Release the allocated port

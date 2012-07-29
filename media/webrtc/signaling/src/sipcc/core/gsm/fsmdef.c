@@ -2771,7 +2771,7 @@ fsmdef_dialstring (fsm_fcb_t *fcb, const char *dialstring,
         break;
     }
 
-    cause = gsmsdp_create_local_sdp(dcb);
+    cause = gsmsdp_create_local_sdp(dcb, FALSE);
     if (cause != CC_CAUSE_OK) {
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         /* Force clean up call without sending release */
@@ -2911,7 +2911,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     strncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
     free(ice_pwd);
 
-    cause = gsmsdp_create_local_sdp(dcb);
+    cause = gsmsdp_create_local_sdp(dcb, FALSE);
     if (cause != CC_CAUSE_OK) {
         ui_create_offer(evCreateOfferError, line, call_id, dcb->caller_id.call_instance_id, NULL);
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
@@ -3010,7 +3010,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
      * The sdp member of the dcb has local and remote sdp
      * this next function fills in the local part
      */
-    cause = gsmsdp_create_local_sdp(dcb);
+    cause = gsmsdp_create_local_sdp(dcb, FALSE);
     if (cause != CC_CAUSE_OK) {
         ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
@@ -3021,7 +3021,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     /* TODO(ekr@rtfm.com): The second true is because we are acting as if we are
        processing an offer. The first, however, is for an initial offer and we may
        want to set that conditionally. */
-    cause = gsmsdp_negotiate_media_lines(fcb, dcb->sdp, TRUE, TRUE);
+    cause = gsmsdp_negotiate_media_lines(fcb, dcb->sdp, TRUE, TRUE, FALSE);
 
     if (cause != CC_CAUSE_OK) {
     	ui_create_answer(evCreateAnswerError, line, call_id, dcb->caller_id.call_instance_id, NULL);	
@@ -3201,13 +3201,33 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
 		 * send remote streams to UI via onAddStream
          * dcb->send_release = TRUE;   - was in setup [EKR]
          */
-      
+
+        /*
+         * The sdp member of the dcb has local and remote sdp
+         * this next function fills in the local part
+         */
+        cause = gsmsdp_create_local_sdp(dcb, TRUE);
+        if (cause != CC_CAUSE_OK) {
+        	ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
+            FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
+            // Force clean up call without sending release
+            return (fsmdef_release(fcb, cause, FALSE));
+        }
+
         cause = gsmsdp_process_offer_sdp(fcb, &msg_body, TRUE);
         if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
             return (SM_RC_END);
         }
-        
+
+        cause = gsmsdp_negotiate_media_lines(fcb, dcb->sdp, TRUE, TRUE, TRUE);
+        if (cause != CC_CAUSE_OK) {
+        	ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
+            return (fsmdef_release(fcb, cause, FALSE));
+        }
+
+        gsmsdp_clean_media_list(dcb);
+
         fsm_change_state(fcb, __LINE__, FSMDEF_S_INCOMING_ALERTING);
 
     } else if (JSEP_ANSWER == action) {   	
@@ -7626,7 +7646,7 @@ fsmdef_cfwd_clear_ccm (fsm_fcb_t *fcb)
     // From here on all we need to do is send INVITE out.
     // Since, its not a real call there is no need to update UI etc.
     // Response to this call will be 5xx so it will be released by the SIP stack.
-    cause = gsmsdp_create_local_sdp(dcb);
+    cause = gsmsdp_create_local_sdp(dcb, FALSE);
     if (cause != CC_CAUSE_OK) {
         FSM_DEBUG_SM(get_debug_string(FSM_DBG_SDP_BUILD_ERR));
         return (fsmdef_release(fcb, cause, dcb->send_release));
