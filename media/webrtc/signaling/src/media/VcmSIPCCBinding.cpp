@@ -871,7 +871,13 @@ short vcmCreateRemoteStream(
     mozilla::AudioSegment *segment = new mozilla::AudioSegment();
     segment->Init(1); // 1 Channel
     // TODO(ekr@rtfm.com): Clean up Track IDs
-    info->GetMediaStream()->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
+    info->GetMediaStream()->GetStream()->AsSourceStream()->
+        AddTrack(1, 16000, 0, segment);
+
+    // We aren't going to add any more tracks
+    info->GetMediaStream()->GetStream()->AsSourceStream()->
+        AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+
   }
   if (CC_IS_VIDEO(mcap_id)) {
     ;

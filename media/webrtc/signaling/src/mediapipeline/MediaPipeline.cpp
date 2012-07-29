@@ -151,7 +151,6 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
         {
           // Code based on nsAudioStream
           const short* buf = static_cast<const short *>(chunk.mBuffer->Data());
-          nsAutoArrayPtr<int16_t> samples(new int16_t[chunk.mDuration]);
 
           PRInt32 volume = PRInt32((1 << 16) * chunk.mVolume);
           for (PRUint32 i = 0; i < chunk.mDuration; ++i) {
@@ -184,7 +183,7 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 #if 0
   // We now need to send the video frame to the other side
   mozilla::layers::Image *img = chunk.mFrame.GetImage();
-  
+
   mozilla::layers::Image::Format format = img->GetFormat();
 
   if (format != mozilla::layers::Image::PLANAR_YCBCR) {
