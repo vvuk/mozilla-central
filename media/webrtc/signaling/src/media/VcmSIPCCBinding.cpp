@@ -1669,14 +1669,19 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
     if (conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
 
-    // Now we have all the pieces, create the pipeline
-    stream->StorePipeline(pc_track_id,
+    mozilla::RefPtr<mozilla::MediaPipelineTransmit> pipeline =
       new mozilla::MediaPipelineTransmit(
         pc->impl()->GetMainThread(),
         stream->GetMediaStream(),
-        conduit, rtp_flow, rtcp_flow));
+        conduit, rtp_flow, rtcp_flow);
+
+    CSFLogDebug(logTag, "Created video pipeline %p, pc_stream=%d pc_track=%d",
+                pipeline.get(), pc_stream_id, pc_track_id);
+
+    // Now we have all the pieces, create the pipeline
+    stream->StorePipeline(pc_track_id, pipeline);
+
   } else if (CC_IS_VIDEO(mcap_id)) {
-    // Find the appropriate media conduit config
     mozilla::VideoCodecConfig *config_raw;
     int ret = vcmPayloadType2VideoCodec(payload, &config_raw);
     if (ret) {
@@ -1690,15 +1695,22 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
     mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
       mozilla::VideoSessionConduit::Create();
 
+    // Find the appropriate media conduit config
     if (conduit->ConfigureSendMediaCodec(config))
       return VCM_ERROR;
 
+    // Create the pipeline
+    mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
+        new mozilla::MediaPipelineTransmit(
+            pc->impl()->GetMainThread(),
+            stream->GetMediaStream(),
+            conduit, rtp_flow, rtcp_flow);
+
+    CSFLogDebug(logTag, "Created video pipeline %p, pc_stream=%d pc_track=%d",
+                pipeline.get(), pc_stream_id, pc_track_id);
+
     // Now we have all the pieces, create the pipeline
-    stream->StorePipeline(pc_track_id,
-      new mozilla::MediaPipelineTransmit(
-        pc->impl()->GetMainThread(),
-        stream->GetMediaStream(),
-        conduit, rtp_flow, rtcp_flow));
+    stream->StorePipeline(pc_track_id, pipeline);
   } else {
     ; // Ignore
   }

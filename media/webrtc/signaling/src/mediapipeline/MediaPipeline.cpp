@@ -26,6 +26,21 @@ MLOG_INIT("mediapipeline");
 
 namespace mozilla {
 
+void MediaPipeline::increment_rtp_packets() {
+  ++rtp_packets_;
+  if (!(rtp_packets_ % 1000)) {
+    MLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
+         << ": " << rtp_packets_);
+  }
+}
+
+void MediaPipeline::increment_rtcp_packets() {
+  if (!(rtcp_packets_ % 1000)) {
+    MLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
+         << ": " << rtcp_packets_);
+  }
+}
+
 nsresult MediaPipelineTransmit::Init() {
   // TODO(ekr@rtfm.com): Check for errors
   if (main_thread_) {
@@ -51,7 +66,8 @@ nsresult MediaPipelineTransmit::PipelineTransport::SendRtpPacket(
     MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
-  
+
+  pipeline_->increment_rtp_packets();
   return pipeline_->SendPacket(pipeline_->rtp_transport_, data, len);
 }
 
@@ -65,13 +81,14 @@ nsresult MediaPipelineTransmit::PipelineTransport::SendRtcpPacket(
     return NS_ERROR_NULL_POINTER;
   }
 
+  pipeline_->increment_rtcp_packets();
   return pipeline_->SendPacket(pipeline_->rtcp_transport_, data, len);
 }
 
 nsresult MediaPipelineTransmit::SendPacket(TransportFlow *flow, const void *data,
                                            int len) {
   TransportResult res = flow->SendPacket(static_cast<const unsigned char *>(data), len);
-  
+
   if (res != len) {
     // Ignore blocking indications
     if (res == TE_WOULDBLOCK)
@@ -219,14 +236,14 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 void MediaPipelineReceive::RtpPacketReceived(TransportFlow *flow,
                                              const unsigned char *data,
                                              size_t len) {
-  ++rtp_packets_received_;
+  increment_rtp_packets();
   (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
 }
 
 void MediaPipelineReceive::RtcpPacketReceived(TransportFlow *flow,
                                               const unsigned char *data,
                                               size_t len) {
-  ++rtcp_packets_received_;
+  increment_rtcp_packets();
   (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
 }
 

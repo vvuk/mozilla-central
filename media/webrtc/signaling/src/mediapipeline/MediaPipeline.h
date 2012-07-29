@@ -46,33 +46,43 @@ class MediaPipeline {
       conduit_(conduit),
       rtp_transport_(rtp_transport),
       rtcp_transport_(rtcp_transport),
-      main_thread_(main_thread) {
+      main_thread_(main_thread),
+      rtp_packets_(0),
+      rtcp_packets_(0) {
   }
 
   virtual ~MediaPipeline() {
   }
-  
+
   virtual Direction direction() const { return direction_; }
+
+  int rtp_packets() const { return rtp_packets_; }
+  int rtcp_packets() const { return rtp_packets_; }
 
   // Thread counting
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline);
 
  protected:
+  void increment_rtp_packets();
+  void increment_rtcp_packets();
+
   Direction direction_;
   nsDOMMediaStream* stream_;
   RefPtr<MediaSessionConduit> conduit_;
   RefPtr<TransportFlow> rtp_transport_;
   RefPtr<TransportFlow> rtcp_transport_;
   nsCOMPtr<nsIThread> main_thread_;
+  int rtp_packets_;
+  int rtcp_packets_;
 };
 
 
 // A specialization of pipeline for reading from an input device
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
- public: 
+ public:
   MediaPipelineTransmit(nsCOMPtr<nsIThread> main_thread,
-                        nsDOMMediaStream* stream, 
+                        nsDOMMediaStream* stream,
                         RefPtr<MediaSessionConduit> conduit,
                         mozilla::RefPtr<TransportFlow> rtp_transport,
                         mozilla::RefPtr<TransportFlow> rtcp_transport) :
@@ -157,9 +167,7 @@ class MediaPipelineReceive : public MediaPipeline,
                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(RECEIVE, main_thread, stream, conduit, rtp_transport,
                     rtcp_transport),
-      segments_added_(0),
-      rtp_packets_received_(0),
-      rtcp_packets_received_(0) {
+      segments_added_(0) {
     PR_ASSERT(rtp_transport_);
 
     if (rtcp_transport_) {
@@ -178,13 +186,9 @@ class MediaPipelineReceive : public MediaPipeline,
   }
 
   int segments_added() const { return segments_added_; }
-  int rtp_packets_received() const { return rtp_packets_received_; }
-  int rtcp_packets_received() const { return rtp_packets_received_; }
 
  protected:
   int segments_added_;
-  int rtp_packets_received_;
-  int rtcp_packets_received_;
 
  private:
   bool IsRtp(const unsigned char *data, size_t len);
@@ -197,7 +201,7 @@ class MediaPipelineReceive : public MediaPipeline,
 // A specialization of pipeline for reading from the network and
 // rendering audio.
 class MediaPipelineReceiveAudio : public MediaPipelineReceive {
- public: 
+ public:
   MediaPipelineReceiveAudio(nsCOMPtr<nsIThread> main_thread,
                             nsDOMMediaStream* stream,
                             RefPtr<AudioSessionConduit> conduit,
