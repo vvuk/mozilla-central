@@ -230,7 +230,6 @@ typedef struct
     int			roapproxy;
     int			roapclient;
     char        version[4];
-    int         rtcpmux;
 } prot_cfg_t;
 
 static prot_cfg_t prot_cfg_block;
@@ -442,7 +441,6 @@ var_t prot_cfg_table[CFGID_PROTOCOL_MAX+1] = {
         {"roapclient", CFGVAR(roapclient),       PA_INT, PR_INT, 0},
         {"version", CFGVAR(version),    PA_STR, PR_STR, 0},
         {"sdpmode", CFGVAR(sdpmode),       PA_INT, PR_INT, 0},
-        {"rtcpmux", CFGVAR(rtcpmux),       PA_INT, PR_INT, 0},
         {0,                              0,      0,      0, 0, 0}
   };
 
