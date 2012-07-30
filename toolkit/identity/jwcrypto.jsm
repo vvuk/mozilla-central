@@ -16,6 +16,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/identity/LogUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this,
+                                  "IDLog",
+                                  "resource://gre/modules/identity/IdentityStore.jsm");
+
 XPCOMUtils.defineLazyServiceGetter(this,
                                    "IdentityCryptoService",
                                    "@mozilla.org/identity/crypto-service;1",
@@ -92,17 +96,41 @@ jwcryptoClass.prototype = {
     aCallback(true);
   },
 
+  _extractAssertionComponents: function _extractAssertionComponents(aSignedObject) {
+    if (typeof (aSignedObject) !== 'string') {
+      throw("_extractAssertionComponents: String argument required");
+    }
+    var parts = aSignedObject.split('.');
+    if (parts.length !== 3) {
+      throw("_extractAssertionComponents: Invalid signed object");
+    }
+
+    // we verify based on the actual string
+    // FIXME: we should validate that the header contains only proper fields
+    return {signed: parts[0] + '.' + parts[1],
+            header: JSON.parse(this.base64Decode(parts[0])),
+            payload: JSON.parse(this.base64Decode(parts[1])),
+            signature: parts[2]};
+  },
+
+  base64Encode: function(aToEncode) {
+    return IdentityCryptoService.base64UrlEncode(aToEncode);
+  },
+
+  base64Decode: function(aToDecode) {
+    return IdentityCryptoService.base64UrlDecode(aToDecode);
+  },
+
   generateKeyPair: function(aAlgorithmName, aCallback) {
     log("generating");
     generateKeyPair(aAlgorithmName, aCallback);
   },
 
-  generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
+  generateAssertionWithExtraParams: function(aCert, aKeyPair, aAudience, aExtraParams, aCallback) {
     // for now, we hack the algorithm name
     // XXX bug 769851
     var header = {"alg": "DS128"};
-    var headerBytes = IdentityCryptoService.base64UrlEncode(
-                          JSON.stringify(header));
+    var headerBytes = this.base64Encode(JSON.stringify(header));
 
     var payload = {
       // expires in 2 minutes
@@ -110,19 +138,41 @@ jwcryptoClass.prototype = {
       exp: Date.now() + (2 * 60 * 1000),
       aud: aAudience
     };
-    var payloadBytes = IdentityCryptoService.base64UrlEncode(
-                          JSON.stringify(payload));
 
-    log("payload bytes", payload, payloadBytes);
+    // copy in the extra params
+    Object.keys(aExtraParams).forEach(function(k) {
+      payload[k] = aExtraParams[k];
+    });
+
+    var payloadBytes = this.base64Encode(JSON.stringify(payload));
+
     sign(headerBytes + "." + payloadBytes, aKeyPair, function(err, signature) {
-      if (err)
+      if (err) {
         return aCallback(err);
+      }
 
       var signedAssertion = headerBytes + "." + payloadBytes + "." + signature;
       return aCallback(null, aCert + "~" + signedAssertion);
     });
-  }
+  },
 
+  generateAssertion: function(aCert, aKeyPair, aAudience, aCallback) {
+    this.generateAssertionWithExtraParams(aCert, aKeyPair, aAudience, {}, aCallback);
+  },
+
+  verifyAssertion: function verifyAssertion(aSignedObject, aPublicKey, aCallback) {
+    try {
+      let components = this._extractAssertionComponents(aSignedObject);
+//      aPublicKey.verify(components.signed, components.signature, function(err, result) {
+//        if (err) {
+//        return aCallback(err);
+//        }
+        return aCallback(null, components.payload);
+//      });
+    } catch (err) {
+      aCallback(err);
+    }
+  }
 };
 
 var jwcrypto = new jwcryptoClass();
