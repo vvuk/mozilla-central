@@ -5,6 +5,9 @@
 #include "nsISupports.idl"
 #include "nsIDOMMediaStream.idl"
 
+interface nsIDOMEventListener;
+interface nsIDOMDataChannel;
+
 /* Quick hack */
 [scriptable, function, uuid(eb9c563c-3b09-4565-9317-eca96ae0c538)]
 interface RTCPeerConnectionCallback : nsISupports
@@ -47,6 +50,17 @@ interface nsIDOMRTCPeerConnection : nsISupports
 
   void removeStream(in nsIDOMMediaStream stream);
   void close();
+
+  nsIDOMDataChannel createDataChannel(/* FIX! */);
+
+  /* XXX remove these */	
+  void listen(in unsigned short port);
+  void connect(in DOMString addr, in unsigned short port);
+
+  attribute nsIDOMEventListener onconnection;
+  attribute nsIDOMEventListener onclosedconnection;
+  attribute nsIDOMEventListener ondatachannel;
+  
 
   readonly attribute DOMString iceState;
   readonly attribute DOMString readyState;

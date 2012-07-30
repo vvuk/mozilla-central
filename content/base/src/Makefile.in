@@ -73,6 +73,7 @@ CPPSRCS		= \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMBlobBuilder.cpp \
+		nsDOMDataChannel.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMFile.cpp \
 		nsDOMFileReader.cpp \
@@ -184,6 +185,7 @@ INCLUDES	+= \
 		-I$(topsrcdir)/js/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		-I$(topsrcdir)/netwerk/base/src \
+		-I$(topsrcdir)/netwerk/sctp/datachannel \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
