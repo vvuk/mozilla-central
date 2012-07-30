@@ -179,6 +179,7 @@
 #define CFGID_ROAPCLIENT_BOOL                  CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 107
 #define CFGID_VERSION_STRING                   CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 108
 #define CFGID_SDPMODE_BOOL                     CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 109
+#define CFGID_RTCPMUX_BOOL                     CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 110
 
 /* All non Line specific params should be added above */
 /* All Line specific params should be added below */
@@ -204,7 +205,7 @@
   Keep in mind the following config ids are defined for the first line.
  */
 
-#define CFGID_LINE_FEATURE_INT                 CFGID_SDPMODE_BOOL + 1                                      //tag:featureID
+#define CFGID_LINE_FEATURE_INT                 CFGID_RTCPMUX_BOOL + 1                                      //tag:featureID
 #define CFGID_LINE_INDEX_INT                   CFGID_LINE_FEATURE_INT + CC_MAX_CONFIG_LINES                //tag:lineIndex
 #define CFGID_LINE_MAXNUMCALLS_INT             CFGID_LINE_INDEX_INT + CC_MAX_CONFIG_LINES                  //tag:maxNumCalls
 #define CFGID_LINE_NAME_STRING                 CFGID_LINE_MAXNUMCALLS_INT + CC_MAX_CONFIG_LINES            //tag:name

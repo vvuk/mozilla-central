@@ -193,7 +193,9 @@ const sdp_attrarray_t sdp_attr[SDP_MAX_ATTR_TYPES] =
     {"ice-ufrag", sizeof("ice-ufrag"),
       sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr },
     {"ice-pwd", sizeof("ice-pwd"),
-      sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr}
+      sdp_parse_attr_ice_attr, sdp_build_attr_ice_attr},
+    {"rtcp-mux", sizeof("rtcp-mux"),
+      sdp_parse_attr_rtcp_mux_attr, sdp_build_attr_rtcp_mux_attr}
 };
 
 /* Note: These *must* be in the same order as the enum types. */

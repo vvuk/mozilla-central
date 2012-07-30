@@ -440,6 +440,8 @@ gsmsdp_init_media (fsmdef_media_t *media)
     media->flags = 0;                    /* clear all flags      */
     media->cap_index = CC_MAX_MEDIA_CAP; /* max is invalid value */
     media->video = NULL;
+    media->candidate_ct = 0;
+    media->rtcp_mux = FALSE;
 }
 
 /**
@@ -1438,6 +1440,38 @@ gsmsdp_set_ice_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char
     }
 
     result = sdp_attr_set_ice_attribute(sdp_p, level, 0, sdp_attr, a_instance, ice_attrib);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to set attribute\n");
+    }
+}
+
+/*
+ * gsmsdp_set_rtcp_mux_attribute
+ *
+ * Description:
+ *
+ * Adds an ice attribute attributes to the specified SDP.
+ *
+ * Parameters:
+ *
+ * session      - true = session level attribute, false = media line attribute
+ * level        - The media level of the SDP where the media attribute exists.
+ * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
+ * rtcp_mux     - ice attribute to set
+ */
+static void
+gsmsdp_set_rtcp_mux_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, boolean rtcp_mux)
+{
+    uint16_t      a_instance = 0;
+    sdp_result_e  result;
+
+    result = sdp_add_new_attr(sdp_p, level, 0, sdp_attr, &a_instance);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to add attribute\n");
+        return;
+    }
+
+    result = sdp_attr_set_rtcp_mux_attribute(sdp_p, level, 0, sdp_attr, a_instance, rtcp_mux);
     if (result != SDP_SUCCESS) {
         GSM_ERR_MSG("Failed to set attribute\n");
     }
@@ -3668,6 +3702,9 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
     char           *session_pwd;
     cc_action_data_t  data;
     int             j=0;
+    int             rtcpmux = 0;
+    tinybool        rtcp_mux = FALSE;
+    sdp_result_e    sdp_res;
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 
@@ -3904,6 +3941,17 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                 update_local_ret_value = TRUE;
             }
 
+            /*
+             * Negotiate rtcp-mux
+             */
+
+            sdp_res = sdp_attr_get_rtcp_mux_attribute (sdp_p->dest_sdp, media->level,
+                                              0, SDP_ATTR_RTCP_MUX, 1, &rtcp_mux);
+
+            if (SDP_SUCCESS == sdp_res) {
+            	media->rtcp_mux = TRUE;
+            }
+
             if (!unsupported_line) {
 
               if (sdpmode) {
@@ -3913,6 +3961,11 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                   for (j=0; j<media->candidate_ct; j++) {
                     gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, media->level,
                                               sdp_p->src_sdp, media->candidatesp[j]);
+                  }
+
+                  config_get_value(CFGID_RTCPMUX, &rtcpmux, sizeof(rtcpmux));
+                  if (rtcpmux) {
+                    gsmsdp_set_rtcp_mux_attribute (SDP_ATTR_RTCP_MUX, media->level, sdp_p->src_sdp, TRUE);
                   }
 
                   /*
@@ -4197,6 +4250,7 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
     cc_action_data_t  data;
     fsmdef_media_t   *media = NULL;
     int               i=0;
+    int               rtcpmux = 0;
 
     switch (media_cap->type) {
     case SDP_MEDIA_AUDIO:
@@ -4287,6 +4341,12 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
         for (i=0; i<media->candidate_ct; i++) {
         	gsmsdp_set_ice_attribute (SDP_ATTR_ICE_CANDIDATE, level, dcb_p->sdp->src_sdp, media->candidatesp[i]);
         }
+
+        config_get_value(CFGID_RTCPMUX, &rtcpmux, sizeof(rtcpmux));
+        if (rtcpmux) {
+          gsmsdp_set_rtcp_mux_attribute (SDP_ATTR_RTCP_MUX, level, dcb_p->sdp->src_sdp, TRUE);
+        }
+
 
         /*
          * Since we are initiating an initial offer and opening a
