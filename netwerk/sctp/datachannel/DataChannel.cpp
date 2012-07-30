@@ -30,6 +30,7 @@ PRLogModuleInfo* dataChannelLog;
 extern "C" {
 // Hack fix for define issue in sctp lib
 #define __USER_CODE 1
+#define SCTP_DEBUG 1
 #include "usrsctp.h"
 }
 
@@ -106,8 +107,7 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
       LOG(("sctp_init(%d)",port+1));
       usrsctp_init(port,NULL); // XXX fix
 
-      //SCTP_BASE_SYSCTL(sctp_debug_on) = SCTP_DEBUG_ALL;
-      usrsctp_sysctl_set_sctp_debug_on(0x0);
+      usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
     }
@@ -302,8 +302,7 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
     uint16_t forward,reverse;
     PRUint32 i;
 
-    // XXX SCTP library API will be changing to hide mbuf interface (control->data)
-    switch (rcv.rcv_ppid) {
+    switch (ntohl(rcv.rcv_ppid)) {
       case DATA_CHANNEL_PPID_CONTROL:
         msg_generic = (struct rtcweb_datachannel_open *)data;
 

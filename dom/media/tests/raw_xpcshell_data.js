@@ -38,6 +38,14 @@ let observer1 = {
   },
   onDataChannel: function(channel) {
     print("pc1 onDataChannel " + channel);
+    channel1 = channel;
+    channel.onopen = function() {
+        print("pc1 onopen fired");
+	channel1.send("Hello...");
+    };
+    channel.onmessage = function(evt) {
+        print('pc1 RESPONSE: ' + evt.data  + "state = " + channel.readyState);
+    };
   },
   onConnection: function() {
     print("pc1 onConnection ");
@@ -67,9 +75,18 @@ let observer2 = {
   },
   onDataChannel: function(channel) {
     print("pc2 onDataChannel " + channel);
+    channel2 = channel;
+    channel.onopen = function() {
+        print("pc2 onopen fired");
+	channel2.send("Hi there!");
+    };
+    channel.onmessage = function(evt) {
+        print('pc2 RESPONSE: ' + evt.data  + "state = " + channel.readyState);
+    };
   },
   onConnection: function() {
     print("pc2 onConnection ");
+    dc2 = pc2.createDataChannel();
   },
   onClosedConnection: function() {
     print("pc2 onClosedConnection ");
@@ -122,8 +139,8 @@ let mainThread = Services.tm.currentThread;
 pc1.initialize(observer1, mainThread);
 pc2.initialize(observer2, mainThread);
 
-pc1.listen(6767);
-pc2.connect("192.168.1.17",6767);
+pc1.listen(6747);
+pc2.connect("192.168.1.17",6747);
 
 let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 timer.initWithCallback(function() {
