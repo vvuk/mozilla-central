@@ -1675,8 +1675,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow);
 
-    CSFLogDebug(logTag, "Created video pipeline %p, pc_stream=%d pc_track=%d",
-                pipeline.get(), pc_stream_id, pc_track_id);
+    CSFLogDebug(logTag, "Created audio pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
+                pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id, pipeline);
@@ -1706,8 +1706,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
             stream->GetMediaStream(),
             conduit, rtp_flow, rtcp_flow);
 
-    CSFLogDebug(logTag, "Created video pipeline %p, pc_stream=%d pc_track=%d",
-                pipeline.get(), pc_stream_id, pc_track_id);
+    CSFLogDebug(logTag, "Created video pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
+                pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);
 
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id, pipeline);
