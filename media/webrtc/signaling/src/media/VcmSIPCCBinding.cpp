@@ -56,6 +56,8 @@
 #include "transportlayerdtls.h"
 #include "transportlayerice.h"
 #include "runnable_utils.h"
+#include "cpr_stdlib.h"
+#include "cpr_string.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -893,6 +895,33 @@ short vcmCreateRemoteStream(
 
   CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
     __FUNCTION__, *pc_stream_id, hints);
+
+  return 0;
+}
+
+/*
+ * Get DTLS key data
+ *
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[out] digest_algp    - the digest algorithm e.g. 'SHA-1'
+ *  @param[in] max_digest_alg_len - length of string
+ *  @param[out] digestp        - the digest string
+ *  @param[in] max_digest_len - length of string
+ *
+ *  Returns: zero(0) for success; otherwise, ERROR for failure
+ */
+short vcmGetDtlsIdentity(const char *peerconnection,
+                char *digest_algp,
+                size_t max_digest_alg_len,
+                char *digestp,
+                size_t max_digest_len) {
+
+  CSFLogDebug( logTag, "%s vcmGetDtlsIdentity: PC = %s", __FUNCTION__, peerconnection);
+
+  // This function will be completed by ekr@rtfm.com
+  sstrncpy(digest_algp, "SHA-1", max_digest_alg_len);
+
+  sstrncpy(digestp, "4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:5D:49:6B:19:E5:7C:AB", max_digest_len);
 
   return 0;
 }

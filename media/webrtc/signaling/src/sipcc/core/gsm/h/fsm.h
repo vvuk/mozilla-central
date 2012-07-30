@@ -443,6 +443,11 @@ typedef struct {
     char *ice_ufrag;
     char *ice_pwd;
 
+#define FSMDEF_MAX_DIGEST_ALG_LEN 10
+#define FSMDEF_MAX_DIGEST_LEN 70
+    char digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
+    char digest[FSMDEF_MAX_DIGEST_LEN];
+
 } fsmdef_dcb_t;
 
 typedef enum fsm_types_t_ {

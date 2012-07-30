@@ -582,7 +582,7 @@ void gsmsdp_clean_media_list (fsmdef_dcb_t *dcb_p)
 void gsmsdp_init_media_list (fsmdef_dcb_t *dcb_p)
 {
     const cc_media_cap_table_t *media_cap_tbl;
-    const cc_media_remote_track_table_t *media_track_tbl;
+    const cc_media_remote_stream_table_t *media_track_tbl;
     const char                 fname[] = "gsmsdp_init_media_list";
 
     /* do the actual media element list initialization */
@@ -1471,6 +1471,47 @@ gsmsdp_set_rtcp_mux_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p,
     result = sdp_attr_set_rtcp_mux_attribute(sdp_p, level, 0, sdp_attr, a_instance, rtcp_mux);
     if (result != SDP_SUCCESS) {
         GSM_ERR_MSG("Failed to set attribute\n");
+    }
+}
+
+/*
+ * gsmsdp_set_dtls_fingerprint_attribute
+ *
+ * Description:
+ *
+ * Adds an dtls fingerprint attribute attributes to the specified SDP.
+ *
+ * Parameters:
+ *
+ * session      - true = session level attribute, false = media line attribute
+ * level        - The media level of the SDP where the media attribute exists.
+ * sdp_p        - Pointer to the SDP to set the ice candidate attribute against.
+ * hash_func    - hash function string, e.g. "sha-1"
+ * hash_func_len   - string len
+ * fingerprint     - fingerprint attribute to set
+ * fingerprint_len - string len of fingerprint
+ */
+static void
+gsmsdp_set_dtls_fingerprint_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char *hash_func,
+		int hash_func_len, char *fingerprint, int fingerprint_len)
+{
+    uint16_t      a_instance = 0;
+    sdp_result_e  result;
+    char hash_and_fingerprint[hash_func_len + fingerprint_len + 2];
+
+    sstrncpy(hash_and_fingerprint, (cc_string_t)hash_func, hash_func_len);
+    sstrncat(hash_and_fingerprint, (cc_string_t)" ", sizeof(hash_and_fingerprint) - strlen(hash_and_fingerprint) - 1);
+    sstrncat(hash_and_fingerprint, (cc_string_t)fingerprint, fingerprint_len);
+
+    result = sdp_add_new_attr(sdp_p, level, 0, sdp_attr, &a_instance);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to add attribute\n");
+        return;
+    }
+
+    result = sdp_attr_set_dtls_fingerprint_attribute(sdp_p, level, 0, sdp_attr, a_instance, hash_and_fingerprint);
+    if (result != SDP_SUCCESS) {
+        GSM_ERR_MSG("Failed to set dtls fingerprint attribute\n");
     }
 }
 
@@ -4472,6 +4513,9 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled)
     if (dcb_p->ice_pwd)
         gsmsdp_set_ice_attribute (SDP_ATTR_ICE_PWD, SDP_SESSION_LEVEL, dcb_p->sdp->src_sdp, dcb_p->ice_pwd);
 
+    if(strlen(dcb_p->digest_alg)  > 0)
+        gsmsdp_set_dtls_fingerprint_attribute (SDP_ATTR_DTLS_FINGERPRINT, SDP_SESSION_LEVEL,
+            dcb_p->sdp->src_sdp, dcb_p->digest_alg, FSMDEF_MAX_DIGEST_ALG_LEN, dcb_p->digest, FSMDEF_MAX_DIGEST_LEN);
 
     if (!sdpmode) {
 
@@ -5651,6 +5695,68 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
       
     }
     
+    return CC_CAUSE_OK;
+}
+
+/*
+ * gsmsdp_install_peer_dtls_data_attributes
+ *
+ * fcb_p - pointer to the fcb
+ *
+ */
+cc_causes_t
+gsmsdp_install_peer_dtls_data_attributes(fsm_fcb_t *fcb_p)
+{
+    char            *fingerprint;
+    sdp_result_e    sdp_res;
+    short           vcm_res;
+    fsmdef_dcb_t    *dcb_p = fcb_p->dcb;
+    cc_sdp_t        *sdp_p = dcb_p->sdp;
+    fsmdef_media_t  *media;
+    int             level;
+    short           result;
+    char           *token;
+    char           line_to_split[FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2];
+    char           *delim = " ";
+    char           digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
+    char           digest[FSMDEF_MAX_DIGEST_LEN];
+
+
+    sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, SDP_SESSION_LEVEL,
+                                      0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
+
+    if (sdp_res != SDP_SUCCESS)
+        return CC_CAUSE_ERROR;
+
+    sstrncpy(line_to_split, fingerprint, FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2);
+
+    token = strtok(line_to_split, delim);
+
+    sstrncpy(digest_alg, token, FSMDEF_MAX_DIGEST_ALG_LEN);
+
+    token = strtok(NULL, delim);
+
+    sstrncpy(digest, token, FSMDEF_MAX_DIGEST_LEN);
+
+
+    /*
+     * Not sure what this stub should look like
+     *
+
+        vcm_res = vcmSetDtlsXXXXParams(dcb_p->peerconnection, digest_alg, digest);
+        if (vcm_res)
+          return (CC_CAUSE_ERROR);
+     */
+
+    /* Now process all the media lines */
+    GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
+      if (!GSMSDP_MEDIA_ENABLED(media))
+        continue;
+
+      sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, media->level,
+                                        0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
+    }
+
     return CC_CAUSE_OK;
 }
 

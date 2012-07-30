@@ -731,6 +731,8 @@ extern sdp_result_e sdp_build_attr_rtcp_mux_attr (
 	sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr, u16 len);
 extern sdp_result_e sdp_parse_attr_rtcp_mux_attr (
 	sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr);
+extern sdp_result_e sdp_parse_attr_fingerprint_attr (
+    sdp_t *sdp_p, sdp_attr_t *attr_p, const char *ptr);
 
 /* sdp_attr_access.c */
 extern void sdp_free_attr(sdp_attr_t *attr_p);

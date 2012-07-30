@@ -495,6 +495,7 @@ private:
   {
     ASSERT_NE(sdp.find("v=0"), std::string::npos);
     ASSERT_NE(sdp.find("c=IN IP4"), std::string::npos);
+    ASSERT_NE(sdp.find("a=fingerprint:SHA-1"), std::string::npos);
 
     if (shouldHaveAudio)
     {

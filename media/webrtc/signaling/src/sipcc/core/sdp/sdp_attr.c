@@ -5168,6 +5168,31 @@ sdp_result_e sdp_parse_attr_ice_attr (sdp_t *sdp_p, sdp_attr_t *attr_p, const ch
     return (SDP_SUCCESS);
 }
 
+
+sdp_result_e sdp_parse_attr_fingerprint_attr (sdp_t *sdp_p, sdp_attr_t *attr_p,
+                                           const char *ptr)
+{
+    sdp_result_e  result;
+
+    ptr = sdp_getnextstrtok(ptr, attr_p->attr.string_val, "\r\n", &result);
+
+    if (result != SDP_SUCCESS) {
+        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+            SDP_WARN("%s Warning: No string token found for %s attribute",
+                     sdp_p->debug_str, sdp_get_attr_name(attr_p->type));
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    } else {
+        if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
+            SDP_PRINT("%s Parsed a=%s, %s", sdp_p->debug_str,
+                      sdp_get_attr_name(attr_p->type),
+                      attr_p->attr.string_val);
+        }
+        return (SDP_SUCCESS);
+    }
+}
+
 sdp_result_e sdp_build_attr_rtcp_mux_attr (sdp_t *sdp_p, sdp_attr_t *attr_p,
                                           char **ptr, u16 len) {
     return sdp_build_attr_from_str(sdp_p, "rtcp-mux", ptr, len);

@@ -679,6 +679,12 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         vcm_mediaAttrs_t *attrs);
 
 
+  short vcmGetDtlsIdentity(const char *peerconnection,
+        char *digest_alg,
+        size_t max_digest_alg_len,
+        char *digest,
+        size_t max_digest_len);
+
 
 /*!
  *  Close the receive stream.

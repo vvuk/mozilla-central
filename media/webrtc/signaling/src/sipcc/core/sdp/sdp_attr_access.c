@@ -4109,6 +4109,87 @@ sdp_result_e sdp_attr_set_rtcp_mux_attribute(void *sdp_ptr, u16 level,
     return (SDP_SUCCESS);
 }
 
+/* Function:    sdp_attr_get_dtls_fingerprint_attribute
+ * Description: Returns the value of dtls fingerprint attribute at a given level
+ *
+ * Parameters:  sdp_ptr     The SDP handle returned by sdp_init_description.
+ *              level       The level to check for the attribute.
+ *              cap_num     The capability number associated with the
+ *                          attribute if any.  If none, should be zero.
+ *              inst_num    The attribute instance number to check.
+ *              dtls_fingerprint  Returns an dtls fingerprint attrib string
+ * Returns:
+ *              SDP_SUCCESS           Attribute param was set successfully.
+ *              SDP_INVALID_SDP_PTR   SDP pointer invalid
+ *              SDP_INVALID_PARAMETER Specified attribute is not defined.
+ */
+sdp_result_e sdp_attr_get_dtls_fingerprint_attribute (void *sdp_ptr, u16 level,
+                                  u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num,
+                                  char **out)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_SDP_PTR);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, sdp_attr, inst_num);
+    if (attr_p != NULL) {
+        *out = attr_p->attr.string_val;
+        return (SDP_SUCCESS);
+    } else {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                SDP_ERROR("%s dtls fingerprint attribute, level %u instance %u "
+                          "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    return (SDP_FAILURE);
+}
+
+/* Function:    sdp_attr_set_dtls_fingerprint_attribute
+ * Description: Sets the value of a dtls fingerprint attribute parameter
+ *              String is copied into SDP memory.
+ * Parameters:  sdp_ptr        The SDP handle returned by sdp_init_description.
+ *              level          The level to set the attribute.
+ *              cap_num        The capability number associated with the
+ *                             attribute if any.  If none, should be zero.
+ *              inst_num       The attribute instance number to check.
+ *              dtls_fingerprint fingerprint attribute string to set
+ * Returns:     SDP_SUCCESS            Attribute param was set successfully.
+ *              SDP_INVALID_PARAMETER  Specified attribute is not defined.
+ */
+sdp_result_e sdp_attr_set_dtls_fingerprint_attribute(void *sdp_ptr, u16 level,
+                              u8 cap_num, sdp_attr_e sdp_attr, u16 inst_num, const char *dtls_fingerprint)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_SDP_PTR);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, sdp_attr, inst_num);
+    if (attr_p == NULL) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s dtls fingerprint attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    if (!dtls_fingerprint) {
+      return (SDP_INVALID_PARAMETER);
+    }
+
+    sstrncpy(attr_p->attr.string_val, dtls_fingerprint, sizeof(attr_p->attr.string_val));
+    return (SDP_SUCCESS);
+}
+
 /* Function:    sdp_attr_set_rtpmap_clockrate
  * Description: Sets the value of the rtpmap attribute clockrate parameter
  *              for the given attribute.
