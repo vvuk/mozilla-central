@@ -63,7 +63,7 @@ Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
 
     nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(4000);
     for (int i=0; i<1600; i++) {
-      reinterpret_cast<int16_t *>(samples->Data())[i] = (gen->mCount % 8) * 4000;
+      reinterpret_cast<int16_t *>(samples->Data())[i] = ((gen->mCount % 8) * 4000) - 16000;
       ++gen->mCount;
     }
 

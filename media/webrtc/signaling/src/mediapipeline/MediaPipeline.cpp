@@ -321,7 +321,7 @@ nsresult MediaPipelineReceiveAudio::Init() {
 }
 
 void MediaPipelineReceiveAudio::PipelineListener::
-NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
+NotifyPull(MediaStreamGraph* graph, StreamTime total) {
   mozilla::SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
 
@@ -331,17 +331,22 @@ NotifyPull(MediaStreamGraph* graph, StreamTime desired) {
     return;
   }
 
+  // "total" is absolute stream time.
+  StreamTime desired = total - played_;
+  played_ = total;
   double time_s = MediaTimeToSeconds(desired);
 
-  // Clip the number of seconds asked for to 1 second
-  if (time_s > 1) {
-    time_s = 1.0f;
-  }
-
   // Number of 10 ms samples we need
-  int num_samples = floor((time_s / .01f) + .5);
+  //int num_samples = ceil(time_s / .01f);
+
+  // Doesn't matter what was asked for, always give 160 samples per 10 ms.
+  int num_samples = 1;
 
   MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << "sample from Audio Conduit");
+
+  if (num_samples <= 0) {
+    return;
+  }
 
   while (num_samples--) {
     // TODO(ekr@rtfm.com): Is there a way to avoid mallocating here?

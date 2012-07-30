@@ -221,8 +221,9 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
   // Separate class to allow ref counting
   class PipelineListener : public MediaStreamListener {
    public:
-    PipelineListener(MediaPipelineReceiveAudio *pipeline) :
-        pipeline_(pipeline) {}
+    PipelineListener(MediaPipelineReceiveAudio *pipeline)
+      : pipeline_(pipeline)
+      , played_(0) {}
     void Detach() { pipeline_ = NULL; }
 
     // Implement MediaStreamListener
@@ -235,6 +236,7 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
 
    private:
     MediaPipelineReceiveAudio *pipeline_;  // Raw pointer to avoid cycles
+    StreamTime played_;
   };
   friend class PipelineListener;
 
