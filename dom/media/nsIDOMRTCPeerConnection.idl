@@ -4,7 +4,9 @@
 
 #include "nsISupports.idl"
 #include "nsIDOMMediaStream.idl"
-#include "nsIDOMDataChannel.idl"
+
+interface nsIDOMEventListener;
+interface nsIDOMDataChannel;
 
 /* Quick hack */
 [scriptable, function, uuid(eb9c563c-3b09-4565-9317-eca96ae0c538)]

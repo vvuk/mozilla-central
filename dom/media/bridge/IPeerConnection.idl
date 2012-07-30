@@ -1,7 +1,7 @@
 #include "nsIThread.idl"
 #include "nsIDOMMediaStream.idl"
-#include "nsIDOMDataChannel.idl"
 
+interface nsIDOMDataChannel;
 
 /* Do not confuse with nsIDOMRTCPeerConnection. This interface is purely for
  * communication between the PeerConnection JS DOM binding and the C++
