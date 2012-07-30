@@ -26,18 +26,109 @@ MLOG_INIT("mediapipeline");
 
 namespace mozilla {
 
-void MediaPipeline::increment_rtp_packets() {
-  ++rtp_packets_;
-  if (!(rtp_packets_ % 1000)) {
+
+nsresult MediaPipeline::Init() {
+  conduit_->AttachTransport(transport_);
+
+  PR_ASSERT(rtp_transport_);
+
+  if (rtcp_transport_) {
+    // If we have un-muxed transport, connect separate methods
+    rtp_transport_->SignalPacketReceived.connect(this,
+                                                 &MediaPipelineReceive::
+                                                 RtpPacketReceived);
+    rtcp_transport_->SignalPacketReceived.connect(this,
+                                                  &MediaPipelineReceive::
+                                                  RtcpPacketReceived);
+  } else {
+    rtp_transport_->SignalPacketReceived.connect(this,
+                                                 &MediaPipelineReceive::
+                                                 PacketReceived);
+  }
+
+  return NS_OK;
+}
+
+nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
+                                   int len) {
+  TransportResult res = flow->SendPacket(static_cast<const unsigned char *>(data), len);
+
+  if (res != len) {
+    // Ignore blocking indications
+    if (res == TE_WOULDBLOCK)
+      return NS_OK;
+
+    MLOG(PR_LOG_ERROR, "Failed write on stream");
+    return NS_BASE_STREAM_CLOSED;
+  }
+
+  return NS_OK;
+}
+
+void MediaPipeline::increment_rtp_packets_sent() {
+  ++rtp_packets_sent_;
+  if (!(rtp_packets_sent_ % 1000)) {
     MLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
-         << ": " << rtp_packets_);
+         << ": " << rtp_packets_sent_);
   }
 }
 
-void MediaPipeline::increment_rtcp_packets() {
-  if (!(rtcp_packets_ % 1000)) {
+void MediaPipeline::increment_rtcp_packets_sent() {
+  if (!(rtcp_packets_sent_ % 1000)) {
     MLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
-         << ": " << rtcp_packets_);
+         << ": " << rtcp_packets_sent_);
+  }
+}
+
+void MediaPipeline::increment_rtp_packets_received() {
+  ++rtp_packets_received_;
+  if (!(rtp_packets_received_ % 1000)) {
+    MLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
+         << ": " << rtp_packets_received_);
+  }
+}
+
+void MediaPipeline::increment_rtcp_packets_received() {
+  if (!(rtcp_packets_received_ % 1000)) {
+    MLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
+         << ": " << rtcp_packets_received_);
+  }
+}
+
+
+void MediaPipeline::RtpPacketReceived(TransportFlow *flow,
+                                             const unsigned char *data,
+                                             size_t len) {
+  increment_rtp_packets_received();
+  (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
+}
+
+void MediaPipeline::RtcpPacketReceived(TransportFlow *flow,
+                                              const unsigned char *data,
+                                              size_t len) {
+  increment_rtcp_packets_received();
+  (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
+}
+
+bool MediaPipeline::IsRtp(const unsigned char *data, size_t len) {
+  if (len < 2)
+    return false;
+
+  // TODO(ekr@rtfm.com): this needs updating in light of RFC5761
+  if ((data[1] >= 200) && (data[1] <= 204))
+    return false;
+
+  return true;
+
+}
+
+void MediaPipeline::PacketReceived(TransportFlow *flow,
+                                          const unsigned char *data,
+                                          size_t len) {
+  if (IsRtp(data, len)) {
+    RtpPacketReceived(flow, data, len);
+  } else {
+    RtcpPacketReceived(flow, data, len);
   }
 }
 
@@ -51,12 +142,11 @@ nsresult MediaPipelineTransmit::Init() {
   else {
     stream_->GetStream()->AddListener(listener_);
   }
-  conduit_->AttachTransport(transport_);
 
   return NS_OK;
 }
 
-nsresult MediaPipelineTransmit::PipelineTransport::SendRtpPacket(
+nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
     const void *data, int len) {
   if (!pipeline_)
     return NS_OK;  // Detached
@@ -67,11 +157,11 @@ nsresult MediaPipelineTransmit::PipelineTransport::SendRtpPacket(
     return NS_ERROR_NULL_POINTER;
   }
 
-  pipeline_->increment_rtp_packets();
+  pipeline_->increment_rtp_packets_sent();
   return pipeline_->SendPacket(pipeline_->rtp_transport_, data, len);
 }
 
-nsresult MediaPipelineTransmit::PipelineTransport::SendRtcpPacket(
+nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
     const void *data, int len) {
   if (!pipeline_)
     return NS_OK;  // Detached
@@ -81,24 +171,8 @@ nsresult MediaPipelineTransmit::PipelineTransport::SendRtcpPacket(
     return NS_ERROR_NULL_POINTER;
   }
 
-  pipeline_->increment_rtcp_packets();
+  pipeline_->increment_rtcp_packets_sent();
   return pipeline_->SendPacket(pipeline_->rtcp_transport_, data, len);
-}
-
-nsresult MediaPipelineTransmit::SendPacket(TransportFlow *flow, const void *data,
-                                           int len) {
-  TransportResult res = flow->SendPacket(static_cast<const unsigned char *>(data), len);
-
-  if (res != len) {
-    // Ignore blocking indications
-    if (res == TE_WOULDBLOCK)
-      return NS_OK;
-
-    MLOG(PR_LOG_ERROR, "Failed write on stream");
-    return NS_BASE_STREAM_CLOSED;
-  }
-
-  return NS_OK;
 }
 
 void MediaPipelineTransmit::PipelineListener::
@@ -230,43 +304,6 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
 #endif
-}
-
-
-void MediaPipelineReceive::RtpPacketReceived(TransportFlow *flow,
-                                             const unsigned char *data,
-                                             size_t len) {
-  increment_rtp_packets();
-  (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
-}
-
-void MediaPipelineReceive::RtcpPacketReceived(TransportFlow *flow,
-                                              const unsigned char *data,
-                                              size_t len) {
-  increment_rtcp_packets();
-  (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
-}
-
-bool MediaPipelineReceive::IsRtp(const unsigned char *data, size_t len) {
-  if (len < 2)
-    return false;
-
-  // TODO(ekr@rtfm.com): this needs updating in light of RFC5761
-  if ((data[1] >= 200) && (data[1] <= 204))
-    return false;
-
-  return true;
-
-}
-
-void MediaPipelineReceive::PacketReceived(TransportFlow *flow,
-                                          const unsigned char *data,
-                                          size_t len) {
-  if (IsRtp(data, len)) {
-    RtpPacketReceived(flow, data, len);
-  } else {
-    RtcpPacketReceived(flow, data, len);
-  }
 }
 
 nsresult MediaPipelineReceiveAudio::Init() {

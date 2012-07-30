@@ -31,7 +31,7 @@ namespace mozilla {
 // network -> transport -> [us] -> conduit -> [us] -> stream -> Playout 
 //
 // The boxes labeled [us] are just bridge logic implemented in this class
-class MediaPipeline {
+class MediaPipeline : public sigslot::has_slots<> {
  public:
   enum Direction { TRANSMIT, RECEIVE };
 
@@ -47,24 +47,57 @@ class MediaPipeline {
       rtp_transport_(rtp_transport),
       rtcp_transport_(rtcp_transport),
       main_thread_(main_thread),
-      rtp_packets_(0),
-      rtcp_packets_(0) {
+      transport_(new PipelineTransport(this)),
+      rtp_packets_sent_(0),
+      rtcp_packets_sent_(0),
+      rtp_packets_received_(0),
+      rtcp_packets_received_(0) {
+    Init();
   }
 
   virtual ~MediaPipeline() {
+    transport_->Detach();
   }
+
+  virtual nsresult Init();
 
   virtual Direction direction() const { return direction_; }
 
-  int rtp_packets() const { return rtp_packets_; }
-  int rtcp_packets() const { return rtp_packets_; }
+  int rtp_packets_sent() const { return rtp_packets_sent_; }
+  int rtcp_packets_sent() const { return rtp_packets_sent_; }
+  int rtp_packets_received() const { return rtp_packets_received_; }
+  int rtcp_packets_received() const { return rtp_packets_received_; }
 
   // Thread counting
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline);
 
  protected:
-  void increment_rtp_packets();
-  void increment_rtcp_packets();
+  // Separate class to allow ref counting
+  class PipelineTransport : public TransportInterface {
+   public:
+    // Implement the TransportInterface functions
+    PipelineTransport(MediaPipeline *pipeline) :
+        pipeline_(pipeline) {}
+    void Detach() { pipeline_ = NULL; }
+
+    virtual nsresult SendRtpPacket(const void* data, int len);
+    virtual nsresult SendRtcpPacket(const void* data, int len);
+
+   private:
+    MediaPipeline *pipeline_;  // Raw pointer to avoid cycles
+  };
+  friend class PipelineTransport;
+
+  void increment_rtp_packets_sent();
+  void increment_rtcp_packets_sent();
+  void increment_rtp_packets_received();
+  void increment_rtcp_packets_received();
+
+  virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
+
+  void RtpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  void RtcpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
 
   Direction direction_;
   nsDOMMediaStream* stream_;
@@ -72,8 +105,14 @@ class MediaPipeline {
   RefPtr<TransportFlow> rtp_transport_;
   RefPtr<TransportFlow> rtcp_transport_;
   nsCOMPtr<nsIThread> main_thread_;
-  int rtp_packets_;
-  int rtcp_packets_;
+  mozilla::RefPtr<PipelineTransport> transport_;
+  int rtp_packets_sent_;
+  int rtcp_packets_sent_;
+  int rtp_packets_received_;
+  int rtcp_packets_received_;
+
+ private:
+  bool IsRtp(const unsigned char *data, size_t len);
 };
 
 
@@ -88,7 +127,6 @@ class MediaPipelineTransmit : public MediaPipeline {
                         mozilla::RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(TRANSMIT, main_thread, stream, conduit, rtp_transport,
                     rtcp_transport),
-      transport_(new PipelineTransport(this)),
       listener_(new PipelineListener(this)) {
     Init();  // TODO(ekr@rtfm.com): ignoring error
   }
@@ -103,24 +141,7 @@ class MediaPipelineTransmit : public MediaPipeline {
     // that if we have messed up ownership somehow the
     // interfaces just abort.
     listener_->Detach();
-    transport_->Detach();
   }
-
-  // Separate class to allow ref counting
-  class PipelineTransport : public TransportInterface {
-   public:
-    // Implement the TransportInterface functions
-    PipelineTransport(MediaPipelineTransmit *pipeline) :
-        pipeline_(pipeline) {}
-    void Detach() { pipeline_ = NULL; }
-
-    virtual nsresult SendRtpPacket(const void* data, int len);
-    virtual nsresult SendRtcpPacket(const void* data, int len);
-
-   private:
-    MediaPipelineTransmit *pipeline_;  // Raw pointer to avoid cycles
-  };
-  friend class PipelineTransport;
 
   // Separate class to allow ref counting
   class PipelineListener : public MediaStreamListener {
@@ -148,17 +169,14 @@ class MediaPipelineTransmit : public MediaPipeline {
                                  TrackRate rate, mozilla::AudioChunk& chunk);
   virtual void ProcessVideoChunk(VideoSessionConduit *conduit,
                                  TrackRate rate, mozilla::VideoChunk& chunk);
-  virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
 
-  mozilla::RefPtr<PipelineTransport> transport_;
   mozilla::RefPtr<PipelineListener> listener_;
 };
 
 
 // A specialization of pipeline for reading from the network and
 // rendering video.
-class MediaPipelineReceive : public MediaPipeline,
-                             public sigslot::has_slots<> {
+class MediaPipelineReceive : public MediaPipeline {
  public:
   MediaPipelineReceive(nsCOMPtr<nsIThread> main_thread,
                        nsDOMMediaStream* stream,
@@ -168,21 +186,6 @@ class MediaPipelineReceive : public MediaPipeline,
       MediaPipeline(RECEIVE, main_thread, stream, conduit, rtp_transport,
                     rtcp_transport),
       segments_added_(0) {
-    PR_ASSERT(rtp_transport_);
-
-    if (rtcp_transport_) {
-      // If we have un-muxed transport, connect separate methods
-      rtp_transport_->SignalPacketReceived.connect(this,
-                                                   &MediaPipelineReceive::
-                                                   RtpPacketReceived);
-      rtcp_transport_->SignalPacketReceived.connect(this,
-                                                    &MediaPipelineReceive::
-                                                    RtcpPacketReceived);
-    } else {
-      rtp_transport_->SignalPacketReceived.connect(this,
-                                                   &MediaPipelineReceive::
-                                                   PacketReceived);
-    }
   }
 
   int segments_added() const { return segments_added_; }
@@ -191,10 +194,6 @@ class MediaPipelineReceive : public MediaPipeline,
   int segments_added_;
 
  private:
-  bool IsRtp(const unsigned char *data, size_t len);
-  void RtpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
-  void RtcpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
-  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
 };
 
 
