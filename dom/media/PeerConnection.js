@@ -171,13 +171,13 @@ PeerConnection.prototype = {
     this._pc.listen(port)
     dump("!!! Listen() returned\n");
   },
-  
+
   connect: function(addr, port) {
     dump("!!! Connect() called\n");
     this._pc.connect(addr, port);
     dump("!!! Connect() returned\n");
   },
-  
+
   close: function() {
     dump("!!! close called\n");
     // Don't queue this one, since we just want to shutdown.
@@ -284,10 +284,10 @@ PeerConnectionObserver.prototype = {
     this._executeNext();
   },
 
-  onAddStream: function(stream) {
-    dump("!!! onAddStream called: " + stream + "\n");
+  onAddStream: function(stream, type) {
+    dump("!!! onAddStream called: " + stream + " :: " + type + "\n");
     if (this._dompc.onRemoteStreamAdded) {
-      this._dompc.onRemoteStreamAdded.onCallback(stream);
+      this._dompc.onRemoteStreamAdded.onCallback({stream: stream, type: type});
     }
     this._executeNext();
   },

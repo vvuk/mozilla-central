@@ -229,7 +229,7 @@ TestObserver::OnStateChange(PRUint32 state_type)
 
 
 NS_IMETHODIMP
-TestObserver::OnAddStream(nsIDOMMediaStream *stream)
+TestObserver::OnAddStream(nsIDOMMediaStream *stream, const char *type)
 {
   PR_ASSERT(stream);
 

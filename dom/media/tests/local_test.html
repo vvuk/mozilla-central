@@ -6,9 +6,12 @@
 
 <h1>Simple PeerConnection Test</h1>
 <div><audio id="tehaudio" controls></audio></div><br/>
+<div><video id="tehvideo" width="640" height="480" controls></video></div><br/>
 <div><button id="tehbutton" onClick="start();">Start!</button></div><br/>
 <div id="log"></div>
-<div><audio id="localaudio" muted></audio></div><br/>
+
+<div><audio id="localaudio" muted></audio></div>
+<div style="display:none;"><video id="localvideo"></video></div>
 
 <script type="application/javascript;version=1.8">
   function log(msg) {
@@ -17,8 +20,10 @@
   }
 
   let audio = document.getElementById("tehaudio");
+  let video = document.getElementById("tehvideo");
   let button = document.getElementById("tehbutton");
   let localaudio = document.getElementById("localaudio");
+  let localvideo = document.getElementById("localvideo");
 
   let pc1;
   let pc2;
@@ -38,6 +43,21 @@
 
   // pc1.setLocal finished, call pc2.setRemote
   function step2() {
+    pc2 = new mozPeerConnection();
+    pc2.addStream(pc2.createFakeMediaStream("audio"));
+
+    pc2.onRemoteStreamAdded = function(obj) {
+      log("pc2 got remote stream of type " + obj.type + " from pc1");
+      if (obj.type == "audio") {
+        audio.src = obj.stream;
+        audio.play();
+      }
+      if (obj.type == "video") {
+        video.src = obj.stream;
+        video.play();
+      }
+    }
+
     pc2.setRemoteDescription("offer", pc1_offer, step3, failed);
   };
 
@@ -67,31 +87,29 @@
     button.onClick = stop;
 
     pc1 = new mozPeerConnection();
-    pc2 = new mozPeerConnection();
 
-    pc1.onRemoteStreamAdded = function(stream) {
-      log("pc1 got remote stream from pc2 " + stream);
-    }
-    pc2.onRemoteStreamAdded = function(stream) {
-      log("pc2 got remote stream from pc1 " + stream);
-      audio.src = stream;
-      audio.play();
+    pc1.onRemoteStreamAdded = function(obj) {
+      log("pc1 got remote stream of type " + obj.type + " from pc2");
     }
 
     log("About to call getusermedia");
 
-    navigator.mozGetUserMedia({audio:true}, function(stream) {
+    navigator.mozGetUserMedia({audio:true}, function(astream) {
       // Add the stream obtained from gUM to an <audio> element to start
       // the audio flow. We mute it on this end, and assign the "remote"
       // stream when it arrives at pc2 to an unmuted <audio>.
-      localaudio.src = stream;
+      localaudio.src = astream;
       localaudio.play();
 
-      pc1.addStream(stream);
-      pc2.addStream(pc2.createFakeMediaStream("audio"));
+      pc1.addStream(astream);
 
-      // Start the signaling.
-      pc1.createOffer(step1, failed);
+      navigator.mozGetUserMedia({video:true}, function(vstream) {
+        localvideo.src = vstream;
+        localvideo.play();
+
+        pc1.addStream(vstream);
+        pc1.createOffer(step1, failed);
+      }, failed);
     }, failed);
   }
 

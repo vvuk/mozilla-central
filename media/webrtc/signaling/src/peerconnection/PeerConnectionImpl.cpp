@@ -77,10 +77,13 @@ public:
         {
           StatusCode code;
           std::string s_sdpstr;
-          MediaStreamTable *stream = NULL;
+          MediaStreamTable *streams = NULL;
 
           cc_call_state_t state = mInfo->getCallState();
           std::string statestr = mInfo->callStateToString(state);
+
+          nsDOMMediaStream* stream;
+          PRUint32 hint;
 
           switch (state) {
             case CREATEOFFER:
@@ -124,9 +127,16 @@ public:
               break;
 
             case REMOTESTREAMADD:
-              stream = mInfo->getMediaStreams();
-              mObserver->OnAddStream(mPC->GetRemoteStream(stream->media_stream_id)->
-                                     GetMediaStream());
+              streams = mInfo->getMediaStreams();
+              stream = mPC->GetRemoteStream(streams->media_stream_id)->GetMediaStream();
+
+              hint = stream->GetHintContents();
+              if (hint == nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
+                mObserver->OnAddStream(stream, "audio");
+              } else if (hint == nsDOMMediaStream::HINT_CONTENTS_VIDEO) {
+                mObserver->OnAddStream(stream, "video");
+              }
+
               break;
 
             default:
