@@ -20,13 +20,39 @@
 #include "PeerConnectionCtx.h"
 #include "PeerConnectionImpl.h"
 
+#include "nsPIDOMWindow.h"
+#include "nsIDOMDataChannel.h"
+
 #ifndef USE_FAKE_MEDIA_STREAMS
 #include "MediaSegment.h"
+#endif
+
+using namespace mozilla;
+using namespace mozilla::dom;
+
+namespace mozilla {
+  class DataChannel;
+}
+
+class nsIDOMDataChannel;
+
+#ifdef MOZILLA_INTERNAL_API
+nsresult
+NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
+		     nsPIDOMWindow* aWindow,
+		     nsIDOMDataChannel** domDataChannel);
 #endif
 
 static const char* logTag = "PeerConnectionImpl";
 
 namespace sipcc {
+
+typedef enum {
+  PC_OBSERVER_CALLBACK,
+  PC_OBSERVER_CONNECTION,
+  PC_OBSERVER_CLOSEDCONNECTION,
+  PC_OBSERVER_DATACHANNEL
+} PeerConnectionObserverType;
 
 class PeerConnectionObserverDispatch : public nsRunnable {
 
@@ -34,75 +60,101 @@ public:
   PeerConnectionObserverDispatch(CSF::CC_CallInfoPtr info,
                                  nsRefPtr<PeerConnectionImpl> pc,
                                  IPeerConnectionObserver* observer) :
-      mInfo(info), mPC(pc), mObserver(observer) {}
+    mType(PC_OBSERVER_CALLBACK), mInfo(info), mChannel(nsnull), mPC(pc), mObserver(observer) {}
+
+  PeerConnectionObserverDispatch(PeerConnectionObserverType type,
+                                 nsRefPtr<nsIDOMDataChannel> channel,
+                                 nsRefPtr<PeerConnectionImpl> pc,
+                                 IPeerConnectionObserver* observer) :
+    mType(type), mInfo(nsnull), mChannel(channel), mPC(pc), mObserver(observer) {}
 
   ~PeerConnectionObserverDispatch(){}
 
   nsresult Run()
   {
-    StatusCode code;
-    std::string s_sdpstr;
-    MediaStreamTable *stream = NULL;
+    switch (mType) {
+      case PC_OBSERVER_CALLBACK:
+        {
+          StatusCode code;
+          std::string s_sdpstr;
+          MediaStreamTable *stream = NULL;
 
-    cc_call_state_t state = mInfo->getCallState();
-    std::string statestr = mInfo->callStateToString(state);
+          cc_call_state_t state = mInfo->getCallState();
+          std::string statestr = mInfo->callStateToString(state);
 
-    switch (state) {
-      case CREATEOFFER:
-        s_sdpstr = mInfo->getSDP();
-        mObserver->OnCreateOfferSuccess(s_sdpstr.c_str());
+          switch (state) {
+            case CREATEOFFER:
+              s_sdpstr = mInfo->getSDP();
+              mObserver->OnCreateOfferSuccess(s_sdpstr.c_str());
+              break;
+
+            case CREATEANSWER:
+              s_sdpstr = mInfo->getSDP();
+              mObserver->OnCreateAnswerSuccess(s_sdpstr.c_str());
+              break;
+
+            case CREATEOFFERERROR:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnCreateOfferError(code);
+              break;
+
+            case CREATEANSWERERROR:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnCreateAnswerError(code);
+              break;
+
+            case SETLOCALDESC:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnSetLocalDescriptionSuccess(code);
+              break;
+
+            case SETREMOTEDESC:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnSetRemoteDescriptionSuccess(code);
+              break;
+
+            case SETLOCALDESCERROR:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnSetLocalDescriptionError(code);
+              break;
+
+            case SETREMOTEDESCERROR:
+              code = (StatusCode)mInfo->getStatusCode();
+              mObserver->OnSetRemoteDescriptionError(code);
+              break;
+
+            case REMOTESTREAMADD:
+              stream = mInfo->getMediaStreams();
+              mObserver->OnAddStream(mPC->GetRemoteStream(stream->media_stream_id)->
+                                     GetMediaStream());
+              break;
+
+            default:
+              CSFLogDebugS(logTag, ": **** CALL STATE IS: " << statestr);
+              break;
+          }
+          break;
+        }
+      case PC_OBSERVER_CONNECTION:
+        std::cerr << "Delivering PeerConnection onconnection" << std::endl;
+        mObserver->OnConnection();
         break;
-
-      case CREATEANSWER:
-        s_sdpstr = mInfo->getSDP();
-        mObserver->OnCreateAnswerSuccess(s_sdpstr.c_str());
+      case PC_OBSERVER_CLOSEDCONNECTION:
+        std::cerr << "Delivering PeerConnection onclosedconnection" << std::endl;
+        mObserver->OnClosedConnection();
         break;
-
-      case CREATEOFFERERROR:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnCreateOfferError(code);
-        break;
-
-      case CREATEANSWERERROR:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnCreateAnswerError(code);
-        break;
-
-      case SETLOCALDESC:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnSetLocalDescriptionSuccess(code);
-        break;
-
-      case SETREMOTEDESC:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnSetRemoteDescriptionSuccess(code);
-        break;
-
-      case SETLOCALDESCERROR:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnSetLocalDescriptionError(code);
-        break;
-
-      case SETREMOTEDESCERROR:
-        code = (StatusCode)mInfo->getStatusCode();
-        mObserver->OnSetRemoteDescriptionError(code);
-        break;
-
-      case REMOTESTREAMADD:
-        stream = mInfo->getMediaStreams();
-        mObserver->OnAddStream(mPC->GetRemoteStream(stream->media_stream_id)->
-          GetMediaStream());
-        break;
-
-      default:
-        CSFLogDebugS(logTag, ": **** CALL STATE IS: " << statestr);
+      case PC_OBSERVER_DATACHANNEL:
+        std::cerr << "Delivering PeerConnection ondatachannel" << std::endl;
+        mObserver->OnDataChannel(mChannel);
         break;
     }
     return NS_OK;
   }
 
 private:
+  PeerConnectionObserverType mType;
   CSF::CC_CallInfoPtr mInfo;
+  nsRefPtr<nsIDOMDataChannel> mChannel;
   nsRefPtr<PeerConnectionImpl> mPC;
   nsCOMPtr<IPeerConnectionObserver> mObserver;
 };
@@ -385,6 +437,252 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
   return NS_OK;
 }
 
+NS_IMETHODIMP
+PeerConnectionImpl::CreateDataChannel(nsIDOMDataChannel** aRetval)
+{
+#ifdef MOZILLA_INTERNAL_API
+  mozilla::DataChannel *aDataChannel;
+  std::cerr << "PeerConnectionImpl::CreateDataChannel()" << std::endl;
+  aDataChannel = mDataConnection->Open(/* "",  */
+                                       mozilla::DataChannelConnection::RELIABLE,
+                                       true, 0, NULL, NULL);
+  if (!aDataChannel)
+    return NS_ERROR_FAILURE;
+
+  std::cerr << "PeerConnectionImpl::making DOMDataChannel" << std::endl;
+  return NS_NewDOMDataChannel(aDataChannel,
+                              nsnull, /*XXX GetOwner(), */
+                              aRetval);
+#else
+  return NS_OK;
+#endif
+}
+
+
+NS_IMETHODIMP
+PeerConnectionImpl::Listen(unsigned short port)
+{
+  std::cerr << "PeerConnectionImpl::Listen()" << std::endl;
+#ifdef MOZILLA_INTERNAL_API
+  if (!mDataConnection) {
+    mDataConnection = new mozilla::DataChannelConnection(this);
+    mDataConnection->Init(port);
+  }
+  
+  listenPort = port;
+  PR_CreateThread(
+    PR_SYSTEM_THREAD,
+    PeerConnectionImpl::ListenThread, this,
+    PR_PRIORITY_NORMAL,
+    PR_GLOBAL_THREAD,
+    PR_JOINABLE_THREAD, 0
+  );
+
+  std::cerr << "PeerConnectionImpl::Listen() returned" << std::endl;
+#endif
+  return NS_OK;
+}
+
+void
+PeerConnectionImpl::ListenThread(void *data)
+{
+  sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
+
+#ifdef MOZILLA_INTERNAL_API
+  if (!ctx->mDataConnection) {
+    ctx->mDataConnection = new mozilla::DataChannelConnection(ctx);
+    ctx->mDataConnection->Init(ctx->listenPort);
+  }
+  
+  ctx->mDataConnection->Listen(ctx->listenPort);
+#endif
+  std::cerr << "PeerConnectionImpl::ListenThread() finished" << std::endl;
+}
+
+NS_IMETHODIMP
+PeerConnectionImpl::Connect(const nsAString &addr, unsigned short port)
+{
+  std::cerr << "PeerConnectionImpl::Connect()" << std::endl;
+#ifdef MOZILLA_INTERNAL_API
+  char *s = ToNewCString(addr);
+  if (!mDataConnection) {
+    mDataConnection = new mozilla::DataChannelConnection(this);
+    mDataConnection->Init(port^1);
+  }
+
+  connectStr = s;
+  connectPort = port;
+  PR_CreateThread(
+    PR_SYSTEM_THREAD,
+    PeerConnectionImpl::ConnectThread, this,
+    PR_PRIORITY_NORMAL,
+    PR_GLOBAL_THREAD,
+    PR_JOINABLE_THREAD, 0
+  );
+
+  std::cerr << "PeerConnectionImpl::Connect() returned" << std::endl;
+#endif
+  return NS_OK;
+}
+
+void
+PeerConnectionImpl::ConnectThread(void *data)
+{
+  sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
+
+#ifdef MOZILLA_INTERNAL_API
+  if (!ctx->mDataConnection) {
+    ctx->mDataConnection = new mozilla::DataChannelConnection(ctx);
+    ctx->mDataConnection->Init(ctx->listenPort^1);
+  }
+  
+  ctx->mDataConnection->Connect(ctx->connectStr,ctx->connectPort);
+#endif
+  std::cerr << "PeerConnectionImpl::ConnectThread() finished" << std::endl;
+}
+
+void
+PeerConnectionImpl::OnConnection()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  std::cerr << "PeerConnectionImpl:: got OnConnection" << std::endl;
+#ifdef MOZILLA_INTERNAL_API
+
+  if (mPCObserver) {
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(PC_OBSERVER_CONNECTION, nsnull,
+                                         this, mPCObserver);
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
+  }
+#endif
+}
+
+void
+PeerConnectionImpl::OnClosedConnection()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  std::cerr << "PeerConnectionImpl:: got OnClosedConnection" << std::endl;
+
+#ifdef MOZILLA_INTERNAL_API
+  if (mPCObserver) {
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(PC_OBSERVER_CLOSEDCONNECTION, nsnull,
+                                         this, mPCObserver);
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
+  }
+#endif
+}
+
+  /*
+bool
+ReturnDataChannel(JSContext* aCx,
+                  jsval* aVp,
+                  nsIDOMDataChannel* aDataChannel)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aCx, "Null pointer!");
+  NS_ASSERTION(aVp, "Null pointer!");
+  NS_ASSERTION(aDataChannel, "Null pointer!");
+
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  NS_ASSERTION(xpc, "This should never be null!");
+
+  JSAutoRequest ar(aCx);
+
+  JSObject* global = JS_GetGlobalForScopeChain(aCx);
+  if (!global) {
+    NS_WARNING("Couldn't get global object!");
+    return false;
+  }
+
+  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+  if (NS_FAILED(xpc->WrapNative(aCx, global, aDataChannel,
+                                NS_GET_IID(nsIDOMDataChannel),
+                                getter_AddRefs(holder)))) {
+    JS_ReportError(aCx, "Couldn't wrap nsIDOMDataChannel object.");
+    return false;
+  }
+
+  JSObject* result;
+  if (NS_FAILED(holder->GetJSObject(&result))) {
+    JS_ReportError(aCx, "Couldn't get JSObject from wrapper.");
+    return false;
+  }
+
+  *aVp = OBJECT_TO_JSVAL(result);
+  return true;
+}
+  */
+
+#ifdef MOZILLA_INTERNAL_API
+void
+PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
+{
+  std::cerr << "PeerConnectionImpl:: got OnDataChannel" << std::endl;
+
+  nsCOMPtr<nsIDOMDataChannel> domchannel;
+  nsresult rv = NS_NewDOMDataChannel(channel, nsnull /*GetOwner()*/,
+				     getter_AddRefs(domchannel));
+  NS_ENSURE_SUCCESS(rv, /**/);
+
+  if (mPCObserver) {
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(PC_OBSERVER_DATACHANNEL, domchannel.get(),
+                                         this, mPCObserver);
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
+  }
+
+#if 0
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
+  if (!sgo) { return; }
+
+  nsIScriptContext* sc = sgo->GetContext();
+  if (!sc) { return; }
+
+  JSContext* cx = sc->GetNativeContext();
+  if (!cx) { return; }
+
+  nsCOMPtr<nsIDOMDataChannel> domchannel;
+  nsresult rv = NS_NewDOMDataChannel(channel, GetOwner(),
+				     getter_AddRefs(domchannel));
+  NS_ENSURE_SUCCESS(rv, /**/);
+
+  jsval data;
+  if (!ReturnDataChannel(cx, &data, domchannel))
+    return;
+
+  nsCOMPtr<nsIDOMEvent> event;
+  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nsnull, nsnull);
+  if (NS_FAILED(rv)) { return; }
+
+  nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
+  rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("datachannel"),
+                                      false, false,
+                                      data, EmptyString(), EmptyString(),
+                                      nsnull);
+  if (NS_FAILED(rv)) { return; }
+
+  event->SetTrusted(true);
+
+  nsEventDispatcher::DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+#endif
+}
+#endif
+
 /*
  * CC_SDP_DIRECTION_SENDRECV will not be used when Constraints are implemented
  */
@@ -568,6 +866,7 @@ NS_IMETHODIMP
 PeerConnectionImpl::Close()
 {
   mCall->endCall();
+  // XXX mDataConnection->CloseAll();
   return NS_OK;
 }
 

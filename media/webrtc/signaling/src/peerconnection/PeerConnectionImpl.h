@@ -34,6 +34,7 @@
 
 
 #ifdef MOZILLA_INTERNAL_API
+#include "mozilla/net/DataChannel.h"
 #include "Layers.h"
 #include "VideoUtils.h"
 #include "ImageLayers.h"
@@ -212,6 +213,9 @@ class RemoteSourceStreamInfo {
 class PeerConnectionWrapper;
 
 class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
+#ifdef MOZILLA_INTERNAL_API
+                                     public mozilla::DataChannelConnection::DataConnectionListener,
+#endif
                                      public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
@@ -256,6 +260,13 @@ public:
     CSF::CC_CallPtr call,
     CSF::CC_CallInfoPtr info
   );
+
+  // DataConnection observers
+  void OnConnection();
+  void OnClosedConnection();
+#ifdef MOZILLA_INTERNAL_API
+  void OnDataChannel(mozilla::DataChannel *channel);
+#endif
 
   // Handle system to allow weak references to be passed through C code
   static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
@@ -303,6 +314,9 @@ public:
     mTransportFlows[index_inner] = flow;
   }
 
+  static void ListenThread(void *data);
+  static void ConnectThread(void *data);
+
   // Get the main thread
   nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
 private:
@@ -343,9 +357,18 @@ private:
 
   // The DTLS identity
   mozilla::RefPtr<DtlsIdentity> mIdentity;
-
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+
+public:
+#ifdef MOZILLA_INTERNAL_API
+  // DataConnection that's used to get all the DataChannels
+	nsAutoPtr<mozilla::DataChannelConnection> mDataConnection;
+#endif
+
+  unsigned short listenPort;
+  unsigned short connectPort;
+  char *connectStr; // XXX ownership/free
 };
 
 // This is what is returned when you acquire on a handle

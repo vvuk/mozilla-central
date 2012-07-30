@@ -29,6 +29,10 @@ PeerConnection.prototype = {
   _onCreateAnswerSuccess: null,
   _onCreateAnswerFailure: null,
 
+  _ondatachannel: null,
+  _onconnection: null,
+  _onclosedconnection: null,
+
   // Everytime we get a request from content, we put it in the queue. If
   // there are no pending operations though, we will execute it immediately.
   // In PeerConnectionObserver, whenever we are notified that an operation
@@ -154,6 +158,26 @@ PeerConnection.prototype = {
     dump("!!! removeStream returned\n");
   },
 
+  createDataChannel: function(/* FIX */) {
+    dump("!!! createDataChannel called\n");
+    let channel = this._pc.createDataChannel(/* FIX! */);
+    dump("!!! createDataChannel returned\n");
+    return channel;
+  },
+
+  // FIX - remove connect() and listen()
+  listen: function(port) {
+    dump("!!! Listen() called\n");
+    this._pc.listen(port)
+    dump("!!! Listen() returned\n");
+  },
+  
+  connect: function(addr, port) {
+    dump("!!! Connect() called\n");
+    this._pc.connect(addr, port);
+    dump("!!! Connect() returned\n");
+  },
+  
   close: function() {
     dump("!!! close called\n");
     // Don't queue this one, since we just want to shutdown.
@@ -280,6 +304,11 @@ PeerConnectionObserver.prototype = {
 
   onRemoveTrack: function() {
     dump("!!! onRemoveTrack called\n");
+    this._executeNext();
+  },
+
+  onDataChannel: function() {
+    dump("!!! onDataChannel called\n");
     this._executeNext();
   },
 
