@@ -3375,7 +3375,7 @@ fsmdef_ev_addstream(sm_event_t *event) {
     } else if (msg->data.track.media_type == AUDIO) {
     	dcb->media_cap_tbl->cap[CC_AUDIO_1].enabled = TRUE;
     	dcb->media_cap_tbl->cap[CC_AUDIO_1].support_direction = SDP_DIRECTION_SENDRECV;
-        dcb->media_cap_tbl->cap[CC_VIDEO_1].pc_stream = msg->data.track.stream_id;
+        dcb->media_cap_tbl->cap[CC_AUDIO_1].pc_stream = msg->data.track.stream_id;
         dcb->media_cap_tbl->cap[CC_AUDIO_1].pc_track = msg->data.track.track_id;
     } else {
     	return (SM_RC_END);
