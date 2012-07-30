@@ -147,6 +147,7 @@ public:
                       mRenderer(NULL),
                       mEngineTransmitting(false),
                       mEngineReceiving(false),
+                      mEngineRendererStarted(false),
                       mChannel(-1),
                       mCapId(-1),
                       mCurSendCodecConfig(NULL)

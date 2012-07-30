@@ -388,7 +388,15 @@ MediaPipelineReceiveVideo::PipelineRenderer::PipelineRenderer(
 #ifdef MOZILLA_INTERNAL_API
     image_container_(mozilla::layers::LayerManager::CreateImageContainer()),
 #endif
-    width_(640), height_(480) {}
+    width_(640), height_(480) {
+
+#ifdef MOZILLA_INTERNAL_API
+  mozilla::SourceMediaStream *source =
+    pipeline_->stream_->GetStream()->AsSourceStream();
+  source->AddTrack(1, 10, 0, new mozilla::VideoSegment());
+  source->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+#endif
+}
 
 void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
     const unsigned char* buffer,

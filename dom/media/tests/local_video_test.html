@@ -88,11 +88,13 @@
 
     navigator.mozGetUserMedia({video:true}, function(stream) {
       // Add stream obtained from gUM to <video> to start media flow.
-      localvideo.src = stream;
-      localvideo.play();
+        localvideo.src = stream;
+        localvideo.play();
 
       pc1.addStream(stream);
+      pc1.addStream(pc1.createFakeMediaStream("audio"));
       pc2.addStream(pc2.createFakeMediaStream("video"));
+      pc2.addStream(pc2.createFakeMediaStream("audio"));
 
       // Start the signaling.
       pc1.createOffer(step1, failed);

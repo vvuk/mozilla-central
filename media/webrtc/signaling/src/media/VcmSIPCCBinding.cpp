@@ -879,12 +879,10 @@ short vcmCreateRemoteStream(
     // We aren't going to add any more tracks
     info->GetMediaStream()->GetStream()->AsSourceStream()->
         AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
-
   }
   if (CC_IS_VIDEO(mcap_id)) {
     ;
   }
-
 
   CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
     __FUNCTION__, *pc_stream_id, hints);

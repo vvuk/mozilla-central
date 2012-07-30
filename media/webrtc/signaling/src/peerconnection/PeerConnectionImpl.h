@@ -87,7 +87,7 @@ class Fake_VideoGenerator {
  public:
   Fake_VideoGenerator(nsDOMMediaStream* aStream) {
     mStream = aStream;
-
+    mCount = 0;
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
     PR_ASSERT(mTimer);
 
@@ -117,7 +117,8 @@ class Fake_VideoGenerator {
     mozilla::layers::PlanarYCbCrImage* planar =
       static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
     PRUint8* frame = (PRUint8*) PR_Malloc(len);
-    memset(frame, 0x80, len); // Gray
+    ++gen->mCount;
+    memset(frame, (gen->mCount / 8) & 0xff, len); // Rotating colors
 
     const PRUint8 lumaBpp = 8;
     const PRUint8 chromaBpp = 4;
@@ -150,6 +151,7 @@ class Fake_VideoGenerator {
  private:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
 };
 #endif
 
