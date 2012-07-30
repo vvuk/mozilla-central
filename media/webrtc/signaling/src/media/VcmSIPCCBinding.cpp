@@ -2279,7 +2279,7 @@ static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
 
   /* TODO(snandaku@cisco.com): implement this properly */
   *config = new mozilla::VideoCodecConfig(wire_payload, "VP8", 640, 480);
-  
+
   return 0;
 }
 

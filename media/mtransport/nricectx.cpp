@@ -263,6 +263,10 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
     NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
     NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
+
+    NR_reg_set_string((char *)"ice.stun.server.0.addr", "216.93.246.14");
+    NR_reg_set_uint2((char *)"ice.stun.server.0.port",3478);
+    NR_reg_set_uint4((char *)"stun.client.maximum_transmits",4);
   }
 
   // Create the ICE context
