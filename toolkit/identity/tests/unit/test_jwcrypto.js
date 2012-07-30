@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-"use strict"
+"use strict";
 
 Cu.import('resource://gre/modules/LogUtils.jsm');
 
@@ -26,6 +26,18 @@ function test_sanity() {
   });
 }
 
+function test_base64_roundtrip() {
+  do_test_pending();
+
+  let message = "Attack at dawn!";
+  let encoded = jwcrypto.base64Encode(message);
+  let decoded = jwcrypto.base64Decode(encoded);
+  do_check_neq(message, encoded);
+  do_check_eq(decoded, message);
+  do_test_finished();
+  run_next_test();
+}
+
 function test_generate() {
   do_test_pending();
   jwcrypto.generateKeyPair("DS160", function(err, kp) {
@@ -37,7 +49,7 @@ function test_generate() {
   });
 }
 
-function test_get_assertion() {
+function test_get_and_verify_assertion() {
   do_test_pending();
 
   jwcrypto.generateKeyPair(
@@ -45,12 +57,17 @@ function test_get_assertion() {
     function(err, kp) {
       jwcrypto.generateAssertion("fake-cert", kp, RP_ORIGIN, function(err, assertion) {
         do_check_null(err);
+        do_check_neq(assertion, null);
 
-        // more checks on assertion
-        log("assertion", assertion);
+        let {0:cert, 1:signedObject} = assertion.split("~");
+        do_check_eq(cert, "fake-cert");
 
-        do_test_finished();
-        run_next_test();
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, payload) {
+          do_check_null(err);
+          do_check_eq(payload.aud, RP_ORIGIN);
+          do_test_finished();
+          run_next_test();
+        });
       });
     });
 }
@@ -116,7 +133,39 @@ function test_dsa() {
   jwcrypto.generateKeyPair("DS160", checkDSA);
 }
 
-var TESTS = [test_sanity, test_generate, test_get_assertion];
+function test_sign_extra_stuff() {
+  do_test_pending();
+
+  jwcrypto.generateKeyPair(
+    "DS160",
+    function(err, kp) {
+      var extras = {
+        flan: "Yes",
+        pie: "Yes",
+        marzipan: "No"
+      };
+      jwcrypto.generateAssertionWithExtraParams("bogus-cert", kp, RP_ORIGIN, extras, function(err, assertion) {
+        do_check_null(err);
+
+        let {0: cert, 1: signedObject} = assertion.split("~");
+
+        jwcrypto.verifyAssertion(signedObject, kp, function(err, payload) {
+          do_check_eq(err, null);
+          do_check_eq(payload.flan, "Yes");
+          do_check_eq(payload.marzipan, "No");
+          do_test_finished();
+          run_next_test();
+        });
+      });
+    });
+}
+
+var TESTS = [
+  test_sanity,
+  test_base64_roundtrip,
+  test_generate,
+  test_get_and_verify_assertion,
+  test_sign_extra_stuff];
 
 TESTS = TESTS.concat([test_rsa, test_dsa]);
 

@@ -1269,7 +1269,7 @@ void
 cc_createanswer (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                 line_t line, cc_features_t feature_id, string_t sdp, cc_feature_data_t *data)
 {
-    static const char fname[] = "cc_createoffer";
+    static const char fname[] = "cc_createanswer";
     cc_feature_t *pmsg;
     cc_msgbody_info_t *msg_body;
 

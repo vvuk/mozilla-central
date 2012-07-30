@@ -249,6 +249,11 @@ typedef struct fsmdef_media_t_ {
     char **candidatesp;
     int candidate_ct;
 
+    /*
+     * rtcp-mux indicates media stream is muxed for RTP and RTCP
+     */
+    boolean        rtcp_mux;
+
 } fsmdef_media_t;
 
 struct fsm_fcb_t_;
