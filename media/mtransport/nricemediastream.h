@@ -1,3 +1,11 @@
+/**
+   nricemediastream.h
+
+   Copyright (C) 2012, RTFM, Inc.
+   All Rights Reserved.
+
+   ekr@rtfm.com  Mon Jul 30 09:48:47 2012
+*/
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -32,6 +40,10 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
                                            int components);
   ~NrIceMediaStream();
 
+  enum State { ICE_CONNECTING, ICE_OPEN, ICE_CLOSED};
+
+  State state() const { return state_; }
+
   // The name of the stream
   const std::string& name() const { return name_; }
 
@@ -40,7 +52,7 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
 
   // Get the default candidate as host and port
   nsresult GetDefaultCandidate(int component, std::string *host, int *port);
-  
+
   // Parse remote candidates
   nsresult ParseCandidates(std::vector<std::string>& candidates);
 
@@ -51,6 +63,9 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
 
   // Send a packet
   nsresult SendPacket(int component_id, const unsigned char *data, size_t len);
+
+  // Set your state to ready. Called by the NrIceCtx;
+  void Ready();
 
   // Close the stream. Called by the NrIceCtx.
   // Different from the destructor because other people
@@ -65,18 +80,23 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
   sigslot::signal4<NrIceMediaStream *, int, const unsigned char *, int>
     SignalPacketReceived;  // Incoming packet
 
-  // Emit all the ICE candidates. Note that this doesn't 
+  // Emit all the ICE candidates. Note that this doesn't
   // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
-  
+
  private:
   NrIceMediaStream(NrIceCtx *ctx,  const std::string& name,
-                   int components)
-      : ctx_(ctx), name_(name), components_(components), stream_(NULL)  {}
+                   int components) :
+      state_(ICE_CONNECTING),
+      ctx_(ctx),
+      name_(name),
+      components_(components),
+      stream_(NULL)  {}
 
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
+  State state_;
   NrIceCtx *ctx_;
   const std::string name_;
   const int components_;

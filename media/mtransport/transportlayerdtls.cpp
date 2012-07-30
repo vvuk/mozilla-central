@@ -530,7 +530,7 @@ void TransportLayerDtls::Handshake() {
   SECStatus rv = SSL_ForceHandshake(ssl_fd_);
 
   if (rv == SECSuccess) {
-    MLOG(PR_LOG_NOTICE, "SSL handshake completed");
+    MLOG(PR_LOG_NOTICE, LAYER_INFO << "****** SSL handshake completed ******");
     SetState(OPEN);
   } else {
     PRInt32 err = PR_GetError();

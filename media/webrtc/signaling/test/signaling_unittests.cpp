@@ -28,7 +28,7 @@ using namespace std;
 #include "mtransport_test_utils.h"
 MtransportTestUtils test_utils;
 
-static int kDefaultTimeout = 3000;
+static int kDefaultTimeout = 5000;
 
 
 namespace test {
@@ -517,8 +517,8 @@ public:
     a2_.CreateAnswer(bhints, a1_.offer());
     a2_.SetLocal(TestObserver::ANSWER, a2_.answer());
     a1_.SetRemote(TestObserver::ANSWER, a2_.answer());
-    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, 10000);
-    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, 10000);
+    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
+    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
   }
 
   void CreateOfferVideoOnly(const char* hints) {
@@ -577,7 +577,7 @@ TEST_F(SignalingTest, OfferAnswer)
 TEST_F(SignalingTest, FullCall)
 {
   OfferAnswer("", "");
-  PR_Sleep(5000); // Wait for some data to get written
+  PR_Sleep(kDefaultTimeout * 2); // Wait for some data to get written
 
   // Check that we wrote a bunch of data
   ASSERT_GE(a1_.GetPacketsSent(0), 40);

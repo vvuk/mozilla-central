@@ -240,12 +240,19 @@ public:
     kIceFailed
   };
 
+  enum Role {
+    kRoleUnknown,
+    kRoleOfferer,
+    kRoleAnswerer
+  };
+
   NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTION
 
   static PeerConnectionImpl* CreatePeerConnection();
   static void Shutdown();
 
+  Role GetRole() const { return mRole; }
   void MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** stream);
   void MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info);
   void CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info);
@@ -305,12 +312,22 @@ public:
 
   // Get the main thread
   nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
+
+  // Get the DTLS identity
+  mozilla::RefPtr<DtlsIdentity> const GetIdentity() { return mIdentity; }
+
 private:
   void ChangeReadyState(ReadyState ready_state);
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
+
+  // The role we are adopting
+  Role mRole;
+
+  // The call
   CSF::CC_CallPtr mCall;
   ReadyState mReadyState;
+
 
   nsCOMPtr<nsIThread> mThread;
   nsCOMPtr<IPeerConnectionObserver> mPCObserver;

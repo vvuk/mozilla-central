@@ -172,7 +172,7 @@ int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
   // Streams which do not exist should never be ready.
   PR_ASSERT(s);
 
-  s -> SignalReady(s);
+  s->Ready();
 
   return 0;
 }
@@ -271,7 +271,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
 
   // Create the ICE context
   int r;
-  
+
   UINT4 flags = offerer ? NR_ICE_CTX_FLAGS_OFFERER:
       NR_ICE_CTX_FLAGS_ANSWERER;
   flags |= NR_ICE_CTX_FLAGS_AGGRESSIVE_NOMINATION;

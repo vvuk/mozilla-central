@@ -87,7 +87,10 @@ TransportLayerIce::TransportLayerIce(const std::string& name,
   stream_->SignalReady.connect(this, &TransportLayerIce::IceReady);
   stream_->SignalFailed.connect(this, &TransportLayerIce::IceFailed);
   stream_->SignalPacketReceived.connect(this,
-                                        &TransportLayerIce::IcePacketReceived);  
+                                        &TransportLayerIce::IcePacketReceived);
+  if (stream_->state() == NrIceMediaStream::ICE_OPEN) {
+    SetState(OPEN);
+  }
 }
         
 TransportLayerIce::~TransportLayerIce() {

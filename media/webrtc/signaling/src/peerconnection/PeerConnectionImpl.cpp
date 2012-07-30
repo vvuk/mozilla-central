@@ -215,7 +215,8 @@ std::map<const std::string, PeerConnectionImpl *>
 NS_IMPL_THREADSAFE_ISUPPORTS1(PeerConnectionImpl, IPeerConnection)
 
 PeerConnectionImpl::PeerConnectionImpl()
-  : mCall(NULL)
+: mRole(kRoleUnknown)
+  , mCall(NULL)
   , mReadyState(kNew)
   , mPCObserver(NULL)
   , mLocalSourceStreamsLock(PR_NewLock())
@@ -390,12 +391,14 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
  */
 NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(const char* hints) {
+  mRole = kRoleOfferer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createOffer(hints);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
+  mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createAnswer(hints, offer);
   return NS_OK;
 }

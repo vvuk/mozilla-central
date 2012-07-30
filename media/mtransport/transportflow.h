@@ -20,8 +20,9 @@
 class TransportFlow : public sigslot::has_slots<> {
  public:
   TransportFlow() : id_("(anonymous)") {}
+  TransportFlow(const std::string id) : id_(id) {}
   ~TransportFlow();
-  
+
   const std::string& id() const { return id_; }
   // Layer management
   nsresult PushLayer(TransportLayer *layer);

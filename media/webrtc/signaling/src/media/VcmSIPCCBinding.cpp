@@ -53,6 +53,7 @@
 #include "nsThreadUtils.h"
 #include "transportflow.h"
 #include "transportlayer.h"
+#include "transportlayerdtls.h"
 #include "transportlayerice.h"
 #include "runnable_utils.h"
 
@@ -2292,13 +2293,20 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
   if (!flow) {
     CSFLogDebug(logTag, "Making new transport flow for level=%d rtcp=%s", level, rtcp ? "true" : "false");
 
-    flow = new TransportFlow();
+    char id[32];
+    snprintf(id, sizeof(id), "%s:%d,%s",
+             pc->GetHandle().c_str(), level, rtcp ? "rtcp" : "rtp");
+    flow = new TransportFlow(id);
 
     flow->PushLayer(new TransportLayerIce("flow", pc->ice_ctx(),
-        pc->ice_media_stream(level-1),
-                                        rtcp ? 2 : 1));
+                                          pc->ice_media_stream(level-1),
+                                          rtcp ? 2 : 1));
+    TransportLayerDtls *dtls = new TransportLayerDtls();
+    dtls->SetRole(pc->GetRole() == sipcc::PeerConnectionImpl::kRoleOfferer ?
+                  TransportLayerDtls::CLIENT : TransportLayerDtls::SERVER);
+    dtls->SetIdentity(pc->GetIdentity());
+    flow->PushLayer(dtls);
 
-    // TODO(ekr@rtfm.com): Push DTLS onto here
     pc->AddTransportFlow(level, rtcp, flow);
   }
 

@@ -92,7 +92,7 @@ NrIceMediaStream::~NrIceMediaStream() {
   // We do not need to destroy anything. All major resources
   // are attached to the ice ctx.
 }
-                                           
+
 nsresult NrIceMediaStream::ParseCandidates(std::vector<std::string>&
                                            candidates) {
   if (!stream_)
@@ -212,6 +212,15 @@ nsresult NrIceMediaStream::SendPacket(int component_id,
   return NS_OK;
 }
 
+
+void NrIceMediaStream::Ready() {
+  MLOG(PR_LOG_DEBUG, "Marking stream ready '" << name_ << "'");
+  state_ = ICE_OPEN;
+  SignalReady(this);
+}
+
 void NrIceMediaStream::Close() {
+  MLOG(PR_LOG_DEBUG, "Marking stream closed '" << name_ << "'");
+  state_ = ICE_CLOSED;
   stream_ = NULL;
 }
