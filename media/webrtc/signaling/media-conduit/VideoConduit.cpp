@@ -100,6 +100,12 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
      return kMediaConduitSessionNotInited;
   }
 
+#if 0
+  // TRACING
+  mVideoEngine->SetTraceFilter(webrtc::kTraceAll);
+  mVideoEngine->SetTraceFile( "Vievideotrace.out" );
+#endif
+
   if( !(mPtrViEBase = ViEBase::GetInterface(mVideoEngine)) )
   {
     CSFLogError(logTag, "%s Unable to create video engine ", __FUNCTION__);

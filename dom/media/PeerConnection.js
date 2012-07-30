@@ -15,9 +15,10 @@ const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
 function PeerConnection() {
   this._pc = Cc["@mozilla.org/peerconnection;1"].
              createInstance(Ci.IPeerConnection);
-  this._observer = new PeerConnectionObserver(this._pc);
+  this._observer = new PeerConnectionObserver(this);
+
   dump("!!! mozPeerConnection constructor called " + this._pc + "\n\n");
-  this._pc.initialize(this._observer);
+  this._pc.initialize(this._observer, Services.tm.currentThread);
 }
 PeerConnection.prototype = {
 
@@ -27,7 +28,11 @@ PeerConnection.prototype = {
   _onCreateOfferFailure: null,
   _onCreateAnswerSuccess: null,
   _onCreateAnswerFailure: null,
-  
+
+  _ondatachannel: null,
+  _onconnection: null,
+  _onclosedconnection: null,
+
   // Everytime we get a request from content, we put it in the queue. If
   // there are no pending operations though, we will execute it immediately.
   // In PeerConnectionObserver, whenever we are notified that an operation
@@ -52,6 +57,7 @@ PeerConnection.prototype = {
 
   _queueOrRun: function(obj) {
     if (!this._pending) {
+      dump("calling " + obj.func + "\n");
       obj.func.apply(this, obj.args);
       this._pending = true;
     } else {
@@ -85,8 +91,8 @@ PeerConnection.prototype = {
       provisional = false;
     }
 
-    // TODO: Implement provisional answer.
-    this._queueOrRun({func: this._pc.createAnswer, args: [constraints, provisional]});
+    // TODO: Implement provisional answer & constraints.
+    this._queueOrRun({func: this._pc.createAnswer, args: ["", offer]});
     dump("!!! createAnswer returned\n");
   },
 
@@ -94,17 +100,33 @@ PeerConnection.prototype = {
     this._onSetLocalDescriptionSuccess = onSuccess;
     this._onSetLocalDescriptionFailure = onError;
 
+    let type;
+    if (action == "offer") {
+      type = Ci.IPeerConnection.kActionOffer;
+    }
+    if (action == "answer") {
+      type = Ci.IPeerConnection.kActionAnswer;
+    }
+
     dump("!!! setLocalDescription called\n");
-    this._queueOrRun({func: this._pc.setLocalDescription, args: [description]});
+    this._queueOrRun({func: this._pc.setLocalDescription, args: [type, description]});
     dump("!!! setLocalDescription returned\n");
   },
 
-  setRemoteDescription: function(action, description) {
+  setRemoteDescription: function(action, description, onSuccess, onError) {
     this._onSetRemoteDescriptionSuccess = onSuccess;
     this._onSetRemoteDescriptionFailure = onError;
 
+    let type;
+    if (action == "offer") {
+      type = Ci.IPeerConnection.kActionOffer;
+    }
+    if (action == "answer") {
+      type = Ci.IPeerConnection.kActionAnswer;
+    }
+
     dump("!!! setRemoteDescription called\n");
-    this._queueOrRun({func: this._pc.setRemoteDescription, args: [description]});
+    this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, description]});
     dump("!!! setRemoteDescription returned\n");
   },
 
@@ -122,24 +144,56 @@ PeerConnection.prototype = {
 
   addStream: function(stream, constraints) {
     dump("!!! addStream called\n");
-    
+
     // TODO: Implement constraints.
-    this._queueOrRun({func: this._pc.addStream, args: [stream]});
+    //this._queueOrRun({func: this._pc.addStream, args: [stream]});
+    this._pc.addStream(stream);
     dump("!!! addStream returned\n");
   },
 
   removeStream: function(stream) {
     dump("!!! removeStream called\n");
-    this._queueOrRun({func: this._pc.removeStream, args: [stream]});
+    //this._queueOrRun({func: this._pc.removeStream, args: [stream]});
+    this._pc.removeStream(stream);
     dump("!!! removeStream returned\n");
   },
 
+  createDataChannel: function(/* FIX */) {
+    dump("!!! createDataChannel called\n");
+    let channel = this._pc.createDataChannel(/* FIX! */);
+    dump("!!! createDataChannel returned\n");
+    return channel;
+  },
+
+  // FIX - remove connect() and listen()
+  listen: function(port) {
+    dump("!!! Listen() called\n");
+    this._pc.listen(port)
+    dump("!!! Listen() returned\n");
+  },
+  
+  connect: function(addr, port) {
+    dump("!!! Connect() called\n");
+    this._pc.connect(addr, port);
+    dump("!!! Connect() returned\n");
+  },
+  
   close: function() {
     dump("!!! close called\n");
     // Don't queue this one, since we just want to shutdown.
     this._pc.closeStreams();
     this._pc.close();
     dump("!!! close returned");
+  },
+
+  onRemoteStreamAdded: null,
+
+  // For testing only.
+  createFakeMediaStream: function(type) {
+    if (type == "video") {
+      return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
+    }
+    return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintAudio);
   }
 };
 
@@ -163,96 +217,104 @@ PeerConnectionObserver.prototype = {
   onCreateOfferSuccess: function(offer) {
     dump("!!! onCreateOfferSuccess called\n");
     if (this._dompc._onCreateOfferSuccess) {
-      this._dompc._onCreateOfferSuccess(offer);
+      this._dompc._onCreateOfferSuccess.onCallback(offer);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onCreateOfferError: function(code) {
     dump("!!! onCreateOfferError called: " + code + "\n");
     if (this._dompc._onCreateOfferFailure) {
-      this._dompc._onCreateOfferFailure(code);
+      this._dompc._onCreateOfferFailure.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onCreateAnswerSuccess: function(answer) {
     dump("!!! onCreateAnswerSuccess called\n");
     if (this._dompc._onCreateAnswerSuccess) {
-      this._dompc._onCreateOfferSuccess(answer);
+      this._dompc._onCreateAnswerSuccess.onCallback(answer);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onCreateAnswerError: function(code) {
     dump("!!! onCreateAnswerError called: " + code + "\n");
     if (this._dompc._onCreateAnswerFailure) {
-      this._dompc._onCreateAnswerFailure(code);
+      this._dompc._onCreateAnswerFailure.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onSetLocalDescriptionSuccess: function(code) {
     dump("!!! onSetLocalDescriptionSuccess called\n");
     if (this._dompc._onSetLocalDescriptionSuccess) {
-      this._dompc._onSetLocalDescriptionSuccess(code);
+      this._dompc._onSetLocalDescriptionSuccess.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onSetRemoteDescriptionSuccess: function(code) {
     dump("!!! onSetRemoteDescriptionSuccess called\n");
     if (this._dompc._onSetRemoteDescriptionSuccess) {
-      this._dompc._onSetRemoteDescriptionSuccess(code);
+      this._dompc._onSetRemoteDescriptionSuccess.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onSetLocalDescriptionError: function(code) {
     dump("!!! onSetLocalDescriptionError called: " + code + "\n");
     if (this._dompc._onSetLocalDescriptionFailure) {
-      this._dompc._onSetLocalDescriptionFailure(code);
+      this._dompc._onSetLocalDescriptionFailure.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   onSetRemoteDescriptionError: function(code) {
     dump("!!! onSetRemoteDescriptionError called: " + code + "\n");
     if (this._dompc._onSetRemoteDescriptionFailure) {
-      this._dompc._onSetRemoteDescriptionFailure(code);
+      this._dompc._onSetRemoteDescriptionFailure.onCallback(code);
     }
-    _executeNext();
+    this._executeNext();
   },
 
   // FIXME: Following observer events should update state on this._dompc.
   onStateChange: function(state) {
     dump("!!! onStateChange called: " + state + "\n");
-    _executeNext();
+    this._executeNext();
   },
 
   onAddStream: function(stream) {
     dump("!!! onAddStream called: " + stream + "\n");
-    _executeNext();
+    if (this._dompc.onRemoteStreamAdded) {
+      this._dompc.onRemoteStreamAdded.onCallback(stream);
+    }
+    this._executeNext();
   },
 
   onRemoveStream: function() {
     dump("!!! onRemoveStream called\n");
-    _executeNext();
+    this._executeNext();
   },
 
   onAddTrack: function() {
     dump("!!! onAddTrack called\n");
-    _executeNext();
+    this._executeNext();
   },
 
   onRemoveTrack: function() {
     dump("!!! onRemoveTrack called\n");
-    _executeNext();
+    this._executeNext();
+  },
+
+  onDataChannel: function() {
+    dump("!!! onDataChannel called\n");
+    this._executeNext();
   },
 
   foundIceCandidate: function(candidate) {
     dump("!!! foundIceCandidate called: " + candidate + "\n");
-    _executeNext();
+    this._executeNext();
   }
 };
 

@@ -1,6 +1,8 @@
 #include "nsIThread.idl"
 #include "nsIDOMMediaStream.idl"
 
+interface nsIDOMDataChannel;
+
 /* Do not confuse with nsIDOMRTCPeerConnection. This interface is purely for
  * communication between the PeerConnection JS DOM binding and the C++
  * implementation in SIPCC.
@@ -34,6 +36,11 @@ interface IPeerConnectionObserver : nsISupports
   void onRemoveStream();
   void onAddTrack();
   void onRemoveTrack();
+
+  /* DataChannel observers */
+  void onConnection();
+  void onClosedConnection();
+  void onDataChannel(in nsIDOMDataChannel channel);
 
   /* When SDP is parsed and a candidate line is found this method is called.
    * It should hook back into the media transport to notify it of ICE candidates
@@ -80,6 +87,12 @@ interface IPeerConnection : nsISupports
 
   /* For testing purposes only! */
   nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
+
+  nsIDOMDataChannel createDataChannel(/* FIX! */);
+
+  /* XXX remove these */	
+  void listen(in unsigned short port);
+  void connect(in DOMString addr, in unsigned short port);
 
   readonly attribute string localDescription;
   readonly attribute string remoteDescription;

@@ -663,13 +663,12 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
         rc = CC_RC_SUCCESS;
       }
     } else {
-        
-      if (sdpmode) {
 
+      if (sdpmode) {
         if (!strlen(dcb->peerconnection)) {
           vcmRxAllocPort(media->cap_index, dcb->group_id, media->refid,
             lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
-            data->port,                                                        
+            data->port,
             &port_allocated);
           if (port_allocated != -1) {
             data->port = (uint16_t)port_allocated;
@@ -913,6 +912,8 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
     fsmdef_dcb_t   *dcb, *grp_id_dcb;
     vcm_mediaAttrs_t attrs;
     int              sdpmode = 0;
+    int pc_stream_id = 0;
+    int pc_track_id = 0;
 
     attrs.video.opaque = NULL;
 
@@ -983,7 +984,7 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                             group_id = grp_id_dcb->group_id;
                         }
                         break;
-                    
+
                     case MONITOR:                                        
                     case LOCAL_CONF:
                     	//AgentGreeting is MIX RXBOTH, SilentMonitoring is MIX TXBOTH
@@ -1014,15 +1015,18 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     media->src_port = open_rcv.port;
                 }
 
+                /* TODO(ekr@rtfm.com): Needs changing for when we have > 2 streams */
                 if ( media->cap_index == CC_VIDEO_1 ) {
                     attrs.video.opaque = media->video;
+                    pc_stream_id = 1;
                 } else {
                     attrs.audio.packetization_period = media->packetization_period;
                     attrs.audio.avt_payload_type = media->avt_payload_type;
                     attrs.audio.mixing_mode = mix_mode;
                     attrs.audio.mixing_party = mix_party;
+                    pc_stream_id = 0;
                 }
-
+                pc_track_id = 0;
                     dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
                     if (media->local_dynamic_payload_type_value == RTP_NONE) {
                         media->local_dynamic_payload_type_value = media->payload;
@@ -1033,8 +1037,8 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                         if (dcb->peerconnection) {
                           ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
                             media->level,
-                            dcb->media_cap_tbl->cap[media->cap_index].pc_stream,
-                            dcb->media_cap_tbl->cap[media->cap_index].pc_track,
+                            pc_stream_id,
+                            pc_track_id,
                             lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
                             dcb->peerconnection,
                             vcmRtpToMediaPayload(media->payload,

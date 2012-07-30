@@ -531,6 +531,8 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "GeneratedEvents.h"
 #include "mozilla/Likely.h"
 
+#include "nsIDOMDataChannel.h"
+
 #undef None // something included above defines this preprocessor symbol, maybe Xlib headers
 #include "WebGLContext.h"
 #include "nsICanvasRenderingContextInternal.h"
@@ -1677,6 +1679,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(LockedFile, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozActivity, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(DataChannel, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 };
 
@@ -4471,6 +4476,11 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(MozActivity, nsIDOMMozActivity)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozActivity)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(DataChannel, nsIDOMDataChannel)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataChannel)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 

@@ -11,9 +11,6 @@
 #include <arpa/inet.h>
 #endif
 
-#undef LOG
-#define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
-
 #if defined(__Userspace_os_Darwin)
 // sctp undefines __APPLE__, so reenable them.
 #define __APPLE__ 1
@@ -33,6 +30,7 @@ PRLogModuleInfo* dataChannelLog;
 extern "C" {
 // Hack fix for define issue in sctp lib
 #define __USER_CODE 1
+#define SCTP_DEBUG 1
 #include "usrsctp.h"
 }
 
@@ -48,14 +46,19 @@ extern "C" {
 #define ARRAY_LEN(x) (sizeof((x))/sizeof((x)[0]))
 #endif
 
+#undef LOG
+#define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
+
 static bool sctp_initialized;
 
 namespace mozilla {
 
 static int
-receive_cb(struct socket* sock, union sctp_sockstore addr, void *data, size_t datalen, struct sctp_rcvinfo rcv, int flags, void *ulp_info)
+receive_cb(struct socket* sock, union sctp_sockstore addr, 
+           void *data, size_t datalen, 
+           struct sctp_rcvinfo rcv, int flags, void *ulp_info)
 {
-  DataChannelConnection *connection = (DataChannelConnection *) rcv.rcv_context;
+  DataChannelConnection *connection = static_cast<DataChannelConnection*>(ulp_info);	
   return connection->ReceiveCallback(sock, data, datalen, rcv);
 }
 
@@ -67,8 +70,12 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   mSocket = NULL;
   mMasterSocket = NULL;
   mListener = listener;
+  mNumChannels = 0;
 #if 1
-  // mChannelsOut and mChannelsIn are the same size
+  printf("mChannelsOut.Capacity = %d\n",mChannelsOut.Capacity());
+
+  mChannelsOut.AppendElements(mChannelsOut.Capacity());
+  mChannelsIn.AppendElements(mChannelsOut.Capacity());
   for (PRUint32 i = 0; i < mChannelsOut.Capacity(); i++) {
     mChannelsOut[i].reverse = INVALID_STREAM;
     mChannelsOut[i].pending = false;
@@ -85,7 +92,7 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
     mChannelsIn[i].outgoing = INVALID_STREAM;
   }
 #endif
-
+  LOG(("DataChannelConnection created"));
 }
 
 bool
@@ -100,8 +107,7 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
       LOG(("sctp_init(%d)",port+1));
       usrsctp_init(port,NULL); // XXX fix
 
-      //SCTP_BASE_SYSCTL(sctp_debug_on) = SCTP_DEBUG_ALL;
-      usrsctp_sysctl_set_sctp_debug_on(0x0);
+      usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
     }
@@ -109,7 +115,7 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
 
   // Open sctp association across tunnel
   // XXX This code will need to change to support SCTP-over-DTLS
-  if ((mMasterSocket = usrsctp_socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, NULL)) == NULL) {
+  if ((mMasterSocket = usrsctp_socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, this)) == NULL) {
     return false;
   }
 
@@ -242,7 +248,6 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
 
   LOG(("connect() succeeded!  Entering connected mode\n"));
   mState = OPEN;
- // register_recv_cb(mSocket, receive_cb, this);
   
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
@@ -297,8 +302,7 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
     uint16_t forward,reverse;
     PRUint32 i;
 
-    // XXX SCTP library API will be changing to hide mbuf interface (control->data)
-    switch (rcv.rcv_ppid) {
+    switch (ntohl(rcv.rcv_ppid)) {
       case DATA_CHANNEL_PPID_CONTROL:
         msg_generic = (struct rtcweb_datachannel_open *)data;
 
@@ -322,7 +326,7 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
                  "  label\t\t\t%s\n",
                  msg->msg_type, msg->channel_type, msg->flags,
                  msg->reliability_params,
-                 &(((uint16_t *) (&msg->reliability_params))[1])));
+                 /* XXX */ &(((uint16_t *) (&msg->reliability_params))[1])));
 
             if (mChannelsIn[rcv.rcv_sid].outgoing != INVALID_STREAM) {
               LOG(("error, channel %u in use\n",rcv.rcv_sid));

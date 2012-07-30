@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cmath>
 
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
@@ -20,6 +21,7 @@
 #include "nsDOMMediaStream.h"
 #endif
 
+#include "dtlsidentity.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
 
@@ -30,14 +32,21 @@
 #include "CC_Observer.h"
 #include "MediaPipeline.h"
 
+
+#ifdef MOZILLA_INTERNAL_API
+#include "mozilla/net/DataChannel.h"
+#include "Layers.h"
+#include "VideoUtils.h"
+#include "ImageLayers.h"
+#include "VideoSegment.h"
+#endif
+
 namespace sipcc {
 
 /* Temporary for providing audio data */
 class Fake_AudioGenerator {
  public:
-  Fake_AudioGenerator(nsDOMMediaStream* aStream) {
-    mStream = aStream;
-
+Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
     PR_ASSERT(mTimer);
 
@@ -47,15 +56,22 @@ class Fake_AudioGenerator {
     mStream->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
 
     // Set the timer
-    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_PRECISE);
   }
 
   static void Callback(nsITimer* timer, void *arg) {
     Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
 
+    nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(4000);
+    for (int i=0; i<1600; i++) {
+      reinterpret_cast<int16_t *>(samples->Data())[i] = ((gen->mCount % 8) * 4000) - 16000;
+      ++gen->mCount;
+    }
+
     mozilla::AudioSegment segment;
     segment.Init(1);
-    segment.InsertNullDataAtStart(160);
+    segment.AppendFrames(samples.forget(), 1600,
+      0, 1600, nsAudioStream::FORMAT_S16_LE);
 
     gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
   }
@@ -63,7 +79,82 @@ class Fake_AudioGenerator {
  private:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
 };
+
+/* Temporary for providing video data */
+#ifdef MOZILLA_INTERNAL_API
+class Fake_VideoGenerator {
+ public:
+  Fake_VideoGenerator(nsDOMMediaStream* aStream) {
+    mStream = aStream;
+    mCount = 0;
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+    PR_ASSERT(mTimer);
+
+    // Make a track
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, USECS_PER_S, 0, segment);
+    mStream->GetStream()->AsSourceStream()->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+
+    // Set the timer. Set to 10 fps.
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+  }
+
+  static void Callback(nsITimer* timer, void *arg) {
+    Fake_VideoGenerator* gen = static_cast<Fake_VideoGenerator*>(arg);
+
+    const PRUint32 WIDTH = 640;
+    const PRUint32 HEIGHT = 480;
+
+    // Allocate a single blank Image
+    mozilla::layers::Image::Format format = mozilla::layers::Image::PLANAR_YCBCR;
+    nsRefPtr<mozilla::layers::ImageContainer> container =
+      mozilla::layers::LayerManager::CreateImageContainer();
+
+    nsRefPtr<mozilla::layers::Image> image = container->CreateImage(&format, 1);
+
+    int len = ((WIDTH * HEIGHT) * 3 / 2);
+    mozilla::layers::PlanarYCbCrImage* planar =
+      static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
+    PRUint8* frame = (PRUint8*) PR_Malloc(len);
+    ++gen->mCount;
+    memset(frame, (gen->mCount / 8) & 0xff, len); // Rotating colors
+
+    const PRUint8 lumaBpp = 8;
+    const PRUint8 chromaBpp = 4;
+
+    mozilla::layers::PlanarYCbCrImage::Data data;
+    data.mYChannel = frame;
+    data.mYSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mYStride = WIDTH * lumaBpp / 8.0;
+    data.mCbCrStride = WIDTH * chromaBpp / 8.0;
+    data.mCbChannel = frame + HEIGHT * data.mYStride;
+    data.mCrChannel = data.mCbChannel + HEIGHT * data.mCbCrStride / 2;
+    data.mCbCrSize = gfxIntSize(WIDTH / 2, HEIGHT / 2);
+    data.mPicX = 0;
+    data.mPicY = 0;
+    data.mPicSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mStereoMode = mozilla::layers::STEREO_MODE_MONO;
+
+    // SetData copies data, so we can free the frame
+    planar->SetData(data);
+    PR_Free(frame);
+
+    // AddTrack takes ownership of segment
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    // 10 fps.
+    segment->AppendFrame(image.forget(), USECS_PER_S / 10, gfxIntSize(WIDTH, HEIGHT));
+
+    gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, segment);
+  }
+
+ private:
+  nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
+};
+#endif
 
 class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
@@ -122,6 +213,9 @@ class RemoteSourceStreamInfo {
 class PeerConnectionWrapper;
 
 class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
+#ifdef MOZILLA_INTERNAL_API
+                                     public mozilla::DataChannelConnection::DataConnectionListener,
+#endif
                                      public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
@@ -166,6 +260,13 @@ public:
     CSF::CC_CallPtr call,
     CSF::CC_CallInfoPtr info
   );
+
+  // DataConnection observers
+  void OnConnection();
+  void OnClosedConnection();
+#ifdef MOZILLA_INTERNAL_API
+  void OnDataChannel(mozilla::DataChannel *channel);
+#endif
 
   // Handle system to allow weak references to be passed through C code
   static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
@@ -213,6 +314,9 @@ public:
     mTransportFlows[index_inner] = flow;
   }
 
+  static void ListenThread(void *data);
+  static void ConnectThread(void *data);
+
   // Get the main thread
   nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
 private:
@@ -251,8 +355,20 @@ private:
   // Transport flows: even is RTP, odd is RTCP
   std::map<int, mozilla::RefPtr<TransportFlow> > mTransportFlows;
 
+  // The DTLS identity
+  mozilla::RefPtr<DtlsIdentity> mIdentity;
   // Singleton list of all the PeerConnections
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+
+public:
+#ifdef MOZILLA_INTERNAL_API
+  // DataConnection that's used to get all the DataChannels
+	nsAutoPtr<mozilla::DataChannelConnection> mDataConnection;
+#endif
+
+  unsigned short listenPort;
+  unsigned short connectPort;
+  char *connectStr; // XXX ownership/free
 };
 
 // This is what is returned when you acquire on a handle
