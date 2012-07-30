@@ -106,6 +106,30 @@ IDService.prototype = {
   },
 
   /**
+   * Expose the store's fetchIdentity method.  Returns
+   * an object containing the cert and keypair.  null
+   * if not logged in with this identity.
+   */
+  fetchIdentity: function fetchIdentity(aIdentity) {
+    return this._store.fetchIdentity(aIdentity);
+  },
+
+  /**
+   * If the user is logged in at aOrigin, return the login identity,
+   * else return null.
+   *
+   * @param aOrigin
+   *        (string) the origin to check
+   */
+  getLoggedInEmail: function getLoggedInEmail(aOrigin) {
+    let loginState = this._store.getLoginState(aOrigin);
+    if (loginState) {
+      return loginState.isLoggedIn ? loginState.email : null;
+    }
+    return null;
+  },
+
+  /**
    * The UX comes back and calls selectIdentity once the user has picked
    * an identity.
    *
@@ -139,7 +163,7 @@ IDService.prototype = {
     // Once we have a cert, and once the user is authenticated with the
     // IdP, we can generate an assertion and deliver it to the doc.
     let self = this;
-    this.RP._generateAssertion(rp.origin, aIdentity, function hadReadyAssertion(err, assertion) {
+    this.RP._generateAssertion(rp.origin, aIdentity, {}, function hadReadyAssertion(err, assertion) {
       if (!err && assertion) {
         self.RP._doLogin(rp, rpLoginOptions, assertion);
         return;
@@ -189,7 +213,7 @@ IDService.prototype = {
           // Provisioning flows end when a certificate has been registered.
           // Thus IdentityProvider's registerCertificate() cleans up the
           // current provisioning flow.  We only do this here on error.
-          self.RP._generateAssertion(rp.origin, aIdentity, function gotAssertion(err, assertion) {
+          self.RP._generateAssertion(rp.origin, aIdentity, {}, function gotAssertion(err, assertion) {
             if (err) {
               rp.doError(err);
               return;
