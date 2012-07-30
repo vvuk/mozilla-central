@@ -10,6 +10,7 @@
 
 #include "nspr.h"
 #include <prlog.h>
+#include "srtp.h"
 
 #include "ImageLayers.h"
 #include "logging.h"

@@ -97,6 +97,7 @@ CPP_UNIT_TESTS = \
   sockettransportservice_unittest.cpp \
   transport_unittests.cpp \
   runnable_utils_unittest.cpp \
+  sctp_unittest.cpp \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
