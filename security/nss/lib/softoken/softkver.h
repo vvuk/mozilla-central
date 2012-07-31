@@ -30,6 +30,6 @@
 #define SOFTOKEN_VMINOR   14
 #define SOFTOKEN_VPATCH   0
 #define SOFTOKEN_VBUILD   0
-#define SOFTOKEN_BETA     PR_FALSE
+#define SOFTOKEN_BETA     PR_TRUE
 
 #endif /* _SOFTKVER_H_ */

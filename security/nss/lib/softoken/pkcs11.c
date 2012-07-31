@@ -32,9 +32,11 @@
 #include "softkver.h"
 #include "secoid.h"
 #include "sftkdb.h"
-#include "sftkpars.h"
+#include "utilpars.h" 
 #include "ec.h"
 #include "secasn1.h"
+#include "secerr.h"
+#include "lgglue.h"
 
 PRBool parentForkedAfterC_Initialize;
 
@@ -290,6 +292,8 @@ static const struct mechanismList mechanisms[] = {
 				 CKF_GENERATE_KEY_PAIR}, PR_TRUE},
      {CKM_DSA,			{DSA_MIN_P_BITS, DSA_MAX_P_BITS, 
 				 CKF_SN_VR},              PR_TRUE},
+     {CKM_DSA_PARAMETER_GEN,	{DSA_MIN_P_BITS, DSA_MAX_P_BITS, 
+				 CKF_GENERATE},           PR_TRUE},
      {CKM_DSA_SHA1,		{DSA_MIN_P_BITS, DSA_MAX_P_BITS,
 				 CKF_SN_VR},              PR_TRUE},
      /* -------------------- Diffie Hellman Operations --------------------- */
@@ -442,6 +446,10 @@ static const struct mechanismList mechanisms[] = {
      {CKM_MD5_KEY_DERIVATION,		{ 0, 16, CKF_DERIVE},   PR_FALSE}, 
      {CKM_MD2_KEY_DERIVATION,		{ 0, 16, CKF_DERIVE},   PR_FALSE}, 
      {CKM_SHA1_KEY_DERIVATION,		{ 0, 20, CKF_DERIVE},   PR_FALSE}, 
+     {CKM_SHA224_KEY_DERIVATION,	{ 0, 28, CKF_DERIVE},   PR_FALSE}, 
+     {CKM_SHA256_KEY_DERIVATION,	{ 0, 32, CKF_DERIVE},   PR_FALSE}, 
+     {CKM_SHA384_KEY_DERIVATION,	{ 0, 48, CKF_DERIVE},   PR_FALSE}, 
+     {CKM_SHA512_KEY_DERIVATION,	{ 0, 64, CKF_DERIVE},   PR_FALSE}, 
      {CKM_TLS_MASTER_KEY_DERIVE,	{48, 48, CKF_DERIVE},   PR_FALSE}, 
      {CKM_TLS_MASTER_KEY_DERIVE_DH,	{8, 128, CKF_DERIVE},   PR_FALSE}, 
      {CKM_TLS_KEY_AND_MAC_DERIVE,	{48, 48, CKF_DERIVE},   PR_FALSE}, 
@@ -860,7 +868,7 @@ sftk_handlePublicKeyObject(SFTKSession *session, SFTKObject *object,
 	break;
     case CKK_DSA:
 	crv = sftk_ConstrainAttribute(object, CKA_SUBPRIME, 
-						DSA_Q_BITS, DSA_Q_BITS, 0);
+					DSA_MIN_Q_BITS, DSA_MAX_Q_BITS, 0);
 	if (crv != CKR_OK) {
 	    return crv;
 	}
@@ -869,11 +877,11 @@ sftk_handlePublicKeyObject(SFTKSession *session, SFTKObject *object,
 	if (crv != CKR_OK) {
 	    return crv;
 	}
-	crv = sftk_ConstrainAttribute(object, CKA_BASE, 1, DSA_MAX_P_BITS, 0);
+	crv = sftk_ConstrainAttribute(object, CKA_BASE, 2, DSA_MAX_P_BITS, 0);
 	if (crv != CKR_OK) {
 	    return crv;
 	}
-	crv = sftk_ConstrainAttribute(object, CKA_VALUE, 1, DSA_MAX_P_BITS, 0);
+	crv = sftk_ConstrainAttribute(object, CKA_VALUE, 2, DSA_MAX_P_BITS, 0);
 	if (crv != CKR_OK) {
 	    return crv;
 	}
@@ -887,11 +895,11 @@ sftk_handlePublicKeyObject(SFTKSession *session, SFTKObject *object,
 	if (crv != CKR_OK) {
 	    return crv;
 	}
-	crv = sftk_ConstrainAttribute(object, CKA_BASE, 1, DH_MAX_P_BITS, 0);
+	crv = sftk_ConstrainAttribute(object, CKA_BASE, 2, DH_MAX_P_BITS, 0);
 	if (crv != CKR_OK) {
 	    return crv;
 	}
-	crv = sftk_ConstrainAttribute(object, CKA_VALUE, 1, DH_MAX_P_BITS, 0);
+	crv = sftk_ConstrainAttribute(object, CKA_VALUE, 2, DH_MAX_P_BITS, 0);
 	if (crv != CKR_OK) {
 	    return crv;
 	}
@@ -1349,6 +1357,23 @@ sftk_handleDSAParameterObject(SFTKSession *session, SFTKObject *object)
     PQGParams params;
     PQGVerify vfy, *verify = NULL;
     SECStatus result,rv;
+    /* This bool keeps track of whether or not we need verify parameters.
+     * If a P, Q and G or supplied, we dont' need verify parameters, as we
+     * have PQ and G. 
+     *   - If G is not supplied, the presumption is that we want to
+     * verify P and Q only.
+     *   - If counter is supplied, it is presumed we want to verify PQ because
+     * the counter is only used in verification.
+     *   - If H is supplied, is is presumed we want to verify G because H is
+     * only used to verify G.
+     *   - Any verification step must have the SEED (counter or H could be 
+     * missing depending on exactly what we want to verify). If SEED is supplied,
+     * the code just goes ahead and runs verify (other errors are parameter
+     * errors are detected by the PQG_VerifyParams function). If SEED is not
+     * supplied, but we determined that we are trying to verify (because needVfy
+     * is set, go ahead and return CKR_TEMPLATE_INCOMPLETE.
+     */
+    PRBool needVfy = PR_FALSE;      
 
     primeAttr = sftk_FindAttribute(object,CKA_PRIME);
     if (primeAttr == NULL) goto loser;
@@ -1361,26 +1386,43 @@ sftk_handleDSAParameterObject(SFTKSession *session, SFTKObject *object)
     params.subPrime.len = subPrimeAttr->attrib.ulValueLen;
 
     baseAttr = sftk_FindAttribute(object,CKA_BASE);
-    if (baseAttr == NULL) goto loser;
-    params.base.data = baseAttr->attrib.pValue;
-    params.base.len = baseAttr->attrib.ulValueLen;
+    if (baseAttr != NULL) {
+	params.base.data = baseAttr->attrib.pValue;
+	params.base.len = baseAttr->attrib.ulValueLen;
+    } else {
+	params.base.data = NULL;
+	params.base.len = 0;
+	needVfy = PR_TRUE; /* presumably only including PQ so we can verify
+			    * them. */
+    }
 
     attribute = sftk_FindAttribute(object, CKA_NETSCAPE_PQG_COUNTER);
     if (attribute != NULL) {
 	vfy.counter = *(CK_ULONG *) attribute->attrib.pValue;
 	sftk_FreeAttribute(attribute);
+	needVfy = PR_TRUE; /* included a count so we can verify PQ */
+    } else {
+	vfy.counter = -1;
+    }
 
-	seedAttr = sftk_FindAttribute(object, CKA_NETSCAPE_PQG_SEED);
-	if (seedAttr == NULL) goto loser;
+    hAttr = sftk_FindAttribute(object, CKA_NETSCAPE_PQG_H);
+    if (hAttr != NULL) {
+	vfy.h.data = hAttr->attrib.pValue;
+	vfy.h.len = hAttr->attrib.ulValueLen;
+	needVfy = PR_TRUE; /* included H so we can verify G */
+    } else {
+	vfy.h.data = NULL;
+	vfy.h.len = 0;
+    }
+    seedAttr = sftk_FindAttribute(object, CKA_NETSCAPE_PQG_SEED);
+    if (seedAttr != NULL) {
 	vfy.seed.data = seedAttr->attrib.pValue;
 	vfy.seed.len = seedAttr->attrib.ulValueLen;
 
-	hAttr = sftk_FindAttribute(object, CKA_NETSCAPE_PQG_H);
-	if (hAttr == NULL) goto loser;
-	vfy.h.data = hAttr->attrib.pValue;
-	vfy.h.len = hAttr->attrib.ulValueLen;
-
 	verify = &vfy;
+    } else if (needVfy) {
+	goto loser; /* Verify always needs seed, if we need verify and not seed
+		     * then fail */
     }
 
     crv = CKR_FUNCTION_FAILED;
@@ -2590,16 +2632,6 @@ SFTK_DestroySlotData(SFTKSlot *slot)
     return CKR_OK;
 }
 
-#ifndef NO_FORK_CHECK
-
-static CK_RV ForkCheck(void)
-{
-    CHECK_FORK();
-    return CKR_OK;
-}
-
-#endif
-
 /*
  * handle the SECMOD.db
  */
@@ -2609,35 +2641,89 @@ NSC_ModuleDBFunc(unsigned long function,char *parameters, void *args)
     char *secmod = NULL;
     char *appName = NULL;
     char *filename = NULL;
-#ifdef NSS_DISABLE_DBM
-    SDBType dbType = SDB_SQL;
-#else
-    SDBType dbType = SDB_LEGACY;
-#endif
+    NSSDBType dbType = NSS_DB_TYPE_NONE;
     PRBool rw;
     static char *success="Success";
     char **rvstr = NULL;
 
-#ifndef NO_FORK_CHECK
-    if (CKR_OK != ForkCheck()) return NULL;
-#endif
+    rvstr = NSSUTIL_DoModuleDBFunction(function, parameters, args);
+    if (rvstr != NULL) {
+	return rvstr;
+    }
 
-    secmod = sftk_getSecmodName(parameters, &dbType, &appName,&filename, &rw);
+    if (PORT_GetError() != SEC_ERROR_LEGACY_DATABASE) {
+	return NULL;
+    }
+
+   /* The legacy database uses the old dbm, which is only linked with the 
+    * legacy DB handler, which is only callable from softoken */
+
+    secmod = _NSSUTIL_GetSecmodName(parameters, &dbType, &appName,
+				    &filename, &rw);
 
     switch (function) {
     case SECMOD_MODULE_DB_FUNCTION_FIND:
-	rvstr = sftkdb_ReadSecmodDB(dbType,appName,filename,secmod,(char *)parameters,rw);
+	if (secmod == NULL) {
+	    PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	    return NULL;
+	}
+	if (rw && (dbType != NSS_DB_TYPE_LEGACY) && 
+	    (dbType != NSS_DB_TYPE_MULTIACCESS)) {
+	    /* if we get here, we are trying to update the local database */
+	    /* force data from the legacy DB */
+	    char *oldSecmod = NULL;
+	    char *oldAppName = NULL;
+	    char *oldFilename = NULL;
+	    char *end;
+	    PRBool oldrw;
+	    char **strings = NULL;
+	    int i;
+
+	    dbType = NSS_DB_TYPE_LEGACY;
+	    oldSecmod = _NSSUTIL_GetSecmodName(parameters,&dbType, &oldAppName,
+					    &oldFilename, &oldrw);
+	    strings = sftkdbCall_ReadSecmodDB(appName, oldFilename, oldSecmod,
+					(char *)parameters, oldrw);
+	    if (strings) {
+		/* write out the strings */
+		for (i=0; strings[i]; i++) {
+		    NSSUTIL_DoModuleDBFunction(SECMOD_MODULE_DB_FUNCTION_ADD,
+				parameters, strings[i]);
+		}
+		sftkdbCall_ReleaseSecmodDBData(oldAppName,oldFilename,oldSecmod,
+			(char **)strings,oldrw);
+	    } else {
+		/* write out a dummy record */
+		NSSUTIL_DoModuleDBFunction(SECMOD_MODULE_DB_FUNCTION_ADD,
+				parameters, " ");
+	    }
+	    if (oldSecmod) { PR_smprintf_free(oldSecmod); }
+	    if (oldAppName) { PORT_Free(oldAppName); }
+	    if (oldFilename) { PORT_Free(oldFilename); }
+	    rvstr = NSSUTIL_DoModuleDBFunction(function, parameters, args);
+	    break;
+	}
+	rvstr = sftkdbCall_ReadSecmodDB(appName,filename,secmod,
+					(char *)parameters,rw);
 	break;
     case SECMOD_MODULE_DB_FUNCTION_ADD:
-	rvstr = (sftkdb_AddSecmodDB(dbType,appName,filename,secmod,(char *)args,rw) 
-				== SECSuccess) ? &success: NULL;
+	if (secmod == NULL) {
+	    PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	    return NULL;
+	}
+	rvstr = (sftkdbCall_AddSecmodDB(appName,filename,secmod,
+			(char *)args,rw) == SECSuccess) ? &success: NULL;
 	break;
     case SECMOD_MODULE_DB_FUNCTION_DEL:
-	rvstr = (sftkdb_DeleteSecmodDB(dbType,appName,filename,secmod,(char *)args,rw)
-				 == SECSuccess) ? &success: NULL;
+	if (secmod == NULL) {
+	    PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	    return NULL;
+	}
+	rvstr = (sftkdbCall_DeleteSecmodDB(appName,filename,secmod,
+			(char *)args,rw) == SECSuccess) ? &success: NULL;
 	break;
     case SECMOD_MODULE_DB_FUNCTION_RELEASE:
-	rvstr = (sftkdb_ReleaseSecmodDBData(dbType, appName,filename,secmod,
+	rvstr = (sftkdbCall_ReleaseSecmodDBData(appName,filename,secmod,
 			(char **)args,rw) == SECSuccess) ? &success: NULL;
 	break;
     }

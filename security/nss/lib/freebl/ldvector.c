@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: ldvector.c,v 1.30 2012/04/25 14:49:43 gerv%gerv.net Exp $ */
+/* $Id: ldvector.c,v 1.32 2012/06/28 17:55:05 rrelyea%redhat.com Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 extern int FREEBL_InitStubs(void);
@@ -253,9 +253,14 @@ static const struct FREEBLVectorStr vector =
     SHA224_Flatten,
     SHA224_Resurrect,
     SHA224_Clone,
-    BLAPI_SHVerifyFile
+    BLAPI_SHVerifyFile,
 
     /* End of Version 3.013 */
+
+    PQG_ParamGenV2,
+    PRNGTEST_RunHealthTests
+
+    /* End of Version 3.014 */
 };
 
 const FREEBLVector * 

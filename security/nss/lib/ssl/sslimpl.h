@@ -5,7 +5,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslimpl.h,v 1.103 2012/05/08 23:08:32 wtc%google.com Exp $ */
+/* $Id: sslimpl.h,v 1.106 2012/06/14 19:03:29 wtc%google.com Exp $ */
 
 #ifndef __sslimpl_h_
 #define __sslimpl_h_
@@ -284,6 +284,8 @@ typedef struct {
 #else
 #define ssl_V3_SUITES_IMPLEMENTED 30
 #endif /* NSS_ENABLE_ECC */
+
+#define MAX_DTLS_SRTP_CIPHER_SUITES 4
 
 typedef struct sslOptionsStr {
     /* If SSL_SetNextProtoNego has been called, then this contains the
@@ -881,6 +883,11 @@ struct ssl3StateStr {
     SSLNextProtoState    nextProtoState;
 
     PRUint16             mtu;   /* Our estimate of the MTU */
+
+    /* DTLS-SRTP cipher suite preferences (if any) */
+    PRUint16             dtlsSRTPCiphers[MAX_DTLS_SRTP_CIPHER_SUITES];
+    PRUint16             dtlsSRTPCipherCount;
+    PRUint16             dtlsSRTPCipherSuite;	/* 0 if not selected */
 };
 
 #define DTLS_MAX_MTU  1500      /* Ethernet MTU but without subtracting the
@@ -1282,8 +1289,6 @@ extern SECStatus   ssl_CopySecurityInfo(sslSocket *ss, sslSocket *os);
 extern void        ssl_ResetSecurityInfo(sslSecurityInfo *sec, PRBool doMemset);
 extern void        ssl_DestroySecurityInfo(sslSecurityInfo *sec);
 
-extern sslSocket * ssl_DupSocket(sslSocket *old);
-
 extern void        ssl_PrintBuf(sslSocket *ss, const char *msg, const void *cp, int len);
 extern void        ssl_DumpMsg(sslSocket *ss, unsigned char *bp, unsigned len);
 
@@ -1640,8 +1645,6 @@ extern PRInt32 ssl3_SendServerNameXtn(sslSocket *ss, PRBool append,
 extern SECStatus ssl_ConfigSecureServer(sslSocket *ss, CERTCertificate *cert,
                                         const CERTCertificateList *certChain,
                                         ssl3KeyPair *keyPair, SSLKEAType kea);
-/* Return key type for the cert */
-extern SSLKEAType ssl_FindCertKEAType(CERTCertificate * cert);
 
 #ifdef NSS_ENABLE_ECC
 extern PRInt32 ssl3_SendSupportedCurvesXtn(sslSocket *ss,

@@ -6,7 +6,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslproto.h,v 1.19 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslproto.h,v 1.20 2012/06/07 02:06:19 wtc%google.com Exp $ */
 
 #ifndef __sslproto_h_
 #define __sslproto_h_
@@ -203,5 +203,12 @@
 /* New non-experimental openly spec'ed versions of those cipher suites. */
 #define SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA 	0xfeff
 #define SSL_RSA_FIPS_WITH_DES_CBC_SHA      	0xfefe
+
+/* DTLS-SRTP cipher suites from RFC 5764 */
+/* If you modify this, also modify MAX_DTLS_SRTP_CIPHER_SUITES in sslimpl.h */
+#define SRTP_AES128_CM_HMAC_SHA1_80		0x0001
+#define SRTP_AES128_CM_HMAC_SHA1_32		0x0002
+#define SRTP_NULL_HMAC_SHA1_80			0x0005
+#define SRTP_NULL_HMAC_SHA1_32			0x0006
 
 #endif /* __sslproto_h_ */

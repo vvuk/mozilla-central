@@ -547,7 +547,7 @@ void TransportLayerDtls::Handshake() {
         MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
         if (mode_ == DGRAM) {
           PRIntervalTime timeout;
-          rv = DTLS_GetTimeout(ssl_fd_, &timeout);
+          rv = DTLS_GetHandshakeTimeout(ssl_fd_, &timeout);
           if (rv == SECSuccess) {
             PRUint32 timeout_ms = PR_IntervalToMilliseconds(timeout);
 

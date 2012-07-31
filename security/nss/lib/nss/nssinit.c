@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: nssinit.c,v 1.116 2012/04/25 14:50:04 gerv%gerv.net Exp $ */
+/* $Id: nssinit.c,v 1.117 2012/06/26 22:27:30 rrelyea%redhat.com Exp $ */
 
 #include <ctype.h>
 #include <string.h>
@@ -32,6 +32,7 @@
 #include "secmodi.h"
 #include "ocspti.h"
 #include "ocspi.h"
+#include "utilpars.h"
 
 /*
  * On Windows nss3.dll needs to export the symbol 'mktemp' to be
@@ -373,39 +374,39 @@ nss_InitModules(const char *configdir, const char *certPrefix,
      * configdir is double nested, and Windows uses the same character
      * for file seps as we use for escapes! (sigh).
      */
-    lconfigdir = secmod_DoubleEscape(configdir, '\'', '\"');
+    lconfigdir = NSSUTIL_DoubleEscape(configdir, '\'', '\"');
     if (lconfigdir == NULL) {
 	goto loser;
     }
-    lcertPrefix = secmod_DoubleEscape(certPrefix, '\'', '\"');
+    lcertPrefix = NSSUTIL_DoubleEscape(certPrefix, '\'', '\"');
     if (lcertPrefix == NULL) {
 	goto loser;
     }
-    lkeyPrefix = secmod_DoubleEscape(keyPrefix, '\'', '\"');
+    lkeyPrefix = NSSUTIL_DoubleEscape(keyPrefix, '\'', '\"');
     if (lkeyPrefix == NULL) {
 	goto loser;
     }
-    lsecmodName = secmod_DoubleEscape(secmodName, '\'', '\"');
+    lsecmodName = NSSUTIL_DoubleEscape(secmodName, '\'', '\"');
     if (lsecmodName == NULL) {
 	goto loser;
     }
-    lupdateDir = secmod_DoubleEscape(updateDir, '\'', '\"');
+    lupdateDir = NSSUTIL_DoubleEscape(updateDir, '\'', '\"');
     if (lupdateDir == NULL) {
 	goto loser;
     }
-    lupdCertPrefix = secmod_DoubleEscape(updCertPrefix, '\'', '\"');
+    lupdCertPrefix = NSSUTIL_DoubleEscape(updCertPrefix, '\'', '\"');
     if (lupdCertPrefix == NULL) {
 	goto loser;
     }
-    lupdKeyPrefix = secmod_DoubleEscape(updKeyPrefix, '\'', '\"');
+    lupdKeyPrefix = NSSUTIL_DoubleEscape(updKeyPrefix, '\'', '\"');
     if (lupdKeyPrefix == NULL) {
 	goto loser;
     }
-    lupdateID = secmod_DoubleEscape(updateID, '\'', '\"');
+    lupdateID = NSSUTIL_DoubleEscape(updateID, '\'', '\"');
     if (lupdateID == NULL) {
 	goto loser;
     }
-    lupdateName = secmod_DoubleEscape(updateName, '\'', '\"');
+    lupdateName = NSSUTIL_DoubleEscape(updateName, '\'', '\"');
     if (lupdateName == NULL) {
 	goto loser;
     }

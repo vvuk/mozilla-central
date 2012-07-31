@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: nsslowhash.c,v 1.8 2012/04/25 14:49:43 gerv%gerv.net Exp $ */
+/* $Id: nsslowhash.c,v 1.9 2012/06/26 22:27:29 rrelyea%redhat.com Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -10,7 +10,8 @@
 #include "secerr.h"
 #include "pkcs11t.h"
 #include "blapi.h"
-#include "sechash.h"
+#include "hasht.h"
+#include "plhash.h"
 #include "nsslowhash.h"
 
 /* FIPS preprocessor directives for message digests             */

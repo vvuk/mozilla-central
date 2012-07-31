@@ -7,7 +7,7 @@
 #endif
 
 #include "nspr.h"
-#include "sechash.h"
+#include "hasht.h"
 #include "blapi.h"	/* below the line */
 #include "secerr.h"
 
@@ -144,4 +144,37 @@ HASH_GetRawHashObject(HASH_HashType hashType)
 	return NULL;
     }
     return &SECRawHashObjects[hashType];
+}
+
+unsigned int
+HASH_ResultLen(HASH_HashType type)
+{
+    const SECHashObject *hash_obj = HASH_GetRawHashObject(type);
+    if (hash_obj == NULL) {
+	return 0;
+    }
+    return hash_obj->length;
+}
+
+SECStatus
+HASH_HashBuf(HASH_HashType type, unsigned char *dest,
+	     const unsigned char *src, PRUint32 src_len)
+{
+    const SECHashObject *hash_obj = HASH_GetRawHashObject(type);
+    void *hashcx = NULL;
+    unsigned int dummy;
+
+    if (hash_obj == NULL) {
+	return SECFailure;
+    }
+
+    hashcx = hash_obj->create();
+    if (hashcx == NULL) {
+	return SECFailure;
+    }
+    hash_obj->begin(hashcx);
+    hash_obj->update(hashcx,src,src_len);
+    hash_obj->end(hashcx,dest, &dummy, hash_obj->length);
+    hash_obj->destroy(hashcx, PR_TRUE);
+    return SECSuccess;
 }

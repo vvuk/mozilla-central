@@ -4,14 +4,14 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: loader.h,v 1.36 2012/04/25 14:49:43 gerv%gerv.net Exp $ */
+/* $Id: loader.h,v 1.38 2012/06/28 17:55:05 rrelyea%redhat.com Exp $ */
 
 #ifndef _LOADER_H_
 #define _LOADER_H_ 1
 
 #include "blapi.h"
 
-#define FREEBL_VERSION 0x030D
+#define FREEBL_VERSION 0x030E
 
 struct FREEBLVectorStr {
 
@@ -563,6 +563,12 @@ struct FREEBLVectorStr {
 
   /* Version 3.013 came to here */
 
+ SECStatus (* p_PQG_ParamGenV2)( unsigned int L, unsigned int N,
+                                unsigned int seedBytes, 
+                                PQGParams **pParams, PQGVerify **pVfy); 
+ SECStatus (*p_PRNGTEST_RunHealthTests)(void);
+
+  /* Version 3.014 came to here */
 };
 
 typedef struct FREEBLVectorStr FREEBLVector;

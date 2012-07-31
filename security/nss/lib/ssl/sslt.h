@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslt.h,v 1.22 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslt.h,v 1.23 2012/06/07 02:06:19 wtc%google.com Exp $ */
 
 #ifndef __sslt_h_
 #define __sslt_h_
@@ -179,11 +179,12 @@ typedef enum {
     ssl_elliptic_curves_xtn          = 10,
     ssl_ec_point_formats_xtn         = 11,
 #endif
+    ssl_use_srtp_xtn                 = 14,
     ssl_session_ticket_xtn           = 35,
     ssl_next_proto_nego_xtn          = 13172,
     ssl_renegotiation_info_xtn       = 0xff01	/* experimental number */
 } SSLExtensionType;
 
-#define SSL_MAX_EXTENSIONS             6
+#define SSL_MAX_EXTENSIONS             7
 
 #endif /* __sslt_h_ */

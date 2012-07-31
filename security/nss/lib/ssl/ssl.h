@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: ssl.h,v 1.56 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: ssl.h,v 1.58 2012/06/19 21:56:10 wtc%google.com Exp $ */
 
 #ifndef __ssl_h_
 #define __ssl_h_
@@ -718,6 +718,28 @@ NSS_GetClientAuthData(void *                       arg,
                       struct SECKEYPrivateKeyStr **pRetKey);
 
 /*
+** Configure DTLS-SRTP (RFC 5764) cipher suite preferences.
+** Input is a list of ciphers in descending preference order and a length
+** of the list. As a side effect, this causes the use_srtp extension to be
+** negotiated.
+**
+** Invalid or unimplemented cipher suites in |ciphers| are ignored. If at
+** least one cipher suite in |ciphers| is implemented, returns SECSuccess.
+** Otherwise returns SECFailure.
+*/
+SSL_IMPORT SECStatus SSL_SetSRTPCiphers(PRFileDesc *fd,
+					const PRUint16 *ciphers,
+					unsigned int numCiphers);
+
+/*
+** Get the selected DTLS-SRTP cipher suite (if any).
+** To be called after the handshake completes.
+** Returns SECFailure if not negotiated.
+*/
+SSL_IMPORT SECStatus SSL_GetSRTPCipher(PRFileDesc *fd,
+				       PRUint16 *cipher);
+
+/*
  * Look to see if any of the signers in the cert chain for "cert" are found
  * in the list of caNames.  
  * Returns SECSuccess if so, SECFailure if not.
@@ -831,8 +853,8 @@ SSL_IMPORT SECStatus SSL_HandshakeNegotiatedExtension(PRFileDesc * socket,
 ** the DTLS handshake? Returns SECFailure if not DTLS or not in a
 ** handshake.
 */
-SSL_IMPORT SECStatus DTLS_GetTimeout(PRFileDesc *socket,
-                                     PRIntervalTime *timeout);
+SSL_IMPORT SECStatus DTLS_GetHandshakeTimeout(PRFileDesc *socket,
+                                              PRIntervalTime *timeout);
 
 /*
  * Return a boolean that indicates whether the underlying library

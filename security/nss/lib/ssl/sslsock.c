@@ -6,7 +6,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslsock.c,v 1.88 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslsock.c,v 1.93 2012/06/14 19:03:29 wtc%google.com Exp $ */
 #include "seccomon.h"
 #include "cert.h"
 #include "keyhi.h"
@@ -15,7 +15,9 @@
 #include "sslproto.h"
 #include "nspr.h"
 #include "private/pprio.h"
+#ifndef NO_PKCS11_BYPASS
 #include "blapi.h"
+#endif
 #include "nss.h"
 
 #define SET_ERROR_CODE   /* reminder */
@@ -188,6 +190,13 @@ FILE *                  ssl_keylog_iob;
 char lockStatus[] = "Locks are ENABLED.  ";
 #define LOCKSTATUS_OFFSET 10 /* offset of ENABLED */
 
+/* SRTP_NULL_HMAC_SHA1_80 and SRTP_NULL_HMAC_SHA1_32 are not implemented. */
+static const PRUint16 srtpCiphers[] = {
+    SRTP_AES128_CM_HMAC_SHA1_80,
+    SRTP_AES128_CM_HMAC_SHA1_32,
+    0
+};
+
 /* forward declarations. */
 static sslSocket *ssl_NewSocket(PRBool makeLocks, SSLProtocolVariant variant);
 static SECStatus  ssl_MakeLocks(sslSocket *ss);
@@ -247,17 +256,11 @@ ssl_FindSocket(PRFileDesc *fd)
     return ss;
 }
 
-sslSocket *
+static sslSocket *
 ssl_DupSocket(sslSocket *os)
 {
     sslSocket *ss;
     SECStatus rv;
-
-    /* Not implemented for datagram */
-    if (IS_DTLS(os)) {
-	PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
-	return NULL;
-    }
 
     ss = ssl_NewSocket((PRBool)(!os->opt.noLocks), os->protocolVariant);
     if (ss) {
@@ -279,6 +282,9 @@ ssl_DupSocket(sslSocket *os)
 	ss->maybeAllowedByPolicy= os->maybeAllowedByPolicy;
 	ss->chosenPreference 	= os->chosenPreference;
 	PORT_Memcpy(ss->cipherSuites, os->cipherSuites, sizeof os->cipherSuites);
+	PORT_Memcpy(ss->ssl3.dtlsSRTPCiphers, os->ssl3.dtlsSRTPCiphers,
+		    sizeof(PRUint16) * os->ssl3.dtlsSRTPCipherCount);
+	ss->ssl3.dtlsSRTPCipherCount = os->ssl3.dtlsSRTPCipherCount;
 
 	if (os->cipherSpecs) {
 	    ss->cipherSpecs  = (unsigned char*)PORT_Alloc(os->sizeCipherSpecs);
@@ -529,6 +535,7 @@ SSL_Enable(PRFileDesc *fd, int which, PRBool on)
     return SSL_OptionSet(fd, which, on);
 }
 
+#ifndef NO_PKCS11_BYPASS
 static const PRCallOnceType pristineCallOnce;
 static PRCallOnceType setupBypassOnce;
 
@@ -546,10 +553,16 @@ static PRStatus SSL_BypassRegisterShutdown(void)
     PORT_Assert(SECSuccess == rv);
     return SECSuccess == rv ? PR_SUCCESS : PR_FAILURE;
 }
+#endif
 
 static PRStatus SSL_BypassSetup(void)
 {
+#ifdef NO_PKCS11_BYPASS
+    /* Guarantee binary compatibility */
+    return PR_SUCCESS;
+#else
     return PR_CallOnce(&setupBypassOnce, &SSL_BypassRegisterShutdown);
+#endif
 }
 
 /* Implements the semantics for SSL_OptionSet(SSL_ENABLE_TLS, on) described in
@@ -768,7 +781,11 @@ SSL_OptionSet(PRFileDesc *fd, PRInt32 which, PRBool on)
 	} else {
             if (PR_FALSE != on) {
                 if (PR_SUCCESS == SSL_BypassSetup() ) {
+#ifdef NO_PKCS11_BYPASS
+                    ss->opt.bypassPKCS11   = PR_FALSE;
+#else
                     ss->opt.bypassPKCS11   = on;
+#endif
                 } else {
                     rv = SECFailure;
                 }
@@ -1060,7 +1077,11 @@ SSL_OptionSetDefault(PRInt32 which, PRBool on)
       case SSL_BYPASS_PKCS11:
         if (PR_FALSE != on) {
             if (PR_SUCCESS == SSL_BypassSetup()) {
+#ifdef NO_PKCS11_BYPASS
+                ssl_defaults.bypassPKCS11   = PR_FALSE;
+#else
                 ssl_defaults.bypassPKCS11   = on;
+#endif
             } else {
                 return SECFailure;
             }
@@ -1521,6 +1542,75 @@ SSL_GetNextProto(PRFileDesc *fd, SSLNextProtoState *state, unsigned char *buf,
     return SECSuccess;
 }
 
+SECStatus SSL_SetSRTPCiphers(PRFileDesc *fd,
+			     const PRUint16 *ciphers,
+			     unsigned int numCiphers)
+{
+    sslSocket *ss;
+    int i;
+
+    ss = ssl_FindSocket(fd);
+    if (!ss || !IS_DTLS(ss)) {
+	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_SetSRTPCiphers",
+		 SSL_GETPID(), fd));
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    if (numCiphers > MAX_DTLS_SRTP_CIPHER_SUITES) {
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    ss->ssl3.dtlsSRTPCipherCount = 0;
+    for (i = 0; i < numCiphers; i++) {
+	const PRUint16 *srtpCipher = srtpCiphers;
+
+	while (*srtpCipher) {
+	    if (ciphers[i] == *srtpCipher)
+		break;
+	    srtpCipher++;
+	}
+	if (*srtpCipher) {
+	    ss->ssl3.dtlsSRTPCiphers[ss->ssl3.dtlsSRTPCipherCount++] =
+		ciphers[i];
+	} else {
+	    SSL_DBG(("%d: SSL[%d]: invalid or unimplemented SRTP cipher "
+		    "suite specified: 0x%04hx", SSL_GETPID(), fd,
+		    ciphers[i]));
+	}
+    }
+
+    if (ss->ssl3.dtlsSRTPCipherCount == 0) {
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    return SECSuccess;
+}
+
+SECStatus
+SSL_GetSRTPCipher(PRFileDesc *fd, PRUint16 *cipher)
+{
+    sslSocket * ss;
+
+    ss = ssl_FindSocket(fd);
+    if (!ss) {
+	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_GetSRTPCipher",
+		 SSL_GETPID(), fd));
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    if (!ss->ssl3.dtlsSRTPCipherSuite) {
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
+	return SECFailure;
+    }
+
+    *cipher = ss->ssl3.dtlsSRTPCipherSuite;
+    return SECSuccess;
+}
+
 PRFileDesc *
 SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
 {
@@ -1549,6 +1639,9 @@ SSL_ReconfigFD(PRFileDesc *model, PRFileDesc *fd)
     ss->opt  = sm->opt;
     ss->vrange = sm->vrange;
     PORT_Memcpy(ss->cipherSuites, sm->cipherSuites, sizeof sm->cipherSuites);
+    PORT_Memcpy(ss->ssl3.dtlsSRTPCiphers, sm->ssl3.dtlsSRTPCiphers,
+                sizeof(PRUint16) * sm->ssl3.dtlsSRTPCipherCount);
+    ss->ssl3.dtlsSRTPCipherCount = sm->ssl3.dtlsSRTPCipherCount;
 
     if (!ss->opt.useSecurity) {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -2700,15 +2793,6 @@ ssl_SetDefaultsFromEnvironment(void)
 	    ssl_trace = atoi(ev);
 	    SSL_TRACE(("SSL: tracing set to %d", ssl_trace));
 	}
-	ev = getenv("SSLKEYLOGFILE");
-	if (ev && ev[0]) {
-	    ssl_keylog_iob = fopen(ev, "a");
-	    if (ftell(ssl_keylog_iob) == 0) {
-		fputs("# pre-master secret log file, generated by NSS\n",
-		      ssl_keylog_iob);
-	    }
-	    SSL_TRACE(("SSL: logging pre-master secrets to %s", ev));
-	}
 #endif /* TRACE */
 	ev = getenv("SSLDEBUG");
 	if (ev && ev[0]) {
@@ -2716,12 +2800,23 @@ ssl_SetDefaultsFromEnvironment(void)
 	    SSL_TRACE(("SSL: debugging set to %d", ssl_debug));
 	}
 #endif /* DEBUG */
+	ev = getenv("SSLKEYLOGFILE");
+	if (ev && ev[0]) {
+	    ssl_keylog_iob = fopen(ev, "a");
+	    if (ftell(ssl_keylog_iob) == 0) {
+		fputs("# SSL/TLS secrets log file, generated by NSS\n",
+		      ssl_keylog_iob);
+	    }
+	    SSL_TRACE(("SSL: logging SSL/TLS secrets to %s", ev));
+	}
+#ifndef NO_PKCS11_BYPASS
 	ev = getenv("SSLBYPASS");
 	if (ev && ev[0]) {
 	    ssl_defaults.bypassPKCS11 = (ev[0] == '1');
 	    SSL_TRACE(("SSL: bypass default set to %d", \
 		      ssl_defaults.bypassPKCS11));
 	}
+#endif /* NO_PKCS11_BYPASS */
 	ev = getenv("SSLFORCELOCKS");
 	if (ev && ev[0] == '1') {
 	    ssl_force_locks = PR_TRUE;

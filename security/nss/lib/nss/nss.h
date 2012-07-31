@@ -39,7 +39,7 @@
 #define NSS_VMINOR   14
 #define NSS_VPATCH   0
 #define NSS_VBUILD   0
-#define NSS_BETA     PR_FALSE
+#define NSS_BETA     PR_TRUE
 
 #ifndef RC_INVOKED
 

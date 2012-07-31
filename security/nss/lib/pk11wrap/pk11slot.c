@@ -17,6 +17,7 @@
 #include "dev.h" 
 #include "dev3hack.h" 
 #include "pkim.h"
+#include "utilpars.h"
 
 
 /*************************************************************
@@ -1955,14 +1956,63 @@ PK11_GetPrivateKeyTokens(CK_MECHANISM_TYPE type,PRBool needRW,void *wincx)
     return list;
 }
 
+/*
+ * returns true if the slot doesn't conform to the requested attributes
+ */
+PRBool
+pk11_filterSlot(PK11SlotInfo *slot, CK_MECHANISM_TYPE mechanism, 
+	CK_FLAGS mechanismInfoFlags, unsigned int keySize) 
+{
+    CK_MECHANISM_INFO mechanism_info;
+    CK_RV crv = CKR_OK;
+
+    /* handle the only case where we don't actually fetch the mechanisms
+     * on the fly */
+    if ((keySize == 0) && (mechanism == CKM_RSA_PKCS) && (slot->hasRSAInfo)) {
+	mechanism_info.flags = slot->RSAInfoFlags;
+    } else {
+	if (!slot->isThreadSafe) PK11_EnterSlotMonitor(slot);
+    	crv = PK11_GETTAB(slot)->C_GetMechanismInfo(slot->slotID, mechanism, 
+							&mechanism_info);
+	if (!slot->isThreadSafe) PK11_ExitSlotMonitor(slot);
+	/* if we were getting the RSA flags, save them */
+	if ((crv == CKR_OK) && (mechanism == CKM_RSA_PKCS) 
+						&& (!slot->hasRSAInfo)) {
+	    slot->RSAInfoFlags = mechanism_info.flags;
+	    slot->hasRSAInfo = PR_TRUE;
+	}
+    }
+    /* couldn't get the mechanism info */
+    if (crv != CKR_OK ) {
+	return PR_TRUE;
+    }
+    if (keySize && ((mechanism_info.ulMinKeySize > keySize)
+			|| (mechanism_info.ulMaxKeySize < keySize)) ) {
+	/* Token can do mechanism, but not at the key size we
+	 * want */
+	return PR_TRUE;
+    }
+    if (mechanismInfoFlags && ((mechanism_info.flags & mechanismInfoFlags) !=
+				mechanismInfoFlags) ) {
+	return PR_TRUE;
+    }
+    return PR_FALSE;
+}
+
 
 /*
- * find the best slot which supports the given
- * Mechanism. In normal cases this should grab the first slot on the list
- * with no fuss.
+ * Find the best slot which supports the given set of mechanisms and key sizes.
+ * In normal cases this should grab the first slot on the list with no fuss.
+ * The size array is presumed to match one for one with the mechanism type 
+ * array, which allows you to specify the required key size for each
+ * mechanism in the list. Whether key size is in bits or bytes is mechanism
+ * dependent. Typically asymetric keys are in bits and symetric keys are in 
+ * bytes.
  */
 PK11SlotInfo *
-PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, int mech_count, void *wincx)
+PK11_GetBestSlotMultipleWithAttributes(CK_MECHANISM_TYPE *type, 
+		CK_FLAGS *mechanismInfoFlags, unsigned int *keySize, 
+		unsigned int mech_count, void *wincx)
 {
     PK11SlotList *list = NULL;
     PK11SlotListElement *le ;
@@ -2013,7 +2063,17 @@ PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, int mech_count, void *wincx)
 		    doExit = PR_TRUE;
 		    break;
 		}
+		if ((mechanismInfoFlags && mechanismInfoFlags[i]) ||
+			(keySize && keySize[i])) {
+		    if (pk11_filterSlot(le->slot, type[i], 
+			    mechanismInfoFlags ?  mechanismInfoFlags[i] : 0,
+			    keySize ? keySize[i] : 0)) {
+			doExit = PR_TRUE;
+			break;
+		    }
+		}
 	    }
+    
 	    if (doExit) continue;
 	      
 	    if (listNeedLogin && le->slot->needLogin) {
@@ -2034,11 +2094,27 @@ PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, int mech_count, void *wincx)
     return NULL;
 }
 
+PK11SlotInfo *
+PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, 
+			 unsigned int mech_count, void *wincx)
+{
+    return PK11_GetBestSlotMultipleWithAttributes(type, NULL, NULL, 
+						mech_count, wincx);
+}
+
 /* original get best slot now calls the multiple version with only one type */
 PK11SlotInfo *
 PK11_GetBestSlot(CK_MECHANISM_TYPE type, void *wincx)
 {
-    return PK11_GetBestSlotMultiple(&type, 1, wincx);
+    return PK11_GetBestSlotMultipleWithAttributes(&type, NULL, NULL, 1, wincx);
+}
+
+PK11SlotInfo *
+PK11_GetBestSlotWithAttributes(CK_MECHANISM_TYPE type, CK_FLAGS mechanismFlags,
+		unsigned int keySize, void *wincx)
+{
+    return PK11_GetBestSlotMultipleWithAttributes(&type, &mechanismFlags,
+						 &keySize, 1, wincx);
 }
 
 int

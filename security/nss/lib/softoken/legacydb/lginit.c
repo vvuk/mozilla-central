@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: lginit.c,v 1.17 2012/04/25 14:50:11 gerv%gerv.net Exp $ */
+/* $Id: lginit.c,v 1.18 2012/06/26 22:27:32 rrelyea%redhat.com Exp $ */
 
 #include "lowkeyi.h"
 #include "pcert.h"
@@ -530,7 +530,7 @@ lg_init(SDB **pSdb, int flags, NSSLOWCERTCertDBHandle *certdbPtr,
 
     sdb->private = lgdb_p;
     sdb->version = 0;
-    sdb->sdb_type = SDB_LEGACY;
+    /*sdb->sdb_type = SDB_LEGACY; */
     sdb->sdb_flags = flags;
     sdb->app_private = NULL;
     sdb->sdb_FindObjectsInit = lg_FindObjectsInit;

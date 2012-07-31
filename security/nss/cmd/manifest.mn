@@ -22,7 +22,9 @@ DIRS = lib  \
  dbtest \
  derdump  \
  digest  \
+ httpserv  \
  fipstest  \
+ $(LOWHASHTEST_SRCDIR)  \
  makepqg  \
  multinit \
  ocspclnt  \
@@ -34,6 +36,7 @@ DIRS = lib  \
  pk12util \
  pk11mode \
  pk1sign  \
+ pkix-errcodes \
  pp  \
  rsaperf \
  sdrtest \

@@ -6,7 +6,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.70 2012/04/25 14:49:27 gerv%gerv.net Exp $
+ * $Id: ocsp.c,v 1.71 2012/05/31 22:03:36 emaldona%redhat.com Exp $
  */
 
 #include "prerror.h"
@@ -1476,7 +1476,7 @@ CERT_EncodeOCSPRequest(PRArenaPool *arena, CERTOCSPRequest *request,
  *   (SEC_ERROR_OCSP_MALFORMED_REQUEST), or low-level problem (no memory).
  */
 CERTOCSPRequest *
-CERT_DecodeOCSPRequest(SECItem *src)
+CERT_DecodeOCSPRequest(const SECItem *src)
 {
     PRArenaPool *arena = NULL;
     SECStatus rv = SECFailure;
@@ -3417,7 +3417,7 @@ loser:
  */
 SECItem *
 CERT_GetEncodedOCSPResponse(PRArenaPool *arena, CERTCertList *certList,
-			    char *location, int64 time,
+			    const char *location, int64 time,
 			    PRBool addServiceLocator,
 			    CERTCertificate *signerCert, void *pwArg,
 			    CERTOCSPRequest **pRequest)

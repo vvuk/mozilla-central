@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslinfo.c,v 1.29 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslinfo.c,v 1.30 2012/07/13 00:51:57 wtc%google.com Exp $ */
 #include "ssl.h"
 #include "sslimpl.h"
 #include "sslproto.h"
@@ -343,7 +343,7 @@ SSL_ExportKeyingMaterial(PRFileDesc *fd,
     }
 
     if (ss->version < SSL_LIBRARY_VERSION_3_1_TLS) {
-	PORT_SetError(SSL_ERROR_UNSUPPORTED_VERSION);
+	PORT_SetError(SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_VERSION);
 	return SECFailure;
     }
 

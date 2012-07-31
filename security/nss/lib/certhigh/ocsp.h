@@ -5,7 +5,7 @@
 /*
  * Interface to the OCSP implementation.
  *
- * $Id: ocsp.h,v 1.20 2012/04/25 14:49:27 gerv%gerv.net Exp $
+ * $Id: ocsp.h,v 1.21 2012/05/31 22:03:36 emaldona%redhat.com Exp $
  */
 
 #ifndef _OCSP_H_
@@ -272,7 +272,7 @@ CERT_EncodeOCSPRequest(PLArenaPool *arena, CERTOCSPRequest *request,
  *   (SEC_ERROR_OCSP_MALFORMED_REQUEST), or low-level problem (no memory).
  */
 extern CERTOCSPRequest *
-CERT_DecodeOCSPRequest(SECItem *src);
+CERT_DecodeOCSPRequest(const SECItem *src);
 
 /*
  * FUNCTION: CERT_DestroyOCSPRequest
@@ -362,7 +362,7 @@ CERT_DestroyOCSPResponse(CERTOCSPResponse *response);
  */
 extern SECItem *
 CERT_GetEncodedOCSPResponse(PLArenaPool *arena, CERTCertList *certList,
-			    char *location, PRTime time,
+			    const char *location, PRTime time,
 			    PRBool addServiceLocator,
 			    CERTCertificate *signerCert, void *pwArg,
 			    CERTOCSPRequest **pRequest);

@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslcon.c,v 1.50 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslcon.c,v 1.52 2012/07/17 14:43:11 kaie%kuix.de Exp $ */
 
 #include "nssrenam.h"
 #include "cert.h"
@@ -625,7 +625,8 @@ ssl2_SendServerFinishedMessage(sslSocket *ss)
 
 	if (sent < 0) {
 	    /* If send failed, it is now a bogus  session-id */
-	    (*ss->sec.uncache)(sid);
+	    if (ss->sec.uncache)
+		(*ss->sec.uncache)(sid);
 	    rv = (SECStatus)sent;
 	} else if (!ss->opt.noCache) {
 	    /* Put the sid in session-id cache, (may already be there) */
@@ -2858,9 +2859,10 @@ ssl2_HandleServerHelloMessage(sslSocket *ss)
 	    /* Forget our session-id - server didn't like it */
 	    SSL_TRC(7, ("%d: SSL[%d]: server forgot me, uncaching session-id",
 			SSL_GETPID(), ss->fd));
-	    (*ss->sec.uncache)(sid);
+	    if (ss->sec.uncache)
+		(*ss->sec.uncache)(sid);
 	    ssl_FreeSID(sid);
-	    ss->sec.ci.sid = sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
+	    ss->sec.ci.sid = sid = PORT_ZNew(sslSessionID);
 	    if (!sid) {
 		goto loser;
 	    }
@@ -3032,7 +3034,8 @@ ssl2_BeginClientHandshake(sslSocket *ss)
 
 	/* if we're not doing this SID's protocol any more, drop it. */
 	if (!sidVersionEnabled) {
-	    ss->sec.uncache(sid);
+	    if (ss->sec.uncache)
+		ss->sec.uncache(sid);
 	    ssl_FreeSID(sid);
 	    sid = NULL;
 	    break;
@@ -3044,7 +3047,8 @@ ssl2_BeginClientHandshake(sslSocket *ss)
 		    break;
 	    }
 	    if (i >= ss->sizeCipherSpecs) {
-		ss->sec.uncache(sid);
+		if (ss->sec.uncache)
+		    ss->sec.uncache(sid);
 		ssl_FreeSID(sid);
 		sid = NULL;
 		break;
@@ -3063,7 +3067,7 @@ ssl2_BeginClientHandshake(sslSocket *ss)
     } 
     if (!sid) {
 	sidLen = 0;
-	sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
+	sid = PORT_ZNew(sslSessionID);
 	if (!sid) {
 	    goto loser;
 	}
@@ -3489,7 +3493,7 @@ ssl2_HandleClientHelloMessage(sslSocket *ss)
 	    goto loser;
 	}
 	hit = 0;
-	sid = (sslSessionID*) PORT_ZAlloc(sizeof(sslSessionID));
+	sid = PORT_ZNew(sslSessionID);
 	if (!sid) {
 	    goto loser;
 	}

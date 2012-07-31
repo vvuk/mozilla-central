@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: loader.c,v 1.55 2012/04/25 14:49:43 gerv%gerv.net Exp $ */
+/* $Id: loader.c,v 1.57 2012/06/28 17:55:05 rrelyea%redhat.com Exp $ */
 
 #include "loader.h"
 #include "prmem.h"
@@ -849,6 +849,7 @@ PQG_ParamGenSeedLen( unsigned int j, unsigned int seedBytes,
       return SECFailure;
   return (vector->p_PQG_ParamGenSeedLen)(j, seedBytes, pParams, pVfy);
 }
+
 
 SECStatus   
 PQG_VerifyParams(const PQGParams *params, const PQGVerify *vfy, 
@@ -1838,4 +1839,22 @@ BLAPI_SHVerifyFile(const char *name)
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return PR_FALSE;
   return vector->p_BLAPI_SHVerifyFile(name);
+}
+
+/* === new for DSA-2 === */
+SECStatus
+PQG_ParamGenV2( unsigned int L, unsigned int N, unsigned int seedBytes, 
+               PQGParams **pParams, PQGVerify **pVfy)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return SECFailure;
+  return (vector->p_PQG_ParamGenV2)(L, N, seedBytes, pParams, pVfy); 
+}
+
+PRBool
+PRNGTEST_RunHealthTests(void)
+{
+  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
+      return PR_FALSE;
+  return vector->p_PRNGTEST_RunHealthTests();
 }

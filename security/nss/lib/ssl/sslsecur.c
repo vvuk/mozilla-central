@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslsecur.c,v 1.60 2012/04/25 14:50:12 gerv%gerv.net Exp $ */
+/* $Id: sslsecur.c,v 1.61 2012/05/24 20:34:51 wtc%google.com Exp $ */
 #include "cert.h"
 #include "secitem.h"
 #include "keyhi.h"
@@ -596,8 +596,11 @@ done:
 
 /************************************************************************/
 
+/*
+** Return SSLKEAType derived from cert's Public Key algorithm info.
+*/
 SSLKEAType
-ssl_FindCertKEAType(CERTCertificate * cert)
+NSS_FindCertKEAType(CERTCertificate * cert)
 {
   SSLKEAType keaType = kt_null; 
   int tag;
@@ -611,7 +614,6 @@ ssl_FindCertKEAType(CERTCertificate * cert)
   case SEC_OID_PKCS1_RSA_ENCRYPTION:
     keaType = kt_rsa;
     break;
-
   case SEC_OID_X942_DIFFIE_HELMAN_KEY:
     keaType = kt_dh;
     break;
@@ -627,7 +629,6 @@ ssl_FindCertKEAType(CERTCertificate * cert)
  loser:
   
   return keaType;
-
 }
 
 static const PRCallOnceType pristineCallOnce;
@@ -769,7 +770,7 @@ SSL_ConfigSecureServerWithCertChain(PRFileDesc *fd, CERTCertificate *cert,
 	return SECFailure;
     }
 
-    if (kea != ssl_FindCertKEAType(cert)) {
+    if (kea != NSS_FindCertKEAType(cert)) {
     	PORT_SetError(SSL_ERROR_CERT_KEA_MISMATCH);
 	return SECFailure;
     }

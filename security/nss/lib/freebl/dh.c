@@ -6,7 +6,7 @@
  * Diffie-Hellman parameter generation, key generation, and secret derivation.
  * KEA secret generation and verification.
  *
- * $Id: dh.c,v 1.11 2012/04/25 14:49:43 gerv%gerv.net Exp $
+ * $Id: dh.c,v 1.12 2012/06/14 18:55:10 wtc%google.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -21,8 +21,27 @@
 #include "mpprime.h"
 #include "secmpi.h"
 
-#define DH_SECRET_KEY_LEN      20
 #define KEA_DERIVED_SECRET_LEN 128
+
+/* Lengths are in bytes. */
+static unsigned int
+dh_GetSecretKeyLen(unsigned int primeLen)
+{
+    /* Based on Table 2 in NIST SP 800-57. */
+    if (primeLen >= 1920) { /* 15360 bits */
+        return 64;  /* 512 bits */
+    }
+    if (primeLen >= 960) { /* 7680 bits */
+        return 48;  /* 384 bits */
+    }
+    if (primeLen >= 384) { /* 3072 bits */
+        return 32;  /* 256 bits */
+    }
+    if (primeLen >= 256) { /* 2048 bits */
+        return 28;  /* 224 bits */
+    }
+    return 20;  /* 160 bits */
+}
 
 SECStatus 
 DH_GenParam(int primeLen, DHParams **params)
@@ -154,7 +173,8 @@ DH_NewKey(DHParams *params, DHPrivateKey **privKey)
     CHECK_SEC_OK( SECITEM_CopyItem(arena, &key->base, &params->base) );
     SECITEM_TO_MPINT(key->base, &g);
     /* Generate private key xa */
-    SECITEM_AllocItem(arena, &key->privateValue, DH_SECRET_KEY_LEN);
+    SECITEM_AllocItem(arena, &key->privateValue,
+                      dh_GetSecretKeyLen(params->prime.len));
     RNG_GenerateGlobalRandomBytes(key->privateValue.data, 
                                   key->privateValue.len);
     SECITEM_TO_MPINT( key->privateValue, &xa );
