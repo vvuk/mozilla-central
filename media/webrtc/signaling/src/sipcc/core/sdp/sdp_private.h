@@ -46,6 +46,7 @@
 /* SDP Defines */
 
 #define SDP_MAX_STRING_LEN      80  /* Max len for SDP string       */
+#define SDP_MAX_CANDIDATE_LEN      150  /* Max len for SDP string       */
 #define SDP_MAX_SHORT_STRING_LEN      12  /* Max len for a short SDP string  */
 #define SDP_MAX_PAYLOAD_TYPES   23  /* Max payload types in m= line */
 #define SDP_TOKEN_LEN           2   /* Len of <token>=              */
@@ -440,7 +441,7 @@ typedef struct sdp_attr {
         tinybool              boolean_val;
         u32                   u32_val;
         char                  string_val[SDP_MAX_STRING_LEN+1];
-        char                  ice_attr[SDP_MAX_STRING_LEN+1];
+        char                  ice_attr[SDP_MAX_CANDIDATE_LEN];
         sdp_fmtp_t            fmtp;
         sdp_qos_t             qos;
         sdp_curr_t            curr;

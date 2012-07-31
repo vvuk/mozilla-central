@@ -101,10 +101,11 @@ nsresult PeerConnectionCtx::Initialize() {
   // FIX - Get this list from MediaEngine instead
   // Turning them all on for now
   codecMask = 0;
-  codecMask |= VCM_CODEC_RESOURCE_H263;
-  codecMask |= VCM_CODEC_RESOURCE_H264;
+  // Only adding codecs supported
+  //codecMask |= VCM_CODEC_RESOURCE_H263;
+  //codecMask |= VCM_CODEC_RESOURCE_H264;
   codecMask |= VCM_CODEC_RESOURCE_VP8;
-  codecMask |= VCM_CODEC_RESOURCE_I420;
+  //codecMask |= VCM_CODEC_RESOURCE_I420;
   mCCM->setVideoCodecs(codecMask);
 
   if (!mCCM->startSDPMode())
