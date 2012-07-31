@@ -42,7 +42,12 @@ let observer1 = {
     channel.onopen = function() {
         print("pc1 onopen fired");
 	channel1.send("Hello...");
+	print("pc1 state: " + channel.state);
     };
+    print("pc1 state:" + channel.readyState);
+    // There's a race condition with onopen; if the channel is already open it should fire
+    if (channel.readyState != 0)
+	channel1.send("Hello...");
     channel.onmessage = function(evt) {
         print('pc1 RESPONSE: ' + evt.data  + "state = " + channel.readyState);
     };
@@ -80,6 +85,10 @@ let observer2 = {
         print("pc2 onopen fired");
 	channel2.send("Hi there!");
     };
+    print("pc2 state:" + channel.readyState);
+    // There's a race condition with onopen; if the channel is already open it should fire
+    if (channel.readyState != 0)
+	channel2.send("Hi there!");	
     channel.onmessage = function(evt) {
         print('pc2 RESPONSE: ' + evt.data  + "state = " + channel.readyState);
     };
@@ -140,7 +149,7 @@ pc1.initialize(observer1, mainThread);
 pc2.initialize(observer2, mainThread);
 
 pc1.listen(6747);
-pc2.connect("192.168.1.17",6747);
+pc2.connect("127.0.0.1",6747);
 
 let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 timer.initWithCallback(function() {
