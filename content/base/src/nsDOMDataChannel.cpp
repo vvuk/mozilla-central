@@ -59,6 +59,13 @@ public:
   NS_DECL_EVENT_HANDLER(error)
   NS_DECL_EVENT_HANDLER(close)
   NS_DECL_EVENT_HANDLER(message)
+
+  // Get msg info out of JS variable being sent (string, arraybuffer, blob)
+  nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
+                         nsCOMPtr<nsIInputStream> &aStreamOut,
+                         bool &aIsBinary, PRUint32 &aOutgoingLength,
+                         JSContext *aCx);
+
 };
 
 DOMCI_DATA(DataChannel, nsDOMDataChannel)
@@ -154,51 +161,126 @@ nsDOMDataChannel::Close()
   return NS_OK;
 }
 
+// Almost a clone of nsWebSocketChannel::Send()
 NS_IMETHODIMP
-nsDOMDataChannel::Send(const JS::Value& aValue, JSContext* aCx)
+nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
 {
-  JSObject* obj = JSVAL_TO_OBJECT(aValue);
-  if (obj) {
-    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
-      nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj));
-    if (blob) {
-      nsCOMPtr<nsIInputStream> stream;
-      nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
-      NS_ENSURE_SUCCESS(rv, rv);
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  PRUint16 state = mDataChannel->GetReadyState();
 
-      PRUint32 avail = 0;
-      rv = stream->Available(&avail);
-      NS_ENSURE_SUCCESS(rv, rv);
+  // In reality, the DataChannel protocol allows this, but we want it to
+  // look like WebSockets
+  if (state == nsIDOMDataChannel::CONNECTING) {
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+  }
 
-      // XXXkhuey synchronous disk I/O!  sdwilsh is rolling in his grave
-      nsCString string;
-      rv = NS_ReadInputStreamToString(stream, string, avail);
-      NS_ENSURE_SUCCESS(rv, rv);
+  nsCString msgString;
+  nsCOMPtr<nsIInputStream> msgStream;
+  bool isBinary;
+  PRUint32 msgLen;
+  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-      mDataChannel->SendBinaryMsg(string);
+  // Always increment outgoing buffer len, even if closed
+  //mOutgoingBufferedAmount += msgLen;
+
+  if (state == nsIDOMDataChannel::CLOSING ||
+      state == nsIDOMDataChannel::CLOSED) {
+    return NS_OK;
+  }
+
+  MOZ_ASSERT(state == nsIDOMDataChannel::OPEN,
+             "Unknown state in nsWebSocket::Send");
+
+  if (msgStream) {
+    // XXX fix!
+    //rv = mDataChannel->SendBinaryStream(msgStream, msgLen);
+  } else {
+    if (isBinary) {
+      rv = mDataChannel->SendBinaryMsg(msgString);
+    } else {
+      rv = mDataChannel->SendMsg(msgString);
+    }
+  }
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  //UpdateMustKeepAlive();
+
+  return NS_OK;
+}
+
+// XXX Exact clone of nsWebSocketChannel::GetSendParams() - share!
+nsresult
+nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
+                                nsCOMPtr<nsIInputStream> &aStreamOut,
+                                bool &aIsBinary, PRUint32 &aOutgoingLength,
+                                JSContext *aCx)
+{
+  // Get type of data (arraybuffer, blob, or string)
+  PRUint16 dataType;
+  nsresult rv = aData->GetDataType(&dataType);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (dataType == nsIDataType::VTYPE_INTERFACE ||
+      dataType == nsIDataType::VTYPE_INTERFACE_IS) {
+    nsCOMPtr<nsISupports> supports;
+    nsID *iid;
+    rv = aData->GetAsInterface(&iid, getter_AddRefs(supports));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsMemory::Free(iid);
+
+    // ArrayBuffer?
+    jsval realVal;
+    JSObject* obj;
+    nsresult rv = aData->GetAsJSVal(&realVal);
+    if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
+        (obj = JSVAL_TO_OBJECT(realVal)) &&
+        (JS_IsArrayBufferObject(obj, aCx))) {
+      PRInt32 len = JS_GetArrayBufferByteLength(obj, aCx);
+      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
+
+      aStringOut.Assign(data, len);
+      aIsBinary = true;
+      aOutgoingLength = len;
       return NS_OK;
     }
 
-    // We might be an array buffer
-    if (JS_IsArrayBufferObject(obj, aCx)) {
-      PRUint32 len = JS_GetArrayBufferByteLength(obj, aCx);
-      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
+    // Blob?
+    nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(supports);
+    if (blob) {
+      rv = blob->GetInternalStream(getter_AddRefs(aStreamOut));
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      nsDependentCString string((char*)data, len);
-      mDataChannel->SendBinaryMsg(string);
+      // GetSize() should not perform blocking I/O (unlike Available())
+      PRUint64 blobLen;
+      rv = blob->GetSize(&blobLen);
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (blobLen > PR_UINT32_MAX) {
+        return NS_ERROR_FILE_TOO_BIG;
+      }
+      aOutgoingLength = static_cast<PRUint32>(blobLen);
+
+      aIsBinary = true;
       return NS_OK;
     }
   }
-  // Not an object...
-  JSString* str = JS_ValueToString(aCx, aValue);
-  NS_ENSURE_TRUE(str, NS_ERROR_FAILURE);
 
-  nsDependentJSString jsstr;
-  NS_ENSURE_TRUE(jsstr.init(aCx, str), NS_ERROR_FAILURE);
+  // Text message: if not already a string, turn it into one.
+  // TODO: bug 704444: Correctly coerce any JS type to string
+  //
+  PRUnichar* data = nsnull;
+  PRUint32 len = 0;
+  rv = aData->GetAsWStringWithSize(&len, &data);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ConvertUTF16toUTF8 cstring(jsstr);
+  nsString text;
+  text.Adopt(data, len);
 
-  mDataChannel->SendMsg(cstring);
+  CopyUTF16toUTF8(text, aStringOut);
+
+  aIsBinary = false;
+  aOutgoingLength = aStringOut.Length();
   return NS_OK;
 }
 
