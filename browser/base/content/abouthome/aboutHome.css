@@ -341,3 +341,11 @@ body[narrow] #restorePreviousSession::before {
   top: 12px;
   right: 12px;
 }
+
+#signin {
+  display: block;
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-size: 90%;
+}

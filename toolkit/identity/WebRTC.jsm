@@ -58,7 +58,7 @@ AuthModule.prototype = {
  *                           assertion:  IdP certificate + assertion for PC origin,
  *                           authModule: Pointer to an AuthModule}
  */
-let selectIdentity = function selectIdentity(aPeerConnectionId, aCallback) {
+let selectIdentity = function selectIdentity(aPeerConnectionId, aWindowId, aCallback) {
   // Create a client object representing the PeerConnection to be
   // used in provisioning and authentication flows.  The PeerConnection
   // is treated as an RP whose origin is the ID of the PC.
@@ -69,6 +69,7 @@ let selectIdentity = function selectIdentity(aPeerConnectionId, aCallback) {
   let origin = 'webrtc://'+aPeerConnectionId.toString();
   let client = {
     id: aPeerConnectionId,
+    windowId: aWindowId,
     loggedInEmail: null,
     origin: origin,
     doError: doError,

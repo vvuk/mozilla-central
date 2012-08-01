@@ -37,6 +37,7 @@ EXTRA_JS_MODULES = \
 	LogUtils.jsm \
 	RelyingParty.jsm \
 	Sandbox.jsm \
+	WebRTC.jsm \
 	$(NULL)
 
 ifdef ENABLE_TESTS
