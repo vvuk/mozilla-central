@@ -741,14 +741,14 @@ SSL_IMPORT SECStatus SSL_GetSRTPCipher(PRFileDesc *fd,
 
 /*
  * Look to see if any of the signers in the cert chain for "cert" are found
- * in the list of caNames.  
+ * in the list of caNames.
  * Returns SECSuccess if so, SECFailure if not.
  * Used by NSS_GetClientAuthData.  May be used by other callback functions.
  */
-SSL_IMPORT SECStatus NSS_CmpCertChainWCANames(CERTCertificate *cert, 
+SSL_IMPORT SECStatus NSS_CmpCertChainWCANames(CERTCertificate *cert,
                                           CERTDistNames *caNames);
 
-/* 
+/*
  * Returns key exchange type of the keys in an SSL server certificate.
  */
 SSL_IMPORT SSLKEAType NSS_FindCertKEAType(CERTCertificate * cert);

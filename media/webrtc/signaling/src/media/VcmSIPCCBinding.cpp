@@ -59,6 +59,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <ssl.h>
+#include <sslproto.h>
 
 extern "C" {
 #include "ccsdp.h"
@@ -2309,6 +2311,17 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
     dtls->SetRole(pc->GetRole() == sipcc::PeerConnectionImpl::kRoleOfferer ?
                   TransportLayerDtls::CLIENT : TransportLayerDtls::SERVER);
     dtls->SetIdentity(pc->GetIdentity());
+
+    std::vector<PRUint16> srtp_ciphers;
+    srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
+    srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_32);
+
+    nsresult res = dtls->SetSrtpCiphers(srtp_ciphers);
+    if (!NS_SUCCEEDED(res)) {
+      CSFLogError(logTag, "Couldn't set SRTP ciphers");
+      return NULL;
+    }
+
     flow->PushLayer(dtls);
 
     pc->AddTransportFlow(level, rtcp, flow);

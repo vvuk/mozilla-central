@@ -48,18 +48,21 @@ class TransportLayer : public sigslot::has_slots<> {
   // Inserted
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
 
+  // Downward interface
+  TransportLayer *downward() { return downward_; }
+
   // Get the state
-  State state() const { return state_; }    
+  State state() const { return state_; }
   // Must be implemented by derived classes
   virtual TransportResult SendPacket(const unsigned char *data, size_t len) = 0;
-  
+
   // Event definitions that one can register for
   // State has changed
   sigslot::signal2<TransportLayer*, State> SignalStateChange;
   // Data received on the flow
   sigslot::signal3<TransportLayer*, const unsigned char *, size_t>
                          SignalPacketReceived;
-  
+
   // Return the layer id for this layer
   virtual const std::string& id() = 0;
 

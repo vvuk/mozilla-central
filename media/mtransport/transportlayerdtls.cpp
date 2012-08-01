@@ -67,12 +67,12 @@ PRInt32 NSPRHelper::Read(void *data, PRInt32 len) {
     PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
     return TE_WOULDBLOCK;
   }
-    
+
   Packet* front = input_.front();
   PRInt32 to_read = std::min(len, front->len_ - front->offset_);
   memcpy(data, front->data_, to_read);
   front->offset_ += to_read;
-    
+
   if (front->offset_ == front->len_) {
     input_.pop();
     delete front;
@@ -361,7 +361,7 @@ nsresult TransportLayerDtls::InitInternal() {
     MLOG(PR_LOG_ERROR, "Couldn't get timer");
     return rv;
   }
-  
+
   return NS_OK;
 }
 
@@ -372,6 +372,7 @@ void TransportLayerDtls::WasInserted() {
     SetState(ERROR);
   }
 };
+
 
 bool TransportLayerDtls::Setup() {
   SECStatus rv;
@@ -389,7 +390,7 @@ bool TransportLayerDtls::Setup() {
   helper_ = new NSPRHelper(downward_);
   downward_->SignalStateChange.connect(this, &TransportLayerDtls::StateChange);
   downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
-  
+
   if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
     nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
   }
@@ -412,7 +413,7 @@ bool TransportLayerDtls::Setup() {
     pr_fd_ = NULL;
     return false;
   }
-  
+
   if (role_ == CLIENT) {
     rv = SSL_GetClientAuthDataHook(ssl_fd, GetClientAuthDataHook,
                                    this);
@@ -451,7 +452,7 @@ bool TransportLayerDtls::Setup() {
       MLOG(PR_LOG_ERROR, "Can't disable SSLv3");
       return false;
     }
-    
+
     // Enable TLS
     rv = SSL_OptionSet(ssl_fd, SSL_ENABLE_TLS, PR_FALSE);
     if (rv != SECSuccess) {
@@ -460,7 +461,19 @@ bool TransportLayerDtls::Setup() {
     }
   }
 
-    // Certificate validation
+  // Set the SRTP ciphers
+  if (srtp_ciphers_.size()) {
+    // Note: std::vector is guaranteed to contiguous
+    rv = SSL_SetSRTPCiphers(ssl_fd, &srtp_ciphers_[0],
+                            srtp_ciphers_.size());
+
+    if (rv != SECSuccess) {
+      MLOG(PR_LOG_ERROR, "Couldn't set SRTP cipher suite");
+      return false;
+    }
+  }
+
+  // Certificate validation
   rv = SSL_AuthCertificateHook(ssl_fd, AuthCertificateHook,
                                reinterpret_cast<void *>(this));
   if (rv != SECSuccess) {
@@ -617,29 +630,28 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
          << state_);
     return TE_ERROR;
   }
-  
+
   PRInt32 rv = PR_Send(ssl_fd_, data, len, 0, PR_INTERVAL_NO_WAIT);
-  
+
   if (rv > 0) {
     // We have data
     MLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << rv << " bytes to NSS");
     return rv;
-  } 
-    
+  }
+
   if (rv == 0) {
     SetState(CLOSED);
     return 0;
   }
 
   PRInt32 err = PR_GetError();
-    
+
   if (err == PR_WOULD_BLOCK_ERROR) {
     // This gets ignored
     MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
     return TE_WOULDBLOCK;
-  } 
+  }
 
-  
   MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
   SetState(ERROR);
   return TE_ERROR;
@@ -650,7 +662,7 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
                                                     CERTCertificate **pRetCert,
                                                     SECKEYPrivateKey **pRetKey) {
   MLOG(PR_LOG_DEBUG, "Server requested client auth");
-      
+
   TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
 
   if (!stream->identity_) {
@@ -662,7 +674,7 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
   if (!pRetCert) {
     return SECFailure;
   }
-  
+
   *pRetKey = SECKEY_CopyPrivateKey(stream->identity_->privkey());
   if (!pRetKey) {
     CERT_DestroyCertificate(*pRetCert);
@@ -671,7 +683,46 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
   return SECSuccess;
 }
 
-// This always returns true, but stores the certificate for 
+nsresult TransportLayerDtls::SetSrtpCiphers(std::vector<PRUint16> ciphers) {
+  // TODO(ekr@rtfm.com): We should check these
+  srtp_ciphers_ = ciphers;
+
+  return NS_OK;
+}
+
+nsresult TransportLayerDtls::GetSrtpCipher(PRUint16 *cipher) {
+  SECStatus rv = SSL_GetSRTPCipher(ssl_fd_, cipher);
+  if (rv != SECSuccess) {
+    MLOG(PR_LOG_DEBUG, "No SRTP cipher negotiated");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+nsresult TransportLayerDtls::ExportKeyingMaterial(const std::string& label,
+                                                  bool use_context,
+                                                  const std::string& context,
+                                                  unsigned char *out,
+                                                  unsigned int outlen) {
+  SECStatus rv = SSL_ExportKeyingMaterial(ssl_fd_,
+                                          label.c_str(),
+                                          label.size(),
+                                          use_context ? PR_TRUE : PR_FALSE,
+                                          reinterpret_cast<const unsigned char *>(
+                                              context.c_str()),
+                                          context.size(),
+                                          out,
+                                          outlen);
+  if (rv != SECSuccess) {
+    MLOG(PR_LOG_ERROR, "Couldn't export SSL keying material");
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+// This always returns true, but stores the certificate for
 // later use.
 SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
                                                   PRFileDesc *fd,
@@ -686,7 +737,7 @@ SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
 
 void TransportLayerDtls::TimerCallback(nsITimer *timer, void *arg) {
  TransportLayerDtls *dtls = reinterpret_cast<TransportLayerDtls *>(arg);
- 
+
  MLOG(PR_LOG_DEBUG, "DTLS timer expired");
 
  dtls->Handshake();

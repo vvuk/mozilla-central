@@ -11,6 +11,8 @@
 
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
+#include "ssl.h"
+#include "sslproto.h"
 
 #include "logging.h"
 #include "mozilla/RefPtr.h"
@@ -22,6 +24,7 @@
 #include "runnable_utils.h"
 #include "transportflow.h"
 #include "transportlayerprsock.h"
+#include "transportlayerdtls.h"
 
 
 #include "mtransport_test_utils.h"
@@ -43,6 +46,7 @@ class TestAgent {
   TestAgent() :
       audio_flow_(new TransportFlow()),
       audio_prsock_(new TransportLayerPrsock()),
+      audio_dtls_(new TransportLayerDtls()),
       audio_config_(97, "PCMU", 8000, 80, 1, 64000),
       audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
@@ -59,12 +63,18 @@ class TestAgent {
     nsresult res;
     res = audio_prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
-    
+
     test_utils.sts_target()->Dispatch(WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import,
                                    fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
-    
+
     ASSERT_EQ((nsresult)NS_OK, audio_flow_->PushLayer(audio_prsock_));
+    
+    std::vector<PRUint16> ciphers;
+    ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
+    audio_dtls_->SetSrtpCiphers(ciphers);
+
+    audio_flow_->PushLayer(audio_dtls_);
   }
 
   void Start() {
@@ -96,6 +106,7 @@ class TestAgent {
  protected:
   mozilla::RefPtr<TransportFlow> audio_flow_;
   TransportLayerPrsock *audio_prsock_;
+  TransportLayerDtls *audio_dtls_;
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
   nsRefPtr<nsDOMMediaStream> audio_;

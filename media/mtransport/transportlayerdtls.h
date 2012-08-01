@@ -32,7 +32,7 @@ class NSPRHelper {
   NSPRHelper(TransportLayer *output) :
       output_(output),
       input_() {}
-  
+
   void PacketReceived(const void *data, PRInt32 len);
   PRInt32 Read(void *data, PRInt32 len);
   PRInt32 Write(const void *buf, PRInt32 length);
@@ -58,12 +58,25 @@ public:
 
   virtual ~TransportLayerDtls();
 
-  
+
   enum Role { CLIENT, SERVER};
 
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
-  void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) { identity_ = identity; }
+  Role role() { return role_; }
+
+  void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) {
+    identity_ = identity;
+  }
+  nsresult SetSrtpCiphers(std::vector<PRUint16> ciphers);
+  nsresult GetSrtpCipher(PRUint16 *cipher);
+
+  nsresult ExportKeyingMaterial(const std::string& label,
+                                bool use_context,
+                                const std::string& context,
+                                unsigned char *out,
+                                unsigned int outlen);
+
   const CERTCertificate *GetPeerCert() const { return peer_cert_; }
 
   // Transport layer overrides.
@@ -79,10 +92,9 @@ public:
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
 
- 
   // A static version of the layer ID
   static std::string ID;
-  
+
 private:
   DISALLOW_COPY_ASSIGN(TransportLayerDtls);
 
@@ -100,13 +112,15 @@ private:
   static void TimerCallback(nsITimer *timer, void *arg);
 
   mozilla::RefPtr<DtlsIdentity> identity_;
+  std::vector<PRUint16> srtp_ciphers_;
+
   Role role_;
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
   mozilla::ScopedDeletePtr<NSPRHelper> helper_;
   CERTCertificate *peer_cert_;
-  nsCOMPtr<nsIEventTarget> target_;  
+  nsCOMPtr<nsIEventTarget> target_;
   nsCOMPtr<nsITimer> timer_;
 
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity

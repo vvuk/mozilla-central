@@ -67,8 +67,11 @@ nsresult Fake_SourceMediaStream::Stop() {
 }
 
 void Fake_SourceMediaStream::Periodic() {
-  if (mPullEnabled && mListener) {
-    mListener->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
+  if (mPullEnabled) {
+    for (std::set<Fake_MediaStreamListener *>::iterator it =
+             mListeners.begin(); it != mListeners.end(); ++it) {
+      (*it)->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(10));
+    }
   }
 }
 
@@ -97,15 +100,16 @@ void Fake_AudioStreamSource::Periodic() {
   segment.Init(1);
   segment.InsertNullDataAtStart(160);
 
-  if (mListener)
-    mListener->NotifyQueuedTrackChanges(NULL, // Graph
-                                        0, // TrackID
-                                        16000, // Rate (hz)
-                                        0, // Offset TODO(ekr@rtfm.com) fix
-                                        0, // ???
-                                        segment);
+  for (std::set<Fake_MediaStreamListener *>::iterator it = mListeners.begin();
+       it != mListeners.end(); ++it) {
+    (*it)->NotifyQueuedTrackChanges(NULL, // Graph
+                                    0, // TrackID
+                                    16000, // Rate (hz)
+                                    0, // Offset TODO(ekr@rtfm.com) fix
+                                    0, // ???
+                                    segment);
+  }
 }
-
 
 
 // Fake_MediaPeriodic

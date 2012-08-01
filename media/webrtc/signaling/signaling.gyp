@@ -149,6 +149,8 @@
         # Media pipeline
         './src/mediapipeline/MediaPipeline.h',
         './src/mediapipeline/MediaPipeline.cpp',
+        './src/mediapipeline/SrtpFlow.h',
+        './src/mediapipeline/SrtpFlow.cpp',
       ],
     
       #

@@ -5,6 +5,8 @@
 #ifndef FAKE_MEDIA_STREAM_H_
 #define FAKE_MEDIA_STREAM_H_
 
+#include <set>
+
 #include "nsNetCID.h"
 #include "nsITimer.h"
 #include "nsComponentManagerUtils.h"
@@ -49,16 +51,17 @@ public:
 // Note: only one listener supported
 class Fake_MediaStream {
 public:
-  Fake_MediaStream () : mListener(NULL) {}
+  Fake_MediaStream () : mListeners() {}
   virtual ~Fake_MediaStream() { Stop(); }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
-    mListener = aListener;
+    mListeners.insert(aListener);
   }
 
   void RemoveListener(Fake_MediaStreamListener *aListener) {
-    mListener = NULL;
+    mListeners.erase(aListener);
   }
+
   virtual Fake_SourceMediaStream *AsSourceStream() { return NULL; }
 
   virtual nsresult Start() { return NS_OK; }
@@ -67,7 +70,7 @@ public:
   virtual void Periodic() {}
 
  protected:
-  Fake_MediaStreamListener *mListener;
+  std::set<Fake_MediaStreamListener *> mListeners;
 };
 
 class Fake_MediaPeriodic : public nsITimerCallback {

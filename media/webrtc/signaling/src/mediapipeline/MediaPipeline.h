@@ -16,6 +16,7 @@
 #endif
 #include "MediaConduitInterface.h"
 #include "AudioSegment.h"
+#include "SrtpFlow.h"
 #include "VideoSegment.h"
 #include "transportflow.h"
 
@@ -48,10 +49,15 @@ class MediaPipeline : public sigslot::has_slots<> {
       rtcp_transport_(rtcp_transport),
       main_thread_(main_thread),
       transport_(new PipelineTransport(this)),
+      rtp_send_srtp_(),
+      rtcp_send_srtp_(),
+      rtp_recv_srtp_(),
+      rtcp_recv_srtp_(),
       rtp_packets_sent_(0),
       rtcp_packets_sent_(0),
       rtp_packets_received_(0),
-      rtcp_packets_received_(0) {
+      rtcp_packets_received_(0),
+      muxed_(rtcp_transport_ == NULL) {
     Init();
   }
 
@@ -88,6 +94,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   };
   friend class PipelineTransport;
 
+  virtual nsresult TransportReady(TransportFlow *flow);  // The transport is ready
   void increment_rtp_packets_sent();
   void increment_rtcp_packets_sent();
   void increment_rtp_packets_received();
@@ -95,9 +102,15 @@ class MediaPipeline : public sigslot::has_slots<> {
 
   virtual nsresult SendPacket(TransportFlow *flow, const void* data, int len);
 
-  void RtpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
-  void RtcpPacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
-  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  // Process slots on transports
+  void StateChange(TransportFlow *flow, TransportLayer::State);
+  void RtpPacketReceived(TransportLayer *layer, const unsigned char *data,
+                         size_t len);
+  void RtcpPacketReceived(TransportLayer *layer, const unsigned char *data,
+                          size_t len);
+  void PacketReceived(TransportLayer *layer, const unsigned char *data,
+                      size_t len);
+
 
   Direction direction_;
   nsDOMMediaStream* stream_;
@@ -106,10 +119,15 @@ class MediaPipeline : public sigslot::has_slots<> {
   RefPtr<TransportFlow> rtcp_transport_;
   nsCOMPtr<nsIThread> main_thread_;
   mozilla::RefPtr<PipelineTransport> transport_;
+  mozilla::RefPtr<SrtpFlow> rtp_send_srtp_;
+  mozilla::RefPtr<SrtpFlow> rtcp_send_srtp_;
+  mozilla::RefPtr<SrtpFlow> rtp_recv_srtp_;
+  mozilla::RefPtr<SrtpFlow> rtcp_recv_srtp_;
   int rtp_packets_sent_;
   int rtcp_packets_sent_;
   int rtp_packets_received_;
   int rtcp_packets_received_;
+  bool muxed_;
 
  private:
   bool IsRtp(const unsigned char *data, size_t len);

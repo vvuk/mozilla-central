@@ -18,6 +18,10 @@
 #include "AudioSegment.h"
 #include "ImageLayers.h"
 #include "MediaSegment.h"
+#include "transportflow.h"
+#include "transportlayer.h"
+#include "transportlayerdtls.h"
+#include "transportlayerice.h"
 
 #include "runnable_utils.h"
 
@@ -27,24 +31,140 @@ MLOG_INIT("mediapipeline");
 
 namespace mozilla {
 
+static char kDTLSExporterLabel[] = "EXTRACTOR-dtls_srtp";
 
 nsresult MediaPipeline::Init() {
   conduit_->AttachTransport(transport_);
-
+  
   PR_ASSERT(rtp_transport_);
 
-  if (rtcp_transport_) {
-    // If we have un-muxed transport, connect separate methods
-    rtp_transport_->SignalPacketReceived.connect(this,
-                                                 &MediaPipelineReceive::
-                                                 RtpPacketReceived);
-    rtcp_transport_->SignalPacketReceived.connect(this,
+  nsresult res;
+
+  // TODO(ekr@rtfm.com): Danger....
+  // Look to see if the transport is ready
+  if (rtp_transport_->state() == TransportLayer::OPEN) {
+    res = TransportReady(rtp_transport_);
+    if (!NS_SUCCEEDED(res))
+      return res;
+  } else {
+    rtp_transport_->SignalStateChange.connect(this,
+                                              &MediaPipeline::StateChange);
+
+    if (!muxed_) {
+      if (rtcp_transport_->state() == TransportLayer::OPEN) {
+        res = TransportReady(rtcp_transport_);
+        if (!NS_SUCCEEDED(res))
+          return res;
+      } else {
+        rtcp_transport_->SignalStateChange.connect(this,
+                                                   &MediaPipeline::StateChange);
+      }
+    }
+  }
+
+  return NS_OK;
+}
+
+void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
+  // TODO(ekr@rtfm.com): check for double changes. This shouldn't happen,
+  // but...
+  MLOG(PR_LOG_DEBUG, "Flow is ready");
+  if (state == TransportLayer::OPEN)
+    TransportReady(flow);
+}
+
+nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
+  bool rtcp =  flow == rtp_transport_.get() ? false : true;
+  nsresult res;
+
+  MLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
+
+  // Now instantiate the SRTP objects
+  TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
+      flow->GetLayer(TransportLayerDtls::ID));
+  PR_ASSERT(dtls);  // DTLS is mandatory
+
+  PRUint16 cipher_suite;
+  res = dtls->GetSrtpCipher(&cipher_suite);
+  if (NS_FAILED(res)) {
+    MLOG(PR_LOG_ERROR, "Failed to negotiate DTLS-SRTP. This is an error");
+    return res;
+  }
+
+  // SRTP Key Exporter as per RFC 5764 S 4.2
+  unsigned char srtp_block[SRTP_TOTAL_KEY_LENGTH * 2];
+  res = dtls->ExportKeyingMaterial(kDTLSExporterLabel, false, "",
+                                   srtp_block, sizeof(srtp_block));
+
+  // Slice and dice as per RFC 5764 S 4.2
+  unsigned char client_write_key[SRTP_TOTAL_KEY_LENGTH];
+  unsigned char server_write_key[SRTP_TOTAL_KEY_LENGTH];
+  int offset = 0;
+  memcpy(client_write_key, srtp_block + offset, SRTP_MASTER_KEY_LENGTH);
+  offset += SRTP_MASTER_KEY_LENGTH;
+  memcpy(server_write_key, srtp_block + offset, SRTP_MASTER_KEY_LENGTH);
+  offset += SRTP_MASTER_KEY_LENGTH;
+  memcpy(client_write_key + SRTP_MASTER_KEY_LENGTH,
+         srtp_block + offset, SRTP_MASTER_SALT_LENGTH);
+  offset += SRTP_MASTER_SALT_LENGTH;
+  memcpy(server_write_key + SRTP_MASTER_KEY_LENGTH,
+         srtp_block + offset, SRTP_MASTER_KEY_LENGTH);
+  offset += SRTP_MASTER_SALT_LENGTH;
+  PR_ASSERT(offset == sizeof(srtp_block));
+
+  unsigned char *write_key;
+  unsigned char *read_key;
+
+  if (dtls->role() == TransportLayerDtls::CLIENT) {
+    write_key = client_write_key;
+    read_key = server_write_key;
+  } else {
+    write_key = server_write_key;
+    read_key = client_write_key;
+  }
+
+  if (!rtcp) {
+    // RTP side
+    PR_ASSERT(!rtp_send_srtp_ && !rtp_recv_srtp_);
+    rtp_send_srtp_ = SrtpFlow::Create(cipher_suite, false,
+                                      write_key, SRTP_TOTAL_KEY_LENGTH);
+    rtp_recv_srtp_ = SrtpFlow::Create(cipher_suite, true,
+                                      read_key, SRTP_TOTAL_KEY_LENGTH);
+    if (!rtp_send_srtp_ || !rtp_recv_srtp_) {
+      MLOG(PR_LOG_ERROR, "Couldn't create SRTP flow for RTCP");
+      return NS_ERROR_FAILURE;
+    }
+
+    // Start listening
+    if (muxed_) {
+      PR_ASSERT(!rtcp_send_srtp_ && !rtcp_recv_srtp_);
+      rtcp_send_srtp_ = rtp_send_srtp_;
+      rtcp_recv_srtp_ = rtp_recv_srtp_;
+
+      dtls->downward()->SignalPacketReceived.connect(this,
+                                                     &MediaPipelineReceive::
+                                                     PacketReceived);
+    } else {
+      dtls->downward()->SignalPacketReceived.connect(this,
+                                                     &MediaPipelineReceive::
+                                                     RtpPacketReceived);
+    }
+  }
+  else {
+    PR_ASSERT(!rtcp_send_srtp_ && !rtcp_recv_srtp_);
+    rtcp_send_srtp_ = SrtpFlow::Create(cipher_suite, false,
+                                       write_key, SRTP_TOTAL_KEY_LENGTH);
+    rtcp_recv_srtp_ = SrtpFlow::Create(cipher_suite, true,
+                                       read_key, SRTP_TOTAL_KEY_LENGTH);
+    if (!rtcp_send_srtp_ || !rtcp_recv_srtp_) {
+      MLOG(PR_LOG_ERROR, "Couldn't create SRTCP flow for RTCP");
+      return NS_ERROR_FAILURE;
+    }
+
+    // Start listening
+    dtls->downward()->SignalPacketReceived.connect(this,
                                                   &MediaPipelineReceive::
                                                   RtcpPacketReceived);
-  } else {
-    rtp_transport_->SignalPacketReceived.connect(this,
-                                                 &MediaPipelineReceive::
-                                                 PacketReceived);
   }
 
   return NS_OK;
@@ -52,7 +172,13 @@ nsresult MediaPipeline::Init() {
 
 nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
                                    int len) {
-  TransportResult res = flow->SendPacket(static_cast<const unsigned char *>(data), len);
+  // Note that we bypass the DTLS layer here
+  TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
+      flow->GetLayer(TransportLayerDtls::ID));
+  PR_ASSERT(dtls);
+
+  TransportResult res = dtls->downward()->
+      SendPacket(static_cast<const unsigned char *>(data), len);
 
   if (res != len) {
     // Ignore blocking indications
@@ -97,18 +223,45 @@ void MediaPipeline::increment_rtcp_packets_received() {
 }
 
 
-void MediaPipeline::RtpPacketReceived(TransportFlow *flow,
-                                             const unsigned char *data,
-                                             size_t len) {
+void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
+                                      const unsigned char *data,
+                                      size_t len) {
   increment_rtp_packets_received();
-  (void)conduit_->ReceivedRTPPacket(data, len);  // Ignore error codes
+
+  PR_ASSERT(rtp_recv_srtp_);  // This should never happen
+
+  // Make a copy rather than cast away constness
+  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+      new unsigned char[len]);
+  memcpy(inner_data, data, len);
+  int out_len;
+  nsresult res = rtp_recv_srtp_->UnprotectRtp(inner_data,
+                                         len, len, &out_len);
+  if (!NS_SUCCEEDED(res))
+    return;
+
+  (void)conduit_->ReceivedRTPPacket(inner_data, out_len);  // Ignore error codes
 }
 
-void MediaPipeline::RtcpPacketReceived(TransportFlow *flow,
+void MediaPipeline::RtcpPacketReceived(TransportLayer *layer,
                                               const unsigned char *data,
                                               size_t len) {
   increment_rtcp_packets_received();
-  (void)conduit_->ReceivedRTCPPacket(data, len);  // Ignore error codes
+
+  PR_ASSERT(rtcp_recv_srtp_);  // This should never happen
+
+  // Make a copy rather than cast away constness
+  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+      new unsigned char[len]);
+  memcpy(inner_data, data, len);
+  int out_len;
+
+  nsresult res = rtcp_recv_srtp_->UnprotectRtcp(inner_data, len, len, &out_len);
+
+  if (!NS_SUCCEEDED(res))
+    return;
+
+  (void)conduit_->ReceivedRTCPPacket(inner_data, out_len);  // Ignore error codes
 }
 
 bool MediaPipeline::IsRtp(const unsigned char *data, size_t len) {
@@ -123,18 +276,23 @@ bool MediaPipeline::IsRtp(const unsigned char *data, size_t len) {
 
 }
 
-void MediaPipeline::PacketReceived(TransportFlow *flow,
-                                          const unsigned char *data,
-                                          size_t len) {
+void MediaPipeline::PacketReceived(TransportLayer *layer,
+                                   const unsigned char *data,
+                                   size_t len) {
   if (IsRtp(data, len)) {
-    RtpPacketReceived(flow, data, len);
+    RtpPacketReceived(layer, data, len);
   } else {
-    RtcpPacketReceived(flow, data, len);
+    RtcpPacketReceived(layer, data, len);
   }
 }
 
 nsresult MediaPipelineTransmit::Init() {
   // TODO(ekr@rtfm.com): Check for errors
+  MLOG(PR_LOG_DEBUG, "Attaching pipeline to stream " << static_cast<void *>(stream_) << 
+                    " conduit type=" << (conduit_->type() == MediaSessionConduit::AUDIO ?
+                                         "audio" : "video") <<
+                    " hints=" << stream_->GetHintContents());
+
   if (main_thread_) {
     main_thread_->Dispatch(WrapRunnable(
       stream_->GetStream(), &mozilla::MediaStream::AddListener, listener_),
@@ -152,28 +310,73 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
   if (!pipeline_)
     return NS_OK;  // Detached
 
+  if (!pipeline_->rtp_send_srtp_) {
+    MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet; SRTP not set up yet");
+    return NS_OK;
+  }
+
   PR_ASSERT(pipeline_->rtp_transport_);
   if (!pipeline_->rtp_transport_) {
     MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
 
+  // libsrtp enciphers in place, so we need a new, big enough
+  // buffer.
+  int max_len = len + SRTP_MAX_TRAILER_LEN;
+  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+      new unsigned char[max_len]);
+  memcpy(inner_data, data, len);
+
+  int out_len;
+  nsresult res = pipeline_->rtp_send_srtp_->ProtectRtp(inner_data,
+                                                       len,
+                                                       max_len,
+                                                       &out_len);
+  if (!NS_SUCCEEDED(res))
+    return res;
+
   pipeline_->increment_rtp_packets_sent();
-  return pipeline_->SendPacket(pipeline_->rtp_transport_, data, len);
+  return pipeline_->SendPacket(pipeline_->rtp_transport_, inner_data,
+                               out_len);
 }
 
 nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
     const void *data, int len) {
+  // Temporarily remove
+  return NS_OK;
+
   if (!pipeline_)
     return NS_OK;  // Detached
 
-  if (!pipeline_->rtp_transport_) {
+  if (!pipeline_->rtcp_send_srtp_) {
+    MLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet; SRTCP not set up yet");
+    return NS_OK;
+  }
+
+  if (!pipeline_->rtcp_transport_) {
     MLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
 
+  // libsrtp enciphers in place, so we need a new, big enough
+  // buffer.
+  int max_len = len + SRTP_MAX_TRAILER_LEN;
+  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+      new unsigned char[max_len]);
+  memcpy(inner_data, data, len);
+
+  int out_len;
+  nsresult res = pipeline_->rtcp_send_srtp_->ProtectRtcp(inner_data,
+                                                         len,
+                                                         max_len,
+                                                         &out_len);
+  if (!NS_SUCCEEDED(res))
+    return res;
+
   pipeline_->increment_rtcp_packets_sent();
-  return pipeline_->SendPacket(pipeline_->rtcp_transport_, data, len);
+  return pipeline_->SendPacket(pipeline_->rtcp_transport_, inner_data,
+                               out_len);
 }
 
 void MediaPipelineTransmit::PipelineListener::
@@ -190,8 +393,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
   // track type and it's destined for us
   if (queued_media.GetType() == MediaSegment::AUDIO) {
     if (pipeline_->conduit_->type() != MediaSessionConduit::AUDIO) {
-      // TODO(ekr): How do we handle muxed audio and video streams
-      MLOG(PR_LOG_ERROR, "Audio data provided for a video pipeline");
+      // Ignore data in case we have a muxed stream
       return;
     }
     AudioSegment* audio = const_cast<AudioSegment *>(
@@ -206,8 +408,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
     }
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
     if (pipeline_->conduit_->type() != MediaSessionConduit::VIDEO) {
-      // TODO(ekr): How do we handle muxed video and video streams
-      MLOG(PR_LOG_ERROR, "Video data provided for an audio pipeline");
+      // Ignore data in case we have a muxed stream
       return;
     }
     VideoSegment* video = const_cast<VideoSegment *>(
@@ -265,6 +466,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
     }
   }
 
+  MLOG(PR_LOG_DEBUG, "Sending an audio frame");
   conduit->SendAudioFrame(samples.get(), chunk.mDuration, rate, 0);
 }
 
