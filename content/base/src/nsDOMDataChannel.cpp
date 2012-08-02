@@ -53,6 +53,7 @@ public:
   virtual void
   OnChannelClosed(nsISupports* aContext);
 
+  // Owning reference
   nsAutoPtr<mozilla::DataChannel> mDataChannel;
 
   NS_DECL_EVENT_HANDLER(open)

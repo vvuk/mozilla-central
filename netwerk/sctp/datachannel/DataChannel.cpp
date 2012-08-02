@@ -79,6 +79,7 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   for (PRUint32 i = 0; i < mChannelsOut.Capacity(); i++) {
     mChannelsOut[i].reverse = INVALID_STREAM;
     mChannelsOut[i].pending = false;
+    mChannelsOut[i].channel = nsnull;
     mChannelsIn[i].outgoing = INVALID_STREAM;
   }
 #else
@@ -87,6 +88,7 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   for (PRUint32 i = 0; i < ARRAY_LEN(mChannelsOut); i++) {
     mChannelsOut[i].reverse = INVALID_STREAM;
     mChannelsOut[i].pending = false;
+    mChannelsOut[i].channel = nsnull;
   }
   for (PRUint32 i = 0; i < ARRAY_LEN(mChannelsIn); i++) {
     mChannelsIn[i].outgoing = INVALID_STREAM;
@@ -629,6 +631,12 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
   {
     MutexAutoLock lock(mLock);
 
+    // Alternative is to queue opens, which has some positive side effects
+    if (mState != OPEN) {
+      LOG(("%s called when mState not OPEN (%d)", __FUNCTION__, mState));
+      return nsnull;
+    }
+
     PRInt32 size = ARRAY_LEN(mChannelsOut);
     for (stream = 0; stream < size; stream++) {
       /* reverse being set tells us the datachannel is open */
@@ -651,6 +659,7 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
       for (PRUInt32 i = size; i < new_size; i++) {
         mChannelsOut[i].reverse = INVALID_STREAM;
         mChannelsOut[i].pending = false;
+        mChannelsOut[i].channel = nsnull;
         mChannelsIn[i].outgoing = INVALID_STREAM;
       }
       stream = size;
@@ -734,6 +743,7 @@ DataChannelConnection::Close(PRUint16 stream)
     return; // paranoia
 
   MutexAutoLock lock(mLock);
+  LOG(("Closing stream %d",stream));
 
   if (mChannelsOut[stream].channel)
     mChannelsOut[stream].channel->SetReadyState(DataChannel::CLOSED);
@@ -746,6 +756,25 @@ DataChannelConnection::Close(PRUint16 stream)
   } else if (mChannelsOut[stream].pending) {
     // mark to ignore OPEN_RESPONSE and then immediately close.
     // channel of NULL means we've closed the channel already.
+  }
+}
+
+void DataChannelConnection::CloseAll()
+{
+  LOG(("Closing all channels"));
+  // Don't need to lock here
+
+  // Make sure no more channels will be opened
+  mState = CLOSED;
+
+  // Close current channels 
+  // FIX! if there are runnables, they must use weakrefs or hold a strong
+  // ref and keep the channel and/or connection alive
+  for (PRUint32 i = 0; i < mChannelsOut.Length(); i++) {
+    if (mChannelsOut[i].reverse != INVALID_STREAM &&
+        mChannelsOut[i].channel) {
+      mChannelsOut[i].channel->Close();
+    }
   }
 }
 

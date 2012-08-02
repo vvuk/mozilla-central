@@ -97,6 +97,7 @@ public:
                     nsISupports *aContext);
 
   void Close(PRUint16 stream);
+  void CloseAll();
 
   PRInt32 SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bool isBinary);
   PRInt32 SendMsg(PRUint16 stream, const nsACString &aMsg)
@@ -192,9 +193,9 @@ public:
     { 
       if (mStream < 0) // Note that mStream is PRInt32, not PRUint16
         return;
+      mState = CLOSING;
       mConnection->Close(mStream);
       mStream = -1;
-      mState = CLOSING;
     }
 
   // Set the listener (especially for channels created from the other side)
@@ -236,7 +237,7 @@ private:
   friend class DataChannelConnection;
 
   PRUint16 mState;
-  DataChannelConnection *mConnection;
+  DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
   PRInt32 mStream;
   nsCOMPtr<nsISupports> mContext;
 };
@@ -314,7 +315,7 @@ private:
   // XXX should use union
   // XXX these need to be refptrs so as to hold them open until it's delivered
   DataChannel                       *mChannel;    // XXX careful of ownership! 
-  DataChannelConnection             *mConnection; // XXX careful of ownership!
+  DataChannelConnection             *mConnection; // XXX careful of ownership! - should be nsRefPtr
   nsCString                         mData;
   PRInt32                           mLen;
 };

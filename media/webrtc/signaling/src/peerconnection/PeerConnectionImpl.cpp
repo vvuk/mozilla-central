@@ -879,7 +879,10 @@ NS_IMETHODIMP
 PeerConnectionImpl::Close()
 {
   mCall->endCall();
-  // XXX mDataConnection->CloseAll();
+#ifdef MOZILLA_INTERNAL_API
+  mDataConnection->CloseAll();
+#endif
+  // DataConnection will need to stay alive until all threads/runnables exit
   return NS_OK;
 }
 
