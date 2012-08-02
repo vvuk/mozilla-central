@@ -8,7 +8,8 @@ Cu.import("resource://gre/modules/identity/WebRTC.jsm", webrtc);
 Cu.import("resource://gre/modules/identity/Identity.jsm");
 
 let saved_state = {};
-let TEST_FINGERPRINT = uuid();
+let TEST_ID = uuid();
+let IMAGINARY_WINDOW_ID = 42;
 
 /**
  * setup_picked_identity - utility function for these tests to
@@ -38,7 +39,7 @@ function setup_picked_identity(aCallback) {
     // emitted when WebRTC's selectIdentity function issues a request().
     Services.obs.addObserver(observer, "identity-request", false);
 
-    webrtc.selectIdentity(TEST_FINGERPRINT, aCallback);
+    webrtc.selectIdentity(TEST_ID, IMAGINARY_WINDOW_ID, aCallback);
   });
 }
 

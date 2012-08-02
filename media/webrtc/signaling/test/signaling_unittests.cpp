@@ -52,7 +52,7 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "a=candidate:2 2 UDP 2130706431 192.168.2.2 50006 typ host\r\n"
   "m=video 1024 RTP/AVP 97\r\n"
   "c=IN IP4 10.86.255.143\r\n"
-  "a=rtpmap:97 H264/90000\r\n"
+  "a=rtpmap:120 VP8/90000\r\n"
   "a=fmtp:97 profile-level-id=42E00C\r\n"
   "a=sendrecv\r\n"
   "a=candidate:1 1 UDP 2130706431 192.168.2.3 50007 typ host\r\n"
@@ -503,7 +503,7 @@ private:
 
     if (shouldHaveVideo)
     {
-      ASSERT_NE(sdp.find("a=rtpmap:97 H264/90000"), std::string::npos);
+      ASSERT_NE(sdp.find("a=rtpmap:120 VP8/90000"), std::string::npos);
     }
   }
 };

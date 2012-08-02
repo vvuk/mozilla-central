@@ -191,6 +191,12 @@ IdentityRelyingParty.prototype = {
     log("_notifyLoginStateChanged: rpId:", aRpCallerId, "identity:", aIdentity);
 
     let options = {rpId: aRpCallerId};
+
+    let rp = this._rpFlows[aRpCallerId];
+    if (rp.windowId) {
+      options.windowId = rp.windowId;
+    }
+
     Services.obs.notifyObservers({wrappedJSObject: options},
                                  "identity-login-state-changed",
                                  aIdentity);
@@ -213,6 +219,9 @@ IdentityRelyingParty.prototype = {
     // Notify UX to display identity picker.
     // Pass the doc id to UX so it can pass it back to us later.
     let options = {rpId: aRPId, origin: rp.origin};
+    if (rp.windowId) {
+      options.windowId = rp.windowId;
+    }
 
     // Append URLs after resolving
     let baseURI = Services.io.newURI(rp.origin, null, null);

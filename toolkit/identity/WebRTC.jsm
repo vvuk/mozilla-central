@@ -17,9 +17,9 @@ Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
 
 Cu.import("resource://services-common/utils.js");
 
-function AuthModule(aFingerprint, aIdentity) {
+function AuthModule(aPeerConnectionId, aIdentity) {
   // XXX: How do we know aIDP.idp aIDP.origin are valid?
-  this.fingerprint = aFingerprint;
+  this.peerConnectionId = aPeerConnectionId;
   this.identity = aIdentity.identity;
   this.idp = aIdentity.idp || DEFAULT_IDP;
   this.protocol = aIdentity.protocol || DEFAULT_PROTOCOL;
@@ -42,8 +42,9 @@ AuthModule.prototype = {
 /**
  * Select an identity for use by a WEBRTC PeerConnection
  *
- * @param aFingerprint
- *        (integer)         The unique fingerprint of the PeerConnection
+ * @param aPeerConnectionId
+ *        (string)          The unique ID of the PeerConnection.  Something
+ *                          like a uuid would be lovely.
  *
  * @param aCallback
  *        (function)        Called after the user has successfully selected
@@ -57,17 +58,18 @@ AuthModule.prototype = {
  *                           assertion:  IdP certificate + assertion for PC origin,
  *                           authModule: Pointer to an AuthModule}
  */
-let selectIdentity = function selectIdentity(aFingerprint, aCallback) {
+let selectIdentity = function selectIdentity(aPeerConnectionId, aWindowId, aCallback) {
   // Create a client object representing the PeerConnection to be
   // used in provisioning and authentication flows.  The PeerConnection
-  // is treated as an RP whose origin is the fingerprint of the PC.
+  // is treated as an RP whose origin is the ID of the PC.
   //
   // The action begins at the end with watch() and request().  The doLogin
   // callback is called when an identity has successfully been provisioned,
   // at which point we create an AuthModule and return it to the PC caller.
-  let origin = 'webrtc://'+aFingerprint.toString();
+  let origin = 'webrtc://'+aPeerConnectionId.toString();
   let client = {
-    id: aFingerprint,
+    id: aPeerConnectionId,
+    windowId: aWindowId,
     loggedInEmail: null,
     origin: origin,
     doError: doError,
@@ -76,8 +78,8 @@ let selectIdentity = function selectIdentity(aFingerprint, aCallback) {
     doReady: function(){}
   };
 
-  // XXX assume that PeerConnection fingerprints are always unique
-  // If not, login won't be triggered the second time a fingerprint
+  // XXX assume that PeerConnection IDs are always unique
+  // If not, login won't be triggered the second time an ID
   // is used - only ready.
   function doError(err) {
     return aCallback(err);
@@ -106,7 +108,7 @@ let selectIdentity = function selectIdentity(aFingerprint, aCallback) {
     // XXX For Persona, creation of the AuthModule is actually synchronous,
     // but it maybe different for other protocols, so we use a callbacks
     // on nextTick.
-    aCallback(null, new AuthModule(aFingerprint, identity));
+    aCallback(null, new AuthModule(aPeerConnectionId, identity));
   }
 
   // Register listeners
