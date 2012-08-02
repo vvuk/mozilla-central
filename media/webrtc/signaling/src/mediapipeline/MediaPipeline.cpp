@@ -323,7 +323,7 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
 
   // libsrtp enciphers in place, so we need a new, big enough
   // buffer.
-  int max_len = len + SRTP_MAX_TRAILER_LEN;
+  int max_len = len + SRTP_MAX_EXPANSION;
   mozilla::ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[max_len]);
   memcpy(inner_data, data, len);
@@ -343,9 +343,6 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
 
 nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
     const void *data, int len) {
-  // Temporarily remove
-  return NS_OK;
-
   if (!pipeline_)
     return NS_OK;  // Detached
 
@@ -361,7 +358,7 @@ nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
 
   // libsrtp enciphers in place, so we need a new, big enough
   // buffer.
-  int max_len = len + SRTP_MAX_TRAILER_LEN;
+  int max_len = len + SRTP_MAX_EXPANSION;
   mozilla::ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[max_len]);
   memcpy(inner_data, data, len);
