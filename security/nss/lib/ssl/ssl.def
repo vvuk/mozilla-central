@@ -154,3 +154,10 @@ SSL_VersionRangeSetDefault;
 ;+    local:
 ;+*;
 ;+};
+;+NSS_future {      # NSS TBD release
+;+    global:
+SSL_GetSRTPCipher;
+SSL_SetSRTPCiphers;
+;+    local:
+;+*;
+;+};
