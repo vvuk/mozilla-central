@@ -77,8 +77,10 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_output.c 238501 2012-07-15 20:16:17Z t
 #define APPLE_FILE_NO 3
 #endif
 
-#if defined(APPLE_LION)
+#if defined(__APPLE__)
+#if !(defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD))
 #define SCTP_MAX_LINKHDR 16
+#endif
 #endif
 
 #define SCTP_MAX_GAPS_INARRAY 4
@@ -3385,7 +3387,7 @@ sctp_source_address_selection(struct sctp_inpcb *inp,
 static int
 sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 {
-	SCTP_CMSGHDR cmh;
+	struct cmsghdr cmh;
 	int tlen, at, found;
 	struct sctp_sndinfo sndinfo;
 	struct sctp_prinfo prinfo;
@@ -3404,7 +3406,7 @@ sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 			return (found);
 		}
 		m_copydata(control, at, sizeof(cmh), (caddr_t)&cmh);
-		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) {
+		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(struct cmsghdr))) {
 			/* We dont't have a complete CMSG header. */
 			return (found);
 		}
@@ -3419,11 +3421,11 @@ sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 		       (cmh.cmsg_type == SCTP_PRINFO) ||
 		       (cmh.cmsg_type == SCTP_AUTHINFO))))) {
 			if (c_type == cmh.cmsg_type) {
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < cpsize) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < cpsize) {
 					return (found);
 				}
 				/* It is exactly what we want. Copy it out. */
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), cpsize, (caddr_t)data);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), cpsize, (caddr_t)data);
 				return (1);
 			} else {
 				struct sctp_sndrcvinfo *sndrcvinfo;
@@ -3437,10 +3439,10 @@ sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 				}
 				switch (cmh.cmsg_type) {
 				case SCTP_SNDINFO:
-					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct sctp_sndinfo)) {
+					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct sctp_sndinfo)) {
 						return (found);
 					}
-					m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct sctp_sndinfo), (caddr_t)&sndinfo);
+					m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct sctp_sndinfo), (caddr_t)&sndinfo);
 					sndrcvinfo->sinfo_stream = sndinfo.snd_sid;
 					sndrcvinfo->sinfo_flags = sndinfo.snd_flags;
 					sndrcvinfo->sinfo_ppid = sndinfo.snd_ppid;
@@ -3448,18 +3450,18 @@ sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 					sndrcvinfo->sinfo_assoc_id = sndinfo.snd_assoc_id;
 					break;
 				case SCTP_PRINFO:
-					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct sctp_prinfo)) {
+					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct sctp_prinfo)) {
 						return (found);
 					}
-					m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct sctp_prinfo), (caddr_t)&prinfo);
+					m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct sctp_prinfo), (caddr_t)&prinfo);
 					sndrcvinfo->sinfo_timetolive = prinfo.pr_value;
 					sndrcvinfo->sinfo_flags |= prinfo.pr_policy;
 					break;
 				case SCTP_AUTHINFO:
-					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct sctp_authinfo)) {
+					if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct sctp_authinfo)) {
 						return (found);
 					}
-					m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct sctp_authinfo), (caddr_t)&authinfo);
+					m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct sctp_authinfo), (caddr_t)&authinfo);
 					sndrcvinfo->sinfo_keynumber_valid = 1;
 					sndrcvinfo->sinfo_keynumber = authinfo.auth_keynumber;
 					break;
@@ -3477,7 +3479,7 @@ sctp_find_cmsg(int c_type, void *data, struct mbuf *control, size_t cpsize)
 static int
 sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *error)
 {
-	SCTP_CMSGHDR cmh;
+	struct cmsghdr cmh;
 	int tlen, at;
 	struct sctp_initmsg initmsg;
 #ifdef INET
@@ -3496,7 +3498,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 			return (1);
 		}
 		m_copydata(control, at, sizeof(cmh), (caddr_t)&cmh);
-		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) {
+		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(struct cmsghdr))) {
 			/* We dont't have a complete CMSG header. */
 			*error = EINVAL;
 			return (1);
@@ -3509,11 +3511,11 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 		if (cmh.cmsg_level == IPPROTO_SCTP) {
 			switch (cmh.cmsg_type) {
 			case SCTP_INIT:
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct sctp_initmsg)) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct sctp_initmsg)) {
 					*error = EINVAL;
 					return (1);
 				}
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct sctp_initmsg), (caddr_t)&initmsg);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct sctp_initmsg), (caddr_t)&initmsg);
 				if (initmsg.sinit_max_attempts)
 					stcb->asoc.max_init_times = initmsg.sinit_max_attempts;
 				if (initmsg.sinit_num_ostreams)
@@ -3553,7 +3555,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 				break;
 #ifdef INET
 			case SCTP_DSTADDRV4:
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct in_addr)) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct in_addr)) {
 					*error = EINVAL;
 					return (1);
 				}
@@ -3563,7 +3565,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 				sin.sin_len = sizeof(struct sockaddr_in);
 #endif
 				sin.sin_port = stcb->rport;
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct in_addr), (caddr_t)&sin.sin_addr);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct in_addr), (caddr_t)&sin.sin_addr);
 				if ((sin.sin_addr.s_addr == INADDR_ANY) ||
 				    (sin.sin_addr.s_addr == INADDR_BROADCAST) ||
 				    IN_MULTICAST(ntohl(sin.sin_addr.s_addr))) {
@@ -3579,7 +3581,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 #endif
 #ifdef INET6
 			case SCTP_DSTADDRV6:
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct in6_addr)) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct in6_addr)) {
 					*error = EINVAL;
 					return (1);
 				}
@@ -3589,7 +3591,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 				sin6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 				sin6.sin6_port = stcb->rport;
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct in6_addr), (caddr_t)&sin6.sin6_addr);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct in6_addr), (caddr_t)&sin6.sin6_addr);
 				if (IN6_IS_ADDR_UNSPECIFIED(&sin6.sin6_addr) ||
 				    IN6_IS_ADDR_MULTICAST(&sin6.sin6_addr)) {
 					*error = EINVAL;
@@ -3634,7 +3636,7 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
                            struct sctp_nets **net_p,
                            int *error)
 {
-	SCTP_CMSGHDR cmh;
+	struct cmsghdr cmh;
 	int tlen, at;
 	struct sctp_tcb *stcb;
 	struct sockaddr *addr;
@@ -3654,7 +3656,7 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
 			return (NULL);
 		}
 		m_copydata(control, at, sizeof(cmh), (caddr_t)&cmh);
-		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) {
+		if (cmh.cmsg_len < CMSG_ALIGN(sizeof(struct cmsghdr))) {
 			/* We dont't have a complete CMSG header. */
 			*error = EINVAL;
 			return (NULL);
@@ -3668,7 +3670,7 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
 			switch (cmh.cmsg_type) {
 #ifdef INET
 			case SCTP_DSTADDRV4:
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct in_addr)) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct in_addr)) {
 					*error = EINVAL;
 					return (NULL);
 				}
@@ -3678,13 +3680,13 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
 				sin.sin_len = sizeof(struct sockaddr_in);
 #endif
 				sin.sin_port = port;
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct in_addr), (caddr_t)&sin.sin_addr);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct in_addr), (caddr_t)&sin.sin_addr);
 				addr = (struct sockaddr *)&sin;
 				break;
 #endif
 #ifdef INET6
 			case SCTP_DSTADDRV6:
-				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(SCTP_CMSGHDR))) < sizeof(struct in6_addr)) {
+				if ((size_t)(cmh.cmsg_len - CMSG_ALIGN(sizeof(struct cmsghdr))) < sizeof(struct in6_addr)) {
 					*error = EINVAL;
 					return (NULL);
 				}
@@ -3694,7 +3696,7 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
 				sin6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 				sin6.sin6_port = port;
-				m_copydata(control, at + CMSG_ALIGN(sizeof(SCTP_CMSGHDR)), sizeof(struct in6_addr), (caddr_t)&sin6.sin6_addr);
+				m_copydata(control, at + CMSG_ALIGN(sizeof(struct cmsghdr)), sizeof(struct in6_addr), (caddr_t)&sin6.sin6_addr);
 #ifdef INET
 				if (IN6_IS_ADDR_V4MAPPED(&sin6.sin6_addr)) {
 					in6_sin6_2_sin(&sin, &sin6);
@@ -4369,10 +4371,10 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 #ifdef SCTP_EMBEDDED_V6_SCOPE
 		/* KAME hack: embed scopeid */
 #if defined(__APPLE__)
-#if defined(APPLE_LION)
-		if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
-#else
+#if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD)
 		if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL) != 0)
+#else
+		if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
 #endif
 #elif defined(SCTP_KAME)
 		if (sa6_embedscope(sin6, MODULE_GLOBAL(ip6_use_defzone)) != 0)
@@ -4452,10 +4454,10 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 				sin6 = (struct sockaddr_in6 *)&net->ro._l_addr;
 				/* KAME hack: embed scopeid */
 #if defined(__APPLE__)
-#if defined(APPLE_LION)
-				if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
-#else
+#if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD)
 				if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL) != 0)
+#else
+				if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
 #endif
 #elif defined(SCTP_KAME)
 				if (sa6_embedscope(sin6, MODULE_GLOBAL(ip6_use_defzone)) != 0)
@@ -4497,10 +4499,10 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 			sin6 = (struct sockaddr_in6 *)&ro->ro_dst;
 			/* KAME hack: embed scopeid */
 #if defined(__APPLE__)
-#if defined(APPLE_LION)
-			if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
-#else
+#if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD)
 			if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL) != 0)
+#else
+			if (in6_embedscope(&sin6->sin6_addr, sin6, NULL, NULL, NULL) != 0)
 #endif
 #elif defined(SCTP_KAME)
 			if (sa6_embedscope(sin6, MODULE_GLOBAL(ip6_use_defzone)) != 0)
@@ -4740,11 +4742,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 			}
 #if !defined(__Panda__) && !defined(__Userspace__)
 			else if (ifp) {
-#if defined(__APPLE__)
-#if !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION)
-#define ND_IFINFO(ifp) (&nd_ifinfo[ifp->if_index])
-#endif
-#elif defined(__Windows__)
+#if defined(__Windows__)
 #define ND_IFINFO(ifp)	(ifp)
 #define linkmtu		if_mtu
 #endif
@@ -6993,10 +6991,10 @@ sctp_sendall(struct sctp_inpcb *inp, struct uio *uio, struct mbuf *m,
 	/* get length and mbuf chain */
 	if (uio) {
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-		ca->sndlen = uio_resid(uio);
-#else
+#if defined(APPLE_LEOPARD)
 		ca->sndlen = uio->uio_resid;
+#else
+		ca->sndlen = uio_resid(uio);
 #endif
 #else
 		ca->sndlen = uio->uio_resid;
@@ -8164,7 +8162,7 @@ again_one_more_time:
 		} else {
 			skip_data_for_this_net = 0;
 		}
-#if !(defined(__Panda__) || defined(__Windows__) || defined(__Userspace__))
+#if !(defined(__Panda__) || defined(__Windows__) || defined(__Userspace__) || defined(__APPLE__))
 		if ((net->ro.ro_rt) && (net->ro.ro_rt->rt_ifp)) {
 			/*
 			 * if we have a route and an ifp check to see if we
@@ -11231,8 +11229,12 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 	if (port) {
 		len += sizeof(struct udphdr);
 	}
-#if defined(APPLE_LION)
+#if defined(__APPLE__)
+#if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD)
+	mout = sctp_get_mbuf_for_msg(len + max_linkhdr, 1, M_DONTWAIT, 1, MT_DATA);
+#else
 	mout = sctp_get_mbuf_for_msg(len + SCTP_MAX_LINKHDR, 1, M_DONTWAIT, 1, MT_DATA);
+#endif
 #else
 	mout = sctp_get_mbuf_for_msg(len + max_linkhdr, 1, M_DONTWAIT, 1, MT_DATA);
 #endif
@@ -11242,8 +11244,12 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 		}
 		return;
 	}
-#if defined(APPLE_LION)
+#if defined(__APPLE__)
+#if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD)
+	SCTP_BUF_RESV_UF(mout, max_linkhdr);
+#else
 	SCTP_BUF_RESV_UF(mout, SCTP_MAX_LINKHDR);
+#endif
 #else
 	SCTP_BUF_RESV_UF(mout, max_linkhdr);
 #endif
@@ -12424,10 +12430,10 @@ sctp_copy_resume(struct uio *uio,
 	struct mbuf *m, *head;
 
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-        left = min(uio_resid(uio), max_send_len);
-#else
+#if defined(APPLE_LEOPARD)
         left = min(uio->uio_resid, max_send_len);
+#else
+        left = min(uio_resid(uio), max_send_len);
 #endif
 #else
         left = min(uio->uio_resid, max_send_len);
@@ -12618,19 +12624,19 @@ sctp_copy_it_in(struct sctp_tcb *stcb,
 
 	sp->stream = srcv->sinfo_stream;
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-	sp->length = min(uio_resid(uio), max_send_len);
-#else
+#if defined(APPLE_LEOPARD)
 	sp->length = min(uio->uio_resid, max_send_len);
+#else
+	sp->length = min(uio_resid(uio), max_send_len);
 #endif
 #else
 	sp->length = min(uio->uio_resid, max_send_len);
 #endif
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-	if ((sp->length == (uint32_t)uio_resid(uio)) &&
-#else
+#if defined(APPLE_LEOPARD)
 	if ((sp->length == (uint32_t)uio->uio_resid) &&
+#else
+	if ((sp->length == (uint32_t)uio_resid(uio)) &&
 #endif
 #else
 	if ((sp->length == (uint32_t)uio->uio_resid) &&
@@ -12854,10 +12860,10 @@ sctp_lower_sosend(struct socket *so,
 	atomic_add_int(&inp->total_sends, 1);
 	if (uio) {
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-		if (uio_resid(uio) < 0) {
-#else
+#if defined(APPLE_LEOPARD)
 		if (uio->uio_resid < 0) {
+#else
+		if (uio_resid(uio) < 0) {
 #endif
 #else
 		if (uio->uio_resid < 0) {
@@ -12866,10 +12872,10 @@ sctp_lower_sosend(struct socket *so,
 			return (EINVAL);
 		}
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-		sndlen = uio_resid(uio);
-#else
+#if defined(APPLE_LEOPARD)
 		sndlen = uio->uio_resid;
+#else
+		sndlen = uio_resid(uio);
 #endif
 #else
 		sndlen = uio->uio_resid;
@@ -13563,10 +13569,10 @@ skip_preblock:
 			}
 		}
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-		while (uio_resid(uio) > 0) {
-#else
+#if defined(APPLE_LEOPARD)
 		while (uio->uio_resid > 0) {
+#else
+		while (uio_resid(uio) > 0) {
 #endif
 #else
 		while (uio->uio_resid > 0) {
@@ -13582,10 +13588,10 @@ skip_preblock:
 			if ((max_len > SCTP_BASE_SYSCTL(sctp_add_more_threshold)) ||
 			    (max_len && (SCTP_SB_LIMIT_SND(so) < SCTP_BASE_SYSCTL(sctp_add_more_threshold))) ||
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-			    (uio_resid(uio) && (uio_resid(uio) <= (int)max_len))) {
-#else
+#if defined(APPLE_LEOPARD)
 			    (uio->uio_resid && (uio->uio_resid <= (int)max_len))) {
+#else
+			    (uio_resid(uio) && (uio_resid(uio) <= (int)max_len))) {
 #endif
 #else
 			    (uio->uio_resid && (uio->uio_resid <= (int)max_len))) {
@@ -13642,10 +13648,10 @@ skip_preblock:
 
 				/* Did we reach EOR? */
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-				if ((uio_resid(uio) == 0) &&
-#else
+#if defined(APPLE_LEOPARD)
 				if ((uio->uio_resid == 0) &&
+#else
+				if ((uio_resid(uio) == 0) &&
 #endif
 #else
 				if ((uio->uio_resid == 0) &&
@@ -13660,10 +13666,10 @@ skip_preblock:
 				SCTP_TCB_SEND_UNLOCK(stcb);
 			}
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-			if (uio_resid(uio) == 0) {
-#else
+#if defined(APPLE_LEOPARD)
 			if (uio->uio_resid == 0) {
+#else
+			if (uio_resid(uio) == 0) {
 #endif
 #else
 			if (uio->uio_resid == 0) {
@@ -13800,12 +13806,12 @@ skip_preblock:
 						      min(SCTP_BASE_SYSCTL(sctp_add_more_threshold), SCTP_SB_LIMIT_SND(so)))) {
 				if (SCTP_BASE_SYSCTL(sctp_logging_level) & SCTP_BLK_LOGGING_ENABLE) {
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-					sctp_log_block(SCTP_BLOCK_LOG_INTO_BLK,
-						       asoc, uio_resid(uio));
-#else
+#if defined(APPLE_LEOPARD)
 					sctp_log_block(SCTP_BLOCK_LOG_INTO_BLK,
 						       asoc, uio->uio_resid);
+#else
+					sctp_log_block(SCTP_BLOCK_LOG_INTO_BLK,
+						       asoc, uio_resid(uio));
 #endif
 #else
 					sctp_log_block(SCTP_BLOCK_LOG_INTO_BLK,
@@ -13865,10 +13871,10 @@ skip_preblock:
 		}
 		SCTP_TCB_SEND_UNLOCK(stcb);
 #if defined(__APPLE__)
-#if defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION)
-		if (uio_resid(uio) == 0) {
-#else
+#if defined(APPLE_LEOPARD)
 		if (uio->uio_resid == 0) {
+#else
+		if (uio_resid(uio) == 0) {
 #endif
 #else
 		if (uio->uio_resid == 0) {

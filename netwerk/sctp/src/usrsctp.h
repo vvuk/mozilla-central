@@ -38,21 +38,12 @@ extern "C" {
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
-/*  to make sure some OSs define in6_pktinfo */
-#define __USE_GNU
 #include <netinet/in.h>
-#undef __USE_GNU
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
-#include <ws2def.h>
 #endif
-
-/* Mac OS/X Snow Leopard seems to not have this */
-#ifndef IPPROTO_SCTP
-#define IPPROTO_SCTP 132	/* the Official IANA number :-) */
-#endif				/* !IPPROTO_SCTP */
 
 #if !defined(MSG_NOTIFICATION)
 #define MSG_NOTIFICATION 0x2000         /* SCTP notification */
@@ -1014,48 +1005,8 @@ USRSCTP_SYSCTL_DECL(sctp_buffer_splitting)
 USRSCTP_SYSCTL_DECL(sctp_initial_cwnd)
 #ifdef SCTP_DEBUG
 USRSCTP_SYSCTL_DECL(sctp_debug_on)
-
-/* SCTP DEBUG Switch parameters */
-#define SCTP_DEBUG_TIMER1	0x00000001
-#define SCTP_DEBUG_TIMER2	0x00000002	/* unused */
-#define SCTP_DEBUG_TIMER3	0x00000004	/* unused */
-#define SCTP_DEBUG_TIMER4	0x00000008
-#define SCTP_DEBUG_OUTPUT1	0x00000010
-#define SCTP_DEBUG_OUTPUT2	0x00000020
-#define SCTP_DEBUG_OUTPUT3	0x00000040
-#define SCTP_DEBUG_OUTPUT4	0x00000080
-#define SCTP_DEBUG_UTIL1	0x00000100
-#define SCTP_DEBUG_UTIL2	0x00000200	/* unused */
-#define SCTP_DEBUG_AUTH1	0x00000400
-#define SCTP_DEBUG_AUTH2	0x00000800	/* unused */
-#define SCTP_DEBUG_INPUT1	0x00001000
-#define SCTP_DEBUG_INPUT2	0x00002000
-#define SCTP_DEBUG_INPUT3	0x00004000
-#define SCTP_DEBUG_INPUT4	0x00008000	/* unused */
-#define SCTP_DEBUG_ASCONF1	0x00010000
-#define SCTP_DEBUG_ASCONF2	0x00020000
-#define SCTP_DEBUG_OUTPUT5	0x00040000	/* unused */
-#define SCTP_DEBUG_XXX		0x00080000	/* unused */
-#define SCTP_DEBUG_PCB1		0x00100000
-#define SCTP_DEBUG_PCB2		0x00200000	/* unused */
-#define SCTP_DEBUG_PCB3		0x00400000
-#define SCTP_DEBUG_PCB4		0x00800000
-#define SCTP_DEBUG_INDATA1	0x01000000
-#define SCTP_DEBUG_INDATA2	0x02000000	/* unused */
-#define SCTP_DEBUG_INDATA3	0x04000000	/* unused */
-#define SCTP_DEBUG_CRCOFFLOAD	0x08000000	/* unused */
-#define SCTP_DEBUG_USRREQ1	0x10000000	/* unused */
-#define SCTP_DEBUG_USRREQ2	0x20000000	/* unused */
-#define SCTP_DEBUG_PEEL1	0x40000000
-#if defined(__Userspace__)
-#define SCTP_DEBUG_USR 		0x80000000
-#else
-#define SCTP_DEBUG_XXXXX	0x80000000	/* unused */
+#include <netinet/sctp_constants.h>
 #endif
-#define SCTP_DEBUG_ALL		0x7ff3ffff
-#define SCTP_DEBUG_NOISY	0x00040000
-#endif
-
 #ifdef  __cplusplus
 }
 #endif
