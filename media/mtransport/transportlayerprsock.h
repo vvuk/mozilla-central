@@ -59,6 +59,7 @@ class TransportLayerPrsock : public TransportLayer {
       virtual ~SocketHandler() {}
       
       void Detach() {
+        mCondition = NS_BASE_STREAM_CLOSED;
         prsock_ = NULL;
       }
       
