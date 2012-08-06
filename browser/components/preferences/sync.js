@@ -151,6 +151,15 @@ let gSyncPane = {
 
   resetSync: function () {
     this.openSetup("reset");
+  },
+
+  logoutFromBrowser: function() {
+    let ok = window.confirm("Are you sure you want to logout?");
+    if (ok) {
+        // TODO
+    } else {
+        // TODO
+    }
   }
 }
 
