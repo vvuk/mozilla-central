@@ -54,7 +54,12 @@ class TransportLayerLoopback : public TransportLayer {
 
   // Disconnect
   void Disconnect() {
+    TransportLayerLoopback *peer = peer_;
+
     peer_ = NULL;
+    if (peer) {
+      peer->Disconnect();
+    }
   }
 
   // Overrides for TransportLayer

@@ -924,7 +924,7 @@ void getwintimeofday(struct timeval *tv);
 #endif
 
 void
-usrsctp_conninput(void *, void *, size_t, uint8_t);
+usrsctp_conninput(void *, const void *, size_t, uint8_t);
 
 int
 usrsctp_set_non_blocking(struct socket *, int);
