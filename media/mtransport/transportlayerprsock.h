@@ -22,12 +22,12 @@
 class TransportLayerPrsock : public TransportLayer {
  public:
   TransportLayerPrsock() : fd_(NULL), handler_() {}
- 
+
   virtual ~TransportLayerPrsock() {
     Detach();
   }
 
-  
+
   // Internal initializer
   virtual nsresult InitInternal();
 
@@ -39,7 +39,7 @@ class TransportLayerPrsock : public TransportLayer {
 
   // Implement TransportLayer
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
-  
+
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
 
@@ -57,12 +57,12 @@ class TransportLayerPrsock : public TransportLayer {
         mPollFlags = PR_POLL_READ;
       }
       virtual ~SocketHandler() {}
-      
+
       void Detach() {
         mCondition = NS_BASE_STREAM_CLOSED;
         prsock_ = NULL;
       }
-      
+
       // Implement nsASocket
       virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
         if (prsock_) {
@@ -76,10 +76,10 @@ class TransportLayerPrsock : public TransportLayer {
         }
         PR_Close(fd_);
       }
-      
+
       // nsISupports methods
       NS_DECL_ISUPPORTS
-      
+
       private:
       TransportLayerPrsock *prsock_;
       PRFileDesc *fd_;
@@ -95,7 +95,7 @@ class TransportLayerPrsock : public TransportLayer {
   void OnSocketDetached(PRFileDesc *fd) {
     SetState(CLOSED);
   }
-  
+
   PRFileDesc *fd_;
   nsCOMPtr<SocketHandler> handler_;
   nsCOMPtr<nsISocketTransportService> stservice_;

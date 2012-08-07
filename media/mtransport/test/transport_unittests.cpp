@@ -26,7 +26,7 @@
 #include "transportlayerdtls.h"
 #include "transportlayerice.h"
 #include "transportlayerlog.h"
-#include "transportlayerprsock.h"
+#include "transportlayerloopback.h"
 
 #include "logging.h"
 #include "mtransport_test_utils.h"
@@ -48,15 +48,15 @@ class TransportLayerLossy : public TransportLayer {
 
   virtual TransportResult SendPacket(const unsigned char *data, size_t len) {
     MLOG(PR_LOG_NOTICE, LAYER_INFO << "SendPacket(" << len << ")");
-    
+
     if (loss_mask_ & (1 << (packet_ % 32))) {
       MLOG(PR_LOG_NOTICE, "Dropping packet");
       ++packet_;
       return len;
     }
-    
+
     ++packet_;
-    
+
     return downward_->SendPacket(data, len);
   }
 
@@ -102,15 +102,15 @@ std::string TransportLayerLossy::ID = "lossy";
 namespace {
 class TransportTestPeer : public sigslot::has_slots<> {
  public:
-  TransportTestPeer(nsCOMPtr<nsIEventTarget> target, std::string name) 
+  TransportTestPeer(nsCOMPtr<nsIEventTarget> target, std::string name)
       : name_(name), target_(target),
-        received_(0), flow_(), 
-        prsock_(new TransportLayerPrsock()),
+        received_(0), flow_(name),
+        loopback_(new TransportLayerLoopback()),
         logging_(new TransportLayerLogging()),
         lossy_(new TransportLayerLossy()),
         dtls_(new TransportLayerDtls()),
         identity_(DtlsIdentity::Generate(name)),
-        ice_ctx_(NrIceCtx::Create(name, 
+        ice_ctx_(NrIceCtx::Create(name,
                                   name == "P2" ?
                                   TransportLayerDtls::CLIENT :
                                   TransportLayerDtls::SERVER)),
@@ -124,19 +124,22 @@ class TransportTestPeer : public sigslot::has_slots<> {
                    TransportLayerDtls::SERVER);
   }
 
-  void ConnectSocket(PRFileDesc *fd) {
+  ~TransportTestPeer() {
+    loopback_->Disconnect();
+  }
+
+  void ConnectSocket(TransportTestPeer *peer) {
     nsresult res;
-    res = prsock_->Init();
+    res = loopback_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
-    
-    target_->Dispatch(WrapRunnable(prsock_, &TransportLayerPrsock::Import,
-                                   fd, &res), NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(res));
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(prsock_));
+
+    loopback_->Connect(peer->loopback_);
+
+    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(loopback_));
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(logging_));
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(lossy_));
     ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
-    
+
     flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
@@ -152,15 +155,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
              (int)streams_.size());
 
     // Create the media stream
-    mozilla::RefPtr<NrIceMediaStream> stream = 
+    mozilla::RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), 1);
     ASSERT_TRUE(stream != NULL);
     streams_.push_back(stream);
-    
+
     // Listen for candidates
     stream->SignalCandidate.
         connect(this, &TransportTestPeer::GotCandidate);
-    
+
     // Create the transport layer
     ice_ = new TransportLayerIce(name, ice_ctx_, stream, 1);
 
@@ -186,7 +189,6 @@ class TransportTestPeer : public sigslot::has_slots<> {
       GatheringComplete(ice_ctx_);
   }
 
-  
   // New candidate
   void GotCandidate(NrIceMediaStream *stream, const std::string &candidate) {
     std::cerr << "Got candidate " << candidate << std::endl;
@@ -203,10 +205,10 @@ class TransportTestPeer : public sigslot::has_slots<> {
       gathering_complete_ = true;
       return;
     }
-      
+
     // First send attributes
     test_utils.sts_target()->Dispatch(
-      WrapRunnableRet(peer_->ice_ctx_, 
+      WrapRunnableRet(peer_->ice_ctx_,
                       &NrIceCtx::ParseGlobalAttributes,
                       ice_ctx_->GetGlobalAttributes(), &res),
       NS_DISPATCH_SYNC);
@@ -242,7 +244,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     lossy_->SetLoss(loss);
   }
 
-  bool connected() { 
+  bool connected() {
     return flow_.state() == TransportLayer::OPEN;
   }
 
@@ -250,10 +252,10 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
  private:
   std::string name_;
-  nsCOMPtr<nsIEventTarget> target_;  
+  nsCOMPtr<nsIEventTarget> target_;
   size_t received_;
   TransportFlow flow_;
-  TransportLayerPrsock *prsock_;
+  TransportLayerLoopback *loopback_;
   TransportLayerLogging *logging_;
   TransportLayerLossy *lossy_;
   TransportLayerDtls *dtls_;
@@ -261,7 +263,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   mozilla::RefPtr<DtlsIdentity> identity_;
   mozilla::RefPtr<NrIceCtx> ice_ctx_;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
-  std::map<std::string, std::vector<std::string> > candidates_;  
+  std::map<std::string, std::vector<std::string> > candidates_;
   TransportTestPeer *peer_;
   bool gathering_complete_;
 };
@@ -279,7 +281,7 @@ class TransportTest : public ::testing::Test {
     delete p2_;
 
     //    Can't detach these
-    //    PR_Close(fds_[0]);  
+    //    PR_Close(fds_[0]);
     //    PR_Close(fds_[1]);
   }
 
@@ -293,20 +295,8 @@ class TransportTest : public ::testing::Test {
   }
 
   void ConnectSocket() {
-
-    PRStatus status = PR_NewTCPSocketPair(fds_);
-    ASSERT_EQ(status, PR_SUCCESS);
-
-    PRSocketOptionData opt;
-    opt.option = PR_SockOpt_Nonblocking;
-    opt.value.non_blocking = PR_FALSE;
-    status = PR_SetSocketOption(fds_[0], &opt);
-    ASSERT_EQ(status, PR_SUCCESS);
-    status = PR_SetSocketOption(fds_[1], &opt);
-    ASSERT_EQ(status, PR_SUCCESS);    
-    
-    p1_->ConnectSocket(fds_[0]);
-    p2_->ConnectSocket(fds_[1]);
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->connected(), 10000);
     ASSERT_TRUE_WAIT(p2_->connected(), 10000);
   }
@@ -327,13 +317,13 @@ class TransportTest : public ::testing::Test {
 
   void TransferTest(size_t count) {
     unsigned char buf[1000];
-    
+
     for (size_t i= 0; i<count; ++i) {
       memset(buf, count & 0xff, sizeof(buf));
       TransportResult rv = p1_->SendPacket(buf, sizeof(buf));
       ASSERT_TRUE(rv > 0);
     }
-    
+
     std::cerr << "Received == " << p2_->received() << std::endl;
     ASSERT_TRUE_WAIT(count == p2_->received(), 10000);
   }
@@ -355,6 +345,7 @@ TEST_F(TransportTest, TestTransfer) {
 TEST_F(TransportTest, TestConnectLoseFirst) {
   p1_->SetLoss(0);
   ConnectSocket();
+  TransferTest(1);
 }
 
 TEST_F(TransportTest, TestConnectIce) {
@@ -375,6 +366,6 @@ int main(int argc, char **argv)
   NSS_SetDomesticPolicy();
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
-  
+
   return RUN_ALL_TESTS();
 }

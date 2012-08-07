@@ -37,12 +37,12 @@ class MtransportTestUtils {
     sts_target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
     if (!NS_SUCCEEDED(rv))
       return false;
-    
+
     return true;
   }
 
   nsCOMPtr<nsIEventTarget> sts_target() { return sts_target_; }
-  
+
  private:
   nsCOMPtr<nsIServiceManager> servMan_;
   nsCOMPtr<nsIComponentManager> manager_;

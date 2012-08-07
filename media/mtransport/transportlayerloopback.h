@@ -9,6 +9,16 @@
 
 #include "nspr.h"
 #include "prio.h"
+#include "prlock.h"
+
+#include <memory>
+#include <queue>
+
+
+#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
+#include "nsITimer.h"
+
 
 #include "m_cpp_utils.h"
 #include "transportflow.h"
@@ -16,13 +26,42 @@
 
 class TransportLayerLoopback : public TransportLayer {
  public:
-  TransportLayerLoopback() {}
+  TransportLayerLoopback() :
+      peer_(NULL),
+      timer_(NULL),
+      target_(NULL),
+      packets_(),
+      packets_lock_(NULL),
+      deliverer_(NULL) {}
+
+  ~TransportLayerLoopback() {
+    while (!packets_.empty()) {
+      QueuedPacket *packet = packets_.front();
+      packets_.pop();
+      delete packet;
+    }
+
+    if (packets_lock_) {
+      PR_DestroyLock(packets_lock_);
+    }
+  }
+
+  // Init
+  nsresult Init();
 
   // Connect to the other side
   void Connect(TransportLayerLoopback* peer);
 
+  // Disconnect
+  void Disconnect() {
+    peer_ = NULL;
+  }
+
   // Overrides for TransportLayer
   virtual TransportResult SendPacket(const unsigned char *data, size_t len);
+
+  // Deliver queued packets
+  void DeliverPackets();
 
   // Return the layer id for this layer
   virtual const std::string& id() { return ID; }
@@ -33,7 +72,58 @@ class TransportLayerLoopback : public TransportLayer {
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerLoopback);
 
+  // A queued packet
+  class QueuedPacket {
+   public:
+    QueuedPacket() : data_(NULL), len_(0) {}
+    ~QueuedPacket() {
+      delete data_;
+    }
+
+    void Assign(const unsigned char *data, size_t len) {
+      data_ = new unsigned char[len];
+      memcpy(static_cast<void *>(data_),
+             static_cast<const void *>(data), len);
+      len_ = len;
+    }
+
+    const unsigned char *data() const { return data_; }
+    size_t len() const { return len_; }
+
+   private:
+    DISALLOW_COPY_ASSIGN(QueuedPacket);
+
+    unsigned char *data_;
+    size_t len_;
+  };
+
+  // A timer to deliver packets if some are available
+  // Fires every 100 ms
+  class Deliverer : public nsITimerCallback {
+   public:
+    Deliverer(TransportLayerLoopback *layer) :
+        layer_(layer) {}
+    virtual ~Deliverer() {
+    }
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSITIMERCALLBACK
+
+ private:
+    DISALLOW_COPY_ASSIGN(Deliverer);
+
+    TransportLayerLoopback *layer_;
+  };
+
+  // Queue a packet for delivery
+  nsresult QueuePacket(const unsigned char *data, size_t len);
+
   TransportLayerLoopback* peer_;
+  nsCOMPtr<nsITimer> timer_;
+  nsCOMPtr<nsIEventTarget> target_;
+  std::queue<QueuedPacket *> packets_;
+  PRLock *packets_lock_;
+  nsRefPtr<Deliverer> deliverer_;
 };
 
 #endif

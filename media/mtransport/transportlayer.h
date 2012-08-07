@@ -20,7 +20,7 @@ class TransportFlow;
 
 typedef int TransportResult;
 
-enum { 
+enum {
   TE_WOULDBLOCK = -1, TE_ERROR = -2, TE_INTERNAL = -3
 };
 
@@ -33,7 +33,7 @@ class TransportLayer : public sigslot::has_slots<> {
 
   // Is this a stream or datagram flow
 
-  TransportLayer(Mode mode = STREAM) : 
+  TransportLayer(Mode mode = STREAM) :
     mode_(mode),
     state_(NONE),
     flow_(NULL),
