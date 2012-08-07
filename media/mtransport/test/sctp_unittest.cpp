@@ -79,7 +79,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
         " remote=" << remote_port << std::endl;
 
     int r = usrsctp_set_non_blocking(sctp_, 1);
-    ASSERT_GE(r, 0);
+    EXPECT_GE(r, 0);
 
     struct sctp_event subscription;
     memset(&subscription, 0, sizeof(subscription));
@@ -88,7 +88,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     subscription.se_type = SCTP_ASSOC_CHANGE;
     r = usrsctp_setsockopt(sctp_, IPPROTO_SCTP, SCTP_EVENT, &subscription,
                            sizeof(subscription));
-    ASSERT_GE(r, 0);
+    EXPECT_GE(r, 0);
 
     memset(&local_addr_, 0, sizeof(local_addr_));
     local_addr_.sconn_family = AF_CONN;
@@ -109,7 +109,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     nsresult res;
     res = loopback_->Init();
-    ASSERT_EQ((nsresult)NS_OK, res);
+    EXPECT_EQ((nsresult)NS_OK, res);
   }
 
   ~TransportTestPeer() {
