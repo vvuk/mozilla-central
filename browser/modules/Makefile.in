@@ -23,6 +23,8 @@ EXTRA_JS_MODULES = \
 	TelemetryTimestamps.jsm \
 	Social.jsm \
 	webappsUI.jsm \
+	SignInToBrowser.jsm \
+	SignInToWebsite.jsm \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
