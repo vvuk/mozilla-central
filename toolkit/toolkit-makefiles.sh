@@ -192,7 +192,7 @@ MAKEFILES_content="
   content/html/document/src/Makefile
   content/svg/Makefile
   content/svg/document/src/Makefile
-<  content/svg/content/Makefile
+  content/svg/content/Makefile
   content/svg/content/src/Makefile
   content/xml/Makefile
   content/xml/content/src/Makefile
