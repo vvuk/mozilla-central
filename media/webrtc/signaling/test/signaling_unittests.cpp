@@ -508,14 +508,12 @@ private:
   }
 };
 
-/*
 class SignalingEnvironment : public ::testing::Environment {
  public:
   void TearDown() {
     sipcc::PeerConnectionImpl::Shutdown();
   }
 };
-*/
 
 class SignalingTest : public ::testing::Test {
 public:
@@ -632,7 +630,6 @@ int main(int argc, char **argv)
   NSS_NoDB_Init(NULL);
   NSS_SetDomesticPolicy();
 
-  //AddGlobalTestEnvironment(new SignalingEnvironment);
   ::testing::InitGoogleTest(&argc, argv);
 
   for(int i=0; i<argc; i++) {
@@ -642,6 +639,7 @@ int main(int argc, char **argv)
 
   }
 
+  ::testing::AddGlobalTestEnvironment(new test::SignalingEnvironment);
   int result = RUN_ALL_TESTS();
   return result;
 }
