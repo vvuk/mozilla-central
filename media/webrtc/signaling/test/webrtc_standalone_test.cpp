@@ -42,7 +42,7 @@ const int DEFAULT_PORT = 55555;
 using namespace std;
 
 /**
- * WebRTC Standalone helper test-case for external 
+ * WebRTC Standalone helper test-case for external
  * recording. This test should be used along with
  * media-conduit test-case.
  */
@@ -58,18 +58,18 @@ class WebrtcTest : public ::testing::Test {
               initDone(false),
               isPlaying(false)
  {
- 
+
  }
 
-  ~WebrtcTest() 
+  ~WebrtcTest()
   {
     Cleanup();
   }
 
-  void Init() 
+  void Init()
   {
    if( initDone )
-        return; 
+        return;
 
    cerr << "  Creating Voice Engine " << endl;
    mVoiceEngine = webrtc::VoiceEngine::Create();
@@ -88,7 +88,7 @@ class WebrtcTest : public ::testing::Test {
 
    mPtrVoECodec = webrtc::VoECodec::GetInterface(mVoiceEngine);
    ASSERT_NE(mPtrVoECodec, (void*)NULL);
- 
+
    //check if we have audio playout devices for us
    mPtrVoEHardware  = webrtc::VoEHardware::GetInterface(mVoiceEngine);
    ASSERT_NE(mPtrVoEHardware, (void*)NULL);
@@ -105,9 +105,9 @@ class WebrtcTest : public ::testing::Test {
    }
 
    EXPECT_EQ(0, mPtrVoEHardware->Release());
-    
+
    initDone = true;
-  
+
  }
 
 
@@ -115,25 +115,25 @@ class WebrtcTest : public ::testing::Test {
   {
     //release interfaces
     EXPECT_EQ(0, mPtrVoEBase->Terminate());
-    
+
 
     EXPECT_EQ(0, mPtrVoEFile->Release());
-    
+
 
     EXPECT_EQ(0, mPtrVoEXmedia->Release());
-    
+
     EXPECT_EQ(0, mPtrVoEBase->Release());
-    
-    
-    // delete the engine 
+
+
+    // delete the engine
     webrtc::VoiceEngine::Delete(mVoiceEngine);
 
     initDone = false;
   }
 
   //1. Test Case to play he standard audio file used as input
-  // for media-cionduit test-case.
-  void TestAudioFileLocalPlayout() 
+  // for media-conduit test-case.
+  void TestAudioFileLocalPlayout()
   {
     std::string rootpath = ProjectRootPath();
     filename = "audio_short16.pcm";
@@ -158,8 +158,8 @@ class WebrtcTest : public ::testing::Test {
     cerr << "  PLAYING ORIGINAL AUDIO FILE NOW FOR 5 SECONDS "<< endl;
     cerr << "  ************************************************" << endl;
 
-    
-    StartMedia(0); 
+
+    StartMedia(0);
     PR_Sleep(PR_SecondsToInterval(5));
     StopMedia();
 
@@ -170,12 +170,12 @@ class WebrtcTest : public ::testing::Test {
     EXPECT_EQ(0,mPtrVoEBase->DeleteChannel(mChannel));
   }
 
-  //2. Test case to play the external recording and played out 
+  //2. Test case to play the external recording and played out
   // audio file from the media-conduit test case.
-  void TestAudioFilePlayoutExternal() 
+  void TestAudioFilePlayoutExternal()
   {
     PR_Sleep(PR_SecondsToInterval(2));
-    
+
     std::string rootpath = ProjectRootPath();
     filename = "recorded.pcm";
     fileToPlay =
@@ -191,7 +191,7 @@ class WebrtcTest : public ::testing::Test {
     }
 
     //enable external rocording
-    EXPECT_EQ(0, mPtrVoEXmedia->SetExternalRecordingStatus(true)); 
+    EXPECT_EQ(0, mPtrVoEXmedia->SetExternalRecordingStatus(true));
 
     mChannel = mPtrVoEBase->CreateChannel();
     ASSERT_NE(mChannel, -1);
@@ -200,7 +200,7 @@ class WebrtcTest : public ::testing::Test {
     cerr << "  Starting to play RECORDED File for 5 Seconds "<< endl;
     cerr << "  ************************************************" << endl;
 
-    StartMedia(1); 
+    StartMedia(1);
     StopMedia();
 
     cerr << "  ************************************************" << endl;
@@ -208,11 +208,11 @@ class WebrtcTest : public ::testing::Test {
     cerr << "  ************************************************" << endl;
 
     EXPECT_EQ(0, mPtrVoEBase->DeleteChannel(mChannel));
-    
+
 
   }
 
-  void StartMedia(int choice) 
+  void StartMedia(int choice)
   {
     int error = 0;
     int16_t audio[AUDIO_SAMPLE_LENGTH];
@@ -222,9 +222,9 @@ class WebrtcTest : public ::testing::Test {
     EXPECT_EQ(0, mPtrVoEBase->SetLocalReceiver(mChannel,DEFAULT_PORT));
 
     EXPECT_EQ(0, mPtrVoEBase->SetSendDestination(mChannel,DEFAULT_PORT,"127.0.0.1"));
-    
+
     EXPECT_EQ(0, mPtrVoEBase->StartReceive(mChannel));
-    
+
     // Fix for Audio Playout Error on some Linux builds that
     // has Audio device access issues
     if(mPtrVoEBase->StartSend(mChannel) == -1)
@@ -237,7 +237,7 @@ class WebrtcTest : public ::testing::Test {
         return;
       }
     }
-    
+
     // Fix for Audio Playout Error on some Linux builds that
     // has Audio device access issues
     if(mPtrVoEBase->StartPlayout(mChannel) == -1)
@@ -268,7 +268,7 @@ class WebrtcTest : public ::testing::Test {
       bool finish = false;
       int t=0;
       //read the recorded sample for 5 seconds
-      do 
+      do
       {
         unsigned int read_ = fread(audio, 1, sampleSizeInBits, id);
         if(read_ != sampleSizeInBits || t > 5000)
@@ -283,7 +283,7 @@ class WebrtcTest : public ::testing::Test {
       fclose(id);
     }
 
-  } 
+  }
 
   void StopMedia()
   {
@@ -296,21 +296,21 @@ class WebrtcTest : public ::testing::Test {
 
       EXPECT_EQ(0, mPtrVoEBase->StopReceive(mChannel));
 
-      EXPECT_EQ(0, mPtrVoEBase->StopSend(mChannel));  
+      EXPECT_EQ(0, mPtrVoEBase->StopSend(mChannel));
     }
-    
+
   }
 
-  //Function is a fix to get the test-pass in the case of 
+  //Function is a fix to get the test-pass in the case of
   // WbeRTC Audio Device errors on systems where we don't
-  // have right playout device or device drivers or 
+  // have right playout device or device drivers or
   // media pipelines
   bool CheckForOkAudioErrors(int error)
   {
     if(error == VE_PLAY_UNDEFINED_SC_ERR ||
         error == VE_PLAY_UNDEFINED_SC_ERR ||
         error == VE_PLAY_CANNOT_OPEN_SC ||
-        error == VE_RUNTIME_PLAY_ERROR || 
+        error == VE_RUNTIME_PLAY_ERROR ||
         error == VE_SOUNDCARD_ERROR ||
         error == VE_AUDIO_DEVICE_MODULE_ERROR ||
         error == VE_AUDIO_CODING_MODULE_ERROR ||
@@ -320,7 +320,7 @@ class WebrtcTest : public ::testing::Test {
     } else {
       return false;
     }
-  } 
+  }
 
 private:
 
@@ -345,7 +345,7 @@ TEST_F(WebrtcTest, TestSpeakerPlayout) {
  TestAudioFileLocalPlayout();
 }
 
-// Test 2: Plays a pcm file to the speaker with 
+// Test 2: Play a pcm file to the speaker with
 // samples inserted externally
 TEST_F(WebrtcTest, TestSpeakerPlayoutExternalRecording) {
  TestAudioFilePlayoutExternal();
