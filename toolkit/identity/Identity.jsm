@@ -316,7 +316,7 @@ IDService.prototype = {
         return aCallback(err.toString());
       }
     };
-    req.onerror = function _fetchWellKnownFile_onerror() {
+    req.onerror = function _fetchWellKnownFile_onerror(err) {
       log("_fetchWellKnownFile", "ERROR:", req.status, req.statusText);
       log("ERROR: _fetchWellKnownFile:", err);
       return aCallback("Error");

@@ -69,7 +69,7 @@ let SignInToWebsiteUX = {
    * The website is requesting login so the user must choose an identity to use.
    */
   requestLogin: function SignInToWebsiteUX_requestLogin(aOptions) {
-    let windowID = aOptions.rpId;
+    let windowID = aOptions.windowId;
     log("requestLogin", aOptions);
     let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
@@ -175,7 +175,7 @@ let SignInToWebsiteUX = {
    * Show a doorhanger indicating the currently logged-in user.
    */
   _showLoggedInUI: function _showLoggedInUI(aIdentity, aContext) {
-    let windowID = aContext.rpId;
+    let windowID = aContext.windowId;
     log("_showLoggedInUI for ", windowID);
     let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
@@ -196,14 +196,14 @@ let SignInToWebsiteUX = {
     let loggedInNot = chromeWin.PopupNotifications.show(browserEl, "identity-logged-in", message,
                                                   "identity-notification-icon", mainAction,
                                                   secondaryActions, options);
-    loggedInNot.rpId = windowID;
+    loggedInNot.rpId = aContext.rpId;
   },
 
   /**
    * Remove the doorhanger indicating the currently logged-in user.
    */
   _removeLoggedInUI: function _removeLoggedInUI(aContext) {
-    let windowID = aContext.rpId;
+    let windowID = aContext.windowId;
     log("_removeLoggedInUI for ", windowID);
     if (!windowID)
       throw "_removeLoggedInUI: Invalid RP ID";
@@ -218,7 +218,7 @@ let SignInToWebsiteUX = {
    * Remove the doorhanger indicating the currently logged-in user.
    */
   _removeRequestUI: function _removeRequestUI(aContext) {
-    let windowID = aContext.rpId;
+    let windowID = aContext.windowId;
     log("_removeRequestUI for ", windowID);
     let [chromeWin, browserEl] = this._getUIForWindowID(windowID);
 
