@@ -281,6 +281,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mCall(NULL)
   , mReadyState(kNew)
   , mPCObserver(NULL)
+  , mFingerprint("TempFingerprint")
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
   , mIceStreams(NULL)
@@ -828,6 +829,21 @@ NS_IMETHODIMP
 PeerConnectionImpl::AddIceCandidate(const char* strCandidate)
 {
   mCall->addIceCandidate(strCandidate);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+PeerConnectionImpl::GetFingerprint(char** fingerprint)
+{
+  if (!mIdentity) {
+    return NS_ERROR_FAILURE;
+  }
+
+  char* tmp = new char[mFingerprint.size() + 1];
+  std::copy(mFingerprint.begin(), mFingerprint.end(), tmp);
+  tmp[mFingerprint.size()] = '\0';
+
+  *fingerprint = tmp;
   return NS_OK;
 }
 

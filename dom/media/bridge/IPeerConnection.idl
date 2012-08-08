@@ -90,9 +90,12 @@ interface IPeerConnection : nsISupports
 
   nsIDOMDataChannel createDataChannel(/* FIX! */);
 
-  /* XXX remove these */	
+  /* XXX remove these */
   void listen(in unsigned short port);
   void connect(in DOMString addr, in unsigned short port);
+
+  /* For identity */
+  readonly attribute string fingerprint;
 
   readonly attribute string localDescription;
   readonly attribute string remoteDescription;

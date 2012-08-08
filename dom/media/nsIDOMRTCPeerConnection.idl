@@ -51,6 +51,15 @@ interface nsIDOMRTCPeerConnection : nsISupports
   void removeStream(in nsIDOMMediaStream stream);
   void close();
 
+  /* Identity */
+  void selectIdentity(in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
+
+  void verifyIdentity(in jsval offer,
+    in RTCPeerConnectionCallback successCallback,
+    in RTCPeerConnectionCallback failureCallback);
+
+  /* Data channel */
   nsIDOMDataChannel createDataChannel(/* FIX! */);
 
   /* XXX remove these */

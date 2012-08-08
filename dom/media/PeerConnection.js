@@ -4,30 +4,32 @@
 
 "use strict";
 
+const IDService = {};
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/identity/WebRTC.jsm", IDService);
 
 const PC_CONTRACT = "@mozilla.org/dom/peerconnection;1";
 const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
 
-function PeerConnection() {
-  this._pc = Cc["@mozilla.org/peerconnection;1"].
-             createInstance(Ci.IPeerConnection);
-  this._observer = new PeerConnectionObserver(this);
-
-  dump("!!! mozPeerConnection constructor called " + this._pc + "\n\n");
-  this._pc.initialize(this._observer, Services.tm.currentThread);
-}
+function PeerConnection() {}
 PeerConnection.prototype = {
 
   _pc: null,
   _observer: null,
+  _identity: null,
+
+  // TODO: Refactor this.
   _onCreateOfferSuccess: null,
   _onCreateOfferFailure: null,
   _onCreateAnswerSuccess: null,
   _onCreateAnswerFailure: null,
+  _onSelectIdentitySuccess: null,
+  _onSelectIdentityFailure: null,
+  _onVerifyIdentitySuccess: null,
+  _onVerifyIdentityFailure: null,
 
   _ondatachannel: null,
   _onconnection: null,
@@ -47,10 +49,33 @@ PeerConnection.prototype = {
   classInfo: XPCOMUtils.generateCI({classID: PC_CID,
                                     contractID: PC_CONTRACT,
                                     classDescription: "PeerConnection",
-                                    interfaces: [Ci.nsIDOMRTCPeerConnection],
+                                    interfaces: [
+                                      Ci.nsIDOMRTCPeerConnection,
+                                      Ci.nsIDOMGlobalObjectConstructor
+                                    ],
                                     flags: Ci.nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMRTCPeerConnection]),
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsIDOMRTCPeerConnection, Ci.nsIDOMGlobalObjectConstructor
+  ]),
+
+  // Constructor is an explicit function, because of nsIDOMGlobalObjectConstructor
+  constructor: function(win) {
+    this._pc = Cc["@mozilla.org/peerconnection;1"].
+             createInstance(Ci.IPeerConnection);
+    this._observer = new PeerConnectionObserver(this);
+
+    this._pc.initialize(this._observer, Services.tm.currentThread);
+
+    this._win = win;
+    this._winID = this._win.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
+
+    dump("!!! mozPeerConnection constructor called " + this._win + "\n " + this._winID + "\n\n");
+    this._uniqId = Cc["@mozilla.org/uuid-generator;1"]
+                   .getService(Ci.nsIUUIDGenerator)
+                   .generateUUID().toString();
+  },
 
   // FIXME: Right now we do not enforce proper invocation (eg: calling
   // createOffer twice in a row is allowed).
@@ -63,6 +88,71 @@ PeerConnection.prototype = {
     } else {
       this._queue.push(obj);
     }
+  },
+
+  // Pick the next item from the queue and run it
+  _executeNext: function() {
+    if (this._queue.length) {
+      let obj = this._queue.shift();
+      obj.func.apply(this, obj.args);
+    } else {
+      this._pending = false;
+    }
+  },
+
+  _selectIdentity: function() {
+    let self = this;
+
+    IDService.selectIdentity(this._uniqId, this._winID, function(err, val) {
+      if (err) {
+        self._onSelectIdentityFailure.onCallback(err);
+      } else {
+        self._identity = val;
+        self._onSelectIdentitySuccess.onCallback(null);
+      }
+      self._executeNext();
+    });
+  },
+
+  _verifyIdentity: function(offer) {
+    let self = this;
+
+    // Extract the a=fingerprint and a=identity lines.
+    let ire = new RegExp("a=identity:(.+)\r\n");
+    let fre = new RegExp("a=fingerprint:(.+)\r\n");
+    
+    let id = offer.match(ire);
+    let fprint = offer.match(fre);
+    
+    if (id.length == 2 && fprint.length == 2) {
+      IDService.verifyIdentity(id[1], function(err, val) {
+        if (val && (fprint[1] == val.message)) {
+          self._onVerifyIdentitySuccess.onCallback(val);
+          return;
+        }
+        self._onVerifyIdentityFailure(err || "Signed message did not match");
+      }); 
+    } else {
+      self._onVerifyIdentityFailure.onCallback("No identity information found");
+    }
+  },
+
+  selectIdentity: function(onSuccess, onError) {
+    dump("!!! selectIdentity called\n");
+    this._onSelectIdentitySuccess = onSuccess;
+    this._onSelectIdentityFailure = onError;
+
+    this._queueOrRun({func: this._selectIdentity, args: null});
+    dump("!!! selectIdentity returned\n");
+  },
+
+  verifyIdentity: function(offer, onSuccess, onError) {
+    dump("!!! verifyIdentity called with\n");
+    this._onVerifyIdentitySuccess = onSuccess;
+    this._onVerifyIdentityFailure = onError;
+
+    this._queueOrRun({func: this._verifyIdentity, args: [offer]});
+    dump("!!! verifyIdentity returned\n");
   },
 
   createOffer: function(onSuccess, onError, constraints) {
@@ -204,22 +294,42 @@ function PeerConnectionObserver(dompc) {
 PeerConnectionObserver.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver]),
 
-  // Pick the next item from the queue and run it
-  _executeNext: function() {
-    if (this._dompc._queue.length) {
-      let obj = this._dompc._queue.shift();
-      obj.func.apply(this._dompc, obj.args);
-    } else {
-      this._dompc._pending = false;
-    }
-  },
-
   onCreateOfferSuccess: function(offer) {
     dump("!!! onCreateOfferSuccess called\n");
-    if (this._dompc._onCreateOfferSuccess) {
+
+    // Before calling the success callback, check if selectIdentity was
+    // previously called and that an identity was obtained. If so, add
+    // a signed string to the SDP before sending it to content.
+    if (!this._dompc._identity) {
       this._dompc._onCreateOfferSuccess.onCallback(offer);
+      this._dompc._executeNext();
+      return;
     }
-    this._executeNext();
+
+    let sig = this._dompc._pc.fingerprint;
+
+    // FIXME! Save the origin of the window that created the dompc.
+    let self = this;
+    this._dompc._identity.sign("http://example.org", sig, function(e, ast) {
+      if (e && self._dompc._onCreateOfferFailure) {
+        self._dompc._onCreateOfferFailure(e);
+        self._dompc._executeNext();
+        return;
+      }
+
+      // Got assertion, add to the SDP along with the fingerprint. We put
+      // it right at the top, because these must come before the first
+      // m= line.
+      let sigline = "a=fingerprint:" + sig + "\r\n";
+      let idline = "a=identity:" + ast + "\r\n";
+
+      let parts = offer.split("m=");
+      let finalOffer = parts[0] + sigline + idline + "m=" + parts[1];
+
+      dump("!!! Generated final offer: " + finalOffer + "\n\n");
+      self._dompc._onCreateOfferSuccess.onCallback(finalOffer);
+      self._dompc._executeNext();
+    });
   },
 
   onCreateOfferError: function(code) {
@@ -227,7 +337,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onCreateOfferFailure) {
       this._dompc._onCreateOfferFailure.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onCreateAnswerSuccess: function(answer) {
@@ -235,7 +345,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onCreateAnswerSuccess) {
       this._dompc._onCreateAnswerSuccess.onCallback(answer);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onCreateAnswerError: function(code) {
@@ -243,7 +353,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onCreateAnswerFailure) {
       this._dompc._onCreateAnswerFailure.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onSetLocalDescriptionSuccess: function(code) {
@@ -251,7 +361,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onSetLocalDescriptionSuccess) {
       this._dompc._onSetLocalDescriptionSuccess.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionSuccess: function(code) {
@@ -259,7 +369,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onSetRemoteDescriptionSuccess) {
       this._dompc._onSetRemoteDescriptionSuccess.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onSetLocalDescriptionError: function(code) {
@@ -267,7 +377,7 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onSetLocalDescriptionFailure) {
       this._dompc._onSetLocalDescriptionFailure.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionError: function(code) {
@@ -275,13 +385,13 @@ PeerConnectionObserver.prototype = {
     if (this._dompc._onSetRemoteDescriptionFailure) {
       this._dompc._onSetRemoteDescriptionFailure.onCallback(code);
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   // FIXME: Following observer events should update state on this._dompc.
   onStateChange: function(state) {
     dump("!!! onStateChange called: " + state + "\n");
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onAddStream: function(stream, type) {
@@ -289,32 +399,32 @@ PeerConnectionObserver.prototype = {
     if (this._dompc.onRemoteStreamAdded) {
       this._dompc.onRemoteStreamAdded.onCallback({stream: stream, type: type});
     }
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onRemoveStream: function() {
     dump("!!! onRemoveStream called\n");
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onAddTrack: function() {
     dump("!!! onAddTrack called\n");
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onRemoveTrack: function() {
     dump("!!! onRemoveTrack called\n");
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   onDataChannel: function() {
     dump("!!! onDataChannel called\n");
-    this._executeNext();
+    this._dompc._executeNext();
   },
 
   foundIceCandidate: function(candidate) {
     dump("!!! foundIceCandidate called: " + candidate + "\n");
-    this._executeNext();
+    this._dompc._executeNext();
   }
 };
 

@@ -3083,12 +3083,14 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             return (SM_RC_END);	
         }     
         
-        /*compare and fail if different */
+        /* compare and fail if different:
+         * anant: Why? The JS should be able to modify the SDP. Commenting out for now (same for answer)
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
         	ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SDPCHANGED);
         	return (SM_RC_END);
         }
-        
+        */
+
         fsm_change_state(fcb, __LINE__, FSMDEF_S_CALL_SENT);
 
     } else if (JSEP_ANSWER == action) {
@@ -3101,11 +3103,11 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             return (SM_RC_END);
         }     
         
-        /* compare and fail if different */
+        /* compare and fail if different
         if (strcmp(msg_body.parts[0].body, sdp) != 0) {
             ui_set_local_description(evSetLocalDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SDPCHANGED);
             return (SM_RC_END);
-        }
+        }*/
 
         FSM_SET_FLAGS(dcb->msgs_sent, FSMDEF_MSG_CONNECTED);
 

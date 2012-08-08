@@ -353,6 +353,9 @@ private:
   std::string mLocalSDP;
   std::string mRemoteSDP;
 
+  // DTLS fingerprint, fake it for now.
+  std::string mFingerprint;
+
   // A list of streams returned from GetUserMedia
   PRLock *mLocalSourceStreamsLock;
   nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
