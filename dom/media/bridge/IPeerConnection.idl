@@ -1,4 +1,5 @@
 #include "nsIThread.idl"
+#include "nsIDOMWindow.idl"
 #include "nsIDOMMediaStream.idl"
 
 interface nsIDOMDataChannel;
@@ -88,7 +89,7 @@ interface IPeerConnection : nsISupports
   /* For testing purposes only! */
   nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
 
-  nsIDOMDataChannel createDataChannel(/* FIX! */);
+  nsIDOMDataChannel createDataChannel(in nsIDOMWindow window);
 
   /* XXX remove these */
   void listen(in unsigned short port);

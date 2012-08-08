@@ -450,11 +450,11 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateDataChannel(nsIDOMDataChannel** aRetval)
+PeerConnectionImpl::CreateDataChannel(nsIDOMWindow* aWindow, nsIDOMDataChannel** aRetval)
 {
 #ifdef MOZILLA_INTERNAL_API
   mozilla::DataChannel *aDataChannel;
-  std::cerr << "PeerConnectionImpl::CreateDataChannel()" << std::endl;
+  std::cerr << "PeerConnectionImpl::CreateDataChannel() called with window " << aWindow << std::endl;
   aDataChannel = mDataConnection->Open(/* "",  */
                                        mozilla::DataChannelConnection::RELIABLE,
                                        true, 0, NULL, NULL);

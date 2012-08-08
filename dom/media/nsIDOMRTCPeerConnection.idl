@@ -60,7 +60,7 @@ interface nsIDOMRTCPeerConnection : nsISupports
     in RTCPeerConnectionCallback failureCallback);
 
   /* Data channel */
-  nsIDOMDataChannel createDataChannel(/* FIX! */);
+  nsIDOMDataChannel createDataChannel();
 
   /* XXX remove these */
   void listen(in unsigned short port);

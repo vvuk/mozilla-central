@@ -248,9 +248,9 @@ PeerConnection.prototype = {
     dump("!!! removeStream returned\n");
   },
 
-  createDataChannel: function(/* FIX */) {
+  createDataChannel: function() {
     dump("!!! createDataChannel called\n");
-    let channel = this._pc.createDataChannel(/* FIX! */);
+    let channel = this._pc.createDataChannel(this._win);
     dump("!!! createDataChannel returned\n");
     return channel;
   },
