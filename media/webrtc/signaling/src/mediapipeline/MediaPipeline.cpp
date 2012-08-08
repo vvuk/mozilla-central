@@ -110,7 +110,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
          srtp_block + offset, SRTP_MASTER_SALT_LENGTH);
   offset += SRTP_MASTER_SALT_LENGTH;
   memcpy(server_write_key + SRTP_MASTER_KEY_LENGTH,
-         srtp_block + offset, SRTP_MASTER_KEY_LENGTH);
+         srtp_block + offset, SRTP_MASTER_SALT_LENGTH);
   offset += SRTP_MASTER_SALT_LENGTH;
   PR_ASSERT(offset == sizeof(srtp_block));
 

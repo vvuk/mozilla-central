@@ -37,7 +37,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
 }
 
 TransportLayer *TransportFlow::top() const {
-  return layers_.front();
+  return layers_.empty() ? NULL : layers_.front();
 }
 
 TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
@@ -46,7 +46,7 @@ TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
     if ((*it)->id() == id)
       return *it;
   }
-    
+
   return NULL;
 }
 
