@@ -5,6 +5,7 @@
 
 #include "jsval.h"
 
+#include "nsDOMError.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsDOMEventTargetHelper.h"

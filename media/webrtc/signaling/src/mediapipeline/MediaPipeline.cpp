@@ -12,11 +12,13 @@
 #include <prlog.h>
 #include "srtp.h"
 
-#include "ImageLayers.h"
+#ifdef MOZILLA_INTERNAL_API
+#include "VideoSegment.h"
+#endif
+
 #include "logging.h"
 #include "nsError.h"
 #include "AudioSegment.h"
-#include "ImageLayers.h"
 #include "MediaSegment.h"
 #include "transportflow.h"
 #include "transportlayer.h"
@@ -404,6 +406,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
       iter.Next();
     }
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
+    #ifdef MOZILLA_INTERNAL_API
     if (pipeline_->conduit_->type() != MediaSessionConduit::VIDEO) {
       // Ignore data in case we have a muxed stream
       return;
@@ -418,6 +421,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                                    rate, *iter);
       iter.Next();
     }
+    #endif
   } else {
     // Ignore
   }
@@ -467,11 +471,10 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
   conduit->SendAudioFrame(samples.get(), chunk.mDuration, rate, 0);
 }
 
-
+#ifdef MOZILLA_INTERNAL_API
 void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               TrackRate rate,
                                               VideoChunk& chunk) {
-#ifdef MOZILLA_INTERNAL_API
   // We now need to send the video frame to the other side
   mozilla::layers::Image *img = chunk.mFrame.GetImage();
 
@@ -503,8 +506,8 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
   // TODO(ekr@rtfm.com): Check return value
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
-#endif
 }
+#endif
 
 nsresult MediaPipelineReceiveAudio::Init() {
   MLOG(PR_LOG_DEBUG, __FUNCTION__);

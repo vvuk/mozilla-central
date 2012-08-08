@@ -17,8 +17,11 @@
 #include "MediaConduitInterface.h"
 #include "AudioSegment.h"
 #include "SrtpFlow.h"
-#include "VideoSegment.h"
 #include "transportflow.h"
+
+#ifdef MOZILLA_INTERNAL_API
+#include "VideoSegment.h"
+#endif
 
 namespace mozilla {
 
@@ -185,9 +188,10 @@ class MediaPipelineTransmit : public MediaPipeline {
  private:
   virtual void ProcessAudioChunk(AudioSessionConduit *conduit,
                                  TrackRate rate, mozilla::AudioChunk& chunk);
+#ifdef MOZILLA_INTERNAL_API
   virtual void ProcessVideoChunk(VideoSessionConduit *conduit,
                                  TrackRate rate, mozilla::VideoChunk& chunk);
-
+#endif
   mozilla::RefPtr<PipelineListener> listener_;
 };
 

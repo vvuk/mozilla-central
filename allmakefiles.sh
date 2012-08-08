@@ -173,7 +173,8 @@ fi
 # Services makefiles
 . "${srcdir}/services/makefiles.sh"
 
+# WebRTC makefiles
+. "${srcdir}/services/makefiles.sh"
+
 # Turn off exit on error, since it breaks the rest of configure
 set +o errexit
-
-echo $MAKEFILES

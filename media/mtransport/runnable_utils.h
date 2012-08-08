@@ -7,6 +7,8 @@
 #ifndef runnable_utils_h__
 #define runnable_utils_h__
 
+#include "nsThreadUtils.h"
+
 // Abstract base class for all of our templates
 class runnable_args_base : public nsRunnable {
  public:
@@ -14,9 +16,6 @@ class runnable_args_base : public nsRunnable {
   NS_IMETHOD Run() = 0;
 };
 
-
-
 #include "runnable_utils_generated.h"
-
 
 #endif
