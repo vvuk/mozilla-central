@@ -14,6 +14,7 @@
 #include "ssl.h"
 #include "sslproto.h"
 
+#include "dtlsidentity.h"
 #include "logging.h"
 #include "mozilla/RefPtr.h"
 #include "FakeMediaStreams.h"
@@ -59,7 +60,7 @@ class TestAgent {
       video_pipeline_() {
   }
 
-  void ConnectSocket(PRFileDesc *fd) {
+  void ConnectSocket(PRFileDesc *fd, bool client) {
     nsresult res;
     res = audio_prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
@@ -73,7 +74,9 @@ class TestAgent {
     std::vector<PRUint16> ciphers;
     ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
     audio_dtls_->SetSrtpCiphers(ciphers);
-
+    audio_dtls_->SetIdentity(DtlsIdentity::Generate("test"));
+    audio_dtls_->SetRole(client ? TransportLayerDtls::CLIENT :
+                         TransportLayerDtls::SERVER);
     audio_flow_->PushLayer(audio_dtls_);
   }
 
@@ -129,7 +132,7 @@ class TestAgentSend : public TestAgent {
         ConfigureSendMediaCodec(&audio_config_);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL, audio_, audio_conduit_, audio_flow_, audio_flow_);
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL, audio_, audio_conduit_, audio_flow_, NULL);
 
 //    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
@@ -163,7 +166,7 @@ class TestAgentReceive : public TestAgent {
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(NULL,
       audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
-      audio_flow_, audio_flow_);
+      audio_flow_, NULL);
   }
 
  private:
@@ -180,8 +183,8 @@ class MediaPipelineTest : public ::testing::Test {
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
 
-    p1_.ConnectSocket(fds_[0]);
-    p2_.ConnectSocket(fds_[1]);
+    p1_.ConnectSocket(fds_[0], false);
+    p2_.ConnectSocket(fds_[1], true);
   }
 
  protected:
@@ -206,6 +209,8 @@ int main(int argc, char **argv)
 {
   test_utils.InitServices();
   // Start the tests
+  NSS_NoDB_Init(NULL);
+  NSS_SetDomesticPolicy();
   ::testing::InitGoogleTest(&argc, argv);
 
   return RUN_ALL_TESTS();

@@ -57,7 +57,7 @@ class MediaPipeline : public sigslot::has_slots<> {
       rtcp_packets_sent_(0),
       rtp_packets_received_(0),
       rtcp_packets_received_(0),
-      muxed_(rtcp_transport_ == NULL) {
+      muxed_((rtcp_transport_ == NULL) || (rtp_transport_ == rtcp_transport_)) {
     Init();
   }
 
