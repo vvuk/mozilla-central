@@ -58,7 +58,7 @@ class TestAgent {
       video_(),
       video_pipeline_() {
   }
-  
+
   void ConnectSocket(PRFileDesc *fd) {
     nsresult res;
     res = audio_prsock_->Init();
@@ -69,7 +69,7 @@ class TestAgent {
     ASSERT_TRUE(NS_SUCCEEDED(res));
 
     ASSERT_EQ((nsresult)NS_OK, audio_flow_->PushLayer(audio_prsock_));
-    
+
     std::vector<PRUint16> ciphers;
     ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
     audio_dtls_->SetSrtpCiphers(ciphers);
@@ -79,26 +79,26 @@ class TestAgent {
 
   void Start() {
     nsresult ret;
-    
+
     MLOG(PR_LOG_DEBUG, "Starting");
 
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(audio_->GetStream(),
                         &Fake_MediaStream::Start, &ret),
         NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+    ASSERT_TRUE(NS_SUCCEEDED(ret));
   }
 
   void Stop() {
     nsresult ret;
-    
+
     MLOG(PR_LOG_DEBUG, "Stopping");
 
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(audio_->GetStream(),
                         &Fake_MediaStream::Stop, &ret),
         NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(ret));    
+    ASSERT_TRUE(NS_SUCCEEDED(ret));
 
     PR_Sleep(1000); // Deal with race condition
   }
@@ -124,7 +124,7 @@ class TestAgentSend : public TestAgent {
   TestAgentSend() {
     audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
 
-    mozilla::MediaConduitErrorCode err = 
+    mozilla::MediaConduitErrorCode err =
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureSendMediaCodec(&audio_config_);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
@@ -135,7 +135,6 @@ class TestAgentSend : public TestAgent {
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
   }
 
-  
  private:
 };
 
@@ -156,7 +155,7 @@ class TestAgentReceive : public TestAgent {
     std::vector<mozilla::AudioCodecConfig *> codecs;
     codecs.push_back(&audio_config_);
 
-    mozilla::MediaConduitErrorCode err = 
+    mozilla::MediaConduitErrorCode err =
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureRecvMediaCodecs(codecs);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
@@ -208,7 +207,7 @@ int main(int argc, char **argv)
   test_utils.InitServices();
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
-  
+
   return RUN_ALL_TESTS();
 }
 
