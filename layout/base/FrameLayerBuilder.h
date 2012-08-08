@@ -66,7 +66,7 @@ extern PRUint8 gContainerLayerPresContext;
 static inline FrameLayerBuilder *GetLayerBuilderForManager(layers::LayerManager* aManager)
 {
   LayerManagerLayerBuilder *data = static_cast<LayerManagerLayerBuilder*>(aManager->GetUserData(&gLayerManagerLayerBuilder));
-  return data ? data->mLayerBuilder : nsnull;
+  return data ? data->mLayerBuilder : nullptr;
 }
 
 class RefCountedRegion : public RefCounted<RefCountedRegion> {
@@ -121,7 +121,7 @@ public:
   typedef layers::LayerManager LayerManager;
 
   FrameLayerBuilder() :
-    mRetainingManager(nsnull),
+    mRetainingManager(nullptr),
     mDetectedDOMModification(false),
     mInvalidateAllLayers(false),
     mContainerLayerGeneration(0),
@@ -369,15 +369,13 @@ public:
   nsIntPoint GetLastPaintOffset(ThebesLayer* aLayer);
 
   /**
-   * Return resolution and scroll offset of ThebesLayer content associated
-   * with aFrame's subtree.
-   * Returns true if some ThebesLayer was found.
-   * This just looks for the first ThebesLayer and returns its data. There
-   * could be other ThebesLayers with different resolution and offsets.
+   * Return the resolution at which we expect to render aFrame's contents,
+   * assuming they are being painted to retained layers. This takes into account
+   * the resolution the contents of the ContainerLayer containing aFrame are
+   * being rendered at, as well as any currently-inactive transforms between
+   * aFrame and that container layer.
    */
-  static bool GetThebesLayerResolutionForFrame(nsIFrame* aFrame,
-                                               double* aXRes, double* aYRes,
-                                               gfxPoint* aPoint);
+  static gfxSize GetThebesLayerScaleForFrame(nsIFrame* aFrame);
 
   /**
    * Clip represents the intersection of an optional rectangle with a
@@ -539,7 +537,7 @@ protected:
   static PLDHashOperator RemoveDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
                                                        void* aClosure)
   {
-    return UpdateDisplayItemDataForFrame(aEntry, nsnull);
+    return UpdateDisplayItemDataForFrame(aEntry, nullptr);
   }
 
   /**
@@ -572,7 +570,7 @@ public:
   class ThebesLayerItemsEntry : public nsPtrHashKey<ThebesLayer> {
   public:
     ThebesLayerItemsEntry(const ThebesLayer *key) :
-        nsPtrHashKey<ThebesLayer>(key), mContainerLayerFrame(nsnull),
+        nsPtrHashKey<ThebesLayer>(key), mContainerLayerFrame(nullptr),
         mHasExplicitLastPaintOffset(false), mCommonClipCount(0) {}
     ThebesLayerItemsEntry(const ThebesLayerItemsEntry &toCopy) :
       nsPtrHashKey<ThebesLayer>(toCopy.mKey), mItems(toCopy.mItems)

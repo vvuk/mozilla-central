@@ -582,7 +582,6 @@ MarionetteDriverActor.prototype = {
     else {
       this.scriptTimeout = timeout;
       this.sendAsync("setScriptTimeout", {value: timeout});
-      this.sendOk();
     }
   },
 
@@ -1151,7 +1150,7 @@ MarionetteDriverActor.prototype = {
       try {
         let el = this.curBrowser.elementManager.getKnownElement(aRequest.element, this.getCurrentWindow());
         el.focus();
-        utils.sendString(aRequest.value, utils.window);
+        utils.sendString(aRequest.value.join(""), utils.window);
         this.sendOk();
       }
       catch (e) {

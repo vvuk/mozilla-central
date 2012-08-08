@@ -78,6 +78,7 @@ class MarionetteTestResult(unittest._TextTestResult):
                 else:
                     self.perfdata.join_results(testcase.perfdata)
 
+
 class MarionetteTextTestRunner(unittest.TextTestRunner):
 
     resultclass = MarionetteTestResult
@@ -309,6 +310,9 @@ class MarionetteTestRunner(object):
         if self.marionette.emulator:
             self.marionette.emulator.close()
             self.marionette.emulator = None
+        if self.marionette.instance:
+            self.marionette.instance.close()
+            self.marionette.instance = None
         self.marionette = None
 
         if self.xml_output:
@@ -364,10 +368,18 @@ class MarionetteTestRunner(object):
                     self.logger.info("Using machine_name: %s" % machine_name)
                 os_name = platform.system()
                 os_version = platform.release()
-                self.perfrequest = datazilla.DatazillaRequest(server=options.perfserv, machine_name=machine_name, os=os_name, os_version=os_version,
-                                         platform=manifest.get("platform")[0], build_name=manifest.get("build_name")[0], 
-                                         version=manifest.get("version")[0], revision=self.revision,
-                                         branch=manifest.get("branch")[0], id=os.getenv('BUILD_ID'), test_date=int(time.time()))
+                self.perfrequest = datazilla.DatazillaRequest(
+                             server=options.perfserv,
+                             machine_name=machine_name,
+                             os=os_name,
+                             os_version=os_version,
+                             platform=manifest.get("platform")[0],
+                             build_name=manifest.get("build_name")[0],
+                             version=manifest.get("version")[0],
+                             revision=self.revision,
+                             branch=manifest.get("branch")[0],
+                             id=os.getenv('BUILD_ID'),
+                             test_date=int(time.time()))
 
             manifest_tests = manifest.get(**testargs)
 
@@ -510,8 +522,10 @@ if __name__ == "__main__":
     parser.add_option("--emulator",
                       action = "store", dest = "emulator",
                       default = None, choices = ["x86", "arm"],
-                      help = "Launch a B2G emulator on which to run tests. "
-                      "You need to specify which architecture to emulate.")
+                      help = "If no --address is given, then the harness will launch a B2G emulator "
+                      "on which to run emulator tests. If --address is given, then the harness assumes you are "
+                      "running an emulator already, and will run the emulator tests using that emulator. "
+                      "You need to specify which architecture to emulate for both cases.")
     parser.add_option("--emulator-binary",
                       action = "store", dest = "emulatorBinary",
                       default = None,

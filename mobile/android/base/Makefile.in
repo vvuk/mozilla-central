@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= ../../..
+DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -16,12 +16,25 @@ DIST_FILES = package-name.txt
 
 include $(topsrcdir)/mobile/android/base/android-sync-files.mk
 
+MOZGLUE_JAVA_FILES := \
+  mozglue/DirectBufferAllocator.java \
+  $(NULL)
+
+UTIL_JAVA_FILES := \
+  ActivityResultHandler.java \
+  ActivityResultHandlerMap.java \
+  GeckoAsyncTask.java \
+  GeckoBackgroundThread.java \
+  GeckoJarReader.java \
+  INIParser.java \
+  INISection.java \
+  util/FloatUtils.java \
+  $(NULL)
+
 FENNEC_JAVA_FILES = \
   AboutHomeContent.java \
   AboutHomeSection.java \
   ActivityHandlerHelper.java \
-  ActivityResultHandler.java \
-  ActivityResultHandlerMap.java \
   AndroidImport.java \
   AndroidImportPreference.java \
   AlertNotification.java \
@@ -47,23 +60,19 @@ FENNEC_JAVA_FILES = \
   FilePickerResultHandler.java \
   FilePickerResultHandlerSync.java \
   FindInPageBar.java \
-  FloatUtils.java \
   FlowLayout.java \
   FontSizePreference.java \
   FormAssistPopup.java \
   GeckoApplication.java \
   GeckoApp.java \
   GeckoAppShell.java \
-  GeckoAsyncTask.java \
   GeckoBatteryManager.java \
-  GeckoBackgroundThread.java \
   GeckoConnectivityReceiver.java \
   GeckoEvent.java \
   GeckoEventListener.java \
   GeckoEventResponder.java \
   GeckoHalDefines.java \
   GeckoInputConnection.java \
-  GeckoJarReader.java \
   GeckoMenu.java \
   GeckoMenuInflater.java \
   GeckoMenuItem.java \
@@ -73,8 +82,6 @@ FENNEC_JAVA_FILES = \
   GeckoThread.java \
   GlobalHistory.java \
   GeckoViewsFactory.java \
-  INIParser.java \
-  INISection.java \
   InputMethods.java \
   LinkPreference.java \
   LinkTextView.java \
@@ -148,6 +155,8 @@ FENNEC_JAVA_FILES = \
   ui/SubdocumentScrollHelper.java \
   GeckoNetworkManager.java \
   GeckoScreenOrientationListener.java \
+  $(MOZGLUE_JAVA_FILES) \
+  $(UTIL_JAVA_FILES) \
   $(NULL)
 
 ifdef MOZ_WEBSMS_BACKEND
@@ -173,6 +182,7 @@ FENNEC_PP_JAVA_FILES = \
 
 FENNEC_PP_XML_FILES = \
   res/layout/abouthome_content.xml \
+  res/layout-xlarge-land-v11/abouthome_content.xml \
   res/layout/gecko_app.xml \
   res/layout-xlarge-v11/gecko_app.xml \
   res/layout/text_selection_handles.xml \
@@ -357,8 +367,13 @@ RES_VALUES = \
   res/values/arrays.xml \
   res/values/colors.xml \
   res/values/dimens.xml \
+  res/values/integers.xml \
   res/values/styles.xml \
   res/values/themes.xml \
+  $(NULL)
+
+RES_VALUES_LAND = \
+  res/values-land/integers.xml \
   $(NULL)
 
 RES_VALUES_V11 = \
@@ -373,6 +388,7 @@ RES_VALUES_LARGE_V11 = \
 
 RES_VALUES_XLARGE_V11 = \
   res/values-xlarge-v11/dimens.xml \
+  res/values-xlarge-v11/integers.xml \
   res/values-xlarge-v11/styles.xml \
   $(NULL)
 
@@ -796,14 +812,20 @@ RES_DRAWABLE_LARGE_MDPI_V11 = \
   res/drawable-large-mdpi-v11/remote_tabs_off.png \
   res/drawable-large-mdpi-v11/remote_tabs_on.png \
   res/drawable-large-mdpi-v11/tab_new.png \
+  res/drawable-large-mdpi-v11/tab_new_normal.png \
+  res/drawable-large-mdpi-v11/tab_new_pressed.png \
   res/drawable-large-mdpi-v11/urlbar_stop.png \
   res/drawable-large-mdpi-v11/reader.png \
   res/drawable-large-mdpi-v11/site_security_identified.png \
   res/drawable-large-mdpi-v11/site_security_verified.png \
   res/drawable-large-mdpi-v11/menu.png \
+  res/drawable-large-mdpi-v11/menu_normal.png \
+  res/drawable-large-mdpi-v11/menu_pressed.png \
   res/drawable-large-mdpi-v11/tabs_carat.png \
   res/drawable-large-mdpi-v11/tabs_crop_normal.png \
   res/drawable-large-mdpi-v11/tabs_crop_pressed.png \
+  res/drawable-large-mdpi-v11/tabs_full_normal.png \
+  res/drawable-large-mdpi-v11/tabs_full_pressed.png \
   $(NULL)
 
 RES_DRAWABLE_LARGE_HDPI_V11 = \
@@ -822,14 +844,20 @@ RES_DRAWABLE_LARGE_HDPI_V11 = \
   res/drawable-large-hdpi-v11/remote_tabs_off.png \
   res/drawable-large-hdpi-v11/remote_tabs_on.png \
   res/drawable-large-hdpi-v11/tab_new.png \
+  res/drawable-large-hdpi-v11/tab_new_normal.png \
+  res/drawable-large-hdpi-v11/tab_new_pressed.png \
   res/drawable-large-hdpi-v11/urlbar_stop.png \
   res/drawable-large-hdpi-v11/reader.png \
   res/drawable-large-hdpi-v11/site_security_identified.png \
   res/drawable-large-hdpi-v11/site_security_verified.png \
   res/drawable-large-hdpi-v11/menu.png \
+  res/drawable-large-hdpi-v11/menu_normal.png \
+  res/drawable-large-hdpi-v11/menu_pressed.png \
   res/drawable-large-hdpi-v11/tabs_carat.png \
   res/drawable-large-hdpi-v11/tabs_crop_normal.png \
   res/drawable-large-hdpi-v11/tabs_crop_pressed.png \
+  res/drawable-large-hdpi-v11/tabs_full_normal.png \
+  res/drawable-large-hdpi-v11/tabs_full_pressed.png \
   $(NULL)
 
 RES_DRAWABLE_LARGE_XHDPI_V11 = \
@@ -848,14 +876,20 @@ RES_DRAWABLE_LARGE_XHDPI_V11 = \
   res/drawable-large-xhdpi-v11/remote_tabs_on.png \
   res/drawable-large-xhdpi-v11/remote_tabs_off.png \
   res/drawable-large-xhdpi-v11/tab_new.png \
+  res/drawable-large-xhdpi-v11/tab_new_normal.png \
+  res/drawable-large-xhdpi-v11/tab_new_pressed.png \
   res/drawable-large-xhdpi-v11/urlbar_stop.png \
   res/drawable-large-xhdpi-v11/reader.png \
   res/drawable-large-xhdpi-v11/site_security_identified.png \
   res/drawable-large-xhdpi-v11/site_security_verified.png \
   res/drawable-large-xhdpi-v11/menu.png \
+  res/drawable-large-xhdpi-v11/menu_normal.png \
+  res/drawable-large-xhdpi-v11/menu_pressed.png \
   res/drawable-large-xhdpi-v11/tabs_carat.png \
   res/drawable-large-xhdpi-v11/tabs_crop_normal.png \
   res/drawable-large-xhdpi-v11/tabs_crop_pressed.png \
+  res/drawable-large-xhdpi-v11/tabs_full_normal.png \
+  res/drawable-large-xhdpi-v11/tabs_full_pressed.png \
   $(NULL)
 
 RES_DRAWABLE_XLARGE_MDPI_V11 = \
@@ -968,30 +1002,31 @@ MOZ_ANDROID_DRAWABLES += \
 
 MOZ_ANDROID_DRAWABLES += $(shell if test -e $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn; then cat $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/android-resources.mn | tr '\n' ' ';  fi)
 
-RESOURCES=$(RES_LAYOUT) $(RES_LAYOUT_LAND_V14) $(RES_LAYOUT_LARGE_V11) $(RES_LAYOUT_XLARGE_V11) $(RES_VALUES) $(RES_VALUES_V11) $(RES_VALUES_LARGE_V11) $(RES_VALUES_XLARGE_V11) $(RES_VALUES_LAND_V14) $(RES_XML) $(RES_ANIM) $(RES_DRAWABLE_NODPI) $(RES_DRAWABLE_BASE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_HDPI) $(RES_DRAWABLE_XHDPI) $(RES_DRAWABLE_MDPI_V11) $(RES_DRAWABLE_HDPI_V11) $(RES_DRAWABLE_XHDPI_V11) $(RES_DRAWABLE_LAND_V14) $(RES_DRAWABLE_LAND_MDPI_V14) $(RES_DRAWABLE_LAND_HDPI_V14) $(RES_DRAWABLE_LAND_XHDPI_V14) $(RES_DRAWABLE_LARGE_MDPI_V11) $(RES_DRAWABLE_LARGE_HDPI_V11) $(RES_DRAWABLE_LARGE_XHDPI_V11) $(RES_DRAWABLE_XLARGE_MDPI_V11) $(RES_DRAWABLE_XLARGE_HDPI_V11) $(RES_DRAWABLE_XLARGE_XHDPI_V11) $(RES_COLOR) $(RES_MENU)
+RESOURCES=$(RES_LAYOUT) $(RES_LAYOUT_LAND_V14) $(RES_LAYOUT_LARGE_V11) $(RES_LAYOUT_XLARGE_V11) $(RES_VALUES) $(RES_VALUES_LAND) $(RES_VALUES_V11) $(RES_VALUES_LARGE_V11) $(RES_VALUES_XLARGE_V11) $(RES_VALUES_LAND_V14) $(RES_XML) $(RES_ANIM) $(RES_DRAWABLE_NODPI) $(RES_DRAWABLE_BASE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_HDPI) $(RES_DRAWABLE_XHDPI) $(RES_DRAWABLE_MDPI_V11) $(RES_DRAWABLE_HDPI_V11) $(RES_DRAWABLE_XHDPI_V11) $(RES_DRAWABLE_LAND_V14) $(RES_DRAWABLE_LAND_MDPI_V14) $(RES_DRAWABLE_LAND_HDPI_V14) $(RES_DRAWABLE_LAND_XHDPI_V14) $(RES_DRAWABLE_LARGE_MDPI_V11) $(RES_DRAWABLE_LARGE_HDPI_V11) $(RES_DRAWABLE_LARGE_XHDPI_V11) $(RES_DRAWABLE_XLARGE_MDPI_V11) $(RES_DRAWABLE_XLARGE_HDPI_V11) $(RES_DRAWABLE_XLARGE_XHDPI_V11) $(RES_COLOR) $(RES_MENU)
 
 RES_DIRS= \
-  res/layout              \
-  res/layout-land-v14     \
-  res/layout-large-v11    \
-  res/layout-xlarge-v11   \
-  res/values              \
-  res/values-v11          \
-  res/values-large-v11    \
-  res/values-xlarge-v11   \
-  res/values-land-v14     \
-  res/xml                 \
-  res/anim                \
-  res/drawable-nodpi      \
-  res/drawable-ldpi       \
-  res/drawable-mdpi       \
-  res/drawable-hdpi       \
-  res/drawable-xhdpi      \
-  res/drawable            \
-  res/drawable-mdpi-v11   \
-  res/drawable-hdpi-v11   \
-  res/drawable-xhdpi-v11  \
-  res/drawable-land-v14   \
+  res/layout                    \
+  res/layout-land-v14           \
+  res/layout-large-v11          \
+  res/layout-xlarge-v11         \
+  res/layout-xlarge-land-v11    \
+  res/values                    \
+  res/values-v11                \
+  res/values-large-v11          \
+  res/values-xlarge-v11         \
+  res/values-land-v14           \
+  res/xml                       \
+  res/anim                      \
+  res/drawable-nodpi            \
+  res/drawable-ldpi             \
+  res/drawable-mdpi             \
+  res/drawable-hdpi             \
+  res/drawable-xhdpi            \
+  res/drawable                  \
+  res/drawable-mdpi-v11         \
+  res/drawable-hdpi-v11         \
+  res/drawable-xhdpi-v11        \
+  res/drawable-land-v14         \
   res/drawable-land-mdpi-v14    \
   res/drawable-land-hdpi-v14    \
   res/drawable-land-xhdpi-v14   \
@@ -1007,7 +1042,6 @@ RES_DIRS= \
   res/menu-large-v11            \
   res/menu-xlarge-v11           \
   $(NULL)
-
 
 include $(topsrcdir)/config/rules.mk
 

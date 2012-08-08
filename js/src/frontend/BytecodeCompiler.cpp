@@ -21,20 +21,6 @@
 using namespace js;
 using namespace js::frontend;
 
-class AutoAttachToRuntime {
-    JSRuntime *rt;
-  public:
-    ScriptSource *ss;
-    AutoAttachToRuntime(JSRuntime *rt)
-      : rt(rt), ss(NULL) {}
-    ~AutoAttachToRuntime() {
-        // This makes the source visible to the GC. If compilation fails, and no
-        // script refers to it, it will be collected.
-        if (ss)
-            ss->attachToRuntime(rt);
-    }
-};
-
 static bool
 CheckLength(JSContext *cx, size_t length)
 {
@@ -79,19 +65,20 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     if (!CheckLength(cx, length))
         return NULL;
-    AutoAttachToRuntime attacher(cx->runtime);
-    SourceCompressionToken sct(cx->runtime);
-    ScriptSource *ss = NULL;
+    ScriptSource *ss = cx->new_<ScriptSource>();
+    if (!ss)
+        return NULL;
+    ScriptSourceHolder ssh(cx->runtime, ss);
+    SourceCompressionToken sct(cx);
     if (!cx->hasRunOption(JSOPTION_ONLY_CNG_SOURCE) || options.compileAndGo) {
-        ss = ScriptSource::createFromSource(cx, chars, length, false, &sct);
-        if (!ss)
+        if (!ss->setSourceCopy(cx, chars, length, false, &sct))
             return NULL;
-        attacher.ss = ss;
     }
 
     Parser parser(cx, options, chars, length, /* foldConstants = */ true);
     if (!parser.init())
         return NULL;
+    parser.sct = &sct;
 
     SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL, StrictModeFromContext(cx));
 
@@ -243,18 +230,20 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
                               Bindings *bindings, const jschar *chars, size_t length)
 {
     if (!CheckLength(cx, length))
-        return false;
-    AutoAttachToRuntime attacher(cx->runtime);
-    SourceCompressionToken sct(cx->runtime);
-    ScriptSource *ss = ScriptSource::createFromSource(cx, chars, length, true, &sct);
+        return NULL;
+    ScriptSource *ss = cx->new_<ScriptSource>();
     if (!ss)
         return NULL;
-    attacher.ss = ss;
+    ScriptSourceHolder ssh(cx->runtime, ss);
+    SourceCompressionToken sct(cx);
+    if (!ss->setSourceCopy(cx, chars, length, true, &sct))
+        return NULL;
 
     options.setCompileAndGo(false);
     Parser parser(cx, options, chars, length, /* foldConstants = */ true);
     if (!parser.init())
         return false;
+    parser.sct = &sct;
 
     JS_ASSERT(fun);
     SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL,

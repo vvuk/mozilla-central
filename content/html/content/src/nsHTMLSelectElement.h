@@ -62,9 +62,9 @@ public:
    * @param aOption the option to insert
    * @param aIndex the index to insert at
    */
-  bool InsertOptionAt(nsHTMLOptionElement* aOption, PRUint32 aIndex)
+  void InsertOptionAt(nsHTMLOptionElement* aOption, PRUint32 aIndex)
   {
-    return !!mElements.InsertElementAt(aIndex, aOption);
+    mElements.InsertElementAt(aIndex, aOption);
   }
 
   /**
@@ -83,7 +83,7 @@ public:
    */
   nsHTMLOptionElement *ItemAsOption(PRUint32 aIndex)
   {
-    return mElements.SafeElementAt(aIndex, nsnull);
+    return mElements.SafeElementAt(aIndex, nullptr);
   }
 
   /**
@@ -97,9 +97,9 @@ public:
   /**
    * Append an option to end of array
    */
-  bool AppendOption(nsHTMLOptionElement* aOption)
+  void AppendOption(nsHTMLOptionElement* aOption)
   {
-    return !!mElements.AppendElement(aOption);
+    mElements.AppendElement(aOption);
   }
 
   /**
@@ -122,7 +122,8 @@ public:
                           PRInt32* aIndex);
 
 private:
-  /** The list of options (holds strong references) */
+  /** The list of options (holds strong references).  This is infallible, so
+   * various members such as InsertOptionAt are also infallible. */
   nsTArray<nsRefPtr<nsHTMLOptionElement> > mElements;
   /** The select element that contains this array */
   nsHTMLSelectElement* mSelect;
@@ -219,7 +220,7 @@ public:
   {
     if (aContent && aContent->IsHTML(nsGkAtoms::select))
       return static_cast<nsHTMLSelectElement*>(aContent);
-    return nsnull;
+    return nullptr;
   }
  
   // nsISupports
@@ -596,7 +597,7 @@ protected:
   /**
    * Insert aElement before the node given by aBefore
    */
-  nsresult Add(nsIDOMHTMLElement* aElement, nsIDOMHTMLElement* aBefore = nsnull);
+  nsresult Add(nsIDOMHTMLElement* aElement, nsIDOMHTMLElement* aBefore = nullptr);
 
   /** The options[] array */
   nsRefPtr<nsHTMLOptionCollection> mOptions;

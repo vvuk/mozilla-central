@@ -24,7 +24,8 @@ namespace {
 
 // If JS_STRUCTURED_CLONE_VERSION changes then we need to update our major
 // schema version.
-PR_STATIC_ASSERT(JS_STRUCTURED_CLONE_VERSION == 1);
+MOZ_STATIC_ASSERT(JS_STRUCTURED_CLONE_VERSION == 1,
+                  "Need to update the major schema version.");
 
 // Major schema version. Bump for almost everything.
 const PRUint32 kMajorSchemaVersion = 12;
@@ -36,8 +37,10 @@ const PRUint32 kMinorSchemaVersion = 0;
 // The schema version we store in the SQLite database is a (signed) 32-bit
 // integer. The major version is left-shifted 4 bits so the max value is
 // 0xFFFFFFF. The minor version occupies the lower 4 bits and its max is 0xF.
-PR_STATIC_ASSERT(kMajorSchemaVersion <= 0xFFFFFFF);
-PR_STATIC_ASSERT(kMajorSchemaVersion <= 0xF);
+MOZ_STATIC_ASSERT(kMajorSchemaVersion <= 0xFFFFFFF,
+                  "Major version needs to fit in 28 bits.");
+MOZ_STATIC_ASSERT(kMinorSchemaVersion <= 0xF,
+                  "Minor version needs to fit in 4 bits.");
 
 inline
 PRInt32
@@ -1393,7 +1396,7 @@ public:
                        PRUint64 aCurrentVersion,
                        const nsAString& aName,
                        const nsACString& aASCIIOrigin)
-  : AsyncConnectionHelper(static_cast<IDBDatabase*>(nsnull), aRequest),
+  : AsyncConnectionHelper(static_cast<IDBDatabase*>(nullptr), aRequest),
     mOpenHelper(aHelper), mOpenRequest(aRequest),
     mCurrentVersion(aCurrentVersion), mName(aName),
     mASCIIOrigin(aASCIIOrigin)
@@ -1404,8 +1407,8 @@ public:
 
   void ReleaseMainThreadObjects()
   {
-    mOpenHelper = nsnull;
-    mOpenRequest = nsnull;
+    mOpenHelper = nullptr;
+    mOpenRequest = nullptr;
 
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
@@ -1609,6 +1612,7 @@ OpenDatabaseHelper::DoDatabaseWork()
   NS_ASSERTION(mgr, "This should never be null!");
 
   nsresult rv = mgr->EnsureOriginIsInitialized(mASCIIOrigin,
+                                               mPrivilege,
                                                getter_AddRefs(dbDirectory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -1799,7 +1803,8 @@ OpenDatabaseHelper::CreateDatabaseConnection(
     }
     else  {
       // This logic needs to change next time we change the schema!
-      PR_STATIC_ASSERT(kSQLiteSchemaVersion == PRInt32((12 << 4) + 0));
+      MOZ_STATIC_ASSERT(kSQLiteSchemaVersion == PRInt32((12 << 4) + 0),
+                        "Need upgrade code from schema version increase.");
 
       while (schemaVersion != kSQLiteSchemaVersion) {
         if (schemaVersion == 4) {
@@ -1973,7 +1978,7 @@ OpenDatabaseHelper::Run()
 
       case eDeleteCompleted: {
         // Destroy the database now (we should have the only ref).
-        mDatabase = nsnull;
+        mDatabase = nullptr;
 
         DatabaseInfo::Remove(mDatabaseId);
 
@@ -2105,10 +2110,8 @@ OpenDatabaseHelper::EnsureSuccessResult()
   dbInfo->nextIndexId = mLastIndexId + 1;
 
   nsRefPtr<IDBDatabase> database =
-    IDBDatabase::Create(mOpenDBRequest,
-                        dbInfo.forget(),
-                        mASCIIOrigin,
-                        mFileManager);
+    IDBDatabase::Create(mOpenDBRequest, dbInfo.forget(), mASCIIOrigin,
+                        mFileManager, mContentParent);
   if (!database) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
@@ -2212,9 +2215,9 @@ OpenDatabaseHelper::ReleaseMainThreadObjects()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  mOpenDBRequest = nsnull;
-  mDatabase = nsnull;
-  mDatabaseId = nsnull;
+  mOpenDBRequest = nullptr;
+  mDatabase = nullptr;
+  mDatabaseId = nullptr;
 
   HelperBase::ReleaseMainThreadObjects();
 }
@@ -2327,10 +2330,10 @@ SetVersionHelper::NotifyTransactionPostComplete(IDBTransaction* aTransaction)
     mOpenHelper->SetError(aTransaction->GetAbortCode());
   }
 
-  mOpenRequest->SetTransaction(nsnull);
-  mOpenRequest = nsnull;
+  mOpenRequest->SetTransaction(nullptr);
+  mOpenRequest = nullptr;
 
-  mOpenHelper = nsnull;
+  mOpenHelper = nullptr;
 
   return rv;
 }

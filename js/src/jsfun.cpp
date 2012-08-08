@@ -65,7 +65,7 @@ using namespace js::types;
 using namespace js::frontend;
 
 static JSBool
-fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, Value *vp)
+fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValue vp)
 {
     JSObject *obj = obj_;
     while (!obj->isFunction()) {
@@ -87,7 +87,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, Value *vp)
     }
 
     /* Set to early to null in case of error */
-    vp->setNull();
+    vp.setNull();
 
     /* Find fun's top-most activation record. */
     StackIter iter(cx);
@@ -117,7 +117,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, Value *vp)
         if (!argsobj)
             return false;
 
-        *vp = ObjectValue(*argsobj);
+        vp.setObject(*argsobj);
         return true;
     }
 
@@ -142,16 +142,16 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, Value *vp)
     if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom)) {
         ++iter;
         if (iter.done() || !iter.isFunctionFrame()) {
-            JS_ASSERT(vp->isNull());
+            JS_ASSERT(vp.isNull());
             return true;
         }
 
-        *vp = iter.calleev();
+        vp.set(iter.calleev());
 
         /* Censor the caller if it is from another compartment. */
-        JSObject &caller = vp->toObject();
+        JSObject &caller = vp.toObject();
         if (caller.compartment() != cx->compartment) {
-            vp->setNull();
+            vp.setNull();
         } else if (caller.isFunction()) {
             JSFunction *callerFun = caller.toFunction();
             if (callerFun->isInterpreted() && callerFun->inStrictMode()) {
@@ -243,11 +243,13 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
      * the prototype's .constructor property is configurable, non-enumerable,
      * and writable.
      */
+    RootedValue protoVal(cx, ObjectValue(*proto));
+    RootedValue objVal(cx, ObjectValue(*obj));
     if (!obj->defineProperty(cx, cx->runtime->atomState.classPrototypeAtom,
-                             ObjectValue(*proto), JS_PropertyStub, JS_StrictPropertyStub,
+                             protoVal, JS_PropertyStub, JS_StrictPropertyStub,
                              JSPROP_PERMANENT) ||
         !proto->defineProperty(cx, cx->runtime->atomState.constructorAtom,
-                               ObjectValue(*obj), JS_PropertyStub, JS_StrictPropertyStub, 0))
+                               objVal, JS_PropertyStub, JS_StrictPropertyStub, 0))
     {
        return NULL;
     }
@@ -290,7 +292,7 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         JSID_IS_ATOM(id, cx->runtime->atomState.nameAtom)) {
         JS_ASSERT(!IsInternalFunctionObject(obj));
 
-        Value v;
+        RootedValue v(cx);
         if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom))
             v.setInt32(fun->nargs - fun->hasRest());
         else
@@ -324,7 +326,8 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                 setter = JS_StrictPropertyStub;
             }
 
-            if (!DefineNativeProperty(cx, fun, id, UndefinedValue(), getter, setter,
+            RootedValue value(cx, UndefinedValue());
+            if (!DefineNativeProperty(cx, fun, id, value, getter, setter,
                                       attrs, 0, 0)) {
                 return false;
             }
@@ -339,10 +342,10 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 template<XDRMode mode>
 bool
 js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enclosingScript,
-                           JSObject **objp)
+                           MutableHandleObject objp)
 {
     /* NB: Keep this in sync with CloneInterpretedFunction. */
-    JSAtom *atom;
+    Rooted<JSAtom*> atom(xdr->cx());
     uint32_t firstword;           /* flag telling whether fun->atom is non-null,
                                    plus for fun->u.i.skipmin, fun->u.i.wrapper,
                                    and 14 bits reserved for future use */
@@ -352,7 +355,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
     RootedFunction fun(cx);
     JSScript *script;
     if (mode == XDR_ENCODE) {
-        fun = (*objp)->toFunction();
+        fun = objp->toFunction();
         if (!fun->isInterpreted()) {
             JSAutoByteString funNameBytes;
             if (const char *name = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
@@ -380,7 +383,7 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
 
     if (!xdr->codeUint32(&firstword))
         return false;
-    if ((firstword & 1U) && !XDRAtom(xdr, &atom))
+    if ((firstword & 1U) && !XDRAtom(xdr, atom.address()))
         return false;
     if (!xdr->codeUint32(&flagsword))
         return false;
@@ -398,17 +401,17 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             return false;
         JS_ASSERT(fun->nargs == fun->script()->bindings.numArgs());
         js_CallNewScriptHook(cx, fun->script(), fun);
-        *objp = fun;
+        objp.set(fun);
     }
 
     return true;
 }
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, JSObject **);
+js::XDRInterpretedFunction(XDRState<XDR_ENCODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 template bool
-js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, JSObject **);
+js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 JSObject *
 js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
@@ -457,7 +460,7 @@ fun_hasInstance(JSContext *cx, HandleObject obj_, const Value *v, JSBool *bp)
         obj = obj->toFunction()->getBoundFunctionTarget();
     }
 
-    Value pval;
+    RootedValue pval(cx);
     if (!obj->getProperty(cx, cx->runtime->atomState.classPrototypeAtom, &pval))
         return JS_FALSE;
 
@@ -603,8 +606,11 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
         }
     }
     bool haveSource = fun->isInterpreted();
-    if (haveSource && !fun->script()->source && !fun->script()->loadSource(cx, &haveSource))
-            return NULL;
+    if (haveSource && !fun->script()->scriptSource()->hasSourceData() &&
+        !fun->script()->loadSource(cx, &haveSource))
+    {
+        return NULL;
+    }
     if (haveSource) {
         RootedScript script(cx, fun->script());
         RootedString src(cx, fun->script()->sourceData(cx));
@@ -617,7 +623,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
 
         // The source data for functions created by calling the Function
         // constructor is only the function's body.
-        bool funCon = script->sourceStart == 0 && script->source->argumentsNotIncluded();
+        bool funCon = script->sourceStart == 0 && script->scriptSource()->argumentsNotIncluded();
 
         // Functions created with the constructor should not be using the
         // expression body extension.
@@ -1501,7 +1507,8 @@ js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
     if (!fun)
         return NULL;
 
-    if (!obj->defineGeneric(cx, id, ObjectValue(*fun), gop, sop, attrs & ~JSFUN_FLAGS_MASK))
+    RootedValue funVal(cx, ObjectValue(*fun));
+    if (!obj->defineGeneric(cx, id, funVal, gop, sop, attrs & ~JSFUN_FLAGS_MASK))
         return NULL;
 
     return fun;

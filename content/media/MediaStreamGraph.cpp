@@ -604,7 +604,7 @@ MediaStreamGraphImpl::RemoveStream(MediaStream* aStream)
     MonitorAutoLock lock(mMonitor);
     for (PRUint32 i = 0; i < mStreamUpdates.Length(); ++i) {
       if (mStreamUpdates[i].mStream == aStream) {
-        mStreamUpdates[i].mStream = nsnull;
+        mStreamUpdates[i].mStream = nullptr;
       }
     }
   }
@@ -1051,7 +1051,7 @@ MediaStreamGraphImpl::UpdateFirstActiveTracks(MediaStream* aStream)
 {
   StreamBuffer::Track* newTracksByType[MediaSegment::TYPE_COUNT];
   for (PRUint32 i = 0; i < ArrayLength(newTracksByType); ++i) {
-    newTracksByType[i] = nsnull;
+    newTracksByType[i] = nullptr;
   }
 
   for (StreamBuffer::TrackIter iter(aStream->mBuffer);
@@ -1076,7 +1076,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStream(GraphTime aAudioOutputStartTime
       !(track = aStream->mBuffer.FindTrack(aStream->mFirstActiveTracks[MediaSegment::AUDIO]))) {
     if (aStream->mAudioOutput) {
       aStream->mAudioOutput->Shutdown();
-      aStream->mAudioOutput = nsnull;
+      aStream->mAudioOutput = nullptr;
     }
     return;
   }
@@ -1423,7 +1423,7 @@ MediaStreamGraphImpl::ShutdownThreads()
 
   if (mThread) {
     mThread->Shutdown();
-    mThread = nsnull;
+    mThread = nullptr;
   }
 }
 
@@ -1564,7 +1564,7 @@ MediaStreamGraphImpl::RunInStableState()
         // Complete shutdown. First, ensure that this graph is no longer used.
         // A new graph graph will be created if one is needed.
         LOG(PR_LOG_DEBUG, ("Disconnecting MediaStreamGraph %p", gGraph));
-        gGraph = nsnull;
+        gGraph = nullptr;
         // Asynchronously clean up old graph. We don't want to do this
         // synchronously because it spins the event loop waiting for threads
         // to shut down, and we don't want to do that in a stable state handler.
@@ -1649,7 +1649,7 @@ MediaStreamGraphImpl::AppendMessage(ControlMessage* aMessage)
     delete aMessage;
     if (IsEmpty()) {
       NS_ASSERTION(gGraph == this, "Switched managers during forced shutdown?");
-      gGraph = nsnull;
+      gGraph = nullptr;
       delete this;
     }
     return;
@@ -1679,7 +1679,7 @@ MediaStream::DestroyImpl()
 {
   if (mAudioOutput) {
     mAudioOutput->Shutdown();
-    mAudioOutput = nsnull;
+    mAudioOutput = nullptr;
   }
 }
 
@@ -1697,7 +1697,7 @@ MediaStream::Destroy()
     virtual void ProcessDuringShutdown()
     { UpdateAffectedStream(); }
   };
-  mWrapper = nsnull;
+  mWrapper = nullptr;
   GraphImpl()->AppendMessage(new Message(this));
 }
 

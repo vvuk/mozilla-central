@@ -22,6 +22,7 @@
 #include "nsMathUtils.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "mozilla/Constants.h"
 
 class gfxASurface;
 class gfxContext;
@@ -55,10 +56,6 @@ namespace dom {
 class Element;
 } // namespace dom
 } // namespace mozilla
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 // SVG Frame state bits
 #define NS_STATE_IS_OUTER_SVG                    NS_FRAME_STATE_BIT(20)
@@ -315,7 +312,7 @@ public:
   /**
    * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
    * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
-   * returns nsnull.
+   * returns nullptr.
    */
   static nsSVGDisplayContainerFrame* GetNearestSVGViewport(nsIFrame *aFrame);
 
@@ -339,7 +336,7 @@ public:
    *   entire visual overflow rect.
    */
   static void InvalidateBounds(nsIFrame *aFrame, bool aDuringUpdate = false,
-                               const nsRect *aBoundsSubArea = nsnull,
+                               const nsRect *aBoundsSubArea = nullptr,
                                PRUint32 aFlags = 0);
 
   /**
@@ -668,10 +665,18 @@ public:
                             NS_MIN(double(PR_INT32_MAX), aVal)));
   }
 
-  static void GetFallbackOrPaintColor(gfxContext *aContext,
-                                      nsStyleContext *aStyleContext,
-                                      nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
-                                      float *aOpacity, nscolor *color);
+  static nscolor GetFallbackOrPaintColor(gfxContext *aContext,
+                                         nsStyleContext *aStyleContext,
+                                         nsStyleSVGPaint nsStyleSVG::*aFillOrStroke);
+
+  /**
+   * Set the graphics context ready for filling.
+   */
+  static bool SetupCairoFill(gfxContext *aContext, nsIFrame *aFrame);
+  /**
+   * Set the graphics context ready for stroking.
+   */
+  static bool SetupCairoStroke(gfxContext *aContext, nsIFrame *aFrame);
 };
 
 #endif

@@ -10,6 +10,7 @@
 #include "nsTreeContentView.h"
 #include "nsChildIterator.h"
 #include "nsDOMClassInfoID.h"
+#include "nsDOMError.h"
 #include "nsEventStates.h"
 #include "nsINodeInfo.h"
 #include "nsIXULSortService.h"
@@ -40,7 +41,7 @@ class Row
     Create(nsFixedSizeAllocator& aAllocator,
            nsIContent* aContent, PRInt32 aParentIndex) {
       void* place = aAllocator.Alloc(sizeof(Row));
-      return place ? ::new(place) Row(aContent, aParentIndex) : nsnull;
+      return place ? ::new(place) Row(aContent, aParentIndex) : nullptr;
     }
 
     static void
@@ -104,10 +105,10 @@ class Row
 // document's observer list.
 
 nsTreeContentView::nsTreeContentView(void) :
-  mBoxObject(nsnull),
-  mSelection(nsnull),
-  mRoot(nsnull),
-  mDocument(nsnull)
+  mBoxObject(nullptr),
+  mSelection(nullptr),
+  mRoot(nullptr),
+  mDocument(nullptr)
 {
   static const size_t kBucketSizes[] = {
     sizeof(Row)
@@ -436,7 +437,7 @@ nsTreeContentView::GetProgressMode(PRInt32 aRow, nsITreeColumn* aCol, PRInt32* _
     nsIContent* cell = GetCell(realRow, aCol);
     if (cell) {
       static nsIContent::AttrValuesArray strings[] =
-        {&nsGkAtoms::normal, &nsGkAtoms::undetermined, nsnull};
+        {&nsGkAtoms::normal, &nsGkAtoms::undetermined, nullptr};
       switch (cell->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::mode,
                                     strings, eCaseMatters)) {
         case 0: *_retval = nsITreeView::PROGRESS_NORMAL; break;
@@ -576,7 +577,7 @@ nsTreeContentView::CycleHeader(nsITreeColumn* aCol)
       if (xs) {
         nsAutoString sortdirection;
         static nsIContent::AttrValuesArray strings[] =
-          {&nsGkAtoms::ascending, &nsGkAtoms::descending, nsnull};
+          {&nsGkAtoms::ascending, &nsGkAtoms::descending, nullptr};
         switch (column->FindAttrValueIn(kNameSpaceID_None,
                                         nsGkAtoms::sortDirection,
                                         strings, eCaseMatters)) {
@@ -765,7 +766,7 @@ nsTreeContentView::AttributeChanged(nsIDocument*  aDocument,
   }
 
   // We don't consider non-XUL nodes.
-  nsIContent* parent = nsnull;
+  nsIContent* parent = nullptr;
   if (!aElement->IsXUL() ||
       ((parent = aElement->GetParent()) && !parent->IsXUL())) {
     return;
@@ -1318,12 +1319,12 @@ nsTreeContentView::ClearRows()
   for (PRUint32 i = 0; i < mRows.Length(); i++)
     Row::Destroy(mAllocator, mRows[i]);
   mRows.Clear();
-  mRoot = nsnull;
-  mBody = nsnull;
+  mRoot = nullptr;
+  mBody = nullptr;
   // Remove ourselves from mDocument's observers.
   if (mDocument) {
     mDocument->RemoveObserver(this);
-    mDocument = nsnull;
+    mDocument = nullptr;
   }
 } 
 
@@ -1397,7 +1398,7 @@ nsTreeContentView::GetCell(nsIContent* aContainer, nsITreeColumn* aCol)
 
   // Traverse through cells, try to find the cell by "ref" attribute or by cell
   // index in a row. "ref" attribute has higher priority.
-  nsIContent* result = nsnull;
+  nsIContent* result = nullptr;
   PRInt32 j = 0;
   ChildIterator iter, last;
   for (ChildIterator::Init(aContainer, &iter, &last); iter != last; ++iter) {

@@ -18,6 +18,8 @@ AndroidSystemColors nsLookAndFeel::mSystemColors;
 bool nsLookAndFeel::mInitializedShowPassword = false;
 bool nsLookAndFeel::mShowPassword = true;
 
+static const PRUnichar UNICODE_BULLET = 0x2022;
+
 nsLookAndFeel::nsLookAndFeel()
     : nsXPLookAndFeel()
 {
@@ -464,7 +466,7 @@ nsLookAndFeel::GetEchoPasswordImpl()
             if (AndroidBridge::Bridge())
                 mShowPassword = AndroidBridge::Bridge()->GetShowPasswordSetting();
             else
-                NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available!");
+                NS_ASSERTION(AndroidBridge::Bridge() != nullptr, "AndroidBridge is not available!");
         } else {
             ContentChild::GetSingleton()->SendGetShowPasswordSetting(&mShowPassword);
         }
@@ -476,6 +478,14 @@ nsLookAndFeel::GetEchoPasswordImpl()
 PRUint32
 nsLookAndFeel::GetPasswordMaskDelayImpl()
 {
-  // This value is hard-coded in PasswordTransformationMethod.java
+  // This value is hard-coded in Android OS's PasswordTransformationMethod.java
   return 1500;
+}
+
+/* virtual */
+PRUnichar
+nsLookAndFeel::GetPasswordCharacterImpl()
+{
+  // This value is hard-coded in Android OS's PasswordTransformationMethod.java
+  return UNICODE_BULLET;
 }

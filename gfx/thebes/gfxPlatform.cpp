@@ -74,17 +74,17 @@
 using namespace mozilla;
 using namespace mozilla::layers;
 
-gfxPlatform *gPlatform = nsnull;
+gfxPlatform *gPlatform = nullptr;
 static bool gEverInitialized = false;
-static nsTArray<nsCString>* gBackendList = nsnull;
+static nsTArray<nsCString>* gBackendList = nullptr;
 
 // These two may point to the same profile
-static qcms_profile *gCMSOutputProfile = nsnull;
-static qcms_profile *gCMSsRGBProfile = nsnull;
+static qcms_profile *gCMSOutputProfile = nullptr;
+static qcms_profile *gCMSsRGBProfile = nullptr;
 
-static qcms_transform *gCMSRGBTransform = nsnull;
-static qcms_transform *gCMSInverseRGBTransform = nsnull;
-static qcms_transform *gCMSRGBATransform = nsnull;
+static qcms_transform *gCMSRGBTransform = nullptr;
+static qcms_transform *gCMSInverseRGBTransform = nullptr;
+static qcms_transform *gCMSRGBATransform = nullptr;
 
 static bool gCMSInitialized = false;
 static eCMSMode gCMSMode = eCMSMode_Off;
@@ -98,11 +98,11 @@ using namespace mozilla::gfx;
 
 // logs shared across gfx
 #ifdef PR_LOGGING
-static PRLogModuleInfo *sFontlistLog = nsnull;
-static PRLogModuleInfo *sFontInitLog = nsnull;
-static PRLogModuleInfo *sTextrunLog = nsnull;
-static PRLogModuleInfo *sTextrunuiLog = nsnull;
-static PRLogModuleInfo *sCmapDataLog = nsnull;
+static PRLogModuleInfo *sFontlistLog = nullptr;
+static PRLogModuleInfo *sFontInitLog = nullptr;
+static PRLogModuleInfo *sTextrunLog = nullptr;
+static PRLogModuleInfo *sTextrunuiLog = nullptr;
+static PRLogModuleInfo *sCmapDataLog = nullptr;
 #endif
 
 /* Class to listen for pref changes so that chrome code can dynamically
@@ -146,7 +146,7 @@ static const char* kObservedPrefs[] = {
     "gfx.downloadable_fonts.",
     "gfx.font_rendering.",
     "bidi.numeral",
-    nsnull
+    nullptr
 };
 
 class FontPrefsObserver MOZ_FINAL : public nsIObserver
@@ -213,7 +213,7 @@ static const char *gPrefLangNames[] = {
 };
 
 gfxPlatform::gfxPlatform()
-  : mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureCanvasBackendInfo)
+  : mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
 {
     mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
@@ -372,11 +372,11 @@ gfxPlatform::Shutdown()
         /* Unregister our CMS Override callback. */
         NS_ASSERTION(gPlatform->mSRGBOverrideObserver, "mSRGBOverrideObserver has alreay gone");
         Preferences::RemoveObserver(gPlatform->mSRGBOverrideObserver, "gfx.color_management.force_srgb");
-        gPlatform->mSRGBOverrideObserver = nsnull;
+        gPlatform->mSRGBOverrideObserver = nullptr;
 
         NS_ASSERTION(gPlatform->mFontPrefsObserver, "mFontPrefsObserver has alreay gone");
         Preferences::RemoveObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
-        gPlatform->mFontPrefsObserver = nsnull;
+        gPlatform->mFontPrefsObserver = nullptr;
     }
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -407,15 +407,15 @@ gfxPlatform::Shutdown()
     CompositorParent::ShutDown();
 
     delete gBackendList;
-    gBackendList = nsnull;
+    gBackendList = nullptr;
 
     delete gPlatform;
-    gPlatform = nsnull;
+    gPlatform = nullptr;
 }
 
 gfxPlatform::~gfxPlatform()
 {
-    mScreenReferenceSurface = nsnull;
+    mScreenReferenceSurface = nullptr;
 
     // The cairo folks think we should only clean up in debug builds,
     // but we're generally in the habit of trying to shut down as
@@ -455,12 +455,12 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 #ifdef XP_WIN
     if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() == 
         gfxWindowsPlatform::RENDER_DIRECT2D) {
-        return nsnull;
+        return nullptr;
     }
 #endif
     nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, gfxASurface::ContentFromFormat(format));
     if (!optSurface || optSurface->CairoStatus() != 0)
-        return nsnull;
+        return nullptr;
 
     gfxContext tmpCtx(optSurface);
     tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -503,7 +503,13 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
   void *userData = aSurface->GetData(&kSourceSurface);
 
   if (userData) {
-    return static_cast<SourceSurface*>(userData);
+    SourceSurface *surf = static_cast<SourceSurface*>(userData);
+
+    if (surf->IsValid()) {
+      return surf;
+    }
+    // We can just continue here as when setting new user data the destroy
+    // function will be called for the old user data.
   }
 
   SurfaceFormat format;
@@ -578,7 +584,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
         // a copy. For now let's just abort.
         NS_RUNTIMEABORT("Attempt to create unsupported SourceSurface from"
             "non-image surface.");
-        return nsnull;
+        return nullptr;
       }
 
       srcBuffer = Factory::CreateWrappingDataSourceSurface(imgSurface->Data(),
@@ -669,8 +675,7 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
 RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSize, SurfaceFormat aFormat)
 {
-  BackendType backend;
-  if (!SupportsAzureCanvas(backend)) {
+  if (!SupportsAzureCanvas()) {
     return NULL;
   }
 
@@ -685,7 +690,7 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
   if (aBackend == BACKEND_CAIRO) {
     nsRefPtr<gfxASurface> surf = CreateOffscreenSurface(ThebesIntSize(aSize),
                                                         ContentForFormat(aFormat));
-    if (!surf) {
+    if (!surf || surf->CairoStatus()) {
       return NULL;
     }
 
@@ -698,12 +703,11 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
 RefPtr<DrawTarget>
 gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
 {
-  BackendType backend;
-  if (!SupportsAzureCanvas(backend)) {
+  if (!SupportsAzureCanvas()) {
     return NULL;
   }
 
-  RefPtr<DrawTarget> target = CreateDrawTargetForBackend(backend, aSize, aFormat);
+  RefPtr<DrawTarget> target = CreateDrawTargetForBackend(mPreferredCanvasBackend, aSize, aFormat);
   if (target ||
       mFallbackCanvasBackend == BACKEND_NONE) {
     return target;
@@ -716,19 +720,17 @@ gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aForm
 RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize, int32_t aStride, SurfaceFormat aFormat)
 {
-  BackendType backend;
-  if (!SupportsAzureCanvas(backend)) {
+  if (!SupportsAzureCanvas()) {
     return NULL;
   }
-  return Factory::CreateDrawTargetForData(backend, aData, aSize, aStride, aFormat); 
+  return Factory::CreateDrawTargetForData(mPreferredCanvasBackend, aData, aSize, aStride, aFormat);
 }
 
 bool
-gfxPlatform::SupportsAzureCanvas(BackendType& aBackend)
+gfxPlatform::SupportsAzureCanvas()
 {
   NS_ASSERTION(mFallbackCanvasBackend == BACKEND_NONE || mPreferredCanvasBackend != BACKEND_NONE,
                "fallback backend with no preferred backend");
-  aBackend = mPreferredCanvasBackend;
   return mPreferredCanvasBackend != BACKEND_NONE;
 }
 
@@ -831,7 +833,7 @@ gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     if (aFontData) {
         NS_Free((void*)aFontData);
     }
-    return nsnull;
+    return nullptr;
 }
 
 static void
@@ -881,9 +883,9 @@ gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, bool aAppendUnic
 {
     aFonts.Truncate();
 
-    AppendGenericFontFromPref(aFonts, aLanguage, nsnull);
+    AppendGenericFontFromPref(aFonts, aLanguage, nullptr);
     if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, nsGkAtoms::Unicode, nsnull);
+        AppendGenericFontFromPref(aFonts, nsGkAtoms::Unicode, nullptr);
 }
 
 bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
@@ -973,7 +975,7 @@ gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
 {
     if (PRUint32(aLang) < PRUint32(eFontPrefLang_AllCount))
         return gPrefLangNames[PRUint32(aLang)];
-    return nsnull;
+    return nullptr;
 }
 
 eFontPrefLang
@@ -1317,7 +1319,7 @@ gfxPlatform::TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *tra
 qcms_profile *
 gfxPlatform::GetPlatformCMSOutputProfile()
 {
-    return nsnull;
+    return nullptr;
 }
 
 qcms_profile *
@@ -1355,7 +1357,7 @@ gfxPlatform::GetCMSOutputProfile()
             NS_ASSERTION(gCMSOutputProfile != GetCMSsRGBProfile(),
                          "Builtin sRGB profile tagged as bogus!!!");
             qcms_profile_release(gCMSOutputProfile);
-            gCMSOutputProfile = nsnull;
+            gCMSOutputProfile = nullptr;
         }
 
         if (!gCMSOutputProfile) {
@@ -1389,7 +1391,7 @@ gfxPlatform::GetCMSRGBTransform()
         inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nsnull;
+            return nullptr;
 
         gCMSRGBTransform = qcms_transform_create(inProfile, QCMS_DATA_RGB_8,
                                               outProfile, QCMS_DATA_RGB_8,
@@ -1408,7 +1410,7 @@ gfxPlatform::GetCMSInverseRGBTransform()
         outProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nsnull;
+            return nullptr;
 
         gCMSInverseRGBTransform = qcms_transform_create(inProfile, QCMS_DATA_RGB_8,
                                                      outProfile, QCMS_DATA_RGB_8,
@@ -1427,7 +1429,7 @@ gfxPlatform::GetCMSRGBATransform()
         inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nsnull;
+            return nullptr;
 
         gCMSRGBATransform = qcms_transform_create(inProfile, QCMS_DATA_RGBA_8,
                                                outProfile, QCMS_DATA_RGBA_8,
@@ -1443,27 +1445,27 @@ static void ShutdownCMS()
 
     if (gCMSRGBTransform) {
         qcms_transform_release(gCMSRGBTransform);
-        gCMSRGBTransform = nsnull;
+        gCMSRGBTransform = nullptr;
     }
     if (gCMSInverseRGBTransform) {
         qcms_transform_release(gCMSInverseRGBTransform);
-        gCMSInverseRGBTransform = nsnull;
+        gCMSInverseRGBTransform = nullptr;
     }
     if (gCMSRGBATransform) {
         qcms_transform_release(gCMSRGBATransform);
-        gCMSRGBATransform = nsnull;
+        gCMSRGBATransform = nullptr;
     }
     if (gCMSOutputProfile) {
         qcms_profile_release(gCMSOutputProfile);
 
         // handle the aliased case
         if (gCMSsRGBProfile == gCMSOutputProfile)
-            gCMSsRGBProfile = nsnull;
-        gCMSOutputProfile = nsnull;
+            gCMSsRGBProfile = nullptr;
+        gCMSOutputProfile = nullptr;
     }
     if (gCMSsRGBProfile) {
         qcms_profile_release(gCMSsRGBProfile);
-        gCMSsRGBProfile = nsnull;
+        gCMSsRGBProfile = nullptr;
     }
 
     // Reset the state variables
@@ -1515,7 +1517,7 @@ gfxPlatform::GetBidiNumeralOption()
 void
 gfxPlatform::FontsPrefsChanged(const char *aPref)
 {
-    NS_ASSERTION(aPref != nsnull, "null preference");
+    NS_ASSERTION(aPref != nullptr, "null preference");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE, aPref)) {
@@ -1568,9 +1570,9 @@ gfxPlatform::GetLog(eGfxLog aWhichLog)
         break;
     }
 
-    return nsnull;
+    return nullptr;
 #else
-    return nsnull;
+    return nullptr;
 #endif
 }
 

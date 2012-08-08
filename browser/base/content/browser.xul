@@ -9,7 +9,6 @@
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/content/places/places.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/devtools/common.css" type="text/css"?>
-<?xml-stylesheet href="chrome://browser/skin/devtools/webconsole.css" type="text/css"?>
 <?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
 
 <?xul-overlay href="chrome://global/content/editMenuOverlay.xul"?>
@@ -55,9 +54,6 @@
 #include global-scripts.inc
 <script type="application/javascript" src="chrome://browser/content/nsContextMenu.js"/>
 
-#ifdef MOZ_SAFE_BROWSING
-<script type="application/javascript" src="chrome://browser/content/safebrowsing/sb-loader.js"/>
-#endif
 <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
 
 <script type="application/javascript" src="chrome://browser/content/places/editBookmarkOverlay.js"/>
@@ -663,6 +659,7 @@
       <toolbaritem id="social-toolbar-button"
                    class="toolbarbutton-1 chromeclass-toolbar-additional"
                    removable="false"
+                   pack="center"
                    title="&socialToolbar.title;"
                    hidden="true">
         <hbox id="social-toolbar-button-box" class="social-statusarea-container">
@@ -1061,7 +1058,7 @@
                 style="min-width: 14em; width: 18em; max-width: 36em;"/>
     </vbox>
 
-    <splitter id="sidebar-splitter" class="chromeclass-extrachrome" hidden="true"/>
+    <splitter id="sidebar-splitter" class="chromeclass-extrachrome sidebar-splitter" hidden="true"/>
     <vbox id="appcontent" flex="1">
       <tabbrowser id="content" disablehistory="true"
                   flex="1" contenttooltip="aHTMLTooltip"
@@ -1080,7 +1077,7 @@
       <deck id="devtools-sidebar-deck" flex="1"/>
     </vbox>
     <splitter id="social-sidebar-splitter"
-              class="chromeclass-extrachrome"
+              class="chromeclass-extrachrome sidebar-splitter"
               observes="socialSidebarBroadcaster"/>
     <vbox id="social-sidebar-box"
           class="chromeclass-extrachrome"

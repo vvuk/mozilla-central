@@ -23,6 +23,7 @@ static int gNotOptimized;
 #include "AndroidBridge.h"
 #include "android_npapi.h"
 #include <android/log.h>
+#undef ALOG
 #define ALOG(args...) __android_log_print(ANDROID_LOG_INFO, "GeckoJavaEnv", ## args)
 #endif
 
@@ -300,7 +301,7 @@ PluginPRLibrary::BeginUpdateBackground(NPP instance,
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
   NS_ERROR("Unexpected use of async APIs for in-process plugin.");
-  *aCtx = nsnull;
+  *aCtx = nullptr;
   return NS_OK;
 }
 

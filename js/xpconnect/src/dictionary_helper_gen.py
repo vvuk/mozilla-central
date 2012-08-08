@@ -110,6 +110,7 @@ def print_header_file(fd, conf):
              "#define _gen_mozilla_idl_dictionary_helpers_h_\n\n")
 
     fd.write("#include \"jsapi.h\"\n"
+             "#include \"nsDOMError.h\"\n"
              "#include \"nsString.h\"\n"
              "#include \"nsCOMPtr.h\"\n\n")
 
@@ -251,7 +252,7 @@ def init_value(attribute):
     realtype = realtype.strip(' ')
     if attribute.defvalue is None:
         if realtype.endswith('*'):
-            return "nsnull"
+            return "nullptr"
         if realtype == "bool":
             return "false"
         if realtype.count("nsAString"):

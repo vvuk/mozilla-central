@@ -193,6 +193,7 @@ DOMCI_CLASS(TreeColumns)
 #endif
 
 DOMCI_CLASS(CSSMozDocumentRule)
+DOMCI_CLASS(CSSSupportsRule)
 
 DOMCI_CLASS(BeforeUnloadEvent)
 
@@ -341,7 +342,6 @@ DOMCI_CLASS(XPathResult)
 DOMCI_CLASS(StorageObsolete)
 DOMCI_CLASS(Storage)
 DOMCI_CLASS(StorageItem)
-DOMCI_CLASS(StorageEvent)
 
 // DOMParser, XMLSerializer
 DOMCI_CLASS(DOMParser)
@@ -367,6 +367,8 @@ DOMCI_CLASS(FileList)
 DOMCI_CLASS(Blob)
 DOMCI_CLASS(File)
 DOMCI_CLASS(FileReader)
+DOMCI_CLASS(ArchiveReader)
+DOMCI_CLASS(ArchiveRequest)
 DOMCI_CLASS(MozURLProperty)
 DOMCI_CLASS(MozBlobBuilder)
 
@@ -505,8 +507,6 @@ DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(MutationObserver)
 DOMCI_CLASS(MutationRecord)
 
-DOMCI_CLASS(MozSettingsEvent)
-
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(MozWifiStatusChangeEvent)
 DOMCI_CLASS(MozWifiConnectionInfoEvent)
@@ -522,7 +522,12 @@ DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
 DOMCI_CLASS(BluetoothDevice)
 DOMCI_CLASS(BluetoothDeviceEvent)
+DOMCI_CLASS(BluetoothPropertyEvent)
 #endif
+
+DOMCI_CLASS(CameraManager)
+DOMCI_CLASS(CameraControl)
+DOMCI_CLASS(CameraCapabilities)
 
 DOMCI_CLASS(DOMError)
 DOMCI_CLASS(DOMRequest)

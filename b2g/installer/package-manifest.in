@@ -165,6 +165,7 @@
 #ifdef MOZ_B2G_BT
 @BINPATH@/components/dom_bluetooth.xpt
 #endif
+@BINPATH@/components/dom_camera.xpt
 @BINPATH@/components/dom_canvas.xpt
 @BINPATH@/components/dom_contacts.xpt
 @BINPATH@/components/dom_alarm.xpt
@@ -686,3 +687,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/ActivitiesGlue.js
 @BINPATH@/components/ProcessGlobal.js
 @BINPATH@/components/ContentHandler.js
+
+#ifdef XP_MACOSX
+@BINPATH@/@DLL_PREFIX@plugin_child_interpose@DLL_SUFFIX@
+#endif

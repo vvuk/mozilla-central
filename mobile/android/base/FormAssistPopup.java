@@ -7,10 +7,14 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.FloatSize;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import android.content.Context;
-import android.util.Log;
+import android.content.res.Resources;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -18,17 +22,13 @@ import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
-import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,18 +49,6 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     private static int sValidationTextMarginTop = 0;
     private static RelativeLayout.LayoutParams sValidationTextLayoutNormal;
     private static RelativeLayout.LayoutParams sValidationTextLayoutInverted;
-
-    // Minimum popup width for autocomplete messages
-    private static final int AUTOCOMPLETE_MIN_WIDTH_IN_DPI = 200;
-
-    // Height of the autocomplete_list_item TextView
-    private static final int AUTOCOMPLETE_ROW_HEIGHT_IN_DPI = 32;
-
-    // Height of the validation_message_text TextView
-    private static final int VALIDATION_MESSAGE_HEIGHT_IN_DPI = 50;
-
-    // Top margin for the validation_message_text TextView
-    private static final int VALIDATION_MESSAGE_MARGIN_TOP_IN_DPI = 6;
 
     private static final String LOGTAG = "FormAssistPopup";
 
@@ -171,8 +159,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
             addView(mValidationMessage);
             mValidationMessageText = (TextView) mValidationMessage.findViewById(R.id.validation_message_text);
 
-            DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
-            sValidationTextMarginTop = (int) (VALIDATION_MESSAGE_MARGIN_TOP_IN_DPI * metrics.density);
+            sValidationTextMarginTop = (int) (mContext.getResources().getDimension(R.dimen.validation_message_margin_top));
 
             sValidationTextLayoutNormal = new RelativeLayout.LayoutParams(mValidationMessageText.getLayoutParams());
             sValidationTextLayoutNormal.setMargins(0, sValidationTextMarginTop, 0, 0);
@@ -211,13 +198,11 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         if (mValidationMessage != null)
             mValidationMessage.setVisibility(isAutoComplete ? GONE : VISIBLE);
 
-        // Initialize static variables based on DisplayMetrics. We delay this to
-        // make sure DisplayMetrics isn't null to avoid an NPE.
         if (sAutoCompleteMinWidth == 0) {
-            DisplayMetrics metrics = GeckoApp.mAppContext.getDisplayMetrics();
-            sAutoCompleteMinWidth = (int) (AUTOCOMPLETE_MIN_WIDTH_IN_DPI * metrics.density);
-            sAutoCompleteRowHeight = (int) (AUTOCOMPLETE_ROW_HEIGHT_IN_DPI * metrics.density);
-            sValidationMessageHeight = (int) (VALIDATION_MESSAGE_HEIGHT_IN_DPI * metrics.density);
+            Resources res = mContext.getResources();
+            sAutoCompleteMinWidth = (int) (res.getDimension(R.dimen.autocomplete_min_width));
+            sAutoCompleteRowHeight = (int) (res.getDimension(R.dimen.autocomplete_row_height));
+            sValidationMessageHeight = (int) (res.getDimension(R.dimen.validation_message_height));
         }
 
         // These values correspond to the input box for which we want to

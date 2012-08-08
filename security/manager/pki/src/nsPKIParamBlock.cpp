@@ -20,7 +20,7 @@ nsresult
 nsPKIParamBlock::Init()
 {
   mDialogParamBlock = do_CreateInstance(NS_DIALOGPARAMBLOCK_CONTRACTID);
-  return (mDialogParamBlock == nsnull) ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
+  return (mDialogParamBlock == nullptr) ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
 }
 
 nsPKIParamBlock::~nsPKIParamBlock()
@@ -79,11 +79,13 @@ nsPKIParamBlock::SetISupportAtIndex(PRInt32 index, nsISupports *object)
 {
   if (!mSupports) {
     mSupports = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID);
-    if (mSupports == nsnull) {
+    if (mSupports == nullptr) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
-  return mSupports->InsertElementAt(object, index-1);
+  // Ignore any InsertElementAt error, because this function always did that
+  mSupports->InsertElementAt(object, index-1);
+  return NS_OK;
 }
 
 /* nsISupports getISupportAtIndex (in PRInt32 index); */

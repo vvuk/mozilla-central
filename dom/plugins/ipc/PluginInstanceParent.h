@@ -14,7 +14,7 @@
 #include <d3d10_1.h>
 #include "nsRefPtrHashtable.h"
 #elif defined(MOZ_WIDGET_COCOA)
-#include "nsCoreAnimationSupport.h"
+#include "mozilla/gfx/QuartzSupport.h"
 #endif
 
 #include "npfunctions.h"
@@ -27,7 +27,9 @@
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
+#include "mozilla/unused.h"
 #include "nsGUIEvent.h"
+#include "mozilla/unused.h"
 
 namespace mozilla {
 namespace plugins {
@@ -280,7 +282,7 @@ public:
     nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
 #endif
 
-    void DidComposite() { SendNPP_DidComposite(); }
+    void DidComposite() { unused << SendNPP_DidComposite(); }
 
 private:
     // Create an appropriate platform surface for a background of size
@@ -346,8 +348,8 @@ private:
     uint16_t               mShWidth;
     uint16_t               mShHeight;
     CGColorSpaceRef        mShColorSpace;
-    nsRefPtr<nsIOSurface> mIOSurface;
-    nsRefPtr<nsIOSurface> mFrontIOSurface;
+    RefPtr<MacIOSurface> mIOSurface;
+    RefPtr<MacIOSurface> mFrontIOSurface;
 #endif // definied(MOZ_WIDGET_COCOA)
 
     // ObjectFrame layer wrapper

@@ -45,7 +45,7 @@ nsDOMStorageMemoryDB::GetItemsTable(DOMStorageImpl* aStorage,
   if (mData.Get(aStorage->GetScopeDBKey(), aMemoryStorage))
     return NS_OK;
 
-  *aMemoryStorage = nsnull;
+  *aMemoryStorage = nullptr;
 
   nsInMemoryStorage* storageData = new nsInMemoryStorage();
   if (!storageData)
@@ -339,8 +339,7 @@ nsDOMStorageMemoryDB::RemoveOwners(const nsTArray<nsString> &aOwners,
 
   for (PRUint32 i = 0; i < aOwners.Length(); i++) {
     nsCAutoString quotaKey;
-    nsresult rv;
-    rv = nsDOMStorageDBWrapper::CreateDomainScopeDBKey(
+    nsDOMStorageDBWrapper::CreateDomainScopeDBKey(
       NS_ConvertUTF16toUTF8(aOwners[i]), quotaKey);
 
     if (!aIncludeSubDomains)

@@ -60,7 +60,6 @@
 #include "nsIContent.h" // for menus
 
 // For calculating size
-#include "nsIFrame.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 
@@ -92,12 +91,6 @@ nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
 
 nsWebShellWindow::~nsWebShellWindow()
 {
-  if (mWindow) {
-    mWindow->SetClientData(0);
-    mWindow->Destroy();
-    mWindow = nsnull; // Force release here.
-  }
-
   MutexAutoLock lock(mSPTimerLock);
   if (mSPTimer)
     mSPTimer->Cancel();
@@ -168,10 +161,10 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mWindow->SetClientData(this);
   mWindow->Create((nsIWidget *)parentWidget,          // Parent nsIWidget
-                  nsnull,                             // Native parent widget
+                  nullptr,                             // Native parent widget
                   r,                                  // Widget dimensions
                   nsWebShellWindow::HandleEvent,      // Event handler function
-                  nsnull,                             // Device context
+                  nullptr,                             // Device context
                   &widgetInitData);                   // Widget initialization data
   mWindow->GetClientBounds(r);
   // Match the default background color of content. Important on windows
@@ -193,7 +186,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   r.x = r.y = 0;
   nsCOMPtr<nsIBaseWindow> docShellAsWin(do_QueryInterface(mDocShell));
-  NS_ENSURE_SUCCESS(docShellAsWin->InitWindow(nsnull, mWindow, 
+  NS_ENSURE_SUCCESS(docShellAsWin->InitWindow(nullptr, mWindow, 
    r.x, r.y, r.width, r.height), NS_ERROR_FAILURE);
   NS_ENSURE_SUCCESS(docShellAsWin->Create(), NS_ERROR_FAILURE);
 
@@ -203,7 +196,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
     webProgress->AddProgressListener(this, nsIWebProgress::NOTIFY_STATE_NETWORK);
   }
 
-  if (nsnull != aUrl)  {
+  if (nullptr != aUrl)  {
     nsCString tmpStr;
 
     rv = aUrl->GetSpec(tmpStr);
@@ -214,9 +207,9 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
     NS_ENSURE_TRUE(webNav, NS_ERROR_FAILURE);
     rv = webNav->LoadURI(urlString.get(),
                          nsIWebNavigation::LOAD_FLAGS_NONE,
-                         nsnull,
-                         nsnull,
-                         nsnull);
+                         nullptr,
+                         nullptr,
+                         nullptr);
     NS_ENSURE_SUCCESS(rv, rv);
   }
                      
@@ -264,15 +257,15 @@ nsEventStatus
 nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
 {
   nsEventStatus result = nsEventStatus_eIgnore;
-  nsIDocShell* docShell = nsnull;
-  nsWebShellWindow *eventWindow = nsnull;
+  nsIDocShell* docShell = nullptr;
+  nsWebShellWindow *eventWindow = nullptr;
 
   // Get the WebShell instance...
-  if (nsnull != aEvent->widget) {
+  if (nullptr != aEvent->widget) {
     void* data;
 
     aEvent->widget->GetClientData(data);
-    if (data != nsnull) {
+    if (data != nullptr) {
       eventWindow = reinterpret_cast<nsWebShellWindow *>(data);
       docShell = eventWindow->mDocShell;
     }
@@ -439,7 +432,7 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         nsCOMPtr<nsIPresShell> presShell;
         docShell->GetPresShell(getter_AddRefs(presShell));
         if (presShell) {
-          presShell->HandleEventWithTarget(aEvent, nsnull, nsnull, &result);
+          presShell->HandleEventWithTarget(aEvent, nullptr, nullptr, &result);
         }
         break;
       }
@@ -691,9 +684,9 @@ void nsWebShellWindow::LoadContentAreas() {
             contentURL.AssignWithConversion(urlChar);
             webNav->LoadURI(contentURL.get(),
                           nsIWebNavigation::LOAD_FLAGS_NONE,
-                          nsnull,
-                          nsnull,
-                          nsnull);
+                          nullptr,
+                          nullptr,
+                          nullptr);
             nsMemory::Free(urlChar);
           }
         }
@@ -726,11 +719,11 @@ bool nsWebShellWindow::ExecuteCloseHandler()
       contentViewer->GetPresContext(getter_AddRefs(presContext));
 
       nsEventStatus status = nsEventStatus_eIgnore;
-      nsMouseEvent event(true, NS_XUL_CLOSE, nsnull,
+      nsMouseEvent event(true, NS_XUL_CLOSE, nullptr,
                          nsMouseEvent::eReal);
 
       nsresult rv =
-        eventTarget->DispatchDOMEvent(&event, nsnull, presContext, &status);
+        eventTarget->DispatchDOMEvent(&event, nullptr, presContext, &status);
       if (NS_SUCCEEDED(rv) && status == nsEventStatus_eConsumeNoDefault)
         return true;
       // else fall through and return false
@@ -782,7 +775,7 @@ NS_IMETHODIMP nsWebShellWindow::Destroy()
     if (mSPTimer) {
       mSPTimer->Cancel();
       SavePersistentAttributes();
-      mSPTimer = nsnull;
+      mSPTimer = nullptr;
     }
   }
   return nsXULWindow::Destroy();

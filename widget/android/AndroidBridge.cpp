@@ -57,9 +57,9 @@ class AndroidRefable {
 };
 
 // This isn't in AndroidBridge.h because including StrongPointer.h there is gross
-static android::sp<AndroidRefable> (*android_SurfaceTexture_getNativeWindow)(JNIEnv* env, jobject surfaceTexture) = nsnull;
+static android::sp<AndroidRefable> (*android_SurfaceTexture_getNativeWindow)(JNIEnv* env, jobject surfaceTexture) = nullptr;
 
-AndroidBridge *
+void
 AndroidBridge::ConstructBridge(JNIEnv *jEnv,
                                jclass jGeckoAppShellClass)
 {
@@ -73,12 +73,11 @@ AndroidBridge::ConstructBridge(JNIEnv *jEnv,
 
     PR_NewThreadPrivateIndex(&sJavaEnvThreadIndex, JavaThreadDetachFunc);
 
-    sBridge = new AndroidBridge();
-    if (!sBridge->Init(jEnv, jGeckoAppShellClass)) {
-        delete sBridge;
-        sBridge = 0;
+    AndroidBridge *bridge = new AndroidBridge();
+    if (!bridge->Init(jEnv, jGeckoAppShellClass)) {
+        delete bridge;
     }
-    return sBridge;
+    sBridge = bridge;
 }
 
 bool
@@ -90,8 +89,8 @@ AndroidBridge::Init(JNIEnv *jEnv,
 
     AutoLocalJNIFrame jniFrame(jEnv);
 
-    mJNIEnv = nsnull;
-    mThread = nsnull;
+    mJNIEnv = nullptr;
+    mThread = nullptr;
     mOpenedGraphicsLibraries = false;
     mHasNativeBitmapAccess = false;
     mHasNativeWindowAccess = false;
@@ -236,8 +235,8 @@ AndroidBridge::SetMainThread(void *thr)
         return (bool) mJNIEnv;
     }
 
-    mJNIEnv = nsnull;
-    mThread = nsnull;
+    mJNIEnv = nullptr;
+    mThread = nullptr;
     return true;
 }
 
@@ -702,7 +701,7 @@ AndroidBridge::EmptyClipboard()
         return;
 
     AutoLocalJNIFrame jniFrame(env, 0);
-    env->CallStaticVoidMethod(mGeckoAppShellClass, jSetClipboardText, nsnull);
+    env->CallStaticVoidMethod(mGeckoAppShellClass, jSetClipboardText, nullptr);
 }
 
 void
@@ -923,7 +922,7 @@ AndroidBridge::Vibrate(const nsTArray<PRUint32>& aPattern)
         return;
     }
 
-    jlong* elts = env->GetLongArrayElements(array, nsnull);
+    jlong* elts = env->GetLongArrayElements(array, nullptr);
     elts[0] = 0;
     for (PRUint32 i = 0; i < aPattern.Length(); ++i) {
         jlong d = aPattern[i];
@@ -1005,7 +1004,7 @@ AndroidBridge::GetSystemColors(AndroidSystemColors *aColors)
 {
     ALOG_BRIDGE("AndroidBridge::GetSystemColors");
 
-    NS_ASSERTION(aColors != nsnull, "AndroidBridge::GetSystemColors: aColors is null!");
+    NS_ASSERTION(aColors != nullptr, "AndroidBridge::GetSystemColors: aColors is null!");
     if (!aColors)
         return;
 
@@ -1047,7 +1046,7 @@ void
 AndroidBridge::GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSize, PRUint8 * const aBuf)
 {
     ALOG_BRIDGE("AndroidBridge::GetIconForExtension");
-    NS_ASSERTION(aBuf != nsnull, "AndroidBridge::GetIconForExtension: aBuf is null!");
+    NS_ASSERTION(aBuf != nullptr, "AndroidBridge::GetIconForExtension: aBuf is null!");
     if (!aBuf)
         return;
 
@@ -1066,7 +1065,7 @@ AndroidBridge::GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSiz
         return;
 
     jbyteArray arr = static_cast<jbyteArray>(obj);
-    NS_ASSERTION(arr != nsnull, "AndroidBridge::GetIconForExtension: Returned pixels array is null!");
+    NS_ASSERTION(arr != nullptr, "AndroidBridge::GetIconForExtension: Returned pixels array is null!");
     if (!arr)
         return;
 
@@ -1166,7 +1165,7 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
 
     jobject surfaceHolder = sview.GetSurfaceHolder(&jniFrame);
     if (!surfaceHolder)
-        return nsnull;
+        return nullptr;
 
     // grab some fields and methods we'll need
     jmethodID constructConfig = env->GetMethodID(jEGLConfigImplClass, "<init>", "(I)V");
@@ -1177,7 +1176,7 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
 
     jobject egl = env->CallStaticObjectMethod(jEGLContextClass, getEgl);
     if (jniFrame.CheckForException())
-        return nsnull;
+        return nullptr;
 
     jobject jdpy = env->NewObject(jEGLDisplayImplClass, constructDisplay, (int) dpy);
     jobject jconf = env->NewObject(jEGLConfigImplClass, constructConfig, (int) config);
@@ -1185,7 +1184,7 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
     // make the call
     jobject surf = env->CallObjectMethod(egl, createWindowSurface, jdpy, jconf, surfaceHolder, NULL);
     if (jniFrame.CheckForException() || !surf)
-        return nsnull;
+        return nullptr;
 
     jfieldID sfield = env->GetFieldID(jEGLSurfaceImplClass, "mEGLSurface", "I");
 
@@ -1229,7 +1228,7 @@ AndroidBridge::ProvideEGLSurface()
 }
 
 bool
-AndroidBridge::GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt, JNIEnv* env /* = nsnull */)
+AndroidBridge::GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt, JNIEnv* env /* = nullptr */)
 {
     ALOG_BRIDGE("AndroidBridge::GetStaticIntField %s", fieldName);
 
@@ -1254,7 +1253,7 @@ AndroidBridge::GetStaticIntField(const char *className, const char *fieldName, P
 }
 
 bool
-AndroidBridge::GetStaticStringField(const char *className, const char *fieldName, nsAString &result, JNIEnv* env /* = nsnull */)
+AndroidBridge::GetStaticStringField(const char *className, const char *fieldName, nsAString &result, JNIEnv* env /* = nullptr */)
 {
     ALOG_BRIDGE("AndroidBridge::GetStaticStringField %s", fieldName);
 
@@ -1365,7 +1364,7 @@ AndroidBridge::ExecuteNextRunnable(JNIEnv *env)
 void*
 AndroidBridge::GetNativeSurface(JNIEnv* env, jobject surface) {
     if (!env || !mHasNativeWindowFallback)
-        return nsnull;
+        return nullptr;
 
     return (void*)env->GetIntField(surface, jSurfacePointerField);
 }
@@ -1460,8 +1459,8 @@ namespace mozilla {
         ~TracerRunnable() {
             delete mTracerCondVar;
             delete mTracerLock;
-            mTracerLock = nsnull;
-            mTracerCondVar = nsnull;
+            mTracerLock = nullptr;
+            mTracerCondVar = nullptr;
         }
 
         virtual nsresult Run() {
@@ -1509,7 +1508,7 @@ namespace mozilla {
     void CleanUpWidgetTracing() {
         if (sTracerRunnable)
             delete sTracerRunnable;
-        sTracerRunnable = nsnull;
+        sTracerRunnable = nullptr;
     }
 
     bool FireAndWaitForTracerEvent() {
@@ -1907,7 +1906,7 @@ AndroidBridge::LockBitmap(jobject bitmap)
 {
     JNIEnv *env = GetJNIEnv();
     if (!env)
-        return nsnull;
+        return nullptr;
 
     AutoLocalJNIFrame jniFrame(env);
 
@@ -1916,7 +1915,7 @@ AndroidBridge::LockBitmap(jobject bitmap)
 
     if ((err = AndroidBitmap_lockPixels(env, bitmap, &buf)) != 0) {
         ALOG_BRIDGE("AndroidBitmap_lockPixels failed! (error %d)", err);
-        buf = nsnull;
+        buf = nullptr;
     }
 
     return buf;
@@ -1958,7 +1957,7 @@ AndroidBridge::AcquireNativeWindow(JNIEnv* aEnv, jobject aSurface)
     if (mHasNativeWindowFallback)
         return GetNativeSurface(aEnv, aSurface);
 
-    return nsnull;
+    return nullptr;
 }
 
 void
@@ -1987,7 +1986,7 @@ AndroidBridge::AcquireNativeWindowFromSurfaceTexture(JNIEnv* aEnv, jobject aSurf
         return window.get();
     }
 
-    return nsnull;
+    return nullptr;
 }
 
 void

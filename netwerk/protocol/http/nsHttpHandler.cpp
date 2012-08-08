@@ -124,10 +124,10 @@ NewURI(const nsACString &aSpec,
 // nsHttpHandler <public>
 //-----------------------------------------------------------------------------
 
-nsHttpHandler *gHttpHandler = nsnull;
+nsHttpHandler *gHttpHandler = nullptr;
 
 nsHttpHandler::nsHttpHandler()
-    : mConnMgr(nsnull)
+    : mConnMgr(nullptr)
     , mHttpVersion(NS_HTTP_VERSION_1_1)
     , mProxyHttpVersion(NS_HTTP_VERSION_1_1)
     , mCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
@@ -202,7 +202,7 @@ nsHttpHandler::~nsHttpHandler()
 
     nsHttp::DestroyAtomTable();
 
-    gHttpHandler = nsnull;
+    gHttpHandler = nullptr;
 }
 
 nsresult
@@ -234,13 +234,13 @@ nsHttpHandler::Init()
     if (prefBranch) {
         prefBranch->AddObserver(HTTP_PREF_PREFIX, this, true);
         prefBranch->AddObserver(UA_PREF_PREFIX, this, true);
-        prefBranch->AddObserver(INTL_ACCEPT_LANGUAGES, this, true);
+        prefBranch->AddObserver(INTL_ACCEPT_LANGUAGES, this, true); 
         prefBranch->AddObserver(NETWORK_ENABLEIDN, this, true);
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
         prefBranch->AddObserver(TELEMETRY_ENABLED, this, true);
 
-        PrefsChanged(prefBranch, nsnull);
+        PrefsChanged(prefBranch, nullptr);
     }
 
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
@@ -292,8 +292,8 @@ nsHttpHandler::Init()
     // Bring alive the objects in the http-protocol-startup category
     NS_CreateServicesFromCategory(NS_HTTP_STARTUP_CATEGORY,
                                   static_cast<nsISupports*>(static_cast<void*>(this)),
-                                  NS_HTTP_STARTUP_TOPIC);
-
+                                  NS_HTTP_STARTUP_TOPIC);    
+    
     mObserverService = mozilla::services::GetObserverService();
     if (mObserverService) {
         mObserverService->AddObserver(this, "profile-change-net-teardown", true);
@@ -303,7 +303,7 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
     }
-
+ 
     return NS_OK;
 }
 
@@ -363,10 +363,10 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request,
     // transparent proxies) can result.
     //
     // However, we need to send something so that we can use keepalive
-    // with HTTP/1.0 servers/proxies. We use "Proxy-Connection:" when
+    // with HTTP/1.0 servers/proxies. We use "Proxy-Connection:" when 
     // we're talking to an http proxy, and "Connection:" otherwise.
     // We no longer send the Keep-Alive request header.
-
+    
     NS_NAMED_LITERAL_CSTRING(close, "close");
     NS_NAMED_LITERAL_CSTRING(keepAlive, "keep-alive");
 
@@ -403,7 +403,7 @@ nsHttpHandler::IsAcceptableEncoding(const char *enc)
     if (!PL_strncasecmp(enc, "x-", 2))
         enc += 2;
 
-    return nsHttp::FindToken(mAcceptEncodings.get(), enc, HTTP_LWS ",") != nsnull;
+    return nsHttp::FindToken(mAcceptEncodings.get(), enc, HTTP_LWS ",") != nullptr;
 }
 
 nsresult
@@ -435,7 +435,7 @@ nsHttpHandler::GetCookieService()
     return mCookieService;
 }
 
-nsresult
+nsresult 
 nsHttpHandler::GetIOService(nsIIOService** result)
 {
     NS_ADDREF(*result = mIOService);
@@ -452,7 +452,7 @@ nsHttpHandler::Get32BitsOfPseudoRandom()
     // 15 or 31 bits are common amounts.
 
     PR_STATIC_ASSERT(RAND_MAX >= 0xfff);
-
+    
 #if RAND_MAX < 0xffffU
     return ((PRUint16) rand() << 20) |
             (((PRUint16) rand() & 0xfff) << 8) |
@@ -469,7 +469,7 @@ nsHttpHandler::NotifyObservers(nsIHttpChannel *chan, const char *event)
 {
     LOG(("nsHttpHandler::NotifyObservers [chan=%x event=\"%s\"]\n", chan, event));
     if (mObserverService)
-        mObserverService->NotifyObservers(chan, event, nsnull);
+        mObserverService->NotifyObservers(chan, event, nullptr);
 }
 
 nsresult
@@ -516,17 +516,15 @@ nsHttpHandler::BuildUserAgent()
     LOG(("nsHttpHandler::BuildUserAgent\n"));
 
     NS_ASSERTION(!mLegacyAppName.IsEmpty() &&
-                 !mLegacyAppVersion.IsEmpty() &&
-                 !mPlatform.IsEmpty() &&
-                 !mOscpu.IsEmpty(),
+                 !mLegacyAppVersion.IsEmpty(),
                  "HTTP cannot send practical requests without this much");
 
     // preallocate to worst-case size, which should always be better
     // than if we didn't preallocate at all.
-    mUserAgent.SetCapacity(mLegacyAppName.Length() +
-                           mLegacyAppVersion.Length() +
+    mUserAgent.SetCapacity(mLegacyAppName.Length() + 
+                           mLegacyAppVersion.Length() + 
 #ifndef UA_SPARE_PLATFORM
-                           mPlatform.Length() +
+                           mPlatform.Length() + 
 #endif
                            mOscpu.Length() +
                            mMisc.Length() +
@@ -547,18 +545,19 @@ nsHttpHandler::BuildUserAgent()
     // Application comment
     mUserAgent += '(';
 #ifndef UA_SPARE_PLATFORM
-    mUserAgent += mPlatform;
-    mUserAgent.AppendLiteral("; ");
+    if (!mPlatform.IsEmpty()) {
+      mUserAgent += mPlatform;
+      mUserAgent.AppendLiteral("; ");
+    }
 #endif
-#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
     if (!mCompatDevice.IsEmpty()) {
         mUserAgent += mCompatDevice;
         mUserAgent.AppendLiteral("; ");
     }
-#else
-    mUserAgent += mOscpu;
-    mUserAgent.AppendLiteral("; ");
-#endif
+    else if (!mOscpu.IsEmpty()) {
+      mUserAgent += mOscpu;
+      mUserAgent.AppendLiteral("; ");
+    }
     mUserAgent += mMisc;
     mUserAgent += ')';
 
@@ -591,6 +590,7 @@ nsHttpHandler::BuildUserAgent()
 void
 nsHttpHandler::InitUserAgentComponents()
 {
+#ifndef MOZ_UA_OS_AGNOSTIC
     // Gather platform.
     mPlatform.AssignLiteral(
 #if defined(ANDROID)
@@ -605,10 +605,9 @@ nsHttpHandler::InitUserAgentComponents()
     "Maemo"
 #elif defined(MOZ_X11)
     "X11"
-#else
-    "?"
 #endif
     );
+#endif
 
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
@@ -622,6 +621,7 @@ nsHttpHandler::InitUserAgentComponents()
         mCompatDevice.AssignLiteral("Mobile");
 #endif
 
+#ifndef MOZ_UA_OS_AGNOSTIC
     // Gather OS/CPU.
 #if defined(XP_OS2)
     ULONG os2ver = 0;
@@ -674,7 +674,7 @@ nsHttpHandler::InitUserAgentComponents()
     }
 #elif defined (XP_UNIX)
     struct utsname name;
-
+    
     int ret = uname(&name);
     if (ret >= 0) {
         nsCAutoString buf;
@@ -707,6 +707,7 @@ nsHttpHandler::InitUserAgentComponents()
         mOscpu.Assign(buf);
     }
 #endif
+#endif
 
     mUserAgentIsDirty = true;
 }
@@ -737,9 +738,9 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     LOG(("nsHttpHandler::PrefsChanged [pref=%s]\n", pref));
 
-#define PREF_CHANGED(p) ((pref == nsnull) || !PL_strcmp(pref, p))
+#define PREF_CHANGED(p) ((pref == nullptr) || !PL_strcmp(pref, p))
 #define MULTI_PREF_CHANGED(p) \
-  ((pref == nsnull) || !PL_strncmp(pref, p, sizeof(p) - 1))
+  ((pref == nullptr) || !PL_strncmp(pref, p, sizeof(p) - 1))
 
     //
     // UA components
@@ -980,7 +981,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         if (NS_SUCCEEDED(rv))
             SetAccept(accept);
     }
-
+    
     if (PREF_CHANGED(HTTP_PREF("accept-encoding"))) {
         nsXPIDLCString acceptEncodings;
         rv = prefs->GetCharPref(HTTP_PREF("accept-encoding"),
@@ -1033,7 +1034,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mEnforceAssocReq = cVar;
     }
 
-    // enable Persistent caching for HTTPS - bug#205921
+    // enable Persistent caching for HTTPS - bug#205921    
     if (PREF_CHANGED(BROWSER_PREF("disk_cache_ssl"))) {
         cVar = false;
         rv = prefs->GetBoolPref(BROWSER_PREF("disk_cache_ssl"), &cVar);
@@ -1140,7 +1141,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             pls->ToString(getter_Copies(uval));
             if (uval)
                 SetAcceptLanguages(NS_ConvertUTF16toUTF8(uval).get());
-        }
+        } 
     }
 
     //
@@ -1158,7 +1159,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             NS_ASSERTION(mIDNConverter, "idnSDK not installed");
         }
         else if (!enableIDN && mIDNConverter)
-            mIDNConverter = nsnull;
+            mIDNConverter = nullptr;
     }
 
     //
@@ -1258,8 +1259,8 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
         if (*token != '\0') {
             comma = n++ != 0 ? "," : ""; // delimiter if not first item
             PRUint32 u = QVAL_TO_UINT(q);
-            if (u < 1000)
-                wrote = PR_snprintf(p2, available, "%s%s;q=0.%03u", comma, token, u);
+            if (u < 10)
+                wrote = PR_snprintf(p2, available, "%s%s;q=0.%u", comma, token, u);
             else
                 wrote = PR_snprintf(p2, available, "%s%s", comma, token);
             q -= dec;
@@ -1277,7 +1278,7 @@ PrepareAcceptLanguages(const char *i_AcceptLanguages, nsACString &o_AcceptLangua
 }
 
 nsresult
-nsHttpHandler::SetAcceptLanguages(const char *aAcceptLanguages)
+nsHttpHandler::SetAcceptLanguages(const char *aAcceptLanguages) 
 {
     nsCAutoString buf;
     nsresult rv = PrepareAcceptLanguages(aAcceptLanguages, buf);
@@ -1287,14 +1288,14 @@ nsHttpHandler::SetAcceptLanguages(const char *aAcceptLanguages)
 }
 
 nsresult
-nsHttpHandler::SetAccept(const char *aAccept)
+nsHttpHandler::SetAccept(const char *aAccept) 
 {
     mAccept = aAccept;
     return NS_OK;
 }
 
 nsresult
-nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings)
+nsHttpHandler::SetAcceptEncodings(const char *aAcceptEncodings) 
 {
     mAcceptEncodings = aAcceptEncodings;
     return NS_OK;
@@ -1369,13 +1370,13 @@ nsHttpHandler::NewChannel(nsIURI *uri, nsIChannel **result)
         }
     }
 
-    return NewProxiedChannel(uri, nsnull, result);
+    return NewProxiedChannel(uri, nullptr, result);
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsHttpHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
-    // don't override anything.
+    // don't override anything.  
     *_retval = false;
     return NS_OK;
 }
@@ -1393,7 +1394,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
 
     LOG(("nsHttpHandler::NewProxiedChannel [proxyInfo=%p]\n",
         givenProxyInfo));
-
+    
     nsCOMPtr<nsProxyInfo> proxyInfo;
     if (givenProxyInfo) {
         proxyInfo = do_QueryInterface(givenProxyInfo);
@@ -1460,20 +1461,6 @@ NS_IMETHODIMP
 nsHttpHandler::GetAppVersion(nsACString &value)
 {
     value = mLegacyAppVersion;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetProduct(nsACString &value)
-{
-    value = mProduct;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpHandler::GetProductSub(nsACString &value)
-{
-    value = mProductSub;
     return NS_OK;
 }
 
@@ -1545,7 +1532,7 @@ nsHttpHandler::Observe(nsISupports *subject,
         if (uri && mConnMgr)
             mConnMgr->ReportFailedToProcess(uri);
     }
-
+  
     return NS_OK;
 }
 
@@ -1560,7 +1547,7 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
     bool isStsHost = false;
     if (!stss)
         return NS_OK;
-
+    
     nsCOMPtr<nsIURI> clone;
     if (NS_SUCCEEDED(stss->IsStsURI(aURI, &isStsHost)) && isStsHost) {
         if (NS_SUCCEEDED(aURI->Clone(getter_AddRefs(clone)))) {
@@ -1603,7 +1590,7 @@ nsHttpHandler::SpeculativeConnect(nsIURI *aURI,
         return rv;
 
     nsHttpConnectionInfo *ci =
-        new nsHttpConnectionInfo(host, port, nsnull, usingSSL);
+        new nsHttpConnectionInfo(host, port, nullptr, usingSSL);
 
     return SpeculativeConnect(ci, aCallbacks, aTarget);
 }
@@ -1624,7 +1611,7 @@ nsHttpsHandler::Init()
 {
     nsCOMPtr<nsIProtocolHandler> httpHandler(
             do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http"));
-    NS_ASSERTION(httpHandler.get() != nsnull, "no http handler?");
+    NS_ASSERTION(httpHandler.get() != nullptr, "no http handler?");
     return NS_OK;
 }
 
@@ -1670,7 +1657,7 @@ nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 NS_IMETHODIMP
 nsHttpsHandler::AllowPort(PRInt32 aPort, const char *aScheme, bool *_retval)
 {
-    // don't override anything.
+    // don't override anything.  
     *_retval = false;
     return NS_OK;
 }

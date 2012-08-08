@@ -17,6 +17,7 @@
 #include "nsIDOMNavigatorNetwork.h"
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
+#include "DeviceStorage.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
@@ -40,6 +41,9 @@ class nsIDOMMozVoicemail;
 #endif
 
 #include "nsIDOMNavigatorSystemMessages.h"
+
+#include "nsIDOMNavigatorCamera.h"
+#include "DOMCameraManager.h"
 
 //*****************************************************************************
 // Navigator: Script "navigator" object
@@ -82,6 +86,7 @@ class Navigator : public nsIDOMNavigator
 #ifdef MOZ_B2G_BT
                 , public nsIDOMNavigatorBluetooth
 #endif
+                , public nsIDOMNavigatorCamera
                 , public nsIDOMNavigatorSystemMessages
 {
 public:
@@ -134,6 +139,7 @@ public:
   // Helper to initialize mMessagesManager.
   nsresult EnsureMessagesManager();
 #endif
+  NS_DECL_NSIDOMNAVIGATORCAMERA
 
 private:
   bool IsSmsAllowed() const;
@@ -155,7 +161,9 @@ private:
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
 #endif
+  nsRefPtr<nsDOMCameraManager> mCameraManager;
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;
+  nsTArray<nsRefPtr<nsDOMDeviceStorage> > mDeviceStorageStores;
   nsWeakPtr mWindow;
 };
 

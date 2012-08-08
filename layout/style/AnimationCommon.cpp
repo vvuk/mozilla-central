@@ -7,6 +7,9 @@
 #include "nsRuleData.h"
 #include "nsCSSValue.h"
 #include "nsStyleContext.h"
+#include "nsIFrame.h"
+#include "nsAnimationManager.h"
+#include "nsLayoutUtils.h"
 
 namespace mozilla {
 namespace css {
@@ -28,7 +31,7 @@ CommonAnimationManager::Disconnect()
   // Content nodes might outlive the transition or animation manager.
   RemoveAllElementData();
 
-  mPresContext = nsnull;
+  mPresContext = nullptr;
 }
 
 void
@@ -212,6 +215,52 @@ ComputedTimingFunction::GetValue(double aPortion) const
       return StepEnd(mSteps, aPortion);
   }
 }
+
+bool
+CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *aElement,
+                                                           nsCSSProperty aProperty)
+{
+  bool shouldLog = nsLayoutUtils::IsAnimationLoggingEnabled();
+  nsIFrame* frame = aElement->GetPrimaryFrame();
+  if (aProperty == eCSSProperty_visibility) {
+    return true;
+  }
+  if (aProperty == eCSSProperty_opacity) {
+    bool enabled = nsLayoutUtils::AreOpacityAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      printf_stderr("Performance warning: Async animation of 'opacity' is disabled\n");
+    }
+    return enabled;
+  }
+  if (aProperty == eCSSProperty_transform) {
+    if (frame &&
+        frame->Preserves3D() &&
+        frame->Preserves3DChildren()) {
+      if (shouldLog) {
+        printf_stderr("Gecko bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598\n");
+      }
+      return false;
+    }
+    if (frame && frame->IsSVGTransformed()) {
+      if (shouldLog) {
+        printf_stderr("Gecko bug: Async 'transform' animations of frames with SVG transforms is not supported.  See bug 779599\n");
+      }
+      return false;
+    }
+    bool enabled = nsLayoutUtils::AreTransformAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      printf_stderr("Performance warning: Async animation of 'transform' is disabled\n");
+    }
+    return enabled;
+  }
+  if (shouldLog) {
+    const nsAFlatCString propName = nsCSSProps::GetStringValue(aProperty);
+    printf_stderr("Performance warning: Async animation cancelled because of unsupported property '%s'\n", propName.get());
+  }
+  return false;
+}
+
+
 
 }
 }

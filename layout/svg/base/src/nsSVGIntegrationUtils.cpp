@@ -205,7 +205,7 @@ nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(nsIFrame* aNonSVGFrame)
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aNonSVGFrame);
   // 'r' is in "user space":
-  nsRect r = GetPreEffectsVisualOverflowUnion(firstFrame, nsnull, nsRect(),
+  nsRect r = GetPreEffectsVisualOverflowUnion(firstFrame, nullptr, nsRect(),
                                               GetOffsetToUserSpace(firstFrame));
   return nsLayoutUtils::RectToGfxRect(r,
            aNonSVGFrame->PresContext()->AppUnitsPerCSSPixel());
@@ -256,7 +256,7 @@ nsRect
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
   nsSVGFilterFrame *filterFrame = effectProperties.mFilter ?
-    effectProperties.mFilter->GetFilterFrame() : nsnull;
+    effectProperties.mFilter->GetFilterFrame() : nullptr;
   if (!filterFrame)
     return aPreEffectsOverflowRect;
 
@@ -383,8 +383,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
                                               LayerManager *aLayerManager)
 {
 #ifdef DEBUG
-  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aFrame);
-  NS_ASSERTION(!svgChildFrame ||
+  NS_ASSERTION(!(aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) ||
                (NS_SVGDisplayListPaintingEnabled() &&
                 !(aFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)),
                "Should not use nsSVGIntegrationUtils on this SVG frame");
@@ -504,7 +503,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
 
   nsRefPtr<gfxPattern> maskSurface =
     maskFrame ? maskFrame->ComputeMaskAlpha(aCtx, aFrame,
-                                            cssPxToDevPxMatrix, opacity) : nsnull;
+                                            cssPxToDevPxMatrix, opacity) : nullptr;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
@@ -649,7 +648,7 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
                                     &nsStyleSVG::mFill, 1.0, &overrideBounds);
 
     if (!pattern)
-      return nsnull;
+      return nullptr;
 
     // pattern is now set up to fill aPaintServerSize. But we want it to
     // fill aRenderSize, so we need to add a scaling transform.

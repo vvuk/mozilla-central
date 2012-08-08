@@ -180,8 +180,13 @@ let DOMApplicationRegistry = {
         // Read json file into a string
         let data = null;
         try {
-          data = JSON.parse(NetUtil.readInputStreamToString(aStream,
-                                                            aStream.available()) || "");
+          // Obtain a converter to read from a UTF-8 encoded input stream.
+          let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                          .createInstance(Ci.nsIScriptableUnicodeConverter);
+          converter.charset = "UTF-8";
+
+          data = JSON.parse(converter.ConvertToUnicode(NetUtil.readInputStreamToString(aStream,
+                                                            aStream.available()) || ""));
           aStream.close();
           if (aCallback)
             aCallback(data);
@@ -497,7 +502,7 @@ let DOMApplicationRegistry = {
         }
         // Build a data structure to call the webapps confirmation dialog :
         // - load the manifest from the zip
-        // - set data.app.(origin, install_origin, manifestURL, manifest, receipts)
+        // - set data.app.(origin, install_origin, manifestURL, manifest, receipts, categories)
         // - call notifyObservers(this, "webapps-ask-install", JSON.stringify(msg));
         let msg = {
           from: aData.from,
@@ -508,7 +513,8 @@ let DOMApplicationRegistry = {
             installOrigin: aData.installOrigin,
             origin: "app://" + id,
             manifestURL: manifestURL,
-            receipts: aData.receipts
+            receipts: aData.receipts,
+            categories: aData.categories
           }
         }
         let zipReader = Cc["@mozilla.org/libjar/zip-reader;1"]

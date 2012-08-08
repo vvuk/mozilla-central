@@ -8,7 +8,9 @@
  <name>Init dictionary for the event constructor. """
 
 simple_events = [
+    'StorageEvent',
     'DeviceProximityEvent',
+    'MozSettingsEvent',
     'UserProximityEvent',
     'CustomEvent',
     'PageTransitionEvent',
@@ -18,7 +20,8 @@ simple_events = [
     'MozContactChangeEvent',
     'DeviceOrientationEvent',
     'DeviceLightEvent',
-    'MozApplicationEvent'
+    'MozApplicationEvent',
+    'DeviceStorageChangeEvent'
   ]
 
 """ include file names """
