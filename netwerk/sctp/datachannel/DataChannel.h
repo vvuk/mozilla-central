@@ -14,13 +14,11 @@
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
 #include "mozilla/Mutex.h"
+#include "DataChannelProtocol.h"
 
 extern "C" {
   struct socket;
   struct sctp_rcvinfo;
-  struct rtcweb_datachannel_open;
-  struct rtcweb_datachannel_open_response;
-  struct rtcweb_datachannel_ack;
 }
 
 namespace mozilla {
@@ -93,7 +91,7 @@ public:
     
   DataChannel *Open(/* const std::wstring& channel_label,*/
                     Type type, bool inOrder, 
-                    PRUint32 timeout, DataChannelListener *aListener,
+                    PRUint32 prValue, DataChannelListener *aListener,
                     nsISupports *aContext);
 
   void Close(PRUint16 stream);
@@ -111,7 +109,8 @@ public:
 
   // Called on data reception from the SCTP library
   // must(?) be public so my c->c++ tramploine can call it
-  int ReceiveCallback(struct socket* sock, void *data, size_t datalen, struct sctp_rcvinfo rcv);
+  int ReceiveCallback(struct socket* sock, void *data, size_t datalen, 
+                      struct sctp_rcvinfo rcv, PRInt32 flags);
 
   // Find out state
   enum {
@@ -129,35 +128,44 @@ public:
   DataConnectionListener *mListener;
 
 private:
-  void SendErrorResponse(struct socket* sock,
-                         struct rtcweb_datachannel_open *msg,
-                         struct sctp_rcvinfo rcv,
-                         uint8_t error);
+  DataChannel* FindChannelByStreamIn(PRUint16 streamIn);
+  DataChannel* FindChannelByStreamOut(PRUint16 streamOut);
+  PRUint16 FindFreeStreamOut();
+  bool RequestMoreStreamsOut();
+  PRInt32 SendControlMessage(void *msg, PRUint32 len, PRUint16 streamOut);
+  PRInt32 SendOpenRequestMessage(PRUint16 streamOut, bool unordered, PRUint16 prPolicy, PRUint32 prValue);
+  PRInt32 SendOpenResponseMessage(PRUint16 streamOut, PRUint16 streamIn);
+  PRInt32 SendOpenAckMessage(PRUint16 streamOut);
+  void SendDeferredMessages();
+  void SendOutgoingStreamReset();
+  void ResetOutgoingStream(PRUint16 streamOut);
+  void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
+                                size_t length,
+                                PRUint16 streamIn);
+  void HandleOpenResponseMessage(const struct rtcweb_datachannel_open_response *rsp,
+                                 size_t length, PRUint16 streamIn);
+  void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
+                            size_t length, PRUint16 streamIn);
+  void HandleUnknownMessage(PRUint32 ppid, size_t length, PRUint16 streamIn);
+  void HandleDataMessage(PRUint32 ppid, const char *buffer, size_t length, PRUint16 streamIn);
+  void HandleMessage(char *buffer, size_t length, PRUint32 ppid, PRUint16 streamIn);
+  void HandleAssociationChangeEvent(const struct sctp_assoc_change *sac);
+  void HandlePeerAddressChangeEvent(const struct sctp_paddr_change *spc);
+  void HandleRemoteErrorEvent(const struct sctp_remote_error *sre);
+  void HandleShutdownEvent(const struct sctp_shutdown_event *sse);
+  void HandleAdaptationIndication(const struct sctp_adaptation_event *sai);
+  void HandleSendFailedEvent(const struct sctp_send_failed_event *ssfe);
+  void HandleStreamResetEvent(const struct sctp_stream_reset_event *strrst);
+  void HandleStreamChangeEvent(const struct sctp_stream_change_event *strchg);
+  void HandleNotification(const union sctp_notification *notif, size_t n);
 
   // NOTE: while these arrays will auto-expand, increases in the number of
   // channels available from the stack must be negotiated!
-  typedef struct _DataChannelOut {
-    // XXX these could roll up into a single state var
-    bool     pending;      // open sent, no open_response yet
-    bool     waiting_ack;  // open_response sent, but no ack yet
-    uint8_t  channel_type;
-    uint16_t flags;
-    uint16_t reverse;
-    uint16_t reliability_params;
-    int16_t  priority;
-    /* FIX! label, ref/release */
-    DataChannel *channel;
-  } DataChannelOut;
+  nsAutoTArray<DataChannel*,16> mStreamsOut;
+  nsAutoTArray<DataChannel*,16> mStreamsIn;
 
-  nsAutoTArray<DataChannelOut,16> mChannelsOut;
-  //DataChannelOut mChannelsOut[16];
-
-  typedef struct _DataChannelIn {
-    PRUint16 outgoing;
-  } DataChannelIn;
-
-  nsAutoTArray<DataChannelIn,16> mChannelsIn;
-  //DataChannelIn mChannelsIn[16];
+  // Streams pending reset
+  nsAutoTArray<PRUint16,4> mStreamsResetting;
 
   struct socket *mMasterSocket;
   struct socket *mSocket;
@@ -175,10 +183,16 @@ public:
   };
 
   DataChannel(DataChannelConnection *connection,
-              PRUint16 stream, PRUint16 state,
+              PRUint16 streamOut, PRUint16 streamIn, 
+              PRUint16 state,
+              PRUint16 policy, PRUint32 value,
+              PRUint32 flags,
               DataChannelListener *aListener,
               nsISupports *aContext) : 
-    mListener(aListener), mState(state), mConnection(connection), mStream(stream), mContext(aContext)
+    mListener(aListener), mConnection(connection), mState(state),
+    mStreamOut(streamOut), mStreamIn(streamIn),
+    mPrPolicy(policy), mPrValue(value),
+    mFlags(0), mContext(aContext)
     {
       NS_ASSERTION(mConnection,"NULL connection");
     }
@@ -191,11 +205,14 @@ public:
   // Close this DataChannel.  Can be called multiple times.
   void Close() 
     { 
-      if (mStream < 0) // Note that mStream is PRInt32, not PRUint16
+      if (mState == CLOSING || mState == CLOSED ||
+          mStreamOut == INVALID_STREAM) {
         return;
+      }
       mState = CLOSING;
-      mConnection->Close(mStream);
-      mStream = -1;
+      mConnection->Close(mStreamOut);
+      mStreamOut = INVALID_STREAM;
+      mStreamIn  = INVALID_STREAM;
     }
 
   // Set the listener (especially for channels created from the other side)
@@ -205,8 +222,8 @@ public:
   // Send a string
   bool SendMsg(const nsACString &aMsg)
     {
-      if (mStream >= 0)
-        return (mConnection->SendMsg(mStream, aMsg) > 0);
+      if (mStreamOut != INVALID_STREAM)
+        return (mConnection->SendMsg(mStreamOut, aMsg) > 0);
       else
         return false;
     }
@@ -214,8 +231,8 @@ public:
   // Send a binary message (blob or TypedArray)
   bool SendBinaryMsg(const nsACString &aMsg)
     {
-      if (mStream >= 0)
-        return (mConnection->SendBinaryMsg(mStream, aMsg) > 0);
+      if (mStreamOut != INVALID_STREAM)
+        return (mConnection->SendBinaryMsg(mStreamOut, aMsg) > 0);
       else
         return false;
     }
@@ -236,9 +253,14 @@ private:
   friend class DataChannelOnMessageAvailable;
   friend class DataChannelConnection;
 
-  PRUint16 mState;
   DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
-  PRInt32 mStream;
+  PRUint16 mState;
+  PRUint16 mStreamOut;
+  PRUint16 mStreamIn;
+  PRUint16 mPrPolicy;
+  PRUint32 mPrValue;
+  PRUint32 mFlags;
+  PRUint32 mId;
   nsCOMPtr<nsISupports> mContext;
 };
 
@@ -257,11 +279,13 @@ public:
   };  /* types */
 
   DataChannelOnMessageAvailable(PRInt32     aType,
+                                DataChannelConnection *aConnection,
                                 DataChannel *aChannel,
                                 nsCString   &aData,  // XXX this causes inefficiency
                                 PRInt32     aLen)
     : mType(aType),
       mChannel(aChannel),
+      mConnection(aConnection), 
       mData(aData),
       mLen(aLen) {}
 
@@ -282,12 +306,15 @@ public:
 
   NS_IMETHOD Run()
   {
+    printf("OnMessage: mChannel %p mConnection %p\n",mChannel,mConnection);
     switch (mType) {
       case ON_DATA:
-        if (mLen < 0)
+        printf("OnMessage: ON_DATA:  mListener %p context %p, mLen %d\n",(void *)mChannel->mListener,(void*) mChannel->mContext,mLen);
+        if (mLen < 0) {
           mChannel->mListener->OnMessageAvailable(mChannel->mContext, mData);
-        else
+        } else {
           mChannel->mListener->OnBinaryMessageAvailable(mChannel->mContext, mData);
+        }
         break;
       case ON_CHANNEL_OPEN:
         mChannel->mListener->OnChannelConnected(mChannel->mContext);

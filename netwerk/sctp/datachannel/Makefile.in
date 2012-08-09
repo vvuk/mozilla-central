@@ -28,6 +28,7 @@ CPPSRCS = \
 
 EXPORTS_mozilla/net = \
   DataChannel.h \
+  DataChannelProtocol.h \
   $(NULL)
 
 LOCAL_INCLUDES = \

@@ -18,9 +18,15 @@
 #define DATA_CHANNEL_PPID_DOMSTRING 51
 #define DATA_CHANNEL_PPID_BINARY    52
 
-#define INVALID_STREAM (0xFFFF)
+#define DATA_CHANNEL_FLAGS_SEND_REQ             0x00000001
+#define DATA_CHANNEL_FLAGS_SEND_RSP             0x00000002
+#define DATA_CHANNEL_FLAGS_SEND_ACK             0x00000004
+#define DATA_CHANNEL_FLAGS_OUT_OF_ORDER_ALLOWED 0x00000008
 
-struct rtcweb_datachannel_open {
+#define INVALID_STREAM (0xFFFF)
+#define MAX_NUM_STREAMS (0xFFFF) // Streams 0 to 0xFFFE = 0xFFFF streams
+
+struct rtcweb_datachannel_open_request {
   uint8_t  msg_type; // DATA_CHANNEL_OPEN
   uint8_t  channel_type;  
   uint16_t flags;
@@ -41,7 +47,7 @@ struct rtcweb_datachannel_ack {
 } SCTP_PACKED;
 
 /* msg_type values: */
-#define DATA_CHANNEL_OPEN                     0
+#define DATA_CHANNEL_OPEN_REQUEST             0
 #define DATA_CHANNEL_OPEN_RESPONSE            1
 #define DATA_CHANNEL_ACK                      2
 

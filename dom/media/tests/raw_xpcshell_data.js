@@ -145,8 +145,8 @@ observer1.onSetRemoteDescriptionSuccess = function(code) {
 };
 
 let mainThread = Services.tm.currentThread;
-pc1.initialize(observer1, mainThread);
-pc2.initialize(observer2, mainThread);
+pc1.initialize(observer1, null, mainThread);
+pc2.initialize(observer2, null, mainThread);
 
 pc1.listen(6747);
 pc2.connect("127.0.0.1",6747);
