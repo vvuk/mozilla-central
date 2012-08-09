@@ -226,6 +226,8 @@ void MediaPipeline::increment_rtcp_packets_received() {
 void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
                                       const unsigned char *data,
                                       size_t len) {
+  // TODO(ekr@rtfm.com): filter for DTLS here and in RtcpPacketReceived
+  // TODO(ekr@rtfm.com): filter on SSRC for bundle
   increment_rtp_packets_received();
 
   PR_ASSERT(rtp_recv_srtp_);  // This should never happen
