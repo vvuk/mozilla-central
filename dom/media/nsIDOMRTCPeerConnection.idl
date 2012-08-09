@@ -66,9 +66,9 @@ interface nsIDOMRTCPeerConnection : nsISupports
   void listen(in unsigned short port);
   void connect(in DOMString addr, in unsigned short port);
 
-  attribute nsIDOMEventListener onconnection;
-  attribute nsIDOMEventListener onclosedconnection;
-  attribute nsIDOMEventListener ondatachannel;
+  attribute RTCPeerConnectionCallback onConnectionx;
+  attribute RTCPeerConnectionCallback onClosedConnectionx;
+  attribute RTCPeerConnectionCallback onDataChannelx;
 
   readonly attribute DOMString iceState;
   readonly attribute DOMString readyState;

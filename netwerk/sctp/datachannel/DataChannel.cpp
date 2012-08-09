@@ -628,6 +628,9 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
   struct sctp_sndinfo sndinfo;
   struct sctp_sendv_spa spa;
 
+  // XXX remove if we allow pre-creation
+  NS_ENSURE_TRUE(mState == OPEN,nsnull); 
+
   {
     MutexAutoLock lock(mLock);
 

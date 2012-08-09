@@ -38,18 +38,18 @@ public:
   virtual ~DataChannelListener() {}
 
   // Called when a DOMString message is received.
-  virtual void OnMessageAvailable(nsISupports *aContext,
+  virtual nsresult OnMessageAvailable(nsISupports *aContext,
                                   const nsACString& message) = 0;
 
   // Called when a binary message is received.
-  virtual void OnBinaryMessageAvailable(nsISupports *aContext,
+  virtual nsresult OnBinaryMessageAvailable(nsISupports *aContext,
                                         const nsACString& message) = 0;
 
   // Called when the channel is connected
-  virtual void OnChannelConnected(nsISupports *aContext) {}
+  virtual nsresult OnChannelConnected(nsISupports *aContext) = 0;
 
   // Called when the channel is closed
-  virtual void OnChannelClosed(nsISupports *aContext) {}
+  virtual nsresult OnChannelClosed(nsISupports *aContext) = 0;
 };
 
 

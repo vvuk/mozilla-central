@@ -31,10 +31,6 @@ PeerConnection.prototype = {
   _onVerifyIdentitySuccess: null,
   _onVerifyIdentityFailure: null,
 
-  _ondatachannel: null,
-  _onconnection: null,
-  _onclosedconnection: null,
-
   // Everytime we get a request from content, we put it in the queue. If
   // there are no pending operations though, we will execute it immediately.
   // In PeerConnectionObserver, whenever we are notified that an operation
@@ -65,7 +61,7 @@ PeerConnection.prototype = {
              createInstance(Ci.IPeerConnection);
     this._observer = new PeerConnectionObserver(this);
 
-    this._pc.initialize(this._observer, Services.tm.currentThread);
+    this._pc.initialize(this._observer, win, Services.tm.currentThread);
 
     this._win = win;
     this._winID = this._win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -250,7 +246,7 @@ PeerConnection.prototype = {
 
   createDataChannel: function() {
     dump("!!! createDataChannel called\n");
-    let channel = this._pc.createDataChannel(this._win);
+    let channel = this._pc.createDataChannel(/*args*/);
     dump("!!! createDataChannel returned\n");
     return channel;
   },
@@ -277,6 +273,9 @@ PeerConnection.prototype = {
   },
 
   onRemoteStreamAdded: null,
+  onDataChannelx: null,
+  onConnectionx: null,
+  onClosedConnectionx: null,
 
   // For testing only.
   createFakeMediaStream: function(type) {
@@ -417,8 +416,27 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onDataChannel: function() {
-    dump("!!! onDataChannel called\n");
+  onConnection: function() {
+    dump("!!! onConnection called\n");
+    if (this._dompc.onConnectionx) {
+      this._dompc.onConnectionx.onCallback();
+    }
+    this._dompc._executeNext();
+  },
+
+  onClosedConnection: function() {
+    dump("!!! onClosedConnection called\n");
+    if (this._dompc.onClosedConnectionx) {
+      this._dompc.onClosedConnectionx.onCallback();
+    }
+    this._dompc._executeNext();
+  },
+
+  onDataChannel: function(channel) {
+    dump("!!! onDataChannel called: " + channel + "\n");
+    if (this._dompc.onDataChannelx) {
+      this._dompc.onDataChannelx.onCallback(channel);
+    }
     this._dompc._executeNext();
   },
 

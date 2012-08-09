@@ -14,6 +14,7 @@
 #include "mozilla/RefPtr.h"
 #include "IPeerConnection.h"
 #include "nsComponentManagerUtils.h"
+#include "nsPIDOMWindow.h"
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 #include "FakeMediaStreams.h"
@@ -345,6 +346,7 @@ private:
 
   nsCOMPtr<nsIThread> mThread;
   nsCOMPtr<IPeerConnectionObserver> mPCObserver;
+  nsCOMPtr<nsPIDOMWindow> mWindow;
 
   // The SDP sent in from JS - here for debugging.
   std::string mLocalRequestedSDP;

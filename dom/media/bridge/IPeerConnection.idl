@@ -3,6 +3,7 @@
 #include "nsIDOMMediaStream.idl"
 
 interface nsIDOMDataChannel;
+interface nsIDOMWindow;
 
 /* Do not confuse with nsIDOMRTCPeerConnection. This interface is purely for
  * communication between the PeerConnection JS DOM binding and the C++
@@ -63,7 +64,7 @@ interface IPeerConnection : nsISupports
   const long kActionPRAnswer = 2;
 
   /* Must be called first. Observer events will be dispatched on the thread provided */
-  void initialize(in IPeerConnectionObserver observer, [optional] in nsIThread thread);
+  void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window, [optional] in nsIThread thread);
 
   /* JSEP calls */
   void createOffer(in string hints);
@@ -89,7 +90,7 @@ interface IPeerConnection : nsISupports
   /* For testing purposes only! */
   nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
 
-  nsIDOMDataChannel createDataChannel(in nsIDOMWindow window);
+  nsIDOMDataChannel createDataChannel();
 
   /* XXX remove these */
   void listen(in unsigned short port);

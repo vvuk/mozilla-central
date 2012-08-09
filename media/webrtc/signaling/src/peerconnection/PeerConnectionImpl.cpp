@@ -39,8 +39,8 @@ class nsIDOMDataChannel;
 #ifdef MOZILLA_INTERNAL_API
 nsresult
 NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
-		     nsPIDOMWindow* aWindow,
-		     nsIDOMDataChannel** domDataChannel);
+                     nsPIDOMWindow* aWindow,
+                     nsIDOMDataChannel** domDataChannel);
 #endif
 
 static const char* logTag = "PeerConnectionImpl";
@@ -281,6 +281,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mCall(NULL)
   , mReadyState(kNew)
   , mPCObserver(NULL)
+  , mWindow(NULL)
   , mFingerprint("TempFingerprint")
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
@@ -353,11 +354,13 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStre
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, nsIThread* thread) {
+PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, 
+                               nsIDOMWindow* aWindow, nsIThread* thread) {
   if (!observer) {
     return NS_ERROR_FAILURE;
   }
 
+  mWindow = do_QueryInterface(aWindow);
   mThread = thread;
   mPCObserver = observer;
   PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
@@ -450,11 +453,16 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateDataChannel(nsIDOMWindow* aWindow, nsIDOMDataChannel** aRetval)
+PeerConnectionImpl::CreateDataChannel(nsIDOMDataChannel** aRetval)
 {
 #ifdef MOZILLA_INTERNAL_API
   mozilla::DataChannel *aDataChannel;
-  std::cerr << "PeerConnectionImpl::CreateDataChannel() called with window " << aWindow << std::endl;
+
+  if (!mDataConnection) {
+    mDataConnection = new mozilla::DataChannelConnection(this);
+    NS_ENSURE_TRUE(mDataConnection,NS_ERROR_FAILURE);
+    mDataConnection->Init(0); // XXX FIX port value
+  }
   aDataChannel = mDataConnection->Open(/* "",  */
                                        mozilla::DataChannelConnection::RELIABLE,
                                        true, 0, NULL, NULL);
@@ -463,7 +471,7 @@ PeerConnectionImpl::CreateDataChannel(nsIDOMWindow* aWindow, nsIDOMDataChannel**
 
   std::cerr << "PeerConnectionImpl::making DOMDataChannel" << std::endl;
   return NS_NewDOMDataChannel(aDataChannel,
-                              nsnull, /*XXX GetOwner(), */
+                              mWindow, /* GetOwner(), */
                               aRetval);
 #else
   return NS_OK;
@@ -495,6 +503,7 @@ PeerConnectionImpl::Listen(unsigned short port)
   return NS_OK;
 }
 
+// XXX Temporary - remove
 void
 PeerConnectionImpl::ListenThread(void *data)
 {
@@ -511,6 +520,7 @@ PeerConnectionImpl::ListenThread(void *data)
   std::cerr << "PeerConnectionImpl::ListenThread() finished" << std::endl;
 }
 
+// XXX Temporary - remove
 NS_IMETHODIMP
 PeerConnectionImpl::Connect(const nsAString &addr, unsigned short port)
 {
@@ -537,6 +547,7 @@ PeerConnectionImpl::Connect(const nsAString &addr, unsigned short port)
   return NS_OK;
 }
 
+// XXX Temporary - remove
 void
 PeerConnectionImpl::ConnectThread(void *data)
 {
@@ -643,8 +654,8 @@ PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
   std::cerr << "PeerConnectionImpl:: got OnDataChannel" << std::endl;
 
   nsCOMPtr<nsIDOMDataChannel> domchannel;
-  nsresult rv = NS_NewDOMDataChannel(channel, nsnull /*GetOwner()*/,
-				     getter_AddRefs(domchannel));
+  nsresult rv = NS_NewDOMDataChannel(channel, mWindow /*GetOwner()*/,
+                                     getter_AddRefs(domchannel));
   NS_ENSURE_SUCCESS(rv, /**/);
 
   if (mPCObserver) {
@@ -657,41 +668,6 @@ PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
     }
     runnable->Run();
   }
-
-#if 0
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
-  if (!sgo) { return; }
-
-  nsIScriptContext* sc = sgo->GetContext();
-  if (!sc) { return; }
-
-  JSContext* cx = sc->GetNativeContext();
-  if (!cx) { return; }
-
-  nsCOMPtr<nsIDOMDataChannel> domchannel;
-  nsresult rv = NS_NewDOMDataChannel(channel, GetOwner(),
-				     getter_AddRefs(domchannel));
-  NS_ENSURE_SUCCESS(rv, /**/);
-
-  jsval data;
-  if (!ReturnDataChannel(cx, &data, domchannel))
-    return;
-
-  nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nsnull, nsnull);
-  if (NS_FAILED(rv)) { return; }
-
-  nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
-  rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("datachannel"),
-                                      false, false,
-                                      data, EmptyString(), EmptyString(),
-                                      nsnull);
-  if (NS_FAILED(rv)) { return; }
-
-  event->SetTrusted(true);
-
-  nsEventDispatcher::DispatchDOMEvent(nsnull, event, nsnull, nsnull);
-#endif
 }
 #endif
 
@@ -998,7 +974,7 @@ PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
 }
 
 nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
-  if (index >= mLocalSourceStreams.Length())
+  if (index >= (int) mLocalSourceStreams.Length())
     return NULL;
 
   PR_ASSERT(mLocalSourceStreams[index]);
@@ -1006,7 +982,7 @@ nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
 }
 
 nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) {
-  if (index >= mRemoteSourceStreams.Length())
+  if (index >= (int) mRemoteSourceStreams.Length())
     return NULL;
 
   PR_ASSERT(mRemoteSourceStreams[index]);
