@@ -504,6 +504,7 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 
   // OK, pass it on to the conduit
   // TODO(ekr@rtfm.com): Check return value
+  MLOG(PR_LOG_DEBUG, "Sending a video frame");
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
 }
@@ -575,7 +576,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
 
     char buf[32];
     snprintf(buf, 32, "%p", source);
-    MLOG(PR_LOG_DEBUG, "Appended segments to stream " << buf);
+    MLOG(PR_LOG_DEBUG, "Appended audio segments to stream " << buf);
     source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
   }
@@ -640,6 +641,10 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
   videoImage->SetData(data);
 
   VideoSegment segment;
+  char buf[32];
+  snprintf(buf, 32, "%p", source);
+  MLOG(PR_LOG_DEBUG, "Appended video segments to stream " << buf);
+
   segment.AppendFrame(image.forget(), 1, gfxIntSize(width_, height_));
   source->AppendToTrack(1, &(segment));
 #endif

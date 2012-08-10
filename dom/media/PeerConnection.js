@@ -98,7 +98,6 @@ PeerConnection.prototype = {
 
   _selectIdentity: function() {
     let self = this;
-
     IDService.selectIdentity(this._uniqId, this._winID, function(err, val) {
       if (err) {
         self._onSelectIdentityFailure.onCallback(err);
@@ -126,7 +125,7 @@ PeerConnection.prototype = {
           self._onVerifyIdentitySuccess.onCallback(val);
           return;
         }
-        self._onVerifyIdentityFailure(err || "Signed message did not match");
+        self._onVerifyIdentityFailure.onCallback(err || "Signed message did not match");
       }); 
     } else {
       self._onVerifyIdentityFailure.onCallback("No identity information found");
@@ -323,7 +322,10 @@ PeerConnectionObserver.prototype = {
       let idline = "a=identity:" + ast + "\r\n";
 
       let parts = offer.split("m=");
-      let finalOffer = parts[0] + sigline + idline + "m=" + parts[1];
+      let finalOffer = parts[0] + sigline + idline;
+      for (let i = 1; i < parts.length; i++) {
+        finalOffer += "m=" + parts[i];
+      }
 
       dump("!!! Generated final offer: " + finalOffer + "\n\n");
       self._dompc._onCreateOfferSuccess.onCallback(finalOffer);
