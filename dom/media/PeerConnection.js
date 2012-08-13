@@ -120,8 +120,8 @@ PeerConnection.prototype = {
     let ire = new RegExp("a=identity:(.+)\r\n");
     let fre = new RegExp("a=fingerprint:(.+)\r\n");
     
-    let id = offer.match(ire);
-    let fprint = offer.match(fre);
+    let id = offer.sdp.match(ire);
+    let fprint = offer.sdp.match(fre);
     
     if (id.length == 2 && fprint.length == 2) {
       IDService.verifyIdentity(id[1], function(err, val) {
@@ -150,6 +150,13 @@ PeerConnection.prototype = {
     this._onVerifyIdentitySuccess = onSuccess;
     this._onVerifyIdentityFailure = onError;
 
+    if (!offer.type || !offer.sdp) {
+      if (onError) {
+        onError.onCallback("Invalid offer/answer provided to verifyIdentity");
+      }
+      return;
+    }
+
     this._queueOrRun({func: this._verifyIdentity, args: [offer]});
     dump("!!! verifyIdentity returned\n");
   },
@@ -173,6 +180,20 @@ PeerConnection.prototype = {
     this._onCreateAnswerSuccess = onSuccess;
     this._onCreateAnswerFailure = onError;
 
+    if (offer.type != "offer") {
+      if (onError) {
+        onError.onCallback("Invalid type " + offer.type + " passed");
+      }
+      return;
+    }
+
+    if (!offer.sdp) {
+      if (onError) {
+        onError.onCallback("SDP not provided to createAnswer");
+      }
+      return;
+    }
+
     if (!constraints) {
       constraints = "";
     }
@@ -181,41 +202,57 @@ PeerConnection.prototype = {
     }
 
     // TODO: Implement provisional answer & constraints.
-    this._queueOrRun({func: this._pc.createAnswer, args: ["", offer]});
+    this._queueOrRun({func: this._pc.createAnswer, args: ["", offer.sdp]});
     dump("!!! createAnswer returned\n");
   },
 
-  setLocalDescription: function(action, description, onSuccess, onError) {
+  setLocalDescription: function(desc, onSuccess, onError) {
     this._onSetLocalDescriptionSuccess = onSuccess;
     this._onSetLocalDescriptionFailure = onError;
 
     let type;
-    if (action == "offer") {
-      type = Ci.IPeerConnection.kActionOffer;
-    }
-    if (action == "answer") {
-      type = Ci.IPeerConnection.kActionAnswer;
+    switch (desc.type) {
+      case "offer":
+        type = Ci.IPeerConnection.kActionOffer;
+        break;
+      case "answer":
+        type = Ci.IPeerConnection.kActionAnswer;
+        break;
+      default:
+        if (onError) {
+          onError.onCallback("Invalid type " + desc.type + " provided to setLocalDescription");
+          return;
+        }
+        break;
     }
 
     dump("!!! setLocalDescription called\n");
-    this._queueOrRun({func: this._pc.setLocalDescription, args: [type, description]});
+    this._queueOrRun({func: this._pc.setLocalDescription, args: [type, desc.sdp]});
     dump("!!! setLocalDescription returned\n");
   },
 
-  setRemoteDescription: function(action, description, onSuccess, onError) {
+  setRemoteDescription: function(desc, onSuccess, onError) {
     this._onSetRemoteDescriptionSuccess = onSuccess;
     this._onSetRemoteDescriptionFailure = onError;
 
     let type;
-    if (action == "offer") {
-      type = Ci.IPeerConnection.kActionOffer;
-    }
-    if (action == "answer") {
-      type = Ci.IPeerConnection.kActionAnswer;
+    switch (desc.type) {
+      case "offer":
+        type = Ci.IPeerConnection.kActionOffer;
+        break;
+      case "answer":
+        type = Ci.IPeerConnection.kActionAnswer;
+        break;
+      default:
+        if (onError) {
+          onError.onCallback("Invalid type " + desc.type + " provided to setLocalDescription");
+          return;
+        }
+        break;
     }
 
     dump("!!! setRemoteDescription called\n");
-    this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, description]});
+    this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, desc.sdp]});
     dump("!!! setRemoteDescription returned\n");
   },
 
@@ -235,14 +272,12 @@ PeerConnection.prototype = {
     dump("!!! addStream called\n");
 
     // TODO: Implement constraints.
-    //this._queueOrRun({func: this._pc.addStream, args: [stream]});
     this._pc.addStream(stream);
     dump("!!! addStream returned\n");
   },
 
   removeStream: function(stream) {
     dump("!!! removeStream called\n");
-    //this._queueOrRun({func: this._pc.removeStream, args: [stream]});
     this._pc.removeStream(stream);
     dump("!!! removeStream returned\n");
   },
@@ -303,7 +338,7 @@ PeerConnectionObserver.prototype = {
     // previously called and that an identity was obtained. If so, add
     // a signed string to the SDP before sending it to content.
     if (!this._dompc._identity) {
-      this._dompc._onCreateOfferSuccess.onCallback(offer);
+      this._dompc._onCreateOfferSuccess.onCallback({type: "offer", sdp: offer});
       this._dompc._executeNext();
       return;
     }
@@ -332,7 +367,9 @@ PeerConnectionObserver.prototype = {
       }
 
       dump("!!! Generated final offer: " + finalOffer + "\n\n");
-      self._dompc._onCreateOfferSuccess.onCallback(finalOffer);
+      self._dompc._onCreateOfferSuccess.onCallback({
+        type: "offer", sdp: finalOffer
+      });
       self._dompc._executeNext();
     });
   },
@@ -348,7 +385,9 @@ PeerConnectionObserver.prototype = {
   onCreateAnswerSuccess: function(answer) {
     dump("!!! onCreateAnswerSuccess called\n");
     if (this._dompc._onCreateAnswerSuccess) {
-      this._dompc._onCreateAnswerSuccess.onCallback(answer);
+      this._dompc._onCreateAnswerSuccess.onCallback({
+        type: "answer", sdp: answer
+      });
     }
     this._dompc._executeNext();
   },

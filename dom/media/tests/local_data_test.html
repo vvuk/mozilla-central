@@ -29,7 +29,7 @@
   // pc1.createOffer finished, call pc1.setLocal
   function step1(offer) {
     pc1_offer = offer;
-    pc1.setLocalDescription("offer", offer, step2, failed);
+    pc1.setLocalDescription(offer, step2, failed);
   }
 
   // pc1.setLocal finished, call pc2.setRemote
@@ -39,7 +39,7 @@
     pc2.onRemoteStreamAdded = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
     }
-    pc2.setRemoteDescription("offer", pc1_offer, step3, failed);
+    pc2.setRemoteDescription(pc1_offer, step3, failed);
   };
 
   // pc2.setRemote finished, call pc2.createAnswer
@@ -50,12 +50,12 @@
   // pc2.createAnswer finished, call pc2.setLocal
   function step4(answer) {
     pc2_answer = answer;
-    pc2.setLocalDescription("answer", answer, step5, failed);
+    pc2.setLocalDescription(answer, step5, failed);
   }
 
   // pc2.setLocal finished, call pc1.setRemote
   function step5() {
-    pc1.setRemoteDescription("answer", pc2_answer, step6, failed);
+    pc1.setRemoteDescription(pc2_answer, step6, failed);
   }
 
   // pc1.setRemote finished, make a data channel

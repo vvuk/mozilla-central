@@ -33,13 +33,13 @@
   // pc1.createOffer finished, call pc1.setLocal
   function step1(offer) {
     pc1_offer = offer;
-    pc1.setLocalDescription("offer", offer, step2, failed);
+    pc1.setLocalDescription(offer, step2, failed);
   }
 
   // pc1.setLocal finished, call pc2.setRemote
   function step2() {
     log("Got offer from pc1 <br/>" + pc1_offer);
-    pc2.setRemoteDescription("offer", pc1_offer, step3, failed);
+    pc2.setRemoteDescription(pc1_offer, step3, failed);
   };
 
   // pc2.setRemote finished, verify identity
@@ -57,13 +57,13 @@
   // pc2.createAnswer finished, call pc2.setLocal
   function step5(answer) {
     pc2_answer = answer;
-    pc2.setLocalDescription("answer", answer, step6, failed);
+    pc2.setLocalDescription(answer, step6, failed);
   }
 
   // pc2.setLocal finished, call pc1.setRemote
   function step6() {
     log("Got answer from pc2 <br/>" + pc2_answer);
-    pc1.setRemoteDescription("answer", pc2_answer, step7, failed);
+    pc1.setRemoteDescription(pc2_answer, step7, failed);
   }
 
   // pc1.setRemote finished, media should be running!
