@@ -51,9 +51,11 @@ typedef enum {
   PC_OBSERVER_CALLBACK,
   PC_OBSERVER_CONNECTION,
   PC_OBSERVER_CLOSEDCONNECTION,
-  PC_OBSERVER_DATACHANNEL
+  PC_OBSERVER_DATACHANNEL,
+  PC_OBSERVER_ICE
 } PeerConnectionObserverType;
 
+// TODO: Refactor this.
 class PeerConnectionObserverDispatch : public nsRunnable {
 
 public:
@@ -67,6 +69,11 @@ public:
                                  nsRefPtr<PeerConnectionImpl> pc,
                                  IPeerConnectionObserver* observer) :
     mType(type), mInfo(nsnull), mChannel(channel), mPC(pc), mObserver(observer) {}
+
+  PeerConnectionObserverDispatch(PeerConnectionObserverType type,
+                                 nsRefPtr<PeerConnectionImpl> pc,
+                                 IPeerConnectionObserver* observer) :
+    mType(type), mInfo(nsnull), mPC(pc), mObserver(observer) {}
 
   ~PeerConnectionObserverDispatch(){}
 
@@ -157,6 +164,9 @@ public:
         std::cerr << "Delivering PeerConnection ondatachannel" << std::endl;
         mObserver->OnDataChannel(mChannel);
         break;
+      case PC_OBSERVER_ICE:
+        std::cerr << "Delivering PeerConnection ICE callback " << std::endl;
+        mObserver->OnStateChange(IPeerConnectionObserver::kIceState);
     }
     return NS_OK;
   }
@@ -571,7 +581,6 @@ PeerConnectionImpl::OnConnection()
 
   std::cerr << "PeerConnectionImpl:: got OnConnection" << std::endl;
 #ifdef MOZILLA_INTERNAL_API
-
   if (mPCObserver) {
     PeerConnectionObserverDispatch* runnable =
       new PeerConnectionObserverDispatch(PC_OBSERVER_CONNECTION, nsnull,
@@ -921,14 +930,17 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
 }
 
 void
-PeerConnectionImpl::ChangeReadyState(PeerConnectionImpl::ReadyState ready_state) {
+PeerConnectionImpl::ChangeReadyState(PeerConnectionImpl::ReadyState ready_state)
+{
   mReadyState = ready_state;
+  // FIXME: Dispatch on main thread.
   if (mPCObserver) {
     mPCObserver->OnStateChange(IPeerConnectionObserver::kReadyState);
   }
 }
 
-PeerConnectionWrapper *PeerConnectionImpl::AcquireInstance(const std::string& handle) {
+PeerConnectionWrapper *PeerConnectionImpl::AcquireInstance(const std::string& handle)
+{
   if (peerconnections.find(handle) == peerconnections.end()) {
     return NULL;
   }
@@ -946,34 +958,58 @@ PeerConnectionImpl::ReleaseInstance()
 }
 
 const std::string&
-PeerConnectionImpl::GetHandle() {
+PeerConnectionImpl::GetHandle()
+{
   return mHandle;
 }
 
 void
-PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx) {
+PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx)
+{
   CSFLogDebug(logTag, "ICE gathering complete");
   mIceState = kIceWaiting;
+
+#ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
-    mPCObserver->OnStateChange(IPeerConnectionObserver::kIceState);
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(PC_OBSERVER_ICE, this, mPCObserver);
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
   }
+#endif
 }
 
 void
-PeerConnectionImpl::IceCompleted(NrIceCtx *ctx) {
+PeerConnectionImpl::IceCompleted(NrIceCtx *ctx)
+{
   CSFLogDebug(logTag, "ICE completed");
   mIceState = kIceConnected;
+
+#ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
-    mPCObserver->OnStateChange(IPeerConnectionObserver::kIceState);
+    PeerConnectionObserverDispatch* runnable =
+      new PeerConnectionObserverDispatch(PC_OBSERVER_ICE, this, mPCObserver);
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
   }
+#endif
 }
 
 void
-PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream) {
+PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream)
+{
   CSFLogDebug(logTag, "ICE stream ready : %s", stream->name().c_str());
 }
 
-nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
+nsRefPtr<LocalSourceStreamInfo>
+PeerConnectionImpl::GetLocalStream(int index)
+{
   if (index >= (int) mLocalSourceStreams.Length())
     return NULL;
 
@@ -981,7 +1017,9 @@ nsRefPtr<LocalSourceStreamInfo> PeerConnectionImpl::GetLocalStream(int index) {
   return mLocalSourceStreams[index];
 }
 
-nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) {
+nsRefPtr<RemoteSourceStreamInfo>
+PeerConnectionImpl::GetRemoteStream(int index)
+{
   if (index >= (int) mRemoteSourceStreams.Length())
     return NULL;
 
@@ -991,7 +1029,8 @@ nsRefPtr<RemoteSourceStreamInfo> PeerConnectionImpl::GetRemoteStream(int index) 
 
 nsresult
 PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
-  int *index) {
+  int *index)
+{
   *index = mRemoteSourceStreams.Length();
 
   mRemoteSourceStreams.AppendElement(info);
@@ -999,8 +1038,10 @@ PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
   return NS_OK;
 }
 
-void LocalSourceStreamInfo::StorePipeline(int track,
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+void
+LocalSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline)
+{
   PR_ASSERT(mPipelines.find(track) == mPipelines.end());
   if (mPipelines.find(track) != mPipelines.end()) {
     CSFLogDebug(logTag, "Storing duplicate track");
@@ -1009,8 +1050,10 @@ void LocalSourceStreamInfo::StorePipeline(int track,
   mPipelines[track] = pipeline;
 }
 
-void RemoteSourceStreamInfo::StorePipeline(int track,
-  mozilla::RefPtr<mozilla::MediaPipeline> pipeline) {
+void 
+RemoteSourceStreamInfo::StorePipeline(int track,
+  mozilla::RefPtr<mozilla::MediaPipeline> pipeline)
+{
   PR_ASSERT(mPipelines.find(track) == mPipelines.end());
   if (mPipelines.find(track) != mPipelines.end()) {
     CSFLogDebug(logTag, "Storing duplicate track");

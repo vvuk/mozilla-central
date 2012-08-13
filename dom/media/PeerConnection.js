@@ -60,8 +60,12 @@ PeerConnection.prototype = {
     this._pc = Cc["@mozilla.org/peerconnection;1"].
              createInstance(Ci.IPeerConnection);
     this._observer = new PeerConnectionObserver(this);
-
-    this._pc.initialize(this._observer, win, Services.tm.currentThread);
+    
+    // Nothing starts until ICE gathering completes.
+    this._queueOrRun({
+      func: this._pc.initialize,
+      args: [this._observer, win, Services.tm.currentThread]
+    });
 
     this._win = win;
     this._winID = this._win.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -392,7 +396,17 @@ PeerConnectionObserver.prototype = {
   // FIXME: Following observer events should update state on this._dompc.
   onStateChange: function(state) {
     dump("!!! onStateChange called: " + state + "\n");
-    this._dompc._executeNext();
+
+    if (state == Ci.IPeerConnectionObserver.kIceState) {
+      switch (this._dompc._pc.iceState) {
+        case Ci.IPeerConnection.kIceWaiting:
+        case Ci.IPeerConnection.kIceChecking:
+        case Ci.IPeerConnection.kIceConnected:
+          dump("!!! ICE gathering is complete, calling _executeNext! \n");
+          this._dompc._executeNext();
+          break;
+      }
+    }
   },
 
   onAddStream: function(stream, type) {

@@ -63,6 +63,12 @@ interface IPeerConnection : nsISupports
   const long kActionAnswer = 1;
   const long kActionPRAnswer = 2;
 
+  const long kIceGathering = 0;
+  const long kIceWaiting = 1;
+  const long kIceChecking = 2;
+  const long kIceConnected = 3;
+  const long kIceFailed = 4;
+
   /* Must be called first. Observer events will be dispatched on the thread provided */
   void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window, [optional] in nsIThread thread);
 
