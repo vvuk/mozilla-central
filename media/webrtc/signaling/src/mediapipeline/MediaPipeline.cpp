@@ -625,7 +625,7 @@ MediaPipelineReceiveVideo::PipelineRenderer::PipelineRenderer(
 #ifdef MOZILLA_INTERNAL_API
   mozilla::SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
-  source->AddTrack(1, 10, 0, new mozilla::VideoSegment());
+  source->AddTrack(1, 30, 0, new mozilla::VideoSegment());
   source->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
 #endif
 }

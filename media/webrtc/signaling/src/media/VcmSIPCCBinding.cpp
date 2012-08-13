@@ -888,7 +888,7 @@ short vcmCreateRemoteStream(
         AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
   }
   if (CC_IS_VIDEO(mcap_id)) {
-    ;
+    // AddTrack takes ownership of segment
   }
 
   CSFLogDebug( logTag, "%s: created remote stream with index %d hints=%d",
