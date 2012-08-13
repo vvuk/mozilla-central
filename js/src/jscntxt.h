@@ -541,6 +541,9 @@ struct JSRuntime : js::RuntimeFriendFields
     /* The gcNumber at the time of the most recent GC's first slice. */
     uint64_t            gcStartNumber;
 
+    /* Whether the currently running GC can finish in multiple slices. */
+    int                 gcIsIncremental;
+
     /* Whether all compartments are being collected in first GC slice. */
     bool                gcIsFull;
 
@@ -854,8 +857,6 @@ struct JSRuntime : js::RuntimeFriendFields
     js::PreserveWrapperCallback            preserveWrapperCallback;
 
     js::ScriptFilenameTable scriptFilenameTable;
-
-    js::ScriptSource *scriptSources;
 
 #ifdef DEBUG
     size_t              noGCOrAllocationCheck;
@@ -1702,7 +1703,7 @@ namespace js {
 
 /* |callee| requires a usage string provided by JS_DefineFunctionsWithHelp. */
 extern void
-ReportUsageError(JSContext *cx, JSObject *callee, const char *msg);
+ReportUsageError(JSContext *cx, HandleObject callee, const char *msg);
 
 } /* namespace js */
 

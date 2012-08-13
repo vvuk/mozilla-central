@@ -203,7 +203,7 @@ WyciwygChannelChild::OnDataAvailable(const nsCString& data,
     Cancel(rv);
 
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nsnull, PRUint64(offset + data.Length()),
+    mProgressSink->OnProgress(this, nullptr, PRUint64(offset + data.Length()),
                               PRUint64(mContentLength));
 }
 
@@ -253,7 +253,7 @@ WyciwygChannelChild::OnStopRequest(const nsresult& statusCode)
     mListenerContext = 0;
 
     if (mLoadGroup)
-      mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+      mLoadGroup->RemoveRequest(this, nullptr, mStatus);
 
     mCallbacks = 0;
     mProgressSink = 0;
@@ -299,14 +299,14 @@ void WyciwygChannelChild::CancelEarly(const nsresult& statusCode)
   
   mIsPending = false;
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
+    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
 
   if (mListener) {
     mListener->OnStartRequest(this, mListenerContext);
     mListener->OnStopRequest(this, mListenerContext, mStatus);
   }
-  mListener = nsnull;
-  mListenerContext = nsnull;
+  mListener = nullptr;
+  mListenerContext = nullptr;
 
   if (mIPCOpen)
     PWyciwygChannelChild::Send__delete__(this);
@@ -560,30 +560,10 @@ WyciwygChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aConte
   mIsPending = true;
 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nsnull);
+    mLoadGroup->AddRequest(this, nullptr);
 
-  // Get info from nsILoadContext, if any
-  bool haveLoadContext = false;
-  bool isContent = false;
-  bool usePrivateBrowsing = false;
-  bool isInBrowserElement = false;
-  PRUint32 appId = 0;
-  nsCAutoString extendedOrigin;
-  nsCOMPtr<nsILoadContext> loadContext;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsILoadContext),
-                                getter_AddRefs(loadContext));
-  if (loadContext) {
-    haveLoadContext = true;
-    loadContext->GetIsContent(&isContent);
-    loadContext->GetUsePrivateBrowsing(&usePrivateBrowsing);
-    loadContext->GetIsInBrowserElement(&isInBrowserElement);
-    loadContext->GetAppId(&appId);
-    loadContext->GetExtendedOrigin(mURI, extendedOrigin);
-  }
-
-  SendAsyncOpen(IPC::URI(mOriginalURI), mLoadFlags, haveLoadContext, isContent,
-                usePrivateBrowsing, isInBrowserElement, appId, extendedOrigin);
+  SendAsyncOpen(IPC::URI(mOriginalURI), mLoadFlags,
+                IPC::SerializedLoadContext(this));
 
   mState = WCC_OPENED;
 

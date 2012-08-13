@@ -5,6 +5,7 @@
 
 #include "jsval.h"
 
+#include "nsDOMError.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsDOMEventTargetHelper.h"
@@ -38,19 +39,19 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDataChannel,
                                            nsDOMEventTargetHelper)
 
-  void
+  nsresult
   DoOnMessageAvailable(const nsACString& message, bool isBinary);
 
-  virtual void
+  virtual nsresult
   OnMessageAvailable(nsISupports* aContext, const nsACString& message);
 
-  virtual void
+  virtual nsresult
   OnBinaryMessageAvailable(nsISupports* aContext, const nsACString& message);
 
-  virtual void
+  virtual nsresult
   OnChannelConnected(nsISupports* aContext);
 
-  virtual void
+  virtual nsresult
   OnChannelClosed(nsISupports* aContext);
 
   // Owning reference
@@ -285,105 +286,106 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
   return NS_OK;
 }
 
-void
+nsresult
 nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aMsg,
                                        bool isBinary)
 {
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+
   // XXX don't need this yet
   if (isBinary) {
-    return;
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
-
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
-  if (!sgo) { return; }
+  NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
 
   nsIScriptContext* sc = sgo->GetContext();
-  if (!sc) { return; }
+  NS_ENSURE_TRUE(sc, NS_ERROR_FAILURE);
 
   JSContext* cx = sc->GetNativeContext();
-  if (!cx) { return; }
+  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JSAutoRequest ar(cx);
 
   NS_ConvertUTF8toUTF16 utf16data(aMsg);
   JSString* jsString;
   jsString = JS_NewUCStringCopyN(cx, utf16data.get(), utf16data.Length());
-  if (!jsString) { return; }
+  NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
 
   jsval data = STRING_TO_JSVAL(jsString);
 
   nsCOMPtr<nsIDOMEvent> event;
   nsresult rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nsnull, nsnull);
-  if (NS_FAILED(rv)) { return; }
+  NS_ENSURE_SUCCESS(rv,rv);
 
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
   rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("message"),
                                       false, false,
                                       data, EmptyString(), EmptyString(),
                                       nsnull);
-  if (NS_FAILED(rv)) { return; }
-
+  NS_ENSURE_SUCCESS(rv,rv);
+ 
   //nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(event);
   event->SetTrusted(true);
 
-  DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+  return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
 
-void
+nsresult
 nsDOMDataChannel::OnMessageAvailable(nsISupports* aContext,
                                      const nsACString& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  DoOnMessageAvailable(aMessage, false);
+  return DoOnMessageAvailable(aMessage, false);
 }
 
-void
+nsresult
 nsDOMDataChannel::OnBinaryMessageAvailable(nsISupports* aContext,
                                            const nsACString& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  DoOnMessageAvailable(aMessage, true);
+  return DoOnMessageAvailable(aMessage, true);
 }
 
-void
+nsresult
 nsDOMDataChannel::OnChannelConnected(nsISupports* aContext)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIDOMEvent> event;
   nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
-  if (NS_FAILED(rv)) { return; }
+  NS_ENSURE_SUCCESS(rv,rv);
 
   rv = event->InitEvent(NS_LITERAL_STRING("open"), false, false);
-  if (NS_FAILED(rv)) { return; }
+  NS_ENSURE_SUCCESS(rv,rv);
 
   //nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(event);
   event->SetTrusted(true);
 
-  DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+  return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
 
-void
+nsresult
 nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<nsIDOMEvent> event;
   nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
-  if (NS_FAILED(rv)) { return; }
+  NS_ENSURE_SUCCESS(rv,rv);
 
   rv = event->InitEvent(NS_LITERAL_STRING("close"), false, false);
-  if (NS_FAILED(rv)) { return; }
+  NS_ENSURE_SUCCESS(rv,rv);
 
   //nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
   event->SetTrusted(true);
 
-  DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+  return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
 
 nsresult
 NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
-		     nsPIDOMWindow* aWindow,
+                     nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** domDataChannel)
 {
   nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(dataChannel,

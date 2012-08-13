@@ -6,6 +6,7 @@
 #include "SVGAnimatedTransformList.h"
 #include "DOMSVGAnimatedTransformList.h"
 
+#include "nsISMILAnimationElement.h"
 #include "nsSMILValue.h"
 #include "SVGTransform.h"
 #include "SVGTransformListSMILType.h"
@@ -115,7 +116,7 @@ SVGAnimatedTransformList::ClearAnimValue(nsSVGElement *aElement)
     //
     domWrapper->InternalAnimValListWillChangeLengthTo(mBaseVal.Length());
   }
-  mAnimVal = nsnull;
+  mAnimVal = nullptr;
   aElement->DidAnimateTransformList();
 }
 

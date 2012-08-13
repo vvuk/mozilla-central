@@ -70,7 +70,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     sourceMapMap(NULL),
     debugScriptMap(NULL)
 {
-    setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
+    setGCMaxMallocBytes(rt->gcMaxMallocBytes);
 }
 
 JSCompartment::~JSCompartment()
@@ -121,15 +121,18 @@ JSCompartment::setNeedsBarrier(bool needs)
 }
 
 static bool
-WrapForSameCompartment(JSContext *cx, JSObject *obj, Value *vp)
+WrapForSameCompartment(JSContext *cx, HandleObject obj, Value *vp)
 {
     JS_ASSERT(cx->compartment == obj->compartment());
-    if (cx->runtime->sameCompartmentWrapObjectCallback) {
-        obj = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
-        if (!obj)
-            return false;
+    if (!cx->runtime->sameCompartmentWrapObjectCallback) {
+        vp->setObject(*obj);
+        return true;
     }
-    vp->setObject(*obj);
+
+    JSObject *wrapped = cx->runtime->sameCompartmentWrapObjectCallback(cx, obj);
+    if (!wrapped)
+        return false;
+    vp->setObject(*wrapped);
     return true;
 }
 
@@ -181,7 +184,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     if (cx->hasfp()) {
         global = &cx->fp()->global();
     } else {
-        global = JS_ObjectToInnerObject(cx, cx->globalObject);
+        global = cx->globalObject;
+        global = JS_ObjectToInnerObject(cx, global);
         if (!global)
             return false;
     }
@@ -233,7 +237,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         if (vp->isObject()) {
             RootedObject obj(cx, &vp->toObject());
             JS_ASSERT(obj->isCrossCompartmentWrapper());
-            if (global->getClass() != &dummy_class && obj->getParent() != global) {
+            if (obj->getParent() != global) {
                 do {
                     if (!JSObject::setParent(cx, obj, global))
                         return false;
@@ -287,9 +291,6 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
     JS_ASSERT(Wrapper::wrappedObject(wrapper) == &key.get().toObject());
 
     vp->setObject(*wrapper);
-
-    if (wrapper->getProto() != proto && !SetProto(cx, wrapper, proto, false))
-        return false;
 
     if (!crossCompartmentWrappers.put(key, *vp))
         return false;

@@ -23,6 +23,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfoID.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 #include "nsISHistoryInternal.h"
 #include "mozilla/Preferences.h"
@@ -239,8 +240,8 @@ nsHistory::Go(PRInt32 aDelta)
 
   PRInt32 curIndex=-1;
   PRInt32 len = 0;
-  nsresult rv = session_history->GetIndex(&curIndex);
-  rv = session_history->GetCount(&len);
+  session_history->GetIndex(&curIndex);
+  session_history->GetCount(&len);
 
   PRInt32 index = curIndex + aDelta;
   if (index > -1  &&  index < len)
@@ -313,7 +314,7 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
 NS_IMETHODIMP
 nsHistory::GetState(nsIVariant **aState)
 {
-  *aState = nsnull;
+  *aState = nullptr;
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win)

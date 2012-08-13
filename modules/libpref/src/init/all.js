@@ -229,7 +229,7 @@ pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 pref("gfx.canvas.azure.enabled", true);
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
-pref("gfx.canvas.azure.backends", "direct2d");
+pref("gfx.canvas.azure.backends", "direct2d,cairo");
 pref("gfx.content.azure.enabled", true);
 #else
 #ifdef XP_MACOSX
@@ -237,7 +237,7 @@ pref("gfx.canvas.azure.enabled", true);
 pref("gfx.canvas.azure.backends", "cg");
 #else
 pref("gfx.canvas.azure.enabled", false);
-pref("gfx.canvas.azure.backends", "cairo,skia");
+pref("gfx.canvas.azure.backends", "cairo");
 #endif
 #endif
 
@@ -1557,6 +1557,9 @@ pref("layout.css.dpi", -1);
 // we have to get this feature working on all platforms.
 pref("layout.css.devPixelsPerPx", "1.0");
 
+// Is support for the the @supports rule enabled?
+pref("layout.css.supports-rule.enabled", true);
+
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
 // 1 = end-side in document/content direction
@@ -1668,6 +1671,10 @@ pref("dom.ipc.plugins.enabled.602plugin.so", false);
 pref("dom.ipc.processCount", 1);
 
 pref("svg.smil.enabled", true);
+
+// Enable the use of display-lists for SVG hit-testing and painting.
+pref("svg.display-lists.hit-testing.enabled", true);
+pref("svg.display-lists.painting.enabled", true);
 
 pref("font.minimum-size.ar", 0);
 pref("font.minimum-size.x-armn", 0);
@@ -3513,6 +3520,11 @@ pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
 
+// Whether to animate simple opacity and transforms on the compositor
+pref("layers.offmainthreadcomposition.animate-opacity", false);
+pref("layers.offmainthreadcomposition.animate-transform", false);
+pref("layers.offmainthreadcomposition.log-animations", false);
+
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2
 pref("gfx.xrender.enabled",true);
@@ -3650,3 +3662,7 @@ pref("memory.low_memory_notification_interval_ms", 10000);
 pref("memory.ghost_window_timeout_seconds", 60);
 
 pref("social.enabled", false);
+
+// Disable idle observer fuzz, because only privileged content can access idle
+// observers (bug 780507).
+pref("dom.idle-observers-api.fuzz_time.disabled", true);

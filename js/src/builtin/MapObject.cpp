@@ -20,7 +20,7 @@
 
 using namespace js;
 
-
+
 /*** OrderedHashTable ****************************************************************************/
 
 /*
@@ -651,9 +651,9 @@ class OrderedHashSet
 bool
 HashableValue::setValue(JSContext *cx, const Value &v)
 {
-    if (v.isString() && v.toString()->isRope()) {
-        // Flatten this rope so that equals() is infallible.
-        JSString *str = v.toString()->ensureLinear(cx);
+    if (v.isString()) {
+        // Atomize so that hash() and equals() are fast and infallible.
+        JSString *str = js_AtomizeString(cx, v.toString(), DoNotInternAtom);
         if (!str)
             return false;
         value = StringValue(str);
@@ -683,28 +683,15 @@ HashableValue::hash() const
 {
     // HashableValue::setValue normalizes values so that the SameValue relation
     // on HashableValues is the same as the == relationship on
-    // value.data.asBits, except for strings.
-    if (value.isString()) {
-        JSLinearString &s = value.toString()->asLinear();
-        return HashChars(s.chars(), s.length());
-    }
-
-    // Having dispensed with strings, we can just hash asBits.
-    uint64_t u = value.asRawBits();
-    return HashNumber((u >> 3) ^
-                      (u >> (HashNumberSizeBits + 3)) ^
-                      (u << (HashNumberSizeBits - 3)));
+    // value.data.asBits.
+    return value.asRawBits();
 }
 
 bool
 HashableValue::equals(const HashableValue &other) const
 {
-    // Two HashableValues are equal if they have equal bits or they're equal strings.
-    bool b = (value.asRawBits() == other.value.asRawBits()) ||
-              (value.isString() &&
-               other.value.isString() &&
-               EqualStrings(&value.toString()->asLinear(),
-                            &other.value.toString()->asLinear()));
+    // Two HashableValues are equal if they have equal bits.
+    bool b = (value.asRawBits() == other.value.asRawBits());
 
 #ifdef DEBUG
     bool same;
@@ -794,16 +781,16 @@ MapIteratorObject::create(JSContext *cx, HandleObject mapobj, ValueMap *data)
     Rooted<GlobalObject *> global(cx, &mapobj->global());
     Rooted<JSObject*> proto(cx, global->getOrCreateMapIteratorPrototype(cx));
     if (!proto)
-        return false;
+        return NULL;
 
     ValueMap::Range *range = cx->new_<ValueMap::Range>(data->all());
     if (!range)
-        return false;
+        return NULL;
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &MapIteratorClass, proto, global);
     if (!iterobj) {
         cx->delete_(range);
-        return false;
+        return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*mapobj));
     iterobj->setSlot(RangeSlot, PrivateValue(range));
@@ -987,7 +974,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
             if (!pairobj)
                 return false;
 
-            Value key;
+            RootedValue key(cx);
             if (!pairobj->getElement(cx, 0, &key))
                 return false;
             HashableValue hkey;
@@ -996,7 +983,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 
             HashableValue::AutoRooter hkeyRoot(cx, &hkey);
 
-            Value val;
+            RootedValue val(cx);
             if (!pairobj->getElement(cx, 1, &val))
                 return false;
 
@@ -1058,8 +1045,9 @@ MapObject::get_impl(JSContext *cx, CallArgs args)
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
+
     if (ValueMap::Entry *p = map.get(key))
-        args.rval() = p->value;
+        args.rval().set(p->value);
     else
         args.rval().setUndefined();
     return true;
@@ -1222,7 +1210,7 @@ GlobalObject::initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global)
     JSObject *base = global->getOrCreateIteratorPrototype(cx);
     if (!base)
         return false;
-    JSObject *proto = NewObjectWithGivenProto(cx, &SetIteratorClass, base, global);
+    RootedObject proto(cx, NewObjectWithGivenProto(cx, &SetIteratorClass, base, global));
     if (!proto)
         return false;
     proto->setSlot(SetIteratorObject::RangeSlot, PrivateValue(NULL));
@@ -1238,16 +1226,16 @@ SetIteratorObject::create(JSContext *cx, HandleObject setobj, ValueSet *data)
     Rooted<GlobalObject *> global(cx, &setobj->global());
     Rooted<JSObject*> proto(cx, global->getOrCreateSetIteratorPrototype(cx));
     if (!proto)
-        return false;
+        return NULL;
 
     ValueSet::Range *range = cx->new_<ValueSet::Range>(data->all());
     if (!range)
-        return false;
+        return NULL;
 
     JSObject *iterobj = NewObjectWithGivenProto(cx, &SetIteratorClass, proto, global);
     if (!iterobj) {
         cx->delete_(range);
-        return false;
+        return NULL;
     }
     iterobj->setSlot(TargetSlot, ObjectValue(*setobj));
     iterobj->setSlot(RangeSlot, PrivateValue(range));
@@ -1279,7 +1267,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
         return js_ThrowStopIteration(cx);
     }
 
-    args.rval() = range->front().get();
+    args.rval().set(range->front().get());
     range->popFront();
     return true;
 }

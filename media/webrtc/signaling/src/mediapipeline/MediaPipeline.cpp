@@ -12,11 +12,13 @@
 #include <prlog.h>
 #include "srtp.h"
 
-#include "ImageLayers.h"
+#ifdef MOZILLA_INTERNAL_API
+#include "VideoSegment.h"
+#endif
+
 #include "logging.h"
 #include "nsError.h"
 #include "AudioSegment.h"
-#include "ImageLayers.h"
 #include "MediaSegment.h"
 #include "transportflow.h"
 #include "transportlayer.h"
@@ -141,12 +143,18 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
       rtcp_send_srtp_ = rtp_send_srtp_;
       rtcp_recv_srtp_ = rtp_recv_srtp_;
 
+      MLOG(PR_LOG_DEBUG, "Listening for packets received on " <<
+        static_cast<void *>(dtls->downward()));
+
       dtls->downward()->SignalPacketReceived.connect(this,
-                                                     &MediaPipelineReceive::
+                                                     &MediaPipeline::
                                                      PacketReceived);
     } else {
+      MLOG(PR_LOG_DEBUG, "Listening for RTP packets received on " <<
+        static_cast<void *>(dtls->downward()));
+
       dtls->downward()->SignalPacketReceived.connect(this,
-                                                     &MediaPipelineReceive::
+                                                     &MediaPipeline::
                                                      RtpPacketReceived);
     }
   }
@@ -161,9 +169,12 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
       return NS_ERROR_FAILURE;
     }
 
+    MLOG(PR_LOG_DEBUG, "Listening for RTCP packets received on " <<
+      static_cast<void *>(dtls->downward()));
+
     // Start listening
     dtls->downward()->SignalPacketReceived.connect(this,
-                                                  &MediaPipelineReceive::
+                                                  &MediaPipeline::
                                                   RtcpPacketReceived);
   }
 
@@ -231,6 +242,12 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
   increment_rtp_packets_received();
 
   PR_ASSERT(rtp_recv_srtp_);  // This should never happen
+
+  if (direction_ == TRANSMIT) {
+    // Discard any media that is being transmitted to us
+    // This will be unnecessary when we have SSRC filtering.
+    return;
+  }
 
   // Make a copy rather than cast away constness
   mozilla::ScopedDeletePtr<unsigned char> inner_data(
@@ -386,8 +403,16 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          const MediaSegment& queued_media) {
   if (!pipeline_)
     return;  // Detached
-
+  
   MLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
+
+  // Return early if we are not connected to avoid queueing stuff
+  // up in the conduit
+  if (pipeline_->rtp_transport_->state() != TransportLayer::OPEN) {
+    MLOG(PR_LOG_DEBUG, "Transport not ready yet, dropping packets");
+    return;
+  }
+
   // TODO(ekr@rtfm.com): For now assume that we have only one
   // track type and it's destined for us
   if (queued_media.GetType() == MediaSegment::AUDIO) {
@@ -406,6 +431,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
       iter.Next();
     }
   } else if (queued_media.GetType() == MediaSegment::VIDEO) {
+    #ifdef MOZILLA_INTERNAL_API
     if (pipeline_->conduit_->type() != MediaSessionConduit::VIDEO) {
       // Ignore data in case we have a muxed stream
       return;
@@ -420,6 +446,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                                    rate, *iter);
       iter.Next();
     }
+    #endif
   } else {
     // Ignore
   }
@@ -469,11 +496,10 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
   conduit->SendAudioFrame(samples.get(), chunk.mDuration, rate, 0);
 }
 
-
+#ifdef MOZILLA_INTERNAL_API
 void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               TrackRate rate,
                                               VideoChunk& chunk) {
-#ifdef MOZILLA_INTERNAL_API
   // We now need to send the video frame to the other side
   mozilla::layers::Image *img = chunk.mFrame.GetImage();
 
@@ -503,10 +529,11 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 
   // OK, pass it on to the conduit
   // TODO(ekr@rtfm.com): Check return value
+  MLOG(PR_LOG_DEBUG, "Sending a video frame");
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
     yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
-#endif
 }
+#endif
 
 nsresult MediaPipelineReceiveAudio::Init() {
   MLOG(PR_LOG_DEBUG, __FUNCTION__);
@@ -574,7 +601,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
 
     char buf[32];
     snprintf(buf, 32, "%p", source);
-    MLOG(PR_LOG_DEBUG, "Appended segments to stream " << buf);
+    MLOG(PR_LOG_DEBUG, "Appended audio segments to stream " << buf);
     source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
   }
@@ -600,7 +627,7 @@ MediaPipelineReceiveVideo::PipelineRenderer::PipelineRenderer(
 #ifdef MOZILLA_INTERNAL_API
   mozilla::SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
-  source->AddTrack(1, 10, 0, new mozilla::VideoSegment());
+  source->AddTrack(1, 30, 0, new mozilla::VideoSegment());
   source->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
 #endif
 }
@@ -639,6 +666,10 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
   videoImage->SetData(data);
 
   VideoSegment segment;
+  char buf[32];
+  snprintf(buf, 32, "%p", source);
+  MLOG(PR_LOG_DEBUG, "Appended video segments to stream " << buf);
+
   segment.AppendFrame(image.forget(), 1, gfxIntSize(width_, height_));
   source->AppendToTrack(1, &(segment));
 #endif

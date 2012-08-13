@@ -8,9 +8,7 @@
 #endif
 #include <math.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+#include "mozilla/Constants.h"
 
 #include "cairo.h"
 
@@ -41,7 +39,7 @@ public:
     gfxContext::AzureState &state = mContext->CurrentState();
 
     if (state.pattern) {
-      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nsnull);
+      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nullptr);
     } else if (state.sourceSurface) {
       Matrix transform = state.surfTransform;
 
@@ -902,7 +900,7 @@ gfxContext::SetDash(gfxLineType ltype)
           break;
       case gfxLineSolid:
       default:
-          SetDash(nsnull, 0, 0.0);
+          SetDash(nullptr, 0, 0.0);
           break;
   }
 }
@@ -1372,7 +1370,7 @@ gfxContext::GetPattern()
     cairo_pattern_t *pat = cairo_get_source(mCairo);
     NS_ASSERTION(pat, "I was told this couldn't be null");
 
-    gfxPattern *wrapper = nsnull;
+    gfxPattern *wrapper = nullptr;
     if (pat)
         wrapper = new gfxPattern(pat);
     else

@@ -23,20 +23,19 @@
 #ifndef nsINodeInfo_h___
 #define nsINodeInfo_h___
 
-#include "nsISupports.h"
-#include "nsIAtom.h"
-#include "nsINameSpaceManager.h"
-#include "nsNodeInfoManager.h"
-#include "nsCOMPtr.h"
+#include "nsCOMPtr.h"            // for member
+#include "nsIAtom.h"             // for member (in nsCOMPtr)
+#include "nsINameSpaceManager.h" // for kNameSpaceID_*
+#include "nsISupports.h"         // for base class
 
 #ifdef MOZILLA_INTERNAL_API
 #include "nsDOMString.h"
 #endif
 
-// Forward declarations
 class nsIDocument;
 class nsIURI;
 class nsIPrincipal;
+class nsNodeInfoManager;
 
 // IID for the nsINodeInfo interface
 #define NS_INODEINFO_IID      \
@@ -49,8 +48,8 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODEINFO_IID)
 
   nsINodeInfo()
-    : mInner(nsnull, nsnull, kNameSpaceID_None, 0, nsnull),
-      mOwnerManager(nsnull)
+    : mInner(nullptr, nullptr, kNameSpaceID_None, 0, nullptr),
+      mOwnerManager(nullptr)
   {
   }
 
@@ -299,20 +298,20 @@ protected:
   {
   public:
     nsNodeInfoInner()
-      : mName(nsnull), mPrefix(nsnull), mNamespaceID(kNameSpaceID_Unknown),
-        mNodeType(0), mNameString(nsnull), mExtraName(nsnull)
+      : mName(nullptr), mPrefix(nullptr), mNamespaceID(kNameSpaceID_Unknown),
+        mNodeType(0), mNameString(nullptr), mExtraName(nullptr)
     {
     }
     nsNodeInfoInner(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
                     PRUint16 aNodeType, nsIAtom* aExtraName)
       : mName(aName), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNodeType(aNodeType), mNameString(nsnull), mExtraName(aExtraName)
+        mNodeType(aNodeType), mNameString(nullptr), mExtraName(aExtraName)
     {
     }
     nsNodeInfoInner(const nsAString& aTmpName, nsIAtom *aPrefix,
                     PRInt32 aNamespaceID, PRUint16 aNodeType)
-      : mName(nsnull), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
-        mNodeType(aNodeType), mNameString(&aTmpName), mExtraName(nsnull)
+      : mName(nullptr), mPrefix(aPrefix), mNamespaceID(aNamespaceID),
+        mNodeType(aNodeType), mNameString(&aTmpName), mExtraName(nullptr)
     {
     }
 

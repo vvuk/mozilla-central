@@ -100,7 +100,7 @@ MediaConduitErrorCode WebrtcVideoConduit::Init()
      return kMediaConduitSessionNotInited;
   }
 
-#if 0
+#if 1
   // TRACING
   mVideoEngine->SetTraceFilter(webrtc::kTraceAll);
   mVideoEngine->SetTraceFile( "Vievideotrace.out" );

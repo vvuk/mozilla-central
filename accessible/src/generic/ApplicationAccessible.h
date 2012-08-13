@@ -61,7 +61,7 @@ public:
   NS_DECL_NSIACCESSIBLEAPPLICATION
 
   // nsAccessNode
-  virtual bool Init();
+  virtual void Init();
   virtual void Shutdown();
   virtual bool IsPrimaryForNode() const;
 
@@ -91,7 +91,7 @@ protected:
   // Accessible
   virtual void CacheChildren();
   virtual Accessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                         nsresult *aError = nsnull) const;
+                                         nsresult *aError = nullptr) const;
 
 private:
   nsCOMPtr<nsIXULAppInfo> mAppInfo;

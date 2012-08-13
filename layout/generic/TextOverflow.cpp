@@ -17,6 +17,7 @@
 #include "nsRect.h"
 #include "nsRenderingContext.h"
 #include "nsTextFrame.h"
+#include "nsStyleStructInlines.h"
 #include "mozilla/Util.h"
 
 namespace mozilla {
@@ -53,7 +54,7 @@ static bool
 IsAtomicElement(nsIFrame* aFrame, const nsIAtom* aFrameType)
 {
   NS_PRECONDITION(!nsLayoutUtils::GetAsBlock(aFrame) ||
-                  !aFrame->GetStyleDisplay()->IsBlockOutside(),
+                  !aFrame->IsBlockOutside(),
                   "unexpected block frame");
   NS_PRECONDITION(aFrameType != nsGkAtoms::placeholderFrame,
                   "unexpected placeholder frame");
@@ -76,7 +77,7 @@ IsFullyClipped(nsTextFrame* aFrame, nscoord aLeft, nscoord aRight,
 static bool
 IsHorizontalOverflowVisible(nsIFrame* aFrame)
 {
-  NS_PRECONDITION(nsLayoutUtils::GetAsBlock(aFrame) != nsnull,
+  NS_PRECONDITION(nsLayoutUtils::GetAsBlock(aFrame) != nullptr,
                   "expected a block frame");
 
   nsIFrame* f = aFrame;
@@ -269,7 +270,7 @@ TextOverflow::WillProcessLines(nsDisplayListBuilder*   aBuilder,
                                nsIFrame*               aBlockFrame)
 {
   if (!CanHaveTextOverflow(aBuilder, aBlockFrame)) {
-    return nsnull;
+    return nullptr;
   }
   nsAutoPtr<TextOverflow> textOverflow(new TextOverflow);
   textOverflow->Init(aBuilder, aBlockFrame);
@@ -617,7 +618,7 @@ TextOverflow::PruneDisplayListContents(nsDisplayList*        aList,
     }
 
     nsCharClipDisplayItem* charClip = itemFrame ? 
-      nsCharClipDisplayItem::CheckCast(item) : nsnull;
+      nsCharClipDisplayItem::CheckCast(item) : nullptr;
     if (charClip && GetSelfOrNearestBlock(itemFrame) == mBlock) {
       nsRect rect = itemFrame->GetScrollableOverflowRect() +
                     itemFrame->GetOffsetTo(mBlock);

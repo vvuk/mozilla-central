@@ -4,7 +4,7 @@
 
 "use strict";
 
-const EXPORTED_SYMBOLS = ["selectIdentity"];
+const EXPORTED_SYMBOLS = ["selectIdentity", "verifyIdentity"];
 const DEFAULT_IDP = "browserid.org";
 const DEFAULT_PROTOCOL = "persona";
 
@@ -12,6 +12,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/identity/jwcrypto.jsm");
 Cu.import("resource://gre/modules/identity/Identity.jsm");
 Cu.import("resource://gre/modules/identity/RelyingParty.jsm");
 
@@ -35,8 +36,48 @@ AuthModule.prototype = {
     );
   },
   verify: function(aAssertion, aCallback) {
-
+    // XXX: Use verifyIdentity for now until we get real crypto verification
   }
+};
+
+/**
+ * Verify an identity based on a signature provided by a WEBRTC PeerConnection
+ *
+ * @param aSignature        The signature provided by the remote peer.
+ *        (string)
+ *
+ * @param aCallback         Called after the signature has been verified. First
+ *        (function)        argument will be a string error (if any) or null.
+ *                          If no error, second argument will be a dictionary
+ *                          describing the verified identity (such as the one
+ *                          provided by selectIdentity).
+ */
+let verifyIdentity = function verifyIdentity(aSignature, aCallback) {
+  let parts = aSignature.split(".");
+  if (parts.length != 5) {
+    aCallback(new Error("Invalid signature"), null);
+    return;
+  }
+
+  let pubkey = "blah";
+  let message = JSON.parse(jwcrypto.base64Decode(parts[3]));
+  let assertion = [parts[0], parts[1], parts[2]].join(".");
+
+  jwcrypto.verifyAssertion(assertion, pubkey, function(err, val) {
+    if (err) {
+      aCallback(err, null);
+      return;
+    }
+    let ret = {
+      aud: message.aud,
+      message: message.message,
+      iss: val.iss,
+      exp: val.exp,
+      iat: val.iat,
+      principal: val.principal
+    };
+    aCallback(null, ret);
+  });
 };
 
 /**

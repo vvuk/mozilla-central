@@ -6,12 +6,10 @@
 #ifndef MOZILLA_AUDIOSEGMENT_H_
 #define MOZILLA_AUDIOSEGMENT_H_
 
-#include "AudioSegment.h"
 #include "MediaSegment.h"
 #include "nsISupportsImpl.h"
 #include "nsAudioStream.h"
 #include "SharedBuffer.h"
-#include "VideoSegment.h"
 
 namespace mozilla {
 
@@ -41,10 +39,10 @@ struct AudioChunk {
     }
     return true;
   }
-  bool IsNull() const { return mBuffer == nsnull; }
+  bool IsNull() const { return mBuffer == nullptr; }
   void SetNull(TrackTicks aDuration)
   {
-    mBuffer = nsnull;
+    mBuffer = nullptr;
     mDuration = aDuration;
     mOffset = 0;
     mVolume = 1.0f;

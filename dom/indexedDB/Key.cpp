@@ -105,7 +105,8 @@ Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
 {
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
 
-  PR_STATIC_ASSERT(eMaxType * MaxArrayCollapse < 256);
+  MOZ_STATIC_ASSERT(eMaxType * MaxArrayCollapse < 256,
+                    "Unable to encode jsvals.");
 
   if (JSVAL_IS_STRING(aVal)) {
     nsDependentJSString str;
@@ -189,7 +190,7 @@ Key::DecodeJSValInternal(const unsigned char*& aPos, const unsigned char* aEnd,
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
 
   if (*aPos - aTypeOffset >= eArray) {
-    JSObject* array = JS_NewArrayObject(aCx, 0, nsnull);
+    JSObject* array = JS_NewArrayObject(aCx, 0, nullptr);
     if (!array) {
       NS_WARNING("Failed to make array!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;

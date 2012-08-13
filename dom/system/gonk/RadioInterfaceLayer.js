@@ -175,6 +175,22 @@ function RadioInterfaceLayer() {
   // value at boot time.
   gSettingsService.getLock().get("ril.radio.disabled", this);
 
+  // Read the APN data form the setting DB.
+  gSettingsService.getLock().get("ril.data.apn", this);
+  gSettingsService.getLock().get("ril.data.user", this);
+  gSettingsService.getLock().get("ril.data.passwd", this);
+  gSettingsService.getLock().get("ril.data.httpProxyHost", this);
+  gSettingsService.getLock().get("ril.data.httpProxyPort", this);
+  gSettingsService.getLock().get("ril.data.roaming_enabled", this);
+  gSettingsService.getLock().get("ril.data.enabled", this);
+  this._dataCallSettingsToRead = ["ril.data.enabled",
+                                  "ril.data.roaming_enabled",
+                                  "ril.data.apn",
+                                  "ril.data.user",
+                                  "ril.data.passwd",
+                                  "ril.data.httpProxyHost",
+                                  "ril.data.httpProxyPort"];
+
   for each (let msgname in RIL_IPC_MSG_NAMES) {
     ppmm.addMessageListener(msgname, this);
   }
@@ -292,7 +308,7 @@ RadioInterfaceLayer.prototype = {
   onmessage: function onmessage(event) {
     let message = event.data;
     debug("Received message from worker: " + JSON.stringify(message));
-    switch (message.type) {
+    switch (message.rilMessageType) {
       case "callStateChange":
         // This one will handle its own notifications.
         this.handleCallStateChange(message.call);
@@ -332,7 +348,7 @@ RadioInterfaceLayer.prototype = {
       case "datacallerror":
         // 3G Network revoked the data connection, possible unavailable APN
         debug("Received data registration error message. Failed APN " +
-              Services.prefs.getCharPref("ril.data.apn"));
+              this.dataCallSettings["apn"]);
         RILNetworkInterface.reset();
         break;
       case "signalstrengthchange":
@@ -418,7 +434,8 @@ RadioInterfaceLayer.prototype = {
         this.handleCancelUSSD(message);
         break;
       default:
-        throw new Error("Don't know about this message type: " + message.type);
+        throw new Error("Don't know about this message type: " +
+                        message.rilMessageType);
     }
   },
 
@@ -516,22 +533,6 @@ RadioInterfaceLayer.prototype = {
     return false;
   },
 
-  _isDataEnabled: function _isDataEnabled() {
-    try {
-      return Services.prefs.getBoolPref("ril.data.enabled");
-    } catch(ex) {
-      return false;
-    }
-  },
-
-  _isDataRoamingEnabled: function _isDataRoamingEnabled() {
-    try {
-      return Services.prefs.getBoolPref("ril.data.roaming.enabled");
-    } catch(ex) {
-      return false;
-    }
-  },
-
   updateDataConnection: function updateDataConnection(state) {
     let data = this.rilContext.data;
     if (!state || state.regState == RIL.NETWORK_CREG_STATE_UNKNOWN) {
@@ -550,21 +551,20 @@ RadioInterfaceLayer.prototype = {
     data.type = RIL.GECKO_RADIO_TECH[state.radioTech] || null;
     ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);
 
-    if (!this._isDataEnabled()) {
+    if (!this.dataCallSettings["enabled"]) {
       return false;
     }
 
     let isRegistered =
       state.regState == RIL.NETWORK_CREG_STATE_REGISTERED_HOME ||
-        (this._isDataRoamingEnabled() &&
+        (this.dataCallSettings["roaming_enabled"] &&
          state.regState == RIL.NETWORK_CREG_STATE_REGISTERED_ROAMING);
     let haveDataConnection =
       state.radioTech != RIL.NETWORK_CREG_TECH_UNKNOWN;
 
     if (isRegistered && haveDataConnection) {
       debug("Radio is ready for data connection.");
-      // RILNetworkInterface will ignore this if it's already connected.
-      RILNetworkInterface.connect();
+      this.updateRILNetworkInterface();
     }
     return false;
   },
@@ -635,6 +635,39 @@ RadioInterfaceLayer.prototype = {
     if (this.rilContext.radioState == RIL.GECKO_RADIOSTATE_READY &&
         !this._radioEnabled) {
       this.setRadioEnabled(false);
+    }
+  },
+
+  updateRILNetworkInterface: function updateRILNetworkInterface() {
+    if (this._dataCallSettingsToRead.length) {
+      debug("We haven't read completely the APN data from the " +
+            "settings DB yet. Wait for that.");
+      return;
+    } 
+
+    // This check avoids data call connection if the radio is not ready 
+    // yet after toggling off airplane mode. 
+    if (this.rilContext.radioState != RIL.GECKO_RADIOSTATE_READY) {
+      return; 
+    }
+
+    // We only watch at "ril.data.enabled" flag changes for connecting or
+    // disconnecting the data call. If the value of "ril.data.enabled" is
+    // true and any of the remaining flags change the setting application
+    // should turn this flag to false and then to true in order to reload
+    // the new values and reconnect the data call.
+    if (this._oldRilDataEnabledState == this.dataCallSettings["enabled"]) {
+      debug("No changes for ril.data.enabled flag. Nothing to do.");
+      return;
+    }
+
+    if (!this.dataCallSettings["enabled"] && RILNetworkInterface.connected) {
+      debug("Data call settings: disconnect data call.");
+      RILNetworkInterface.disconnect();
+    }
+    if (this.dataCallSettings["enabled"] && !RILNetworkInterface.connected) {
+      debug("Data call settings connect data call.");
+      RILNetworkInterface.connect(this.dataCallSettings);
     }
   },
 
@@ -924,33 +957,6 @@ RadioInterfaceLayer.prototype = {
                                   [message.datacalls, message.datacalls.length]);
   },
 
-  /**
-   * Handle setting changes.
-   */
-  handleMozSettingsChanged: function handleMozSettingsChanged(setting) {
-    switch (setting.key) {
-      case "ril.radio.disabled":
-        this._radioEnabled = !setting.value;
-        this._ensureRadioState();
-        break;
-      case "ril.data.enabled":
-        // We only watch at "ril.data.enabled" flag changes for connecting or
-        // disconnecting the data call. If the value of "ril.data.enabled" is
-        // true and any of the remaining flags change the setting application
-        // should turn this flag to false and then to true in order to reload
-        // the new values and reconnect the data call.
-        if (!setting.value && RILNetworkInterface.connected) {
-          debug("Data call settings: disconnect data call.");
-          RILNetworkInterface.disconnect();
-        }
-        if (setting.value && !RILNetworkInterface.connected) {
-          debug("Data call settings connect data call.");
-          RILNetworkInterface.connect();
-        }
-        break;
-    }
-  },
-
   handleICCGetCardLock: function handleICCGetCardLock(message) {
     ppmm.sendAsyncMessage("RIL:GetCardLock:Return:OK", message);
   },
@@ -988,7 +994,7 @@ RadioInterfaceLayer.prototype = {
     switch (topic) {
       case kMozSettingsChangedObserverTopic:
         let setting = JSON.parse(data);
-        this.handleMozSettingsChanged(setting);
+        this.handle(setting.key, setting.value);
         break;
       case "xpcom-shutdown":
         for each (let msgname in RIL_IPC_MSG_NAMES) {
@@ -1008,19 +1014,49 @@ RadioInterfaceLayer.prototype = {
   // corresponds to the 'ril.radio.disabled' setting from the UI.
   _radioEnabled: null,
 
+  // APN data for making data calls.
+  dataCallSettings: {},
+  _dataCallSettingsToRead: [],
+  _oldRilDataEnabledState: null,
+  
   handle: function handle(aName, aResult) {
-    if (aName == "ril.radio.disabled") {
-      debug("'ril.radio.disabled' is " + aResult);
-      this._radioEnabled = !aResult;
-      this._ensureRadioState();
-    }
+    switch(aName) {
+      case "ril.radio.disabled":
+        debug("'ril.radio.disabled' is now " + aResult);
+        this._radioEnabled = !aResult;
+        this._ensureRadioState();
+        break;
+      case "ril.data.enabled":
+        this._oldRilDataEnabledState = this.dataCallSettings["enabled"];
+        // Fall through!
+      case "ril.data.roaming_enabled":
+      case "ril.data.apn":
+      case "ril.data.user":
+      case "ril.data.passwd":
+      case "ril.data.httpProxyHost":
+      case "ril.data.httpProxyPort":
+        let key = aName.slice(9);
+        this.dataCallSettings[key] = aResult;
+        debug("'" + aName + "'" + " is now " + this.dataCallSettings[key]);
+        let index = this._dataCallSettingsToRead.indexOf(aName);
+        if (index != -1) {
+          this._dataCallSettingsToRead.splice(index, 1);
+        }
+        this.updateRILNetworkInterface();
+        break;
+    };
   },
-
+    
   handleError: function handleError(aErrorMessage) {
-    debug("There was an error reading the 'ril.radio.disabled' setting., " +
-          "default to radio on.");
+    debug("There was an error while reading RIL settings.");
+
+    // Default radio to on.
     this._radioEnabled = true;
     this._ensureRadioState();
+
+    // Clean data call setting. 
+    this.dataCallSettings = {};
+    this.dataCallSettings["enabled"] = false; 
   },
 
   // nsIRadioWorker
@@ -1031,7 +1067,7 @@ RadioInterfaceLayer.prototype = {
 
   setRadioEnabled: function setRadioEnabled(value) {
     debug("Setting radio power to " + value);
-    this.worker.postMessage({type: "setRadioPower", on: value});
+    this.worker.postMessage({rilMessageType: "setRadioPower", on: value});
   },
 
   rilContext: null,
@@ -1040,72 +1076,84 @@ RadioInterfaceLayer.prototype = {
 
   enumerateCalls: function enumerateCalls() {
     debug("Requesting enumeration of calls for callback");
-    this.worker.postMessage({type: "enumerateCalls"});
+    this.worker.postMessage({rilMessageType: "enumerateCalls"});
   },
 
   dial: function dial(number) {
     debug("Dialing " + number);
-    this.worker.postMessage({type: "dial", number: number, isDialEmergency: false});
+    this.worker.postMessage({rilMessageType: "dial",
+                             number: number,
+                             isDialEmergency: false});
   },
 
   dialEmergency: function dialEmergency(number) {
     debug("Dialing emergency " + number);
-    this.worker.postMessage({type: "dial", number: number, isDialEmergency: true});
+    this.worker.postMessage({rilMessageType: "dial",
+                             number: number,
+                             isDialEmergency: true});
   },
 
   hangUp: function hangUp(callIndex) {
     debug("Hanging up call no. " + callIndex);
-    this.worker.postMessage({type: "hangUp", callIndex: callIndex});
+    this.worker.postMessage({rilMessageType: "hangUp",
+                             callIndex: callIndex});
   },
 
   startTone: function startTone(dtmfChar) {
     debug("Sending Tone for " + dtmfChar);
-    this.worker.postMessage({type: "startTone", dtmfChar: dtmfChar});
+    this.worker.postMessage({rilMessageType: "startTone",
+                             dtmfChar: dtmfChar});
   },
 
   stopTone: function stopTone() {
     debug("Stopping Tone");
-    this.worker.postMessage({type: "stopTone"});
+    this.worker.postMessage({rilMessageType: "stopTone"});
   },
 
   answerCall: function answerCall(callIndex) {
-    this.worker.postMessage({type: "answerCall", callIndex: callIndex});
+    this.worker.postMessage({rilMessageType: "answerCall",
+                             callIndex: callIndex});
   },
 
   rejectCall: function rejectCall(callIndex) {
-    this.worker.postMessage({type: "rejectCall", callIndex: callIndex});
+    this.worker.postMessage({rilMessageType: "rejectCall",
+                             callIndex: callIndex});
   },
  
   holdCall: function holdCall(callIndex) {
-    this.worker.postMessage({type: "holdCall", callIndex: callIndex});
+    this.worker.postMessage({rilMessageType: "holdCall",
+                             callIndex: callIndex});
   },
 
   resumeCall: function resumeCall(callIndex) {
-    this.worker.postMessage({type: "resumeCall", callIndex: callIndex});
+    this.worker.postMessage({rilMessageType: "resumeCall",
+                             callIndex: callIndex});
   },
 
   getAvailableNetworks: function getAvailableNetworks(requestId) {
-    this.worker.postMessage({type: "getAvailableNetworks", requestId: requestId});
+    this.worker.postMessage({rilMessageType: "getAvailableNetworks",
+                             requestId: requestId});
   },
 
   sendUSSD: function sendUSSD(message) {
     debug("SendUSSD " + JSON.stringify(message));
-    message.type = "sendUSSD";
+    message.rilMessageType = "sendUSSD";
     this.worker.postMessage(message);
   },
 
   cancelUSSD: function cancelUSSD(message) {
     debug("Cancel pending USSD");
-    message.type = "cancelUSSD";
+    message.rilMessageType = "cancelUSSD";
     this.worker.postMessage(message);
   },
 
   selectNetworkAuto: function selectNetworkAuto(requestId) {
-    this.worker.postMessage({type: "selectNetworkAuto", requestId: requestId});
+    this.worker.postMessage({rilMessageType: "selectNetworkAuto",
+                             requestId: requestId});
   },
 
   selectNetwork: function selectNetwork(message) {
-    message.type = "selectNetwork";
+    message.rilMessageType = "selectNetwork";
     this.worker.postMessage(message);
   },
 
@@ -1514,7 +1562,7 @@ RadioInterfaceLayer.prototype = {
 
   sendSMS: function sendSMS(number, message, requestId, processId) {
     let options = this._calculateUserDataLength(message);
-    options.type = "sendSMS";
+    options.rilMessageType = "sendSMS";
     options.number = number;
     options.requestId = requestId;
     options.processId = processId;
@@ -1583,7 +1631,7 @@ RadioInterfaceLayer.prototype = {
   },
 
   setupDataCall: function setupDataCall(radioTech, apn, user, passwd, chappap, pdptype) {
-    this.worker.postMessage({type: "setupDataCall",
+    this.worker.postMessage({rilMessageType: "setupDataCall",
                              radioTech: radioTech,
                              apn: apn,
                              user: user,
@@ -1593,20 +1641,20 @@ RadioInterfaceLayer.prototype = {
   },
 
   deactivateDataCall: function deactivateDataCall(cid, reason) {
-    this.worker.postMessage({type: "deactivateDataCall",
+    this.worker.postMessage({rilMessageType: "deactivateDataCall",
                              cid: cid,
                              reason: reason});
   },
 
   getDataCallList: function getDataCallList() {
-    this.worker.postMessage({type: "getDataCallList"});
+    this.worker.postMessage({rilMessageType: "getDataCallList"});
   },
 
   getCardLock: function getCardLock(message) {
     // Currently only support pin.
     switch (message.lockType) {
       case "pin" :
-        message.type = "getICCPinLock";
+        message.rilMessageType = "getICCPinLock";
         break;
       default:
         ppmm.sendAsyncMessage("RIL:GetCardLock:Return:KO",
@@ -1620,16 +1668,16 @@ RadioInterfaceLayer.prototype = {
   unlockCardLock: function unlockCardLock(message) {
     switch (message.lockType) {
       case "pin":
-        message.type = "enterICCPIN";
+        message.rilMessageType = "enterICCPIN";
         break;
       case "pin2":
-        message.type = "enterICCPIN2";
+        message.rilMessageType = "enterICCPIN2";
         break;
       case "puk":
-        message.type = "enterICCPUK";
+        message.rilMessageType = "enterICCPUK";
         break;
       case "puk2":
-        message.type = "enterICCPUK2";
+        message.rilMessageType = "enterICCPUK2";
         break;
       default:
         ppmm.sendAsyncMessage("RIL:UnlockCardLock:Return:KO",
@@ -1645,10 +1693,10 @@ RadioInterfaceLayer.prototype = {
     if (message.newPin !== undefined) {
       switch (message.lockType) {
         case "pin":
-          message.type = "changeICCPIN";
+          message.rilMessageType = "changeICCPIN";
           break;
         case "pin2":
-          message.type = "changeICCPIN2";
+          message.rilMessageType = "changeICCPIN2";
           break;
         default:
           ppmm.sendAsyncMessage("RIL:SetCardLock:Return:KO",
@@ -1662,7 +1710,7 @@ RadioInterfaceLayer.prototype = {
                                 {errorMsg: "Unsupported Card Lock.",
                                  requestId: message.requestId});
       }
-      message.type = "setICCPinLock";
+      message.rilMessageType = "setICCPinLock";
     }
     this.worker.postMessage(message);
   },
@@ -1687,7 +1735,7 @@ RadioInterfaceLayer.prototype = {
         debug("Unknown contact type. " + type);
         return;
     }
-    this.worker.postMessage({type: msgType, requestId: requestId});
+    this.worker.postMessage({rilMessageType: msgType, requestId: requestId});
   }
 };
 
@@ -1728,6 +1776,10 @@ let RILNetworkInterface = {
 
   dhcp: false,
 
+  httpProxyHost: null,
+
+  httpProxyPort: null,
+
   // nsIRILDataCallback
 
   dataCallStateChanged: function dataCallStateChanged(datacall) {
@@ -1767,6 +1819,7 @@ let RILNetworkInterface = {
   registeredAsDataCallCallback: false,
   registeredAsNetworkInterface: false,
   connecting: false,
+  dataCallSettings: {},
 
   // APN failed connections. Retry counter
   apnRetryCounter: 0,
@@ -1782,31 +1835,31 @@ let RILNetworkInterface = {
     return this.state == RIL.GECKO_NETWORK_STATE_CONNECTED;
   },
 
-  connect: function connect() {
+  connect: function connect(options) {
     if (this.connecting ||
         this.state == RIL.GECKO_NETWORK_STATE_CONNECTED ||
         this.state == RIL.GECKO_NETWORK_STATE_SUSPENDED) {
       return;
     }
+
     if (!this.registeredAsDataCallCallback) {
       this.mRIL.registerDataCallCallback(this);
       this.registeredAsDataCallCallback = true;
     }
 
-    let apn, user, passwd;
-    // Eventually these values would be retrieved from the user's preferences
-    // via the settings API. For now we just use Gecko's preferences.
-    try {
-      apn = Services.prefs.getCharPref("ril.data.apn");
-      user = Services.prefs.getCharPref("ril.data.user");
-      passwd = Services.prefs.getCharPref("ril.data.passwd");
-    } catch (ex) {
-      debug("No APN settings found, not going to set up data connection.");
-      return;
+    if (options) {
+      // Save the APN data locally for using them in connection retries. 
+      this.dataCallSettings = options;
     }
-    debug("Going to set up data connection with APN " + apn);
+
+    this.httpProxyHost = this.dataCallSettings["httpProxyHost"];
+    this.httpProxyPort = this.dataCallSettings["httpProxyPort"];
+
+    debug("Going to set up data connection with APN " + this.dataCallSettings["apn"]);
     this.mRIL.setupDataCall(RIL.DATACALL_RADIOTECHNOLOGY_GSM,
-                            apn, user, passwd,
+                            this.dataCallSettings["apn"], 
+                            this.dataCallSettings["user"], 
+                            this.dataCallSettings["passwd"],
                             RIL.DATACALL_AUTH_PAP_OR_CHAP, "IP");
     this.connecting = true;
   },

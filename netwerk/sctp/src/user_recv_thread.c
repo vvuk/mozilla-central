@@ -45,7 +45,9 @@
 #include <netinet/sctp_pcb.h>
 #if defined(__Userspace_os_Linux)
 #include <linux/netlink.h>
+#if defined(HAVE_LINUX_IF_ADDR_H)
 #include <linux/if_addr.h>
+#endif
 #endif
 
 /* local macros and datatypes used to get IP addresses system independently */

@@ -51,15 +51,24 @@ interface nsIDOMRTCPeerConnection : nsISupports
   void removeStream(in nsIDOMMediaStream stream);
   void close();
 
-  nsIDOMDataChannel createDataChannel(/* FIX! */);
+  /* Identity */
+  void selectIdentity(in RTCPeerConnectionCallback successCallback,
+    [optional] in RTCPeerConnectionCallback failureCallback);
+
+  void verifyIdentity(in jsval offer,
+    in RTCPeerConnectionCallback successCallback,
+    in RTCPeerConnectionCallback failureCallback);
+
+  /* Data channel */
+  nsIDOMDataChannel createDataChannel();
 
   /* XXX remove these */
   void listen(in unsigned short port);
   void connect(in DOMString addr, in unsigned short port);
 
-  attribute nsIDOMEventListener onconnection;
-  attribute nsIDOMEventListener onclosedconnection;
-  attribute nsIDOMEventListener ondatachannel;
+  attribute RTCPeerConnectionCallback onConnectionx;
+  attribute RTCPeerConnectionCallback onClosedConnectionx;
+  attribute RTCPeerConnectionCallback onDataChannelx;
 
   readonly attribute DOMString iceState;
   readonly attribute DOMString readyState;

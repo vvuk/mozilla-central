@@ -16,7 +16,6 @@
 // #includes from MediaStream.h
 #include "mozilla/Mutex.h"
 #include "AudioSegment.h"
-#include "ImageLayers.h"
 #include "MediaSegment.h"
 #include "StreamBuffer.h"
 #include "nsAudioStream.h"

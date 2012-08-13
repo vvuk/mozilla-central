@@ -1379,7 +1379,7 @@ var NativeWindow = {
       }
 
       // only send the contextmenu event to content if we are planning to show a context menu (i.e. not on every long tap)
-      if (this.menuitems) {
+      if (!this.textContext.matches(element) && this.menuitems) {
         let event = rootElement.ownerDocument.createEvent("MouseEvent");
         event.initMouseEvent("contextmenu", true, true, content,
                              0, aX, aY, aX, aY, false, false, false, false,
@@ -1522,6 +1522,17 @@ var SelectionHandler = {
     this._viewRef = Cu.getWeakReference(aView);
   },
 
+  // The target can be a window or an input element
+  get _target() {
+    if (this._targetRef)
+      return this._targetRef.get();
+    return null;
+  },
+
+  set _target(aTarget) {
+    this._targetRef = Cu.getWeakReference(aTarget);
+  },
+
   get _cwu() {
     return BrowserApp.selectedBrowser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                                                     getInterface(Ci.nsIDOMWindowUtils);
@@ -1645,23 +1656,25 @@ var SelectionHandler = {
 
     // Get the element's view
     this._view = aElement.ownerDocument.defaultView;
+
+    if (aElement instanceof Ci.nsIDOMNSEditableElement)
+      this._target = aElement;
+    else
+      this._target = this._view;
+
     this._view.addEventListener("pagehide", this, false);
     this._isRTL = (this._view.getComputedStyle(aElement, "").direction == "rtl");
 
     // Remove any previous selected or created ranges. Tapping anywhere on a
     // page will create an empty range.
-    let selection = this._view.getSelection();
+    let selection = this.getSelection();
     selection.removeAllRanges();
 
     // Position the caret using a fake mouse click sent to the top-level window
     this._sendMouseEvents(aX, aY, false);
 
     try {
-      let selectionController = this._view.QueryInterface(Ci.nsIInterfaceRequestor).
-                                           getInterface(Ci.nsIWebNavigation).
-                                           QueryInterface(Ci.nsIInterfaceRequestor).
-                                           getInterface(Ci.nsISelectionDisplay).
-                                           QueryInterface(Ci.nsISelectionController);
+      let selectionController = this.getSelectionController();
 
       // Select the word nearest the caret
       selectionController.wordMove(false, false);
@@ -1691,6 +1704,24 @@ var SelectionHandler = {
     this._active = true;
   },
 
+  getSelection: function sh_getSelection() {
+    if (this._target instanceof Ci.nsIDOMNSEditableElement)
+      return this._target.QueryInterface(Ci.nsIDOMNSEditableElement).editor.selection;
+    else
+      return this._target.getSelection();
+  },
+
+  getSelectionController: function sh_getSelectionController() {
+    if (this._target instanceof Ci.nsIDOMNSEditableElement)
+      return this._target.QueryInterface(Ci.nsIDOMNSEditableElement).editor.selectionController;
+    else
+      return this._target.QueryInterface(Ci.nsIInterfaceRequestor).
+                          getInterface(Ci.nsIWebNavigation).
+                          QueryInterface(Ci.nsIInterfaceRequestor).
+                          getInterface(Ci.nsISelectionDisplay).
+                          QueryInterface(Ci.nsISelectionController);
+  },
+
   showContextMenu: function sh_showContextMenu(aX, aY) {
     let [SELECT_ALL, COPY, SHARE] = [0, 1, 2];
     let listitems = [
@@ -1710,11 +1741,7 @@ var SelectionHandler = {
 
     switch (id) {
       case SELECT_ALL: {
-        let selectionController = this._view.QueryInterface(Ci.nsIInterfaceRequestor).
-                                             getInterface(Ci.nsIWebNavigation).
-                                             QueryInterface(Ci.nsIInterfaceRequestor).
-                                             getInterface(Ci.nsISelectionDisplay).
-                                             QueryInterface(Ci.nsISelectionController);
+        let selectionController = this.getSelectionController();
         selectionController.selectAll();
         this.updateCacheForSelection();
         this.positionHandles();
@@ -1786,7 +1813,7 @@ var SelectionHandler = {
     let selectedText = "";
     let pointInSelection = false;
     if (this._view) {
-      let selection = this._view.getSelection();
+      let selection = this.getSelection();
       if (selection) {
         // Get the text before we clear the selection!
         selectedText = selection.toString().trim();
@@ -1813,6 +1840,7 @@ var SelectionHandler = {
 
     this._view.removeEventListener("pagehide", this, false);
     this._view = null;
+    this._target = null;
     this._isRTL = false;
     this.cache = null;
 
@@ -1837,7 +1865,7 @@ var SelectionHandler = {
 
   _pointInSelection: function sh_pointInSelection(aX, aY) {
     let offset = this._getViewOffset();
-    let rangeRect = this._view.getSelection().getRangeAt(0).getBoundingClientRect();
+    let rangeRect = this.getSelection().getRangeAt(0).getBoundingClientRect();
     let radius = ElementTouchHelper.getTouchRadius();
     return (aX - offset.x > rangeRect.left - radius.left &&
             aX - offset.x < rangeRect.right + radius.right &&
@@ -1848,7 +1876,8 @@ var SelectionHandler = {
   // Returns true if the selection has been reversed. Takes optional aIsStartHandle
   // param to decide whether the selection has been reversed.
   updateCacheForSelection: function sh_updateCacheForSelection(aIsStartHandle) {
-    let rects = this._view.getSelection().getRangeAt(0).getClientRects();
+    let selection = this.getSelection();
+    let rects = selection.getRangeAt(0).getClientRects();
     let start = { x: rects[0].left, y: rects[0].bottom };
     let end = { x: rects[rects.length - 1].right, y: rects[rects.length - 1].bottom };
 
@@ -1871,6 +1900,7 @@ var SelectionHandler = {
     let offset = this._getViewOffset();
     let scrollX = {}, scrollY = {};
     this._view.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).getScrollXY(false, scrollX, scrollY);
+
     sendMessageToJava({
       gecko: {
         type: "TextSelection:PositionHandles",
@@ -1959,13 +1989,6 @@ var UserAgent = {
         let tab = BrowserApp.getTabForWindow(channelWindow);
         if (tab == null)
           break;
-
-        if (channel.URI.host.indexOf("youtube") != -1) {
-          let ua = Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).userAgent;
-#expand let version = "__MOZ_APP_VERSION__";
-          ua += " Fennec/" + version;
-          channel.setRequestHeader("User-Agent", ua, false);
-        }
 
         // Send desktop UA if "Request Desktop Site" is enabled
         if (tab.desktopMode)
@@ -2978,33 +3001,37 @@ Tab.prototype = {
   onStatusChange: function(aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
   },
 
-  _sendHistoryEvent: function(aMessage, aIndex, aUri) {
+  _sendHistoryEvent: function(aMessage, aParams) {
     let message = {
       gecko: {
         type: "SessionHistory:" + aMessage,
         tabID: this.id,
       }
     };
-    if (aIndex != -1) {
-      message.gecko.index = aIndex;
+
+    if (aParams) {
+      if ("url" in aParams)
+        message.gecko.url = aParams.url;
+      if ("index" in aParams)
+        message.gecko.index = aParams.index;
+      if ("numEntries" in aParams)
+        message.gecko.numEntries = aParams.numEntries;
     }
-    if (aUri != null) {
-      message.gecko.uri = aUri;
-    }
+
     sendMessageToJava(message);
   },
 
   OnHistoryNewEntry: function(aUri) {
-    this._sendHistoryEvent("New", -1, aUri.spec);
+    this._sendHistoryEvent("New", { url: aUri.spec });
   },
 
   OnHistoryGoBack: function(aUri) {
-    this._sendHistoryEvent("Back", -1, null);
+    this._sendHistoryEvent("Back");
     return true;
   },
 
   OnHistoryGoForward: function(aUri) {
-    this._sendHistoryEvent("Forward", -1, null);
+    this._sendHistoryEvent("Forward");
     return true;
   },
 
@@ -3015,12 +3042,12 @@ Tab.prototype = {
   },
 
   OnHistoryGotoIndex: function(aIndex, aUri) {
-    this._sendHistoryEvent("Goto", aIndex, null);
+    this._sendHistoryEvent("Goto", { index: aIndex });
     return true;
   },
 
   OnHistoryPurge: function(aNumEntries) {
-    this._sendHistoryEvent("Purge", aNumEntries, null);
+    this._sendHistoryEvent("Purge", { numEntries: aNumEntries });
     return true;
   },
 
@@ -3232,8 +3259,6 @@ Tab.prototype = {
     Ci.nsIBrowserTab
   ])
 };
-
-const kTapHighlightDelay = 50; // milliseconds
 
 var BrowserEventHandler = {
   init: function init() {
@@ -3472,22 +3497,12 @@ var BrowserEventHandler = {
 
   _highlightElement: null,
 
-  _highlightTimeout: null,
-
   _doTapHighlight: function _doTapHighlight(aElement) {
-    this._cancelTapHighlight();
-    this._highlightTimeout = setTimeout(function(self) {
-      DOMUtils.setContentState(aElement, kStateActive);
-      self._highlightElement = aElement;
-    }, kTapHighlightDelay, this);
+    DOMUtils.setContentState(aElement, kStateActive);
+    this._highlightElement = aElement;
   },
 
   _cancelTapHighlight: function _cancelTapHighlight() {
-    if (this._highlightTimeout) {
-      clearTimeout(this._highlightTimeout);
-      this._highlightTimeout = null;
-    }
-
     if (!this._highlightElement)
       return;
 
@@ -5903,27 +5918,18 @@ var WebappsUI = {
         }).bind(this));
         break;
       case "webapps-sync-install":
-        // Wait until we know the app install worked, then make a homescreen shortcut
+        // Create a system notification allowing the user to launch the app
         DOMApplicationRegistry.getManifestFor(data.origin, (function(aManifest) {
           if (!aManifest)
             return;
           let manifest = new DOMApplicationManifest(aManifest, data.origin);
 
-          // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
-          // a unique ID for Android webapp allocation
-          this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(data.origin, null, null)),
-                              function(icon) {
-                                sendMessageToJava({
-                                  gecko: {
-                                    type: "WebApps:Install",
-                                    name: manifest.name,
-                                    launchPath: manifest.fullLaunchPath(),
-                                    iconURL: icon,
-                                    uniqueURI: data.origin
-                                  }
-                                })});
+          // The manifest is stored as UTF-8, sendMessageToJava expects UTF-16. Convert before sending
+          let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
+          converter.charset = "UTF-8";
+          let name = manifest.name ? converter.ConvertToUnicode(manifest.name) :
+                                     converter.ConvertToUnicode(manifest.fullLaunchPath());
 
-          // Create a system notification allowing the user to launch the app
           let observer = {
             observe: function (aSubject, aTopic) {
               if (aTopic == "alertclickcallback") {
@@ -5984,10 +5990,32 @@ var WebappsUI = {
   doInstall: function doInstall(aData) {
     let manifest = new DOMApplicationManifest(aData.app.manifest, aData.app.origin);
     let name = manifest.name ? manifest.name : manifest.fullLaunchPath();
-    if (Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name))
-      DOMApplicationRegistry.confirmInstall(aData);
-    else
+    if (Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name)) {
+      // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
+      // a unique ID for Android webapp allocation
+      this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(aData.app.origin, null, null)),
+        function(icon) {
+          var profilePath = sendMessageToJava({
+            gecko: {
+              type: "WebApps:Install",
+              name: manifest.name,
+              launchPath: manifest.fullLaunchPath(),
+              iconURL: icon,
+              uniqueURI: aData.app.origin
+            }
+          });
+  
+          // if java returned a profile path to us, try to use it to pre-populate the app cache
+          var file = null;
+          if (profilePath) {
+            var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+            file.initWithPath(profilePath);
+          }
+          DOMApplicationRegistry.confirmInstall(aData, false, file);
+        });
+    } else {
       DOMApplicationRegistry.denyInstall(aData);
+    }
   },
   
   openURL: function openURL(aURI, aOrigin) {

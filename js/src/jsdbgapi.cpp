@@ -801,7 +801,8 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, Shape *shape, JSPropertyDesc *pd)
     cx->clearPendingException();
 
     Rooted<jsid> id(cx, shape->propid());
-    if (!baseops::GetProperty(cx, obj, id, &pd->value)) {
+    RootedValue value(cx);
+    if (!baseops::GetProperty(cx, obj, id, &value)) {
         if (!cx->isExceptionPending()) {
             pd->flags = JSPD_ERROR;
             pd->value = JSVAL_VOID;
@@ -811,6 +812,7 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, Shape *shape, JSPropertyDesc *pd)
         }
     } else {
         pd->flags = 0;
+        pd->value = value;
     }
 
     if (wasThrowing)
@@ -1443,8 +1445,10 @@ static JSFunctionSpec profiling_functions[] = {
 #endif
 
 JS_PUBLIC_API(JSBool)
-JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj)
+JS_DefineProfilingFunctions(JSContext *cx, JSObject *objArg)
 {
+    RootedObject obj(cx, objArg);
+
     assertSameCompartment(cx, obj);
 #ifdef MOZ_PROFILING
     return JS_DefineFunctions(cx, obj, profiling_functions);
@@ -1728,9 +1732,11 @@ JSBool js_StopPerf()
 #endif /* __linux__ */
 
 JS_PUBLIC_API(void)
-JS_DumpBytecode(JSContext *cx, JSScript *script)
+JS_DumpBytecode(JSContext *cx, JSScript *scriptArg)
 {
 #if defined(DEBUG)
+    Rooted<JSScript*> script(cx, scriptArg);
+
     Sprinter sprinter(cx);
     if (!sprinter.init())
         return;
@@ -1743,9 +1749,10 @@ JS_DumpBytecode(JSContext *cx, JSScript *script)
 }
 
 extern JS_PUBLIC_API(void)
-JS_DumpPCCounts(JSContext *cx, JSScript *script)
+JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
 {
 #if defined(DEBUG)
+    Rooted<JSScript*> script(cx, scriptArg);
     JS_ASSERT(script->hasScriptCounts);
 
     Sprinter sprinter(cx);

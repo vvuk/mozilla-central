@@ -6,7 +6,11 @@
 
 #include "base/basictypes.h"
 
+#include "TabChild.h"
+
 #include "BasicLayers.h"
+#include "Blob.h"
+#include "ContentChild.h"
 #include "IndexedDBChild.h"
 #include "mozilla/IntentionalCrash.h"
 #include "mozilla/docshell/OfflineCacheUpdateChild.h"
@@ -29,7 +33,6 @@
 #include "nsIDOMWindowUtils.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIJSContextStack.h"
@@ -58,9 +61,10 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "PCOMContentPermissionRequestChild.h"
-#include "TabChild.h"
+#include "StructuredCloneUtils.h"
 #include "xpcpublic.h"
 
+using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
@@ -90,8 +94,8 @@ public:
 
 TabChild::TabChild(PRUint32 aChromeFlags, bool aIsBrowserElement,
                    PRUint32 aAppId)
-  : mRemoteFrame(nsnull)
-  , mTabChildGlobal(nsnull)
+  : mRemoteFrame(nullptr)
+  , mTabChildGlobal(nullptr)
   , mChromeFlags(aChromeFlags)
   , mOuterRect(0, 0, 0, 0)
   , mLastBackgroundColor(NS_RGB(255, 255, 255))
@@ -334,7 +338,7 @@ TabChild::ProvideWindow(nsIDOMWindow* aParent, PRUint32 aChromeFlags,
                         const nsACString& aFeatures, bool* aWindowIsNew,
                         nsIDOMWindow** aReturn)
 {
-    *aReturn = nsnull;
+    *aReturn = nullptr;
 
     // If aParent is inside an <iframe mozbrowser> and this isn't a request to
     // open a modal-type window, we're going to create a new <iframe mozbrowser>
@@ -378,14 +382,16 @@ TabChild::BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
                                     bool* aWindowIsNew,
                                     nsIDOMWindow** aReturn)
 {
-  *aReturn = nsnull;
+  *aReturn = nullptr;
 
   nsRefPtr<TabChild> newChild =
     static_cast<TabChild*>(Manager()->SendPBrowserConstructor(
       /* aChromeFlags = */ 0, mIsBrowserElement, mAppId));
 
   nsCAutoString spec;
-  aURI->GetSpec(spec);
+  if (aURI) {
+    aURI->GetSpec(spec);
+  }
 
   NS_ConvertUTF8toUTF16 url(spec);
   nsString name(aName);
@@ -496,7 +502,7 @@ TabChild::DestroyWindow()
 
     if (mRemoteFrame) {
         mRemoteFrame->Destroy();
-        mRemoteFrame = nsnull;
+        mRemoteFrame = nullptr;
     }
 }
 
@@ -514,7 +520,7 @@ TabChild::ActorDestroy(ActorDestroyReason why)
     // no longer exists.
     static_cast<nsFrameMessageManager*>
       (mTabChildGlobal->mMessageManager.get())->Disconnect();
-    mTabChildGlobal->mMessageManager = nsnull;
+    mTabChildGlobal->mMessageManager = nullptr;
   }
 }
 
@@ -522,7 +528,7 @@ TabChild::~TabChild()
 {
     nsCOMPtr<nsIWebBrowser> webBrowser = do_QueryInterface(mWebNav);
     if (webBrowser) {
-      webBrowser->SetContainerWindow(nsnull);
+      webBrowser->SetContainerWindow(nullptr);
     }
     if (mCx) {
       DestroyCx();
@@ -533,7 +539,7 @@ TabChild::~TabChild()
       if (elm) {
         elm->Disconnect();
       }
-      mTabChildGlobal->mTabChild = nsnull;
+      mTabChildGlobal->mTabChild = nullptr;
     }
 }
 
@@ -644,6 +650,9 @@ TabChild::RecvUpdateFrame(const nsIntRect& aDisplayPort,
                           const gfxSize& aResolution,
                           const nsIntRect& aScreenSize)
 {
+    if (!mCx || !mTabChildGlobal) {
+        return true;
+    }
     nsCString data;
     data += nsPrintfCString("{ \"x\" : %d", aScrollOffset.x);
     data += nsPrintfCString(", \"y\" : %d", aScrollOffset.y);
@@ -663,10 +672,28 @@ TabChild::RecvUpdateFrame(const nsIntRect& aDisplayPort,
         data += nsPrintfCString(" }");
     data += nsPrintfCString(" }");
 
+    JSAutoRequest ar(mCx);
+    jsval json = JSVAL_NULL;
+    StructuredCloneData cloneData;
+    JSAutoStructuredCloneBuffer buffer;
+    if (JS_ParseJSON(mCx,
+                      static_cast<const jschar*>(NS_ConvertUTF8toUTF16(data).get()),
+                      data.Length(),
+                      &json)) {
+        WriteStructuredClone(mCx, json, buffer, cloneData.mClosure);
+        cloneData.mData = buffer.data();
+        cloneData.mDataLength = buffer.nbytes();
+    }
+
+    nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
     // Let the BrowserElementScrolling helper (if it exists) for this
     // content manipulate the frame state.
-    return RecvAsyncMessage(NS_LITERAL_STRING("Viewport:Change"),
-                            NS_ConvertUTF8toUTF16(data));
+    nsRefPtr<nsFrameMessageManager> mm =
+      static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
+    mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
+                       NS_LITERAL_STRING("Viewport:Change"), false,
+                       &cloneData, nullptr, nullptr);
+    return true;
 }
 
 bool
@@ -895,7 +922,7 @@ PContentPermissionRequestChild*
 TabChild::AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI&)
 {
   NS_RUNTIMEABORT("unused");
-  return nsnull;
+  return nullptr;
 }
 
 bool
@@ -931,7 +958,7 @@ TabChild::AllocPOfflineCacheUpdate(const URI& manifestURI,
             const bool& stickDocument)
 {
   NS_RUNTIMEABORT("unused");
-  return nsnull;
+  return nullptr;
 }
 
 bool
@@ -956,14 +983,36 @@ TabChild::RecvLoadRemoteScript(const nsString& aURL)
 
 bool
 TabChild::RecvAsyncMessage(const nsString& aMessage,
-                           const nsString& aJSON)
+                           const ClonedMessageData& aData)
 {
   if (mTabChildGlobal) {
     nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
+
+    const SerializedStructuredCloneBuffer& buffer = aData.data();
+    const InfallibleTArray<PBlobChild*>& blobChildList = aData.blobsChild();
+
+    StructuredCloneData cloneData;
+    cloneData.mData = buffer.data;
+    cloneData.mDataLength = buffer.dataLength;
+
+    if (!blobChildList.IsEmpty()) {
+      PRUint32 length = blobChildList.Length();
+      cloneData.mClosure.mBlobs.SetCapacity(length);
+      for (PRUint32 i = 0; i < length; ++i) {
+        BlobChild* blobChild = static_cast<BlobChild*>(blobChildList[i]);
+        MOZ_ASSERT(blobChild);
+
+        nsCOMPtr<nsIDOMBlob> blob = blobChild->GetBlob();
+        MOZ_ASSERT(blob);
+
+        cloneData.mClosure.mBlobs.AppendElement(blob);
+      }
+    }
+
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
-                       aMessage, false, aJSON, nsnull, nsnull);
+                       aMessage, false, &cloneData, nullptr, nullptr);
   }
   return true;
 }
@@ -978,7 +1027,7 @@ public:
   NS_IMETHOD Run()
   {
     nsCOMPtr<nsIDOMEvent> event;
-    NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
+    NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
     if (event) {
       event->InitEvent(NS_LITERAL_STRING("unload"), false, false);
       event->SetTrusted(true);
@@ -1074,10 +1123,10 @@ TabChild::InitWidget(const nsIntSize& size)
         return false;
     }
     mWidget->Create(
-        nsnull, 0,              // no parents
+        nullptr, 0,              // no parents
         nsIntRect(nsIntPoint(0, 0), size),
-        nsnull,                 // HandleWidgetEvent
-        nsnull                  // nsDeviceContext
+        nullptr,                 // HandleWidgetEvent
+        nullptr                  // nsDeviceContext
         );
 
     LayersBackend be;
@@ -1091,7 +1140,7 @@ TabChild::InitWidget(const nsIntSize& size)
       return false;
     }
 
-    PLayersChild* shadowManager = nsnull;
+    PLayersChild* shadowManager = nullptr;
     if (id != 0) {
         // Pushing layers transactions directly to a separate
         // compositor context.
@@ -1161,7 +1210,7 @@ TabChild::GetMessageManager(nsIContentFrameMessageManager** aResult)
     NS_ADDREF(*aResult = mTabChildGlobal);
     return NS_OK;
   }
-  *aResult = nsnull;
+  *aResult = nullptr;
   return NS_ERROR_FAILURE;
 }
 
@@ -1182,22 +1231,61 @@ TabChild::DeallocPIndexedDB(PIndexedDBChild* aActor)
 static bool
 SendSyncMessageToParent(void* aCallbackData,
                         const nsAString& aMessage,
-                        const nsAString& aJSON,
+                        const StructuredCloneData& aData,
                         InfallibleTArray<nsString>* aJSONRetVal)
 {
-  return static_cast<TabChild*>(aCallbackData)->
-    SendSyncMessage(nsString(aMessage), nsString(aJSON),
-                    aJSONRetVal);
+  TabChild* tabChild = static_cast<TabChild*>(aCallbackData);
+  ContentChild* cc = static_cast<ContentChild*>(tabChild->Manager());
+  ClonedMessageData data;
+  SerializedStructuredCloneBuffer& buffer = data.data();
+  buffer.data = aData.mData;
+  buffer.dataLength = aData.mDataLength;
+
+  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
+  if (!blobs.IsEmpty()) {
+    InfallibleTArray<PBlobChild*>& blobChildList = data.blobsChild();
+    PRUint32 length = blobs.Length();
+    blobChildList.SetCapacity(length);
+    for (PRUint32 i = 0; i < length; ++i) {
+      BlobChild* blobChild = cc->GetOrCreateActorForBlob(blobs[i]);
+      if (!blobChild) {
+        return false;
+      }
+      blobChildList.AppendElement(blobChild);
+    }
+  }
+  return tabChild->SendSyncMessage(nsString(aMessage), data, aJSONRetVal);
 }
 
 static bool
 SendAsyncMessageToParent(void* aCallbackData,
                          const nsAString& aMessage,
-                         const nsAString& aJSON)
+                         const StructuredCloneData& aData)
 {
-  return static_cast<TabChild*>(aCallbackData)->
-    SendAsyncMessage(nsString(aMessage), nsString(aJSON));
+  TabChild* tabChild = static_cast<TabChild*>(aCallbackData);
+  ContentChild* cc = static_cast<ContentChild*>(tabChild->Manager());
+  ClonedMessageData data;
+  SerializedStructuredCloneBuffer& buffer = data.data();
+  buffer.data = aData.mData;
+  buffer.dataLength = aData.mDataLength;
+
+  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
+  if (!blobs.IsEmpty()) {
+    InfallibleTArray<PBlobChild*>& blobChildList = data.blobsChild();
+    PRUint32 length = blobs.Length();
+    blobChildList.SetCapacity(length);
+    for (PRUint32 i = 0; i < length; ++i) {
+      BlobChild* blobChild = cc->GetOrCreateActorForBlob(blobs[i]);
+      if (!blobChild) {
+        return false;
+      }
+      blobChildList.AppendElement(blobChild);
+    }
+  }
+
+  return tabChild->SendAsyncMessage(nsString(aMessage), data);
 }
+
 
 TabChildGlobal::TabChildGlobal(TabChild* aTabChild)
 : mTabChild(aTabChild)
@@ -1211,9 +1299,9 @@ TabChildGlobal::Init()
   mMessageManager = new nsFrameMessageManager(false,
                                               SendSyncMessageToParent,
                                               SendAsyncMessageToParent,
-                                              nsnull,
+                                              nullptr,
                                               mTabChild,
-                                              nsnull,
+                                              nullptr,
                                               mTabChild->GetJSContext());
 }
 
@@ -1244,7 +1332,7 @@ NS_IMPL_RELEASE_INHERITED(TabChildGlobal, nsDOMEventTargetHelper)
 NS_IMETHODIMP
 TabChildGlobal::GetContent(nsIDOMWindow** aContent)
 {
-  *aContent = nsnull;
+  *aContent = nullptr;
   if (!mTabChild)
     return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mTabChild->WebNavigation());
@@ -1262,7 +1350,7 @@ TabChildGlobal::PrivateNoteIntentionalCrash()
 NS_IMETHODIMP
 TabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 {
-  *aDocShell = nsnull;
+  *aDocShell = nullptr;
   if (!mTabChild)
     return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDocShell> docShell = do_GetInterface(mTabChild->WebNavigation());
@@ -1288,7 +1376,7 @@ JSContext*
 TabChildGlobal::GetJSContextForEventHandlers()
 {
   if (!mTabChild)
-    return nsnull;
+    return nullptr;
   return mTabChild->GetJSContext();
 }
 
@@ -1296,6 +1384,6 @@ nsIPrincipal*
 TabChildGlobal::GetPrincipal()
 {
   if (!mTabChild)
-    return nsnull;
+    return nullptr;
   return mTabChild->GetPrincipal();
 }

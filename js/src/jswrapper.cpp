@@ -57,14 +57,14 @@ Wrapper::New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
 }
 
 Wrapper *
-Wrapper::wrapperHandler(const JSObject *wrapper)
+Wrapper::wrapperHandler(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyHandler(wrapper)->toWrapper();
 }
 
 JSObject *
-Wrapper::wrappedObject(const JSObject *wrapper)
+Wrapper::wrappedObject(RawObject wrapper)
 {
     JS_ASSERT(wrapper->isWrapper());
     return GetProxyTargetObject(wrapper);
@@ -130,7 +130,7 @@ js::UnwrapOneChecked(JSContext *cx, JSObject *obj)
 }
 
 bool
-js::IsCrossCompartmentWrapper(const JSObject *wrapper)
+js::IsCrossCompartmentWrapper(RawObject wrapper)
 {
     return wrapper->isWrapper() &&
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
@@ -377,9 +377,13 @@ DirectWrapper DirectWrapper::singleton((unsigned)0);
 namespace js {
 
 extern JSObject *
-TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSObject *parent,
+TransparentObjectWrapper(JSContext *cx, JSObject *objArg, JSObject *wrappedProtoArg, JSObject *parentArg,
                          unsigned flags)
 {
+    RootedObject obj(cx, objArg);
+    RootedObject wrappedProto(cx, wrappedProtoArg);
+    RootedObject parent(cx, parentArg);
+
     // Allow wrapping outer window proxies.
     JS_ASSERT(!obj->isWrapper() || obj->getClass()->ext.innerObject);
     return Wrapper::New(cx, obj, wrappedProto, parent, &CrossCompartmentWrapper::singleton);
@@ -418,7 +422,6 @@ ForceFrame::enter()
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
     : context(cx),
       origin(cx->compartment),
-      target(target),
       destination(target->compartment()),
       entered(false)
 {
@@ -435,7 +438,7 @@ AutoCompartment::enter()
 {
     JS_ASSERT(!entered);
     if (origin != destination) {
-        JSObject &scopeChain = target->global();
+        GlobalObject& scopeChain = *destination->maybeGlobal();
         JS_ASSERT(scopeChain.isNative());
 
         frame.construct();
@@ -578,10 +581,14 @@ CrossCompartmentWrapper::hasOwn(JSContext *cx, JSObject *wrapper, jsid id, bool 
 }
 
 bool
-CrossCompartmentWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, Value *vp)
+CrossCompartmentWrapper::get(JSContext *cx, JSObject *wrapperArg, JSObject *receiverArg,
+                             jsid idArg, Value *vp)
 {
+    RootedObject wrapper(cx, wrapperArg);
+    RootedObject receiver(cx, receiverArg);
+    RootedId id(cx, idArg);
     PIERCE(cx, wrapper, GET,
-           call.destination->wrap(cx, &receiver) && call.destination->wrapId(cx, &id),
+           call.destination->wrap(cx, receiver.address()) && call.destination->wrapId(cx, id.address()),
            DirectWrapper::get(cx, wrapper, receiver, id, vp),
            cx->compartment->wrap(cx, vp));
 }
@@ -674,9 +681,18 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
     if (!CloseIterator(cx, iterObj))
         return false;
 
-    if (isKeyIter)
-        return VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
-    return VectorToValueIterator(cx, obj, ni->flags, keys, vp);
+    RootedValue value(cx, *vp);
+
+    if (isKeyIter) {
+        if (!VectorToKeyIterator(cx, obj, ni->flags, keys, &value))
+            return false;
+    } else {
+        if (!VectorToValueIterator(cx, obj, ni->flags, keys, &value))
+            return false;
+    }
+
+    *vp = value;
+    return true;
 }
 
 bool
@@ -693,11 +709,12 @@ CrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapper_, unsigned argc, 
 {
     RootedObject wrapper(cx, wrapper_);
 
-    AutoCompartment call(cx, wrappedObject(wrapper));
+    JSObject *wrapped = wrappedObject(wrapper);
+    AutoCompartment call(cx, wrapped);
     if (!call.enter())
         return false;
 
-    vp[0] = ObjectValue(*call.target);
+    vp[0] = ObjectValue(*wrapped);
     if (!call.destination->wrap(cx, &vp[1]))
         return false;
     Value *argv = JS_ARGV(cx, vp);
@@ -762,10 +779,10 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
     if (!CallNonGenericMethod(cx, test, impl, dstArgs))
         return false;
 
-    srcArgs.rval() = dstArgs.rval();
+    srcArgs.rval().set(dstArgs.rval());
     dstArgs.pop();
     call.leave();
-    return cx->compartment->wrap(cx, &srcArgs.rval());
+    return cx->compartment->wrap(cx, srcArgs.rval().address());
 }
 
 bool
@@ -1019,6 +1036,13 @@ DeadObjectProxy DeadObjectProxy::singleton;
 int DeadObjectProxy::sDeadObjectFamily;
 
 } // namespace js
+
+JSObject *
+js::NewDeadProxyObject(JSContext *cx, JSObject *parent)
+{
+    return NewProxyObject(cx, &DeadObjectProxy::singleton, NullValue(),
+                          NULL, parent, NULL, NULL);
+}
 
 void
 js::NukeCrossCompartmentWrapper(JSObject *wrapper)

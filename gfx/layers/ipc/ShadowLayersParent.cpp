@@ -214,9 +214,10 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       const CommonLayerAttributes& common = attrs.common();
       layer->SetVisibleRegion(common.visibleRegion());
       layer->SetContentFlags(common.contentFlags());
-      layer->SetOpacity(common.opacity());
+      layer->SetOpacity(common.opacity().value());
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
-      layer->SetTransform(common.transform());
+      layer->SetBaseTransform(common.transform().value());
+      layer->SetPostScale(common.postXScale(), common.postYScale());
       static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
       if (fixedPositionLayersEnabled) {
         layer->SetIsFixedPosition(common.isFixedPosition());
@@ -227,6 +228,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       } else {
         layer->SetMaskLayer(NULL);
       }
+      layer->SetAnimations(common.animations());
 
       typedef SpecificLayerAttributes Specific;
       const SpecificLayerAttributes& specific = attrs.specific();
@@ -246,18 +248,22 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
         break;
       }
-      case Specific::TContainerLayerAttributes:
+      case Specific::TContainerLayerAttributes: {
         MOZ_LAYERS_LOG(("[ParentSide]   container layer"));
 
-        static_cast<ContainerLayer*>(layer)->SetFrameMetrics(
-          specific.get_ContainerLayerAttributes().metrics());
+        ContainerLayer* containerLayer =
+          static_cast<ContainerLayer*>(layer);
+        const ContainerLayerAttributes& attrs =
+          specific.get_ContainerLayerAttributes();
+        containerLayer->SetFrameMetrics(attrs.metrics());
+        containerLayer->SetPreScale(attrs.preXScale(), attrs.preYScale());
         break;
-
+      }
       case Specific::TColorLayerAttributes:
         MOZ_LAYERS_LOG(("[ParentSide]   color layer"));
 
         static_cast<ColorLayer*>(layer)->SetColor(
-          specific.get_ColorLayerAttributes().color());
+          specific.get_ColorLayerAttributes().color().value());
         break;
 
       case Specific::TCanvasLayerAttributes:
@@ -464,7 +470,7 @@ ShadowLayersParent::AllocPGrallocBuffer(const gfxIntSize& aSize,
   return GrallocBufferActor::Create(aSize, aContent, aOutHandle);
 #else
   NS_RUNTIMEABORT("No gralloc buffers for you");
-  return nsnull;
+  return nullptr;
 #endif
 }
 

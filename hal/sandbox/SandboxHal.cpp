@@ -274,10 +274,16 @@ DisableAlarm()
 }
 
 bool
-SetAlarm(long aSeconds, long aNanoseconds)
+SetAlarm(PRInt32 aSeconds, PRInt32 aNanoseconds)
 {
   NS_RUNTIMEABORT("Alarms can't be programmed from sandboxed contexts.  Yet.");
   return false;
+}
+
+void
+SetProcessPriority(int aPid, ProcessPriority aPriority)
+{
+  Hal()->SendSetProcessPriority(aPid, aPriority);
 }
 
 class HalParent : public PHalParent
@@ -566,6 +572,15 @@ public:
   RecvGetCurrentSwitchState(const SwitchDevice& aDevice, hal::SwitchState *aState) MOZ_OVERRIDE
   {
     *aState = hal::GetCurrentSwitchState(aDevice);
+    return true;
+  }
+
+  virtual bool
+  RecvSetProcessPriority(const int& aPid, const ProcessPriority& aPriority)
+  {
+    // TODO As a security check, we should ensure that aPid is either the pid
+    // of our child, or the pid of one of the child's children.
+    hal::SetProcessPriority(aPid, aPriority);
     return true;
   }
 };

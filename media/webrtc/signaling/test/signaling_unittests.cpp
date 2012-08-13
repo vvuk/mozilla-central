@@ -300,7 +300,7 @@ class SignalingAgent {
     pObserver = new TestObserver(pc);
     ASSERT_TRUE(pObserver);
 
-    ASSERT_EQ(pc->Initialize(pObserver, nsnull), NS_OK);
+    ASSERT_EQ(pc->Initialize(pObserver, nsnull, nsnull), NS_OK);
 
     ASSERT_TRUE_WAIT(sipcc_state() == sipcc::PeerConnectionImpl::kStarted,
                      kDefaultTimeout);
@@ -469,7 +469,7 @@ class SignalingAgent {
   int GetPacketsReceived(int stream) {
     std::vector<nsDOMMediaStream *> streams = pObserver->GetStreams();
 
-    if (streams.size() <= stream) {
+    if ((int) streams.size() <= stream) {
       return 0;
     }
 

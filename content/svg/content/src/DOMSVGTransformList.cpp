@@ -10,6 +10,7 @@
 #include "nsSVGElement.h"
 #include "nsContentUtils.h"
 #include "dombindings.h"
+#include "nsDOMError.h"
 
 // local helper functions
 namespace {
@@ -39,9 +40,9 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGTransformList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGTransformList)
   if (tmp->mAList) {
     if (tmp->IsAnimValList()) {
-      tmp->mAList->mAnimVal = nsnull;
+      tmp->mAList->mAnimVal = nullptr;
     } else {
-      tmp->mAList->mBaseVal = nsnull;
+      tmp->mAList->mBaseVal = nullptr;
     }
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAList)
   }
@@ -90,7 +91,7 @@ DOMSVGTransformList::GetItemAt(PRUint32 aIndex)
     EnsureItemAt(aIndex);
     return mItems[aIndex];
   }
-  return nsnull;
+  return nullptr;
 }
 
 void
@@ -127,7 +128,7 @@ DOMSVGTransformList::InternalListLengthWillChange(PRUint32 aNewLength)
 
   // If our length has increased, null out the new pointers:
   for (PRUint32 i = oldLength; i < aNewLength; ++i) {
-    mItems[i] = nsnull;
+    mItems[i] = nullptr;
   }
 }
 
@@ -191,7 +192,7 @@ NS_IMETHODIMP
 DOMSVGTransformList::Initialize(nsIDOMSVGTransform *newItem,
                                 nsIDOMSVGTransform **_retval)
 {
-  *_retval = nsnull;
+  *_retval = nullptr;
   if (IsAnimValList()) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
@@ -235,7 +236,7 @@ DOMSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
                                       PRUint32 index,
                                       nsIDOMSVGTransform **_retval)
 {
-  *_retval = nsnull;
+  *_retval = nullptr;
   if (IsAnimValList()) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
@@ -288,7 +289,7 @@ DOMSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
                                  PRUint32 index,
                                  nsIDOMSVGTransform **_retval)
 {
-  *_retval = nsnull;
+  *_retval = nullptr;
   if (IsAnimValList()) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
@@ -330,7 +331,7 @@ DOMSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
 NS_IMETHODIMP
 DOMSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform **_retval)
 {
-  *_retval = nsnull;
+  *_retval = nullptr;
   if (IsAnimValList()) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
@@ -392,7 +393,7 @@ DOMSVGTransformList::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix,
 NS_IMETHODIMP
 DOMSVGTransformList::Consolidate(nsIDOMSVGTransform **_retval)
 {
-  *_retval = nsnull;
+  *_retval = nullptr;
   if (IsAnimValList()) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
@@ -443,7 +444,7 @@ DOMSVGTransformList::MaybeInsertNullInAnimValListAt(PRUint32 aIndex)
                     "animVal list not in sync!");
 
   animVal->mItems.InsertElementAt(aIndex,
-                                  static_cast<DOMSVGTransform*>(nsnull));
+                                  static_cast<DOMSVGTransform*>(nullptr));
 
   UpdateListIndicesFromIndex(animVal->mItems, aIndex + 1);
 }

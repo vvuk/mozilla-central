@@ -742,6 +742,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_UNICODE_BIDI_EMBED             0x1
 #define NS_STYLE_UNICODE_BIDI_ISOLATE           0x2
 #define NS_STYLE_UNICODE_BIDI_OVERRIDE          0x4
+#define NS_STYLE_UNICODE_BIDI_ISOLATE_OVERRIDE  0x6
 #define NS_STYLE_UNICODE_BIDI_PLAINTEXT         0x8
 
 // See nsStyleTable (here for HTML 4.0 for now, should probably change to side flags)
@@ -805,6 +806,9 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 // See nsStyleColumn
 #define NS_STYLE_COLUMN_COUNT_AUTO              0
 #define NS_STYLE_COLUMN_COUNT_UNLIMITED         (-1)
+
+#define NS_STYLE_COLUMN_FILL_AUTO               0
+#define NS_STYLE_COLUMN_FILL_BALANCE            1
 
 // See nsStyleUIReset
 #define NS_STYLE_IME_MODE_AUTO                  0
