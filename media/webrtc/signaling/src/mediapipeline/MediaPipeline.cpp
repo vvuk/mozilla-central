@@ -143,12 +143,18 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
       rtcp_send_srtp_ = rtp_send_srtp_;
       rtcp_recv_srtp_ = rtp_recv_srtp_;
 
+      MLOG(PR_LOG_DEBUG, "Listening for packets received on " <<
+        static_cast<void *>(dtls->downward()));
+
       dtls->downward()->SignalPacketReceived.connect(this,
-                                                     &MediaPipelineReceive::
+                                                     &MediaPipeline::
                                                      PacketReceived);
     } else {
+      MLOG(PR_LOG_DEBUG, "Listening for RTP packets received on " <<
+        static_cast<void *>(dtls->downward()));
+
       dtls->downward()->SignalPacketReceived.connect(this,
-                                                     &MediaPipelineReceive::
+                                                     &MediaPipeline::
                                                      RtpPacketReceived);
     }
   }
@@ -163,9 +169,12 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
       return NS_ERROR_FAILURE;
     }
 
+    MLOG(PR_LOG_DEBUG, "Listening for RTCP packets received on " <<
+      static_cast<void *>(dtls->downward()));
+
     // Start listening
     dtls->downward()->SignalPacketReceived.connect(this,
-                                                  &MediaPipelineReceive::
+                                                  &MediaPipeline::
                                                   RtcpPacketReceived);
   }
 
@@ -231,6 +240,12 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
   increment_rtp_packets_received();
 
   PR_ASSERT(rtp_recv_srtp_);  // This should never happen
+
+  if (direction_ == TRANSMIT) {
+    // Discard any media that is being transmitted to us
+    // This will be unnecessary when we have SSRC filtering.
+    return;
+  }
 
   // Make a copy rather than cast away constness
   mozilla::ScopedDeletePtr<unsigned char> inner_data(
@@ -386,8 +401,16 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          const MediaSegment& queued_media) {
   if (!pipeline_)
     return;  // Detached
-
+  
   MLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
+
+  // Return early if we are not connected to avoid queueing stuff
+  // up in the conduit
+  if (pipeline_->rtp_transport_->state() != TransportLayer::OPEN) {
+    MLOG(PR_LOG_DEBUG, "Transport not ready yet, dropping packets");
+    return;
+  }
+
   // TODO(ekr@rtfm.com): For now assume that we have only one
   // track type and it's destined for us
   if (queued_media.GetType() == MediaSegment::AUDIO) {
