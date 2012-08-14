@@ -149,6 +149,12 @@
 #define JSCTYPES_MODULE
 #endif
 
+#if defined(MOZ_WEBRTC)
+#define PEERCONNECTION_MODULE MODULE(peerconnection)
+#else
+#define PEERCONNECTION_MODULE
+#endif
+
 #ifndef MOZ_APP_COMPONENT_MODULES
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
@@ -220,7 +226,7 @@
     MODULE(nsTelemetryModule)                \
     MODULE(jsinspector)                      \
     MODULE(jsdebugger)                       \
-    MODULE(peerconnection)                   \
+    PEERCONNECTION_MODULE                    \
     /* end of list */
 
 #define MODULE(_name) \

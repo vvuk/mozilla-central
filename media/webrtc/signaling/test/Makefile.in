@@ -78,7 +78,7 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport \
  -I$(topsrcdir)/media/mtransport/test \
  -I$(topsrcdir)/media/webrtc/signaling/include \
- -I$(topsrcdir)/media/webrtc/signaling/media-conduit \
+ -I$(topsrcdir)/media/webrtc/signaling/src/media-conduit \
  -I$(topsrcdir)/media/webrtc/signaling/src/mediapipeline \
  -I$(topsrcdir)/media/webrtc/signaling/src/sipcc/include \
  -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \

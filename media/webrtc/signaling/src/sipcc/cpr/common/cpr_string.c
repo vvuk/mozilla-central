@@ -37,66 +37,95 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _CPR_STRING_H_
-#define _CPR_STRING_H_
 
 #include "cpr_types.h"
+#include "cpr_stdlib.h"
+#include "cpr_string.h"
 #include "cpr_strings.h"
-
-__BEGIN_DECLS
-
-#if defined SIP_OS_LINUX
-#include "../linux/cpr_linux_string.h"
-#elif defined SIP_OS_WINDOWS
-#include "../win32/cpr_win_string.h"
-#elif defined SIP_OS_OSX
-#include "../darwin/cpr_darwin_string.h"
-#endif
 
 /**
  * sstrncpy
  *
- * @brief The CPR wrapper for strncpy
- *
  * This is Cisco's *safe* version of strncpy.  The string will always
  * be NUL terminated (which is not ANSI compliant).
  *
- * @param[in] dst  - The destination string
- * @param[in] src  - The source
- * @param[in]  max - maximum length in octets to concatenate
+ * Parameters: s1  - first string
+ *             s2  - second string
+ *             max - maximum length in octets to concat.
  *
- * @return     Pointer to the @b end of the string
+ * Return:     Pointer to the *end* of the string
  *
- * @note       Modified to be explicitly safe for all inputs.
+ * Remarks:    Modified to be explicitly safe for all inputs.
  *             Also return the number of characters copied excluding the
  *             NUL terminator vs. the original string s1.  This simplifies
  *             code where sstrncat functions follow.
  */
 unsigned long
-sstrncpy(char *dst, const char *src, unsigned long max);
+sstrncpy (char *dst, const char *src, unsigned long max)
+{
+    unsigned long cnt = 0;
 
+    if (dst == NULL) {
+        return 0;
+    }
+
+    if (src) {
+        while ((max-- > 1) && (*src)) {
+            *dst = *src;
+            dst++;
+            src++;
+            cnt++;
+        }
+    }
+
+#if defined(CPR_SSTRNCPY_PAD)
+    /*
+     * To be equivalent to the TI compiler version
+     * v2.01, SSTRNCPY_PAD needs to be defined
+     */
+    while (max-- > 1) {
+        *dst = '\0';
+        dst++;
+    }
+#endif
+    *dst = '\0';
+
+    return cnt;
+}
 
 /**
  * sstrncat
- * 
- * @brief The CPR wrapper for strncat
  *
  * This is Cisco's *safe* version of strncat.  The string will always
  * be NUL terminated (which is not ANSI compliant).
  *
- * @param[in] s1  - first string
- * @param[in] s2  - second string
- * @param[in]  max - maximum length in octets to concatenate
+ * Parameters: s1  - first string
+ *             s2  - second string
+ *             max - maximum length in octets to concatenate
  *
- * @return     Pointer to the @b end of the string
+ * Return:     Pointer to the *end* of the string
  *
- * @note    Modified to be explicitly safe for all inputs.
+ * Remarks:    Modified to be explicitly safe for all inputs.
  *             Also return the end vs. the beginning of the string s1
  *             which is useful for multiple sstrncat calls.
  */
 char *
-sstrncat(char *s1, const char *s2, unsigned long max);
+sstrncat (char *s1, const char *s2, unsigned long max)
+{
+    if (s1 == NULL)
+        return (char *) NULL;
 
-__END_DECLS
+    while (*s1)
+        s1++;
 
-#endif
+    if (s2) {
+        while ((max-- > 1) && (*s2)) {
+            *s1 = *s2;
+            s1++;
+            s2++;
+        }
+    }
+    *s1 = '\0';
+
+    return s1;
+}

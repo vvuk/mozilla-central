@@ -2443,7 +2443,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	int send_count;
 	struct ip *ip;
 	struct udphdr *udp;
-#if !defined (__Userspace_os_Windows)
+#if !defined (__Userspace_os_Windows) || (WINVER < 0x600)
 	int res;
 #endif
 	struct sockaddr_in dst;

@@ -372,8 +372,12 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   mThread = thread;
   mPCObserver = observer;
 
+#ifdef MOZILLA_INTERNAL_API
+  // Currently no standalone unit tests for DataChannel,
+  // which is the user of mWindow
   mWindow = do_QueryInterface(aWindow);
   NS_ENSURE_STATE(mWindow);
+#endif
 
   PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
 
