@@ -27,12 +27,12 @@
       #
       'include_dirs': [
         '..',
-        './media-conduit',
         './src',
         './src/callcontrol',
         './src/common',
         './src/common/browser_logging',
         './src/media',
+        './src/media-conduit',
         './src/mediapipeline',
         './src/softphonewrapper',
         './src/peerconnection',
@@ -73,10 +73,10 @@
       #
       'sources': [
         # Media Conduit 
-        './media-conduit/AudioConduit.h',
-        './media-conduit/AudioConduit.cpp',
-        './media-conduit/VideoConduit.h',
-        './media-conduit/VideoConduit.cpp',
+        './src/media-conduit/AudioConduit.h',
+        './src/media-conduit/AudioConduit.cpp',
+        './src/media-conduit/VideoConduit.h',
+        './src/media-conduit/VideoConduit.cpp',
         # Common
         './src/common/CommonTypes.h',
         './src/common/csf_common.h',
@@ -529,6 +529,7 @@
         './src/sipcc/cpr/include/cpr_time.h',
         './src/sipcc/cpr/include/cpr_timers.h',
         './src/sipcc/cpr/include/cpr_types.h',
+        './src/sipcc/cpr/common/cpr_string.c',
         # INCLUDE
         './src/sipcc/include/cc_blf.h',
         './src/sipcc/include/cc_blf_listener.h',
