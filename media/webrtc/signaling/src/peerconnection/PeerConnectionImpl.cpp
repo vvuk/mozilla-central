@@ -424,9 +424,14 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   // Create the DTLS Identity
   mIdentity = DtlsIdentity::Generate("self");
+  
+  // Busy-wait until we are ready
+  // TODO(ekr@rtfm.com): This needs to be fixed with deferred operation
+  // in PeerConnection.js
+  while(PeerConnectionCtx::GetInstance()->sipcc_state() != kStarted) {
+    PR_Sleep(100);
+  }
 
-  // TODO: Don't busy-wait here, instead invoke a callback when we're ready.
-  PR_Sleep(2000);
   return NS_OK;
 }
 
