@@ -311,9 +311,9 @@ PeerConnection.prototype = {
   },
 
   onRemoteStreamAdded: null,
-  onDataChannelx: null,
-  onConnectionx: null,
-  onClosedConnectionx: null,
+  notifyDataChannel: null,
+  notifyConnection: null,
+  notifyClosedConnection: null,
 
   // For testing only.
   createFakeMediaStream: function(type) {
@@ -471,26 +471,26 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onConnection: function() {
+  notifyConnection: function() {
     dump("!!! onConnection called\n");
-    if (this._dompc.onConnectionx) {
-      this._dompc.onConnectionx.onCallback();
+    if (this._dompc.onConnection) {
+      this._dompc.onConnection.onCallback();
     }
     this._dompc._executeNext();
   },
 
-  onClosedConnection: function() {
+  notifyClosedConnection: function() {
     dump("!!! onClosedConnection called\n");
-    if (this._dompc.onClosedConnectionx) {
-      this._dompc.onClosedConnectionx.onCallback();
+    if (this._dompc.onClosedConnection) {
+      this._dompc.onClosedConnection.onCallback();
     }
     this._dompc._executeNext();
   },
 
-  onDataChannel: function(channel) {
+  notifyDataChannel: function(channel) {
     dump("!!! onDataChannel called: " + channel + "\n");
-    if (this._dompc.onDataChannelx) {
-      this._dompc.onDataChannelx.onCallback(channel);
+    if (this._dompc.onDataChannel) {
+      this._dompc.onDataChannel.onCallback(channel);
     }
     this._dompc._executeNext();
   },

@@ -26,7 +26,7 @@
 #include "PeerConnectionImpl.h"
 
 #include "nsPIDOMWindow.h"
-#include "nsIDOMDataChannel.h"
+#include "nsDOMDataChannel.h"
 
 #ifndef USE_FAKE_MEDIA_STREAMS
 #include "MediaSegment.h"
@@ -40,13 +40,6 @@ namespace mozilla {
 }
 
 class nsIDOMDataChannel;
-
-#ifdef MOZILLA_INTERNAL_API
-nsresult
-NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
-                     nsPIDOMWindow* aWindow,
-                     nsIDOMDataChannel** domDataChannel);
-#endif
 
 static const char* logTag = "PeerConnectionImpl";
 
@@ -159,15 +152,15 @@ public:
         }
       case PC_OBSERVER_CONNECTION:
         std::cerr << "Delivering PeerConnection onconnection" << std::endl;
-        mObserver->OnConnection();
+        mObserver->NotifyConnection();
         break;
       case PC_OBSERVER_CLOSEDCONNECTION:
         std::cerr << "Delivering PeerConnection onclosedconnection" << std::endl;
-        mObserver->OnClosedConnection();
+        mObserver->NotifyClosedConnection();
         break;
       case PC_OBSERVER_DATACHANNEL:
         std::cerr << "Delivering PeerConnection ondatachannel" << std::endl;
-        mObserver->OnDataChannel(mChannel);
+        mObserver->NotifyDataChannel(mChannel);
         break;
       case PC_OBSERVER_ICE:
         std::cerr << "Delivering PeerConnection ICE callback " << std::endl;
@@ -370,14 +363,18 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStre
 
 NS_IMETHODIMP
 PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, 
-                               nsIDOMWindow* aWindow, nsIThread* thread) {
+                               nsIDOMWindow* aWindow, 
+                               nsIThread* thread) {
   if (!observer) {
     return NS_ERROR_FAILURE;
   }
 
-  mWindow = do_QueryInterface(aWindow);
   mThread = thread;
   mPCObserver = observer;
+
+  mWindow = do_QueryInterface(aWindow);
+  NS_ENSURE_STATE(mWindow);
+
   PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
 
   if (!pcctx) {
@@ -528,11 +525,6 @@ PeerConnectionImpl::ListenThread(void *data)
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
 #ifdef MOZILLA_INTERNAL_API
-  if (!ctx->mDataConnection) {
-    ctx->mDataConnection = new mozilla::DataChannelConnection(ctx);
-    ctx->mDataConnection->Init(ctx->listenPort);
-  }
-  
   ctx->mDataConnection->Listen(ctx->listenPort);
 #endif
   std::cerr << "PeerConnectionImpl::ListenThread() finished" << std::endl;
@@ -572,22 +564,18 @@ PeerConnectionImpl::ConnectThread(void *data)
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
 #ifdef MOZILLA_INTERNAL_API
-  if (!ctx->mDataConnection) {
-    ctx->mDataConnection = new mozilla::DataChannelConnection(ctx);
-    ctx->mDataConnection->Init(ctx->listenPort^1);
-  }
-  
   ctx->mDataConnection->Connect(ctx->connectStr,ctx->connectPort);
 #endif
   std::cerr << "PeerConnectionImpl::ConnectThread() finished" << std::endl;
 }
 
 void
-PeerConnectionImpl::OnConnection()
+PeerConnectionImpl::NotifyConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  std::cerr << "PeerConnectionImpl:: got OnConnection" << std::endl;
+  std::cerr << "PeerConnectionImpl:: got NotifyConnection" << std::endl;
+
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
     PeerConnectionObserverDispatch* runnable =
@@ -603,11 +591,11 @@ PeerConnectionImpl::OnConnection()
 }
 
 void
-PeerConnectionImpl::OnClosedConnection()
+PeerConnectionImpl::NotifyClosedConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  std::cerr << "PeerConnectionImpl:: got OnClosedConnection" << std::endl;
+  std::cerr << "PeerConnectionImpl:: got NotifyClosedConnection" << std::endl;
 
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
@@ -623,53 +611,12 @@ PeerConnectionImpl::OnClosedConnection()
 #endif
 }
 
-  /*
-bool
-ReturnDataChannel(JSContext* aCx,
-                  jsval* aVp,
-                  nsIDOMDataChannel* aDataChannel)
+void
+PeerConnectionImpl::NotifyDataChannel(mozilla::DataChannel *channel)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aCx, "Null pointer!");
-  NS_ASSERTION(aVp, "Null pointer!");
-  NS_ASSERTION(aDataChannel, "Null pointer!");
-
-  nsIXPConnect* xpc = nsContentUtils::XPConnect();
-  NS_ASSERTION(xpc, "This should never be null!");
-
-  JSAutoRequest ar(aCx);
-
-  JSObject* global = JS_GetGlobalForScopeChain(aCx);
-  if (!global) {
-    NS_WARNING("Couldn't get global object!");
-    return false;
-  }
-
-  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  if (NS_FAILED(xpc->WrapNative(aCx, global, aDataChannel,
-                                NS_GET_IID(nsIDOMDataChannel),
-                                getter_AddRefs(holder)))) {
-    JS_ReportError(aCx, "Couldn't wrap nsIDOMDataChannel object.");
-    return false;
-  }
-
-  JSObject* result;
-  if (NS_FAILED(holder->GetJSObject(&result))) {
-    JS_ReportError(aCx, "Couldn't get JSObject from wrapper.");
-    return false;
-  }
-
-  *aVp = OBJECT_TO_JSVAL(result);
-  return true;
-}
-  */
+  std::cerr << "PeerConnectionImpl:: got NotifyDataChannel" << std::endl;
 
 #ifdef MOZILLA_INTERNAL_API
-void
-PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
-{
-  std::cerr << "PeerConnectionImpl:: got OnDataChannel" << std::endl;
-
   nsCOMPtr<nsIDOMDataChannel> domchannel;
   nsresult rv = NS_NewDOMDataChannel(channel, mWindow /*GetOwner()*/,
                                      getter_AddRefs(domchannel));
@@ -685,8 +632,8 @@ PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
     }
     runnable->Run();
   }
-}
 #endif
+}
 
 /*
  * CC_SDP_DIRECTION_SENDRECV will not be used when Constraints are implemented

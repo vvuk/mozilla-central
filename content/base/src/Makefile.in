@@ -41,6 +41,7 @@ EXPORTS		= \
 		nsGenericElement.h \
 		nsMappedAttributeElement.h \
 		nsStyledElement.h \
+		nsDOMDataChannel.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom

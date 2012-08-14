@@ -40,9 +40,9 @@ interface IPeerConnectionObserver : nsISupports
   void onRemoveTrack();
 
   /* DataChannel observers */
-  void onConnection();
-  void onClosedConnection();
-  void onDataChannel(in nsIDOMDataChannel channel);
+  void notifyConnection();
+  void notifyClosedConnection();
+  void notifyDataChannel(in nsIDOMDataChannel channel);
 
   /* When SDP is parsed and a candidate line is found this method is called.
    * It should hook back into the media transport to notify it of ICE candidates
@@ -70,7 +70,8 @@ interface IPeerConnection : nsISupports
   const long kIceFailed = 4;
 
   /* Must be called first. Observer events will be dispatched on the thread provided */
-  void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window, [optional] in nsIThread thread);
+  void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window, 
+                  [optional] in nsIThread thread);
 
   /* JSEP calls */
   void createOffer(in string hints);

@@ -1,34 +1,41 @@
-#include "nsIDOMDataChannel.h"
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set sw=2 ts=8 et tw=80 : */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsDOMDataChannel.h"
 #include "nsIDOMFile.h"
-#include "nsIDOMMessageEvent.h"
 #include "nsIJSNativeInitializer.h"
+#include "nsIDOMDataChannel.h"
+#include "nsIDOMMessageEvent.h"
+#include "nsDOMClassInfo.h"
+#include "nsDOMEventTargetHelper.h"
 
 #include "jsval.h"
 
 #include "nsDOMError.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
-#include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDOMClassInfo.h"
+#include "nsIScriptObjectPrincipal.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
 
 #include "DataChannel.h"
+
+//#define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
+#define LOG(x)   
 
 class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(mozilla::DataChannel* aDataChannel,
-		   nsPIDOMWindow* aDOMWindow)
-  {
-    mDataChannel = aDataChannel;
-    BindToOwner(aDOMWindow);
-  }
+  nsDOMDataChannel(mozilla::DataChannel* aDataChannel) : mDataChannel(aDataChannel)
+  {}
 
-  nsresult Init();
+  nsresult Init(nsPIDOMWindow* aDOMWindow);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -54,19 +61,21 @@ public:
   virtual nsresult
   OnChannelClosed(nsISupports* aContext);
 
-  // Owning reference
-  nsAutoPtr<mozilla::DataChannel> mDataChannel;
-
-  NS_DECL_EVENT_HANDLER(open)
-  NS_DECL_EVENT_HANDLER(error)
-  NS_DECL_EVENT_HANDLER(close)
-  NS_DECL_EVENT_HANDLER(message)
-
+private:
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,
                          bool &aIsBinary, PRUint32 &aOutgoingLength,
                          JSContext *aCx);
+
+  // Owning reference
+  nsAutoPtr<mozilla::DataChannel> mDataChannel;
+  nsString  mUTF16Origin;
+
+  NS_DECL_EVENT_HANDLER(open)
+  NS_DECL_EVENT_HANDLER(error)
+  NS_DECL_EVENT_HANDLER(close)
+  NS_DECL_EVENT_HANDLER(message)
 
 };
 
@@ -99,15 +108,42 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDataChannel)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 nsresult
-nsDOMDataChannel::Init()
+nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
 {
+  nsresult rv;
+  nsAutoString urlParam;
+
   nsDOMEventTargetHelper::Init();
 
   MOZ_ASSERT(mDataChannel);
-
   mDataChannel->SetListener(this, nsnull);
 
-  return NS_OK;
+  // Now grovel through the objects to get a usable origin for onMessage
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aDOMWindow);
+  NS_ENSURE_STATE(sgo);
+  nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
+  NS_ENSURE_STATE(scriptContext);
+
+  nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal(do_QueryInterface(aDOMWindow));
+  NS_ENSURE_STATE(scriptPrincipal);
+  nsCOMPtr<nsIPrincipal> principal = scriptPrincipal->GetPrincipal();
+  NS_ENSURE_STATE(principal);
+
+  if (aDOMWindow) {
+    BindToOwner(aDOMWindow->IsOuterWindow() ?
+                aDOMWindow->GetCurrentInnerWindow() : aDOMWindow);
+  } else {
+    BindToOwner(aDOMWindow);
+  }
+
+  // XXX any need to CheckInnerWindowCorrectness() like WebSockets?
+  // It's only an issue if the PeerConnection can likewise leak, which I think it can't.
+  // See bug 696085
+  // Do we need to observe for window destroyed or frozen?  (same bug)
+
+  rv = nsContentUtils::GetUTFOrigin(principal,mUTF16Origin);
+  LOG(("%s: origin = %s\n",__FUNCTION__,NS_LossyConvertUTF16toASCII(mUTF16Origin).get()));
+  return rv;
 }
 
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, open)
@@ -118,6 +154,7 @@ NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, message)
 NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)
 {
+  // XXX until we support labels
   aLabel = NS_LITERAL_STRING("Help I'm trapped inside a DataChannel factory! ");
   return NS_OK;
 }
@@ -292,6 +329,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aMsg,
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
+  LOG(("DoOnMessageAvailable\n"));
   // XXX don't need this yet
   if (isBinary) {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -321,14 +359,20 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aMsg,
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
   rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("message"),
                                       false, false,
-                                      data, EmptyString(), EmptyString(),
+                                      data, mUTF16Origin, EmptyString(),
                                       nsnull);
   NS_ENSURE_SUCCESS(rv,rv);
- 
-  //nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(event);
   event->SetTrusted(true);
 
-  return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+  nsRefPtr<nsIDOMEventListener> listener;
+  GetOnmessage(getter_AddRefs(listener));
+
+  LOG(("%p(%p): %s - Dispatching for %p\n",this,(void*)mDataChannel,__FUNCTION__,(void*)listener.get()));
+  rv = DispatchDOMEvent(nsnull, event, nsnull, nsnull);
+  if (NS_FAILED(rv)) {
+    NS_WARNING("Failed to dispatch the message event!!!");
+  }
+  return rv;
 }
 
 nsresult
@@ -359,8 +403,9 @@ nsDOMDataChannel::OnChannelConnected(nsISupports* aContext)
   rv = event->InitEvent(NS_LITERAL_STRING("open"), false, false);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  //nsCOMPtr<nsIDOMEvent> event = do_QueryInterface(event);
   event->SetTrusted(true);
+
+  LOG(("%p(%p): %s - Dispatching\n",this,(void*)mDataChannel,__FUNCTION__));
 
   return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
@@ -377,21 +422,25 @@ nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
   rv = event->InitEvent(NS_LITERAL_STRING("close"), false, false);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  //nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
   event->SetTrusted(true);
+
+  LOG(("%p(%p): %s - Dispatching\n",this,(void*)mDataChannel,__FUNCTION__));
 
   return DispatchDOMEvent(nsnull, event, nsnull, nsnull);
 }
 
+/* static */
 nsresult
 NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** domDataChannel)
 {
-  nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(dataChannel,
-							  aWindow);
+  nsresult rv;
 
-  domdc->Init();
+  nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(dataChannel);
+
+  rv = domdc->Init(aWindow);
+  NS_ENSURE_SUCCESS(rv,rv);
 
   return CallQueryInterface(domdc, domDataChannel);
 }

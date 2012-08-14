@@ -52,25 +52,25 @@ public:
 
 
 // One per PeerConnection
-class DataChannelConnection {
+class DataChannelConnection
+{
 public:
-
   class DataConnectionListener {
   public:
     virtual ~DataConnectionListener() {}
 
     // Called when a the connection is open
-    virtual void OnConnection() = 0;
+    virtual void NotifyConnection() = 0;
 
     // Called when a the connection is lost/closed
-    virtual void OnClosedConnection() = 0;
+    virtual void NotifyClosedConnection() = 0;
 
     // Called when a new DataChannel has been opened by the other side.
-    virtual void OnDataChannel(DataChannel *channel) = 0;
+    virtual void NotifyDataChannel(DataChannel *channel) = 0;
   };
 
   DataChannelConnection(DataConnectionListener *listener);
-  virtual ~DataChannelConnection() {} // XXX need cleanup code for SCTP sockets
+  virtual ~DataChannelConnection();
 
   bool Init(unsigned short port /* XXX DTLSConnection &tunnel*/);
 
@@ -323,13 +323,13 @@ public:
         mChannel->mListener->OnChannelClosed(mChannel->mContext);
         break;
       case ON_CHANNEL_CREATED:
-        mConnection->mListener->OnDataChannel(mChannel);
+        mConnection->mListener->NotifyDataChannel(mChannel);
         break;
       case ON_CONNECTION:
-        mConnection->mListener->OnConnection();
+        mConnection->mListener->NotifyConnection();
         break;
       case ON_DISCONNECTED:
-        mConnection->mListener->OnClosedConnection();
+        mConnection->mListener->NotifyClosedConnection();
         break;
     }
     return NS_OK;

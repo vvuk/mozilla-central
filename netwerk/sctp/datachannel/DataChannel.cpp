@@ -92,6 +92,11 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   LOG(("DataChannelConnection created"));
 }
 
+DataChannelConnection::~DataChannelConnection()
+{
+  CloseAll();
+}
+
 bool
 DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
 {
@@ -109,9 +114,19 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
                             SCTP_STREAM_CHANGE_EVENT};
   {
     MutexAutoLock lock(mLock);
-    if (!sctp_initialized)
-    {
+    if (!sctp_initialized) {
       LOG(("sctp_init(%d)",port+1));
+
+#if 0
+      // This needs to be tied to some form object that is guaranteed to be
+      // around (singleton likely) unless we want to shutdown sctp whenever
+      // we're not using it (and in which case we'd keep a refcnt'd object
+      // ref'd by each DataChannelConnection to release the SCTP usrlib via
+      // sctp_finish)
+      mObserverService = mozilla::services::GetObserverService();
+      NS_ENSURE_TRUE(mObserverService,false);
+      mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
+#endif
       usrsctp_init(port,NULL); // XXX fix
 
       usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
@@ -195,6 +210,7 @@ DataChannelConnection::Listen(unsigned short port)
     return false;
   }
 
+  LOG(("Accepting connection"));
   addr_len = 0;
   if ((mSocket = usrsctp_accept(mMasterSocket, NULL, &addr_len)) == NULL) {
     LOG(("***Failed accept"));
@@ -206,6 +222,7 @@ DataChannelConnection::Listen(unsigned short port)
 
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
+  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,this));
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::ON_CONNECTION,
                             this, NULL));
@@ -280,6 +297,7 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
+  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,this));
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::ON_CONNECTION,
                             this, NULL));
@@ -564,6 +582,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
 
       /* Notify ondatachannel */
       // XXX We need to make sure connection sticks around until the message is delivered
+      LOG(("%s: sending ON_CHANNEL_CREATED for %p",__FUNCTION__,channel));
       NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                                 DataChannelOnMessageAvailable::ON_CHANNEL_CREATED,
                                 this, channel));
@@ -603,6 +622,10 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
     // XXX Only on EAGAIN!?  And if not, then close the channel??
     channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_ACK;
   }
+  LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
+  NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                          DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
+                          channel));
   return;
 }
 
@@ -618,6 +641,7 @@ DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack 
   DC_ENSURE_TRUE(channel->mState == CONNECTING);
 
   channel->mState = OPEN;
+  LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                           DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
                           channel));
@@ -675,6 +699,7 @@ DataChannelConnection::HandleDataMessage(PRUint32 ppid,
         return;
     }
     /* Notify onmessage */
+    LOG(("%s: sending ON_DATA for %p",__FUNCTION__,channel));
     NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_DATA, this,
                               channel, recvData, length));

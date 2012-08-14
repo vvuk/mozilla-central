@@ -173,19 +173,19 @@ TestObserver::OnSetRemoteDescriptionError(PRUint32 code)
 }
 
 NS_IMETHODIMP
-TestObserver::OnConnection()
+TestObserver::NotifyConnection()
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnClosedConnection()
+TestObserver::NotifyClosedConnection()
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnDataChannel(nsIDOMDataChannel *channel)
+TestObserver::NotifyDataChannel(nsIDOMDataChannel *channel)
 {
   return NS_OK;
 }

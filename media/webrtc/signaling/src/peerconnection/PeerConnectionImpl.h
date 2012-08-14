@@ -40,6 +40,10 @@
 #include "VideoUtils.h"
 #include "ImageLayers.h"
 #include "VideoSegment.h"
+#else
+namespace mozilla {
+  class DataChannel;
+}
 #endif
 
 namespace sipcc {
@@ -270,11 +274,9 @@ public:
   );
 
   // DataConnection observers
-  void OnConnection();
-  void OnClosedConnection();
-#ifdef MOZILLA_INTERNAL_API
-  void OnDataChannel(mozilla::DataChannel *channel);
-#endif
+  void NotifyConnection();
+  void NotifyClosedConnection();
+  void NotifyDataChannel(mozilla::DataChannel *channel);
 
   // Handle system to allow weak references to be passed through C code
   static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
