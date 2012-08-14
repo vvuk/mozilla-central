@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 
+
 #include "vcm.h"
 #include "CSFLog.h"
 #include "CSFLogStream.h"
@@ -12,6 +13,10 @@
 #include "CC_SIPCCCallInfo.h"
 #include "ccapi_device_info.h"
 #include "CC_SIPCCDeviceInfo.h"
+
+#include "nspr.h"
+#include "nss.h"
+#include "pk11pub.h"
 
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
@@ -384,12 +389,10 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
     return NS_ERROR_FAILURE;
   }
 
-  // Generate a handle from our pointer.
-  unsigned char handle_bin[sizeof(void*)];
-  PeerConnectionImpl *handle = this;
-  PR_ASSERT(sizeof(handle_bin) >= sizeof(handle));
+  // Generate a random handle
+  unsigned char handle_bin[4];
+  PK11_GenerateRandom(handle_bin, sizeof(handle_bin));
 
-  memcpy(handle_bin, &handle, sizeof(handle));
   for (size_t i = 0; i<sizeof(handle_bin); i++) {
     char hex[3];
     snprintf(hex, 3, "%.2x", handle_bin[i]);
@@ -398,7 +401,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
-  mIceCtx = NrIceCtx::Create("PC", true);
+  mIceCtx = NrIceCtx::Create("PC:" + mHandle, true);
   mIceCtx->SignalGatheringCompleted.connect(this, &PeerConnectionImpl::IceGatheringCompleted);
   mIceCtx->SignalCompleted.connect(this, &PeerConnectionImpl::IceCompleted);
 
