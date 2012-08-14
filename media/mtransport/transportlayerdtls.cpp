@@ -374,6 +374,8 @@ void TransportLayerDtls::WasInserted() {
 };
 
 
+// TODO(ekr@rtfm.com): make sure this is called from STS. Otherwise
+// we have thread safety issues
 bool TransportLayerDtls::Setup() {
   SECStatus rv;
 
@@ -381,16 +383,12 @@ bool TransportLayerDtls::Setup() {
     MLOG(PR_LOG_ERROR, "DTLS layer with nothing below. This is useless");
     return false;
   }
+  helper_ = new NSPRHelper(downward_);
 
   if (!identity_) {
     MLOG(PR_LOG_ERROR, "Can't start DTLS without an identity");
     return false;
   }
-
-  helper_ = new NSPRHelper(downward_);
-  downward_->SignalStateChange.connect(this, &TransportLayerDtls::StateChange);
-  downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
-
   if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
     nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
   }
@@ -489,6 +487,10 @@ bool TransportLayerDtls::Setup() {
   }
 
   ssl_fd_ = ssl_fd;
+
+  // Finally, get ready to receive data
+  downward_->SignalStateChange.connect(this, &TransportLayerDtls::StateChange);
+  downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
 
   if (downward_->state() == OPEN) {
     Handshake();
