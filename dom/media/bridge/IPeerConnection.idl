@@ -1,8 +1,8 @@
 #include "nsIThread.idl"
 #include "nsIDOMWindow.idl"
-#include "nsIDOMMediaStream.idl"
 
 interface nsIDOMDataChannel;
+interface nsIDOMMediaStream;
 interface nsIDOMWindow;
 
 /* Do not confuse with nsIDOMRTCPeerConnection. This interface is purely for
