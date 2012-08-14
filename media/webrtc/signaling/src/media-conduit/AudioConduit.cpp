@@ -793,7 +793,7 @@ void
       CSFLogDebug(logTag,"Payload Frequency: %d", mRecvCodecList[i]->mFreq);
       CSFLogDebug(logTag,"Payload PacketSize: %d", mRecvCodecList[i]->mPacSize);
       CSFLogDebug(logTag,"Payload Channels: %d", mRecvCodecList[i]->mChannels);
-      CSFLogDebug(logTag,"Paylaod Sampling Rate: %d", mRecvCodecList[i]->mRate);
+      CSFLogDebug(logTag,"Payload Sampling Rate: %d", mRecvCodecList[i]->mRate);
       
        
     }
