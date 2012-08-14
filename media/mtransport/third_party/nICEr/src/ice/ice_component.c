@@ -270,6 +270,10 @@ int nr_ice_component_prune_candidates(nr_ice_ctx *ctx, nr_ice_component *comp)
       if(c1->state!=NR_ICE_CAND_STATE_INITIALIZED){
         r_log(LOG_ICE,LOG_DEBUG,"ICE(%s): Removing non-initialized candidate %s",
           ctx->label,c1->label);
+        if (c1->state == NR_ICE_CAND_STATE_INITIALIZING) {
+          r_log(LOG_ICE,LOG_NOTICE, "ICE(%s): Removing candidate %s which is in INITIALIZING state",
+            ctx->label, c1->label);
+        }
         TAILQ_REMOVE(&comp->candidates,c1,entry_comp);
         comp->candidate_ct--;
         TAILQ_REMOVE(&c1->isock->candidates,c1,entry_sock);

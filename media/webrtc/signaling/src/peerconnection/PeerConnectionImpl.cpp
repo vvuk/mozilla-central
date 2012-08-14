@@ -693,6 +693,7 @@ PeerConnectionImpl::OnDataChannel(mozilla::DataChannel *channel)
  */
 NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(const char* hints) {
+  CheckApiState();
   mRole = kRoleOfferer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createOffer(hints);
   return NS_OK;
@@ -700,6 +701,7 @@ PeerConnectionImpl::CreateOffer(const char* hints) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
+  CheckApiState();
   mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createAnswer(hints, offer);
   return NS_OK;
@@ -707,6 +709,7 @@ PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::SetLocalDescription(PRInt32 action, const char* sdp) {
+  CheckApiState();
   mLocalRequestedSDP = sdp;
   mCall->setLocalDescription((cc_jsep_action_t)action, mLocalRequestedSDP);
   return NS_OK;
@@ -714,6 +717,7 @@ PeerConnectionImpl::SetLocalDescription(PRInt32 action, const char* sdp) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::SetRemoteDescription(PRInt32 action, const char* sdp) {
+  CheckApiState();
   mRemoteRequestedSDP = sdp;
   mCall->setRemoteDescription((cc_jsep_action_t)action, mRemoteRequestedSDP);
   return NS_OK;
@@ -995,7 +999,7 @@ PeerConnectionImpl::IceCompleted(NrIceCtx *ctx)
 {
   CSFLogDebug(logTag, "ICE completed");
   mIceState = kIceConnected;
-
+  
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
     PeerConnectionObserverDispatch* runnable =

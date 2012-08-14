@@ -332,9 +332,13 @@ public:
   mozilla::RefPtr<DtlsIdentity> const GetIdentity() { return mIdentity; }
 
 private:
-  void ChangeReadyState(ReadyState ready_state);
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
+
+  void ChangeReadyState(ReadyState ready_state);
+  void CheckApiState() {
+    PR_ASSERT(mIceState != kIceGathering);
+  }
 
   // The role we are adopting
   Role mRole;
