@@ -162,7 +162,6 @@ COMPONENT_LIBS += \
   storagecomps \
   rdf \
   windowds \
-  peerconnection \
   $(NULL)
 
 ifdef BUILD_CTYPES
@@ -372,11 +371,12 @@ endif
 EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,gkmedias,$(DIST)/lib) 
 
 ifdef MOZ_WEBRTC
+COMPONENT_LIBS += peerconnection
 EXTRA_DSO_LDOPTS += \
-		  $(DEPTH)/media/mtransport/build/$(LIB_PREFIX)mtransport.$(LIB_SUFFIX) \
-		  $(DEPTH)/media/webrtc/signaling/signaling_ecc/$(LIB_PREFIX)ecc.$(LIB_SUFFIX) \
-		  $(DEPTH)/media/webrtc/signaling/signaling_sipcc/$(LIB_PREFIX)sipcc.$(LIB_SUFFIX) \
-		  $(NULL)
+  $(DEPTH)/media/mtransport/build/$(LIB_PREFIX)mtransport.$(LIB_SUFFIX) \
+  $(DEPTH)/media/webrtc/signaling/signaling_ecc/$(LIB_PREFIX)ecc.$(LIB_SUFFIX) \
+  $(DEPTH)/media/webrtc/signaling/signaling_sipcc/$(LIB_PREFIX)sipcc.$(LIB_SUFFIX) \
+  $(NULL)
 endif
 
 
