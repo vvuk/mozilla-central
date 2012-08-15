@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+"use strict";
+
 const IDService = {};
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
@@ -105,11 +107,10 @@ PeerConnection.prototype = {
 
   // Pick the next item from the queue and run it
   _executeNext: function() {
-    dump("!!! " + this._uniqId + " is in _executeNext from " + arguments.callee.caller.name + " and queue is as follows\n");
+    dump("!!! in executeNext: ");
     this._printQueue();
     if (this._queue.length) {
       let obj = this._queue.shift();
-      dump("!!! " + this._uniqId + " : calling " + obj.func.name + "\n");
       obj.func.apply(this, obj.args);
     } else {
       this._pending = false;
