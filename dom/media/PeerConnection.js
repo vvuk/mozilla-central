@@ -347,11 +347,15 @@ PeerConnection.prototype = {
   notifyClosedConnection: null,
 
   // For testing only.
-  createFakeMediaStream: function(type) {
+  createFakeMediaStream: function(type, muted) {
+    var hint_mute = muted ? 0x80 : 0;
+
     if (type == "video") {
-      return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintVideo);
+      return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintVideo |
+                                            hint_mute);
     }
-    return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintAudio);
+    return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintAudio |
+                                          hint_mute);
   }
 };
 
