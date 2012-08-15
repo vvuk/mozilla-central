@@ -163,6 +163,7 @@ jwcryptoClass.prototype = {
   verifyAssertion: function verifyAssertion(aSignedObject, aPublicKey, aCallback) {
     try {
       let components = this._extractAssertionComponents(aSignedObject);
+// XXX: DO NOT SHIP WITHOUT ACTUALLY VERIFYING SIGNATURE. Bug 783105.
 //      aPublicKey.verify(components.signed, components.signature, function(err, result) {
 //        if (err) {
 //        return aCallback(err);

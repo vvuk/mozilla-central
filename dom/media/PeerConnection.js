@@ -129,6 +129,25 @@ PeerConnection.prototype = {
     });
   },
 
+  _displayVerification: function(email) {
+    let browser = this._win.QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIWebNavigation)
+                         .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
+    let chromeWin = browser.ownerDocument.defaultView;
+    
+    dump("going to show identity popup\n");
+
+    chromeWin.PopupNotifications.show(
+      browser, "webrtc-id-verified",
+      "This call has been verified as originating from " + email,
+      "password-notification-icon", // temporary
+      {
+        label: "Ok", accessKey: "o", callback: function() {}
+      },
+      [], {dismissed:true}
+    );
+  },
+
   _verifyIdentity: function(offer) {
     let self = this;
 
@@ -143,6 +162,7 @@ PeerConnection.prototype = {
       IDService.verifyIdentity(id[1], function(err, val) {
         if (val && (fprint[1] == val.message)) {
           self._onVerifyIdentitySuccess.onCallback(val);
+          self._displayVerification(val.principal.email);
           return;
         }
         self._onVerifyIdentityFailure.onCallback(err || "Signed message did not match");
@@ -162,7 +182,7 @@ PeerConnection.prototype = {
   },
 
   verifyIdentity: function(offer, onSuccess, onError) {
-    dump("!!! " + this._uniqId + " : verifyIdentity called with\n");
+    dump("!!! " + this._uniqId + " : verifyIdentity called\n");
     this._onVerifyIdentitySuccess = onSuccess;
     this._onVerifyIdentityFailure = onError;
 
