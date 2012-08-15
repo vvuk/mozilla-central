@@ -18,6 +18,7 @@
         'iLBC',
         'iSAC',
         'iSACFix',
+        'opus',
         'PCM16B',
         'NetEq',
         '<(webrtc_root)/common_audio/common_audio.gyp:resampler',
@@ -28,6 +29,7 @@
       'include_dirs': [
         '../interface',
         '../../../interface',
+        '../../codecs/opus/interface',
       ],
       'direct_dependent_settings': {
         'include_dirs': [

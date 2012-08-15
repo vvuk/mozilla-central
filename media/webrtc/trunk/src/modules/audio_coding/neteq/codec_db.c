@@ -111,6 +111,9 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
 #ifdef NETEQ_ISAC_SWB_CODEC
         case kDecoderISACswb :
 #endif
+#ifdef NETEQ_OPUS_CODEC
+        case kDecoderOpus :
+#endif
 #ifdef NETEQ_G722_CODEC
         case kDecoderG722 :
 #endif
@@ -470,6 +473,9 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #ifdef NETEQ_SPEEX_CODEC
         case kDecoderSPEEX_8:
         case kDecoderSPEEX_16:
+#endif
+#ifdef NETEQ_OPUS_CODEC
+        case kDecoderOpus :
 #endif
 #ifdef NETEQ_CELT_CODEC
         case kDecoderCELT_32 :
