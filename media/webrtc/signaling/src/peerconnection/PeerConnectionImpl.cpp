@@ -141,7 +141,6 @@ public:
               } else if (hint == nsDOMMediaStream::HINT_CONTENTS_VIDEO) {
                 mObserver->OnAddStream(stream, "video");
               }
-
               break;
 
             default:

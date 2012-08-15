@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 const IDService = {};
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
@@ -14,7 +12,9 @@ Cu.import("resource://gre/modules/identity/WebRTC.jsm", IDService);
 const PC_CONTRACT = "@mozilla.org/dom/peerconnection;1";
 const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
 
-function PeerConnection() {}
+function PeerConnection() {
+  dump("!!! Real PeerConnection constructor called OMG !!!\n\n");
+}
 PeerConnection.prototype = {
 
   _pc: null,
@@ -61,24 +61,35 @@ PeerConnection.prototype = {
              createInstance(Ci.IPeerConnection);
     this._observer = new PeerConnectionObserver(this);
 
+    this._uniqId = Cc["@mozilla.org/uuid-generator;1"]
+                   .getService(Ci.nsIUUIDGenerator)
+                   .generateUUID().toString();
+
     // Nothing starts until ICE gathering completes.
     this._queueOrRun({
       func: this._pc.initialize,
       args: [this._observer, win, Services.tm.currentThread]
     });
+    this._printQueue();
 
     this._win = win;
     this._winID = this._win.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
 
-    dump("!!! mozPeerConnection constructor called " + this._win + "\n " + this._winID + "\n\n");
-    this._uniqId = Cc["@mozilla.org/uuid-generator;1"]
-                   .getService(Ci.nsIUUIDGenerator)
-                   .generateUUID().toString();
+    dump("!!! mozPeerConnection constructor called " + this._win + "\n");
   },
 
   // FIXME: Right now we do not enforce proper invocation (eg: calling
   // createOffer twice in a row is allowed).
+
+  _printQueue: function() {
+    let q = "!!! Queue for " + this._uniqId + " is currently: [";
+    for (let i = 0; i < this._queue.length; i++) {
+      q = q + this._queue[i].func.name + ",";
+    }
+    q += "]\n";
+    dump(q);
+  },
 
   _queueOrRun: function(obj) {
     if (!this._pending) {
@@ -89,10 +100,13 @@ PeerConnection.prototype = {
       dump("!!! " + this._uniqId + " : queued " + obj.func.name + "\n");
       this._queue.push(obj);
     }
+    this._printQueue();
   },
 
   // Pick the next item from the queue and run it
   _executeNext: function() {
+    dump("!!! " + this._uniqId + " is in _executeNext from " + arguments.callee.caller.name + " and queue is as follows\n");
+    this._printQueue();
     if (this._queue.length) {
       let obj = this._queue.shift();
       dump("!!! " + this._uniqId + " : calling " + obj.func.name + "\n");
@@ -268,7 +282,6 @@ PeerConnection.prototype = {
 
   addStream: function(stream, constraints) {
     dump("!!! " + this._uniqId + " : addStream " + stream + " called\n");
-
     // TODO: Implement constraints.
     this._pc.addStream(stream);
     dump("!!! " + this._uniqId + " : addStream returned\n");
