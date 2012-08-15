@@ -377,7 +377,7 @@ PeerConnectionObserver.prototype = {
         finalOffer += "m=" + parts[i];
       }
 
-      dump("!!! " + this._dompc._uniqId + " : Generated final offer: " + finalOffer + "\n\n");
+      dump("!!! " + self._dompc._uniqId + " : Generated final offer: " + finalOffer + "\n\n");
       self._dompc._onCreateOfferSuccess.onCallback({
         type: "offer", sdp: finalOffer
       });
