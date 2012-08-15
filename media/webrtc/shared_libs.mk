@@ -15,6 +15,7 @@ SHARED_LIBRARY_LIBS += \
   $(call EXPAND_LIBNAME_PATH,CNG,$(DEPTH)/media/webrtc/trunk/src/modules/modules_CNG) \
   $(call EXPAND_LIBNAME_PATH,signal_processing,$(DEPTH)/media/webrtc/trunk/src/common_audio/common_audio_signal_processing) \
   $(call EXPAND_LIBNAME_PATH,G711,$(DEPTH)/media/webrtc/trunk/src/modules/modules_G711) \
+  $(call EXPAND_LIBNAME_PATH,opus,$(DEPTH)/media/webrtc/trunk/src/modules/modules_opus) \
   $(call EXPAND_LIBNAME_PATH,G722,$(DEPTH)/media/webrtc/trunk/src/modules/modules_G722) \
   $(call EXPAND_LIBNAME_PATH,iLBC,$(DEPTH)/media/webrtc/trunk/src/modules/modules_iLBC) \
   $(call EXPAND_LIBNAME_PATH,iSAC,$(DEPTH)/media/webrtc/trunk/src/modules/modules_iSAC) \

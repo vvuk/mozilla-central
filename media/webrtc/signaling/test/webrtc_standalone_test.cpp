@@ -71,13 +71,19 @@ class WebrtcTest : public ::testing::Test {
    if( initDone )
         return;
 
+   int res;
+
    cerr << "  Creating Voice Engine " << endl;
    mVoiceEngine = webrtc::VoiceEngine::Create();
    ASSERT_NE(mVoiceEngine, (void*)NULL);
 
    mPtrVoEBase = webrtc::VoEBase::GetInterface(mVoiceEngine);
    ASSERT_NE(mPtrVoEBase, (void*)NULL);
-   int res = mPtrVoEBase->Init();
+   res = mPtrVoEBase->Init();
+   ASSERT_EQ(0, res);
+
+   cerr << "  Enabling trace file  " << endl;
+   res = mVoiceEngine->SetTraceFile("webrtc_standalone.log");
    ASSERT_EQ(0, res);
 
    mPtrVoEFile = webrtc::VoEFile::GetInterface(mVoiceEngine);
@@ -88,6 +94,14 @@ class WebrtcTest : public ::testing::Test {
 
    mPtrVoECodec = webrtc::VoECodec::GetInterface(mVoiceEngine);
    ASSERT_NE(mPtrVoECodec, (void*)NULL);
+
+   webrtc::CodecInst codec;
+   cerr << "  Supported codecs:" << endl;
+   for (int i = 0; i < mPtrVoECodec->NumOfCodecs(); i++) {
+     res = mPtrVoECodec->GetCodec(i, codec);
+     ASSERT_EQ(0, res);
+     cerr << "   " << codec.plname << endl;
+   }
 
    //check if we have audio playout devices for us
    mPtrVoEHardware  = webrtc::VoEHardware::GetInterface(mVoiceEngine);
@@ -153,6 +167,11 @@ class WebrtcTest : public ::testing::Test {
 
     mChannel = mPtrVoEBase->CreateChannel();
     EXPECT_TRUE(mChannel != -1);
+
+    webrtc::CodecInst codec;
+    int res = mPtrVoECodec->GetSendCodec(mChannel, codec);
+    ASSERT_EQ(0, res);
+    cerr << "  Default send codec is " << codec.plname << endl;
 
     cerr << "  ************************************************" << endl;
     cerr << "  PLAYING ORIGINAL AUDIO FILE NOW FOR 5 SECONDS "<< endl;
@@ -220,6 +239,19 @@ class WebrtcTest : public ::testing::Test {
     memset(audio,0,sampleSizeInBits);
 
     EXPECT_EQ(0, mPtrVoEBase->SetLocalReceiver(mChannel,DEFAULT_PORT));
+
+    webrtc::CodecInst codec;
+    for (int i = 0; i < mPtrVoECodec->NumOfCodecs(); i++) {
+      ASSERT_EQ(0, mPtrVoECodec->GetCodec(i, codec));
+      if (!strcasecmp("opus", codec.plname))
+        break;
+    }
+    ASSERT_EQ(0, mPtrVoECodec->SetSendCodec(mChannel, codec));
+    cerr << "  Set send codec to " << codec.plname << endl;
+    cerr << "   rate: " << codec.rate << " bps" << endl;
+    cerr << "   freq: " << codec.plfreq << " Hz" << endl;
+    cerr << "   channels: " << codec.channels << endl;
+    cerr << "   payload: " << codec.pltype << endl;
 
     EXPECT_EQ(0, mPtrVoEBase->SetSendDestination(mChannel,DEFAULT_PORT,"127.0.0.1"));
 

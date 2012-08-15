@@ -136,6 +136,11 @@ opus_decode
 opus_decode_float
 opus_packet_get_nb_frames
 opus_packet_get_samples_per_frame
+opus_encoder_create
+opus_encoder_destroy
+opus_encoder_ctl
+opus_encode
+opus_encode_float
 #endif
 ShInitialize
 ShFinalize
