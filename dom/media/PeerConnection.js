@@ -60,7 +60,7 @@ PeerConnection.prototype = {
     this._pc = Cc["@mozilla.org/peerconnection;1"].
              createInstance(Ci.IPeerConnection);
     this._observer = new PeerConnectionObserver(this);
-    
+
     // Nothing starts until ICE gathering completes.
     this._queueOrRun({
       func: this._pc.initialize,
@@ -82,10 +82,11 @@ PeerConnection.prototype = {
 
   _queueOrRun: function(obj) {
     if (!this._pending) {
-      dump("calling " + obj.func + "\n");
+      dump("!!! " + this._uniqId + " : calling " + obj.func.name + "\n");
       obj.func.apply(this, obj.args);
       this._pending = true;
     } else {
+      dump("!!! " + this._uniqId + " : queued " + obj.func.name + "\n");
       this._queue.push(obj);
     }
   },
@@ -94,6 +95,7 @@ PeerConnection.prototype = {
   _executeNext: function() {
     if (this._queue.length) {
       let obj = this._queue.shift();
+      dump("!!! " + this._uniqId + " : calling " + obj.func.name + "\n");
       obj.func.apply(this, obj.args);
     } else {
       this._pending = false;
@@ -119,10 +121,10 @@ PeerConnection.prototype = {
     // Extract the a=fingerprint and a=identity lines.
     let ire = new RegExp("a=identity:(.+)\r\n");
     let fre = new RegExp("a=fingerprint:(.+)\r\n");
-    
+
     let id = offer.sdp.match(ire);
     let fprint = offer.sdp.match(fre);
-    
+
     if (id.length == 2 && fprint.length == 2) {
       IDService.verifyIdentity(id[1], function(err, val) {
         if (val && (fprint[1] == val.message)) {
@@ -130,23 +132,23 @@ PeerConnection.prototype = {
           return;
         }
         self._onVerifyIdentityFailure.onCallback(err || "Signed message did not match");
-      }); 
+      });
     } else {
       self._onVerifyIdentityFailure.onCallback("No identity information found");
     }
   },
 
   selectIdentity: function(onSuccess, onError) {
-    dump("!!! selectIdentity called\n");
+    dump("!!! " + this._uniqId + " : selectIdentity called\n");
     this._onSelectIdentitySuccess = onSuccess;
     this._onSelectIdentityFailure = onError;
 
     this._queueOrRun({func: this._selectIdentity, args: null});
-    dump("!!! selectIdentity returned\n");
+    dump("!!! "+ this._uniqId + " :  selectIdentity returned\n");
   },
 
   verifyIdentity: function(offer, onSuccess, onError) {
-    dump("!!! verifyIdentity called with\n");
+    dump("!!! " + this._uniqId + " : verifyIdentity called with\n");
     this._onVerifyIdentitySuccess = onSuccess;
     this._onVerifyIdentityFailure = onError;
 
@@ -158,11 +160,11 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({func: this._verifyIdentity, args: [offer]});
-    dump("!!! verifyIdentity returned\n");
+    dump("!!! " + this._uniqId + " : verifyIdentity returned\n");
   },
 
   createOffer: function(onSuccess, onError, constraints) {
-    dump("!!! createOffer called\n");
+    dump("!!! " + this._uniqId + " : createOffer called\n");
     this._onCreateOfferSuccess = onSuccess;
     this._onCreateOfferFailure = onError;
 
@@ -172,11 +174,11 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({func: this._pc.createOffer, args: [constraints]});
-    dump("!!! createOffer returned\n");
+    dump("!!! " + this._uniqId + " : createOffer returned\n");
   },
 
   createAnswer: function(offer, onSuccess, onError, constraints, provisional) {
-    dump("!!! createAnswer called\n");
+    dump("!!! " + this._uniqId + " : createAnswer called\n");
     this._onCreateAnswerSuccess = onSuccess;
     this._onCreateAnswerFailure = onError;
 
@@ -203,7 +205,7 @@ PeerConnection.prototype = {
 
     // TODO: Implement provisional answer & constraints.
     this._queueOrRun({func: this._pc.createAnswer, args: ["", offer.sdp]});
-    dump("!!! createAnswer returned\n");
+    dump("!!! " + this._uniqId + " : createAnswer returned\n");
   },
 
   setLocalDescription: function(desc, onSuccess, onError) {
@@ -226,9 +228,9 @@ PeerConnection.prototype = {
         break;
     }
 
-    dump("!!! setLocalDescription called\n");
+    dump("!!! " + this._uniqId + " : setLocalDescription called\n");
     this._queueOrRun({func: this._pc.setLocalDescription, args: [type, desc.sdp]});
-    dump("!!! setLocalDescription returned\n");
+    dump("!!! " + this._uniqId + " : setLocalDescription returned\n");
   },
 
   setRemoteDescription: function(desc, onSuccess, onError) {
@@ -251,63 +253,59 @@ PeerConnection.prototype = {
         break;
     }
 
-    dump("!!! setRemoteDescription called\n");
+    dump("!!! " + this._uniqId + " : setRemoteDescription called\n");
     this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, desc.sdp]});
-    dump("!!! setRemoteDescription returned\n");
+    dump("!!! " + this._uniqId + " : setRemoteDescription returned\n");
   },
 
   updateIce: function(config, constraints, restart) {
-    dump("!!! updateIce called\n");
-    dump("!!! updateIce returned\n");
     return Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   addIceCandidate: function(candidate) {
-    dump("!!! addIceCandidate called\n");
-    dump("!!! addIceCandidate returned\n");
     return Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   addStream: function(stream, constraints) {
-    dump("!!! addStream called\n");
+    dump("!!! " + this._uniqId + " : addStream " + stream + " called\n");
 
     // TODO: Implement constraints.
     this._pc.addStream(stream);
-    dump("!!! addStream returned\n");
+    dump("!!! " + this._uniqId + " : addStream returned\n");
   },
 
   removeStream: function(stream) {
-    dump("!!! removeStream called\n");
+    dump("!!! " + this._uniqId + " : removeStream called\n");
     this._pc.removeStream(stream);
-    dump("!!! removeStream returned\n");
+    dump("!!! " + this._uniqId + " : removeStream returned\n");
   },
 
   createDataChannel: function() {
-    dump("!!! createDataChannel called\n");
+    dump("!!! " + this._uniqId + " : createDataChannel called\n");
     let channel = this._pc.createDataChannel(/*args*/);
-    dump("!!! createDataChannel returned\n");
+    dump("!!! " + this._uniqId + " : createDataChannel returned\n");
     return channel;
   },
 
   // FIX - remove connect() and listen()
   listen: function(port) {
-    dump("!!! Listen() called\n");
+    dump("!!! " + this._uniqId + " : listen() called\n");
     this._pc.listen(port)
-    dump("!!! Listen() returned\n");
+    dump("!!! " + this._uniqId + " : listen() returned\n");
   },
 
   connect: function(addr, port) {
-    dump("!!! Connect() called\n");
+    dump("!!! " + this._uniqId + " : connect() called\n");
     this._pc.connect(addr, port);
-    dump("!!! Connect() returned\n");
+    dump("!!! " + this._uniqId + " : connect() returned\n");
   },
 
   close: function() {
-    dump("!!! close called\n");
+    dump("!!! " + this._uniqId + " : close called\n");
     // Don't queue this one, since we just want to shutdown.
     this._pc.closeStreams();
     this._pc.close();
-    dump("!!! close returned");
+    dump("!!! " + this._uniqId + " : close returned");
   },
 
   onRemoteStreamAdded: null,
@@ -332,7 +330,7 @@ PeerConnectionObserver.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver]),
 
   onCreateOfferSuccess: function(offer) {
-    dump("!!! onCreateOfferSuccess called\n");
+    dump("!!! " + this._dompc._uniqId + " : onCreateOfferSuccess called\n");
 
     // Before calling the success callback, check if selectIdentity was
     // previously called and that an identity was obtained. If so, add
@@ -366,7 +364,7 @@ PeerConnectionObserver.prototype = {
         finalOffer += "m=" + parts[i];
       }
 
-      dump("!!! Generated final offer: " + finalOffer + "\n\n");
+      dump("!!! " + this._dompc._uniqId + " : Generated final offer: " + finalOffer + "\n\n");
       self._dompc._onCreateOfferSuccess.onCallback({
         type: "offer", sdp: finalOffer
       });
@@ -375,7 +373,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onCreateOfferError: function(code) {
-    dump("!!! onCreateOfferError called: " + code + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onCreateOfferError called: " + code + "\n");
     if (this._dompc._onCreateOfferFailure) {
       this._dompc._onCreateOfferFailure.onCallback(code);
     }
@@ -383,7 +381,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onCreateAnswerSuccess: function(answer) {
-    dump("!!! onCreateAnswerSuccess called\n");
+    dump("!!! " + this._dompc._uniqId + " : onCreateAnswerSuccess called\n");
     if (this._dompc._onCreateAnswerSuccess) {
       this._dompc._onCreateAnswerSuccess.onCallback({
         type: "answer", sdp: answer
@@ -393,7 +391,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onCreateAnswerError: function(code) {
-    dump("!!! onCreateAnswerError called: " + code + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onCreateAnswerError called: " + code + "\n");
     if (this._dompc._onCreateAnswerFailure) {
       this._dompc._onCreateAnswerFailure.onCallback(code);
     }
@@ -401,7 +399,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onSetLocalDescriptionSuccess: function(code) {
-    dump("!!! onSetLocalDescriptionSuccess called\n");
+    dump("!!! " + this._dompc._uniqId + " : onSetLocalDescriptionSuccess called\n");
     if (this._dompc._onSetLocalDescriptionSuccess) {
       this._dompc._onSetLocalDescriptionSuccess.onCallback(code);
     }
@@ -409,7 +407,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onSetRemoteDescriptionSuccess: function(code) {
-    dump("!!! onSetRemoteDescriptionSuccess called\n");
+    dump("!!! " + this._dompc._uniqId + " : onSetRemoteDescriptionSuccess called\n");
     if (this._dompc._onSetRemoteDescriptionSuccess) {
       this._dompc._onSetRemoteDescriptionSuccess.onCallback(code);
     }
@@ -417,7 +415,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onSetLocalDescriptionError: function(code) {
-    dump("!!! onSetLocalDescriptionError called: " + code + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onSetLocalDescriptionError called: " + code + "\n");
     if (this._dompc._onSetLocalDescriptionFailure) {
       this._dompc._onSetLocalDescriptionFailure.onCallback(code);
     }
@@ -425,7 +423,7 @@ PeerConnectionObserver.prototype = {
   },
 
   onSetRemoteDescriptionError: function(code) {
-    dump("!!! onSetRemoteDescriptionError called: " + code + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onSetRemoteDescriptionError called: " + code + "\n");
     if (this._dompc._onSetRemoteDescriptionFailure) {
       this._dompc._onSetRemoteDescriptionFailure.onCallback(code);
     }
@@ -434,22 +432,25 @@ PeerConnectionObserver.prototype = {
 
   // FIXME: Following observer events should update state on this._dompc.
   onStateChange: function(state) {
-    dump("!!! onStateChange called: " + state + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onStateChange called: " + state + "\n");
 
     if (state == Ci.IPeerConnectionObserver.kIceState) {
       switch (this._dompc._pc.iceState) {
         case Ci.IPeerConnection.kIceWaiting:
         case Ci.IPeerConnection.kIceChecking:
         case Ci.IPeerConnection.kIceConnected:
-          dump("!!! ICE gathering is complete, calling _executeNext! \n");
+          dump("!!! " + this._dompc._uniqId + " : ICE gathering is complete, calling _executeNext! \n");
           this._dompc._executeNext();
+          break;
+        default:
+          dump("!!! " + this._dompc._uniqId + " : ICE invalid state, " + this._dompc._pc.iceState + "\n");
           break;
       }
     }
   },
 
   onAddStream: function(stream, type) {
-    dump("!!! onAddStream called: " + stream + " :: " + type + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onAddStream called: " + stream + " :: " + type + "\n");
     if (this._dompc.onRemoteStreamAdded) {
       this._dompc.onRemoteStreamAdded.onCallback({stream: stream, type: type});
     }
@@ -457,22 +458,22 @@ PeerConnectionObserver.prototype = {
   },
 
   onRemoveStream: function() {
-    dump("!!! onRemoveStream called\n");
+    dump("!!! " + this._dompc._uniqId + " : onRemoveStream called\n");
     this._dompc._executeNext();
   },
 
   onAddTrack: function() {
-    dump("!!! onAddTrack called\n");
+    dump("!!! " + this._dompc._uniqId + " : onAddTrack called\n");
     this._dompc._executeNext();
   },
 
   onRemoveTrack: function() {
-    dump("!!! onRemoveTrack called\n");
+    dump("!!! " + this._dompc._uniqId + " : onRemoveTrack called\n");
     this._dompc._executeNext();
   },
 
   notifyConnection: function() {
-    dump("!!! onConnection called\n");
+    dump("!!! " + this._dompc._uniqId + " : onConnection called\n");
     if (this._dompc.onConnection) {
       this._dompc.onConnection.onCallback();
     }
@@ -480,7 +481,7 @@ PeerConnectionObserver.prototype = {
   },
 
   notifyClosedConnection: function() {
-    dump("!!! onClosedConnection called\n");
+    dump("!!! " + this._dompc._uniqId + " : onClosedConnection called\n");
     if (this._dompc.onClosedConnection) {
       this._dompc.onClosedConnection.onCallback();
     }
@@ -488,7 +489,7 @@ PeerConnectionObserver.prototype = {
   },
 
   notifyDataChannel: function(channel) {
-    dump("!!! onDataChannel called: " + channel + "\n");
+    dump("!!! " + this._dompc._uniqId + " : onDataChannel called: " + channel + "\n");
     if (this._dompc.onDataChannel) {
       this._dompc.onDataChannel.onCallback(channel);
     }
@@ -496,7 +497,7 @@ PeerConnectionObserver.prototype = {
   },
 
   foundIceCandidate: function(candidate) {
-    dump("!!! foundIceCandidate called: " + candidate + "\n");
+    dump("!!! " + this._dompc._uniqId + " : foundIceCandidate called: " + candidate + "\n");
     this._dompc._executeNext();
   }
 };
