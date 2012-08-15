@@ -16,22 +16,22 @@ const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
 
 function PeerConnection() {
   dump("!!! Real PeerConnection constructor called OMG !!!\n\n");
-}
-PeerConnection.prototype = {
 
-  _pc: null,
-  _observer: null,
-  _identity: null,
+  this._queue = [];
+
+  this._pc = null;
+  this._observer = null;
+  this._identity = null;
 
   // TODO: Refactor this.
-  _onCreateOfferSuccess: null,
-  _onCreateOfferFailure: null,
-  _onCreateAnswerSuccess: null,
-  _onCreateAnswerFailure: null,
-  _onSelectIdentitySuccess: null,
-  _onSelectIdentityFailure: null,
-  _onVerifyIdentitySuccess: null,
-  _onVerifyIdentityFailure: null,
+  this._onCreateOfferSuccess = null;
+  this._onCreateOfferFailure = null;
+  this._onCreateAnswerSuccess = null;
+  this._onCreateAnswerFailure = null;
+  this._onSelectIdentitySuccess = null;
+  this._onSelectIdentityFailure = null;
+  this._onVerifyIdentitySuccess = null;
+  this._onVerifyIdentityFailure = null;
 
   // Everytime we get a request from content, we put it in the queue. If
   // there are no pending operations though, we will execute it immediately.
@@ -39,9 +39,9 @@ PeerConnection.prototype = {
   // has finished, we will check the queue for the next operation and execute
   // if neccesary. The _pending flag indicates whether an operation is currently
   // in progress.
-  _queue: [],
-  _pending: false,
-
+  this._pending = false;
+}
+PeerConnection.prototype = {
   classID: PC_CID,
 
   classInfo: XPCOMUtils.generateCI({classID: PC_CID,
