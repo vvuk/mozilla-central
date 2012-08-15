@@ -93,5 +93,7 @@ interface nsIDOMRTCPeerConnection : nsISupports
   attribute RTCPeerConnectionCallback onRemoteStreamAdded;
 
   /* For testing only! Please remove later */
-  nsIDOMMediaStream createFakeMediaStream(in string type);
+  nsIDOMMediaStream createFakeMediaStream(in string type,
+                                          [optional] in boolean mute
+                                          );
 };
