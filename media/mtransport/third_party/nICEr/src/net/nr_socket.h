@@ -45,12 +45,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "transport_addr.h"
 
-#ifdef WIN32
-#define restrict __restrict
-#endif
-
 #ifdef __cplusplus
 #define restrict
+#elif defined(WIN32)
+#define restrict __restrict
 #endif
 
 typedef struct nr_socket_vtbl_ {

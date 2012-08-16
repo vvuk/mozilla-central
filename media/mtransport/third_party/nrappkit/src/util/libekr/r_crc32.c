@@ -65,6 +65,7 @@
 
 
 #include <sys/types.h>
+#include <r_types.h>
 
 static char *RCSSTRING __UNUSED__ ="$Id: r_crc32.c,v 1.4 2008/11/26 03:22:02 adamcain Exp $";
 

@@ -60,7 +60,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_cpp_utils.h"
 
-
+typedef void* NR_SOCKET;
 typedef struct nr_ice_ctx_ nr_ice_ctx;
 typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
@@ -123,7 +123,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
   // Callbacks for nICEr 
-  static void initialized_cb(void *s, int h, void *arg);  // ICE initialized
+  static void initialized_cb(NR_SOCKET s, int h, void *arg);  // ICE initialized
 
   // Handler implementation
   static int select_pair(void *obj,nr_ice_media_stream *stream, 

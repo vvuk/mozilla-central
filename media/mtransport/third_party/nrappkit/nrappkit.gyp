@@ -172,7 +172,29 @@
               
               ## Win
               [ 'OS == "win"', {
+                 'defines' : [
+                     'WIN',
+                     '__UNUSED__=""',
+                     'HAVE_STRDUP=1',
+                     'SIZEOF_SHORT=2',
+                     'SIZEOF_UNSIGNED_SHORT=2',
+                     'SIZEOF_INT=4',
+                     'SIZEOF_UNSIGNED_INT=4',
+                     'SIZEOF_LONG=4',
+                     'SIZEOF_UNSIGNED_LONG=4',
+                     'SIZEOF_LONG_LONG=8',
+                     'SIZEOF_UNSIGNED_LONG_LONG=8',
+                     'NO_REG_RPC'
+                 ],
 
+		 'include_dirs': [
+		     'src/port/win32/include'
+		 ],
+
+		 'sources': [
+              	      './src/port/win32/include/csi_platform.h',
+	              './src/port/win32/include/sys/queue.h',
+		 ],
               }],
 
               

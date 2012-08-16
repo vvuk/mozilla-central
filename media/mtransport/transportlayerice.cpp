@@ -74,6 +74,10 @@ extern "C" {
 #include "transportflow.h"
 #include "transportlayerice.h"
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 MLOG_INIT("mtransport");
 
 std::string TransportLayerIce::ID("mt_ice");

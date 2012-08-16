@@ -16,6 +16,9 @@
 
 #include "m_cpp_utils.h"
 
+#pragma push_macro("ERROR")
+#undef ERROR
+
 class TransportFlow;
 
 typedef int TransportResult;
@@ -83,5 +86,7 @@ class TransportLayer : public sigslot::has_slots<> {
 };
 
 #define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "
+
+#pragma pop_macro("ERROR")
 
 #endif

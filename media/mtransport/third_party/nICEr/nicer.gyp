@@ -113,7 +113,7 @@
               'USE_STUND_0_96',
               'USE_STUN_PEDANTIC',
               'USE_TURN',
-              'NR_SOCKET="void *"',
+              'NR_SOCKET_IS_VOID_PTR',
               'restrict=',
           ],
           
@@ -150,7 +150,30 @@
               
               ## Win
               [ 'OS == "win"', {
+                'defines' : [
+                    'WIN32',
+                    'USE_ICE',
+                    'USE_TURN',
+                    'USE_RFC_3489_BACKWARDS_COMPATIBLE',
+                    'USE_STUND_0_96',
+                    'USE_STUN_PEDANTIC',
+                    '_CRT_SECURE_NO_WARNINGS',
+                    '__UNUSED__=',
+                    'HAVE_STRDUP',
+                    'SIZEOF_SHORT=2',
+                    'SIZEOF_UNSIGNED_SHORT=2',
+                    'SIZEOF_INT=4',
+                    'SIZEOF_UNSIGNED_INT=4',
+                    'SIZEOF_LONG=4',
+                    'SIZEOF_UNSIGNED_LONG=4',
+                    'SIZEOF_LONG_LONG=8',
+                    'SIZEOF_UNSIGNED_LONG_LONG=8',
+                    'NO_REG_RPC'
+                ],
 
+		 'include_dirs': [
+		     '../nrappkit/src/port/win32/include'
+		 ],
               }],
 
               

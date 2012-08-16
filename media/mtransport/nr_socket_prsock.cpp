@@ -1,4 +1,3 @@
-
 /*
 Modified version of nr_socket_local, adapted for NSPR
 */

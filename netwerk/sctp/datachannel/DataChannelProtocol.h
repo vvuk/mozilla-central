@@ -7,11 +7,13 @@
 #ifndef NETWERK_SCTP_DATACHANNEL_DATACHANNELPROTOCOL_H_
 #define NETWERK_SCTP_DATACHANNEL_DATACHANNELPROTOCOL_H_
 
-#if !defined (__Userspace_os_Windows)
+#if defined(__GNUC__)
 #define SCTP_PACKED __attribute__((packed))
-#else
+#elif defined(_MSC_VER)
 #pragma pack (push, 1)
 #define SCTP_PACKED
+#else
+#error "Unsupported compiler"
 #endif
 
 #define DATA_CHANNEL_PPID_CONTROL   50

@@ -44,9 +44,8 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_mtransport
 
-DEFINES += -DHAVE_STRDUP -DNR_SOCKET='void *' \
-	-DSCTP_DEBUG -DINET -DINET6 \
-	$(NULL)
+DEFINES += \
+  -DHAVE_STRDUP -DNR_SOCKET_IS_VOID_PTR -DSCTP_DEBUG -DINET -DINET6
 
 LIBS		= $(EXTRA_DSO_LIBS) \
 		  $(XPCOM_LIBS) \

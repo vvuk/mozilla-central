@@ -130,11 +130,10 @@ tier_platform_dirs	+= security/build
 endif
 
 ifdef MOZ_WEBRTC
-tier_platform_dirs +=     media/mtransport/third_party
-tier_platform_dirs +=     media/mtransport/build
-tier_platform_dirs +=     media/mtransport/standalone
-
 tier_platform_dirs += \
+  media/mtransport/third_party \
+  media/mtransport/build \
+  media/mtransport/standalone \
   media/webrtc \
   $(NULL)
 endif

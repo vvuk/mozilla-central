@@ -73,10 +73,14 @@ extern int opterr;
 /* Hack version of gettimeofday() (in util/util.c) */
 int gettimeofday(struct timeval *tv, void *tz);
 
+#ifdef NR_SOCKET_IS_VOID_PTR
+typedef void* NR_SOCKET;
+#else
 typedef SOCKET NR_SOCKET;
 #define NR_SOCKET_READ(sock,buf,count)   recv((sock),(buf),(count),0)
 #define NR_SOCKET_WRITE(sock,buf,count)  send((sock),(buf),(count),0)
 #define NR_SOCKET_CLOSE(sock)            closesocket(sock)
+#endif
 
 #define EHOSTUNREACH    WSAEHOSTUNREACH
 

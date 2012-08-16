@@ -1,5 +1,4 @@
-DEFINES += -DHAVE_STRDUP -DNR_SOCKET='void *' \
-	$(NULL)
+DEFINES += -DHAVE_STRDUP -DNR_SOCKET_IS_VOID_PTR
 
 LOCAL_INCLUDES += \
  -I. \
@@ -20,13 +19,16 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
 
-# TODO: need to expand for other platforms
 ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
 endif
 
 ifeq ($(OS_ARCH), Linux)
 LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include
+endif
+
+ifeq ($(OS_ARCH), WINNT)
+LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/win32/include
 endif
 
 MTRANSPORT_LCPPSRCS = \

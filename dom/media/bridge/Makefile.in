@@ -24,7 +24,6 @@ CPPSRCS = \
   MediaModule.cpp \
   $(NULL)
 
-#ifdef MOZ_WEBRTC
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport \
   -I$(topsrcdir)/media/webrtc/signaling/include \
@@ -35,6 +34,5 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
   -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/talk \
   $(NULL)
-#endif
 
 include $(topsrcdir)/config/rules.mk

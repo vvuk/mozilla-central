@@ -84,10 +84,9 @@
 #ifndef _r_time_h
 #define _r_time_h
 
+#include <csi_platform.h>
 
-#ifdef WIN32
-#  include <time.h>
-#else
+#ifndef WIN32
 /* Cribbed from the autoconf doc */
 # if TIME_WITH_SYS_TIME
 #  include <sys/time.h>

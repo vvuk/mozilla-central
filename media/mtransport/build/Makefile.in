@@ -41,7 +41,6 @@ srcdir = @srcdir@
 VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
-include $(srcdir)/../objs.mk
 
 EXTRA_DEPS += $(srcdir)/../objs.mk
 
@@ -77,11 +76,9 @@ CPPSRCS = \
 	$(MTRANSPORT_LCPPSRCS) \
 	$(NULL)
 
+include $(srcdir)/../objs.mk
 
 export:: $(MTRANSPORT_CPPSRCS)
 	$(INSTALL) $^ .
-
-
-include $(srcdir)/../objs.mk
 
 include $(topsrcdir)/config/rules.mk
