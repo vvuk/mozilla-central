@@ -178,6 +178,11 @@ void config_setup_p2p_mode(const cc_boolean is_p2p);
  */
 void config_setup_sdp_mode(const cc_boolean is_sdp);
 
+/*
+ * set avp mode (true == RTP/SAVPF,  false = RTP/SAVP)
+ */
+void config_setup_avp_mode(const cc_boolean is_rtpsavpf);
+
 /**
 * config_minimum_check:
 *

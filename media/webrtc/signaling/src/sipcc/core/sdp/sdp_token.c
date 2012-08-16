@@ -1260,6 +1260,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     case 1:
         if ((mca_p->transport == SDP_TRANSPORT_RTPAVP) ||
 	    (mca_p->transport == SDP_TRANSPORT_RTPSAVP) ||
+	    (mca_p->transport == SDP_TRANSPORT_RTPSAVPF) ||
             (mca_p->transport == SDP_TRANSPORT_UDP) || 
             (mca_p->transport == SDP_TRANSPORT_TCP) || 
             (mca_p->transport == SDP_TRANSPORT_UDPTL) ||
@@ -1297,6 +1298,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     case 2:
         if ((mca_p->transport == SDP_TRANSPORT_RTPAVP) ||
 	    (mca_p->transport == SDP_TRANSPORT_RTPSAVP) ||
+	    (mca_p->transport == SDP_TRANSPORT_RTPSAVPF) ||
             (mca_p->transport == SDP_TRANSPORT_UDP) || 
             (mca_p->transport == SDP_TRANSPORT_LOCAL)) {
             /* Port format is <port>/<num of ports>. Make sure choose 

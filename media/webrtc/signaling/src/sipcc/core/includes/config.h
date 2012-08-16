@@ -216,7 +216,7 @@ static const int gDscpCallControl = 1;
 static const int gSpeakerEnabled = 1;
 static const char gExternalNumberMask[] = "";
 static const char gVersion[] = "0.1";
-static boolean gRTCPMUX = TRUE;
-
+static boolean gRTCPMUX = FALSE;
+static boolean gRTPSAVPF = TRUE;
 
 #endif /* _CONFIG_H_ */

@@ -86,7 +86,7 @@ void print_config_value (int id, char *get_set, const char *entry_name, void *bu
 
 static int sip_port[MAX_CCM];
 static int secured_sip_port[MAX_CCM];
-static int security_mode = 1; /*NONSECURE*/
+static int security_mode = 3; /*SECURE*/
 extern accessory_cfg_info_t g_accessoryCfgInfo;
 
 // Configurable settings
@@ -590,7 +590,10 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
     compare_or_set_string_value(CFGID_VERSION, gVersion, (const unsigned char *) "version");
 
     /* Set rtcp-mux, right now to always true */
-    compare_or_set_boolean_value(CFGID_RTCPMUX, TRUE, (const unsigned char *) "rtcpmux");
+    compare_or_set_boolean_value(CFGID_RTCPMUX, gRTCPMUX, (const unsigned char *) "rtcpmux");
+
+    /* Set RTP/SAVPF, right now to always true */
+    compare_or_set_boolean_value(CFGID_RTPSAVPF, gRTPSAVPF, (const unsigned char *) "rtpsavpf");
 
     (void) isSecure; // XXX set but not used
     (void) isValid; // XXX set but not used
@@ -635,6 +638,11 @@ void config_setup_p2p_mode(const cc_boolean is_p2p) {
 void config_setup_sdp_mode(const cc_boolean is_sdp) {
 	gSDPMODE = is_sdp;
 	compare_or_set_boolean_value(CFGID_SDPMODE, is_sdp, (const unsigned char *) "sdpsip");
+}
+
+void config_setup_avp_mode(const cc_boolean is_rtpsavpf) {
+	gRTPSAVPF = is_rtpsavpf;
+	compare_or_set_boolean_value(CFGID_RTPSAVPF, is_rtpsavpf, (const unsigned char *) "rtpsavpf");
 }
 
 /**
