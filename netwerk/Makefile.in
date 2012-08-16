@@ -25,13 +25,8 @@ DIRS		= \
 		ipc  \
         $(NULL)
 
-# probably should add MOZ_DATACHANNEL and MOZ_SCTP...
-ifneq ($(MOZ_BUILD_APP),mobile)
-ifneq ($(MOZ_BUILD_APP),b2g)
-DIRS += \
-        sctp \
-	$(NULL)
-endif
+ifdef MOZ_SCTP
+DIRS += sctp
 endif
 
 ifdef NECKO_WIFI
