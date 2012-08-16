@@ -56,6 +56,17 @@ class DtlsIdentity : public mozilla::RefCounted<DtlsIdentity> {
   CERTCertificate *cert() { return cert_; }
   SECKEYPrivateKey *privkey() { return privkey_; }
 
+  nsresult ComputeFingerprint(const std::string algorithm,
+                              unsigned char *digest,
+                              std::size_t size,
+                              std::size_t *digest_length);
+
+  static nsresult ComputeFingerprint(const CERTCertificate *cert,
+                                     const std::string algorithm,
+                                     unsigned char *digest,
+                                     std::size_t size,
+                                     std::size_t *digest_length);
+
  private:
   DtlsIdentity(SECKEYPrivateKey *privkey, CERTCertificate *cert)
       : privkey_(privkey), cert_(cert) {}

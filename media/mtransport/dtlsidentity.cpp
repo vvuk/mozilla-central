@@ -144,5 +144,59 @@ DtlsIdentity::~DtlsIdentity() {
     CERT_DestroyCertificate(cert_);
 }
 
+nsresult DtlsIdentity::ComputeFingerprint(const std::string algorithm,
+                                          unsigned char *digest,
+                                          std::size_t size,
+                                          std::size_t *digest_length) {
+  PR_ASSERT(cert_);
+
+  return ComputeFingerprint(cert_, algorithm, digest, size, digest_length);
+}
+
+nsresult DtlsIdentity::ComputeFingerprint(const CERTCertificate *cert,
+                                          const std::string algorithm,
+                                          unsigned char *digest,
+                                          std::size_t size,
+                                          std::size_t *digest_length) {
+  PR_ASSERT(cert);
+
+  HASH_HashType ht;
+
+  if (algorithm == "sha-1") {
+    ht = HASH_AlgSHA1;
+  } else if (algorithm == "sha-224") {
+    ht = HASH_AlgSHA224;
+  } else if (algorithm == "sha-256") {
+    ht = HASH_AlgSHA256;
+  } else if (algorithm == "sha-384") {
+    ht = HASH_AlgSHA384;
+  }  else if (algorithm == "sha-512") {
+    ht = HASH_AlgSHA512;
+  } else {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  const SECHashObject *ho = HASH_GetHashObject(ht);
+  PR_ASSERT(ho);
+  if (!ho)
+    return NS_ERROR_INVALID_ARG;
+
+  PR_ASSERT(ho->length >= 20);  // Double check
+
+  if (size < ho->length)
+    return NS_ERROR_INVALID_ARG;
+
+  SECStatus rv = HASH_HashBuf(ho->type, digest,
+                              cert->derCert.data,
+                              cert->derCert.len);
+
+  // This should not happen
+  if (rv != SECSuccess)
+    return NS_ERROR_FAILURE;
+
+  *digest_length = ho->length;
+
+  return NS_OK;
+}
 
 
