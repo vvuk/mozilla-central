@@ -91,9 +91,13 @@
   // pc1.createOffer finished, call pc1.setLocal
   function step1(offer) {
     pc1_offer = offer;
-    pc1.setLocalDescription(offer, step2, failed);
+    pc1.setLocalDescription(offer, step1_5, failed);
   }
 
+  function step1_5() {
+    setTimeout(step2,1000);
+  }
+  
   // pc1.setLocal finished, call pc2.setRemote
   function step2() {
     pc2 = new mozPeerConnection();
@@ -137,7 +141,7 @@
       log("pc2 onClosedConnection ");
     }
 
-    pc2.addStream(pc2.createFakeMediaStream("audio"));
+    pc2.addStream(pc2.createFakeMediaStream("audio",true));
     pc2.onRemoteStreamAdded = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
     }
@@ -162,9 +166,14 @@
 
   // pc1.setRemote finished, make a data channel
   function step6() {
-    log("Creating a data channel: ");
-    pc1.listen(6747);
-    pc2.connect("127.0.0.1",6747);
+    log("HIP HIP HOORAY");
+    setTimeout(step7,2000);
+  }
+
+  function step7() {
+    pc1.connectDataConnection(5000,5001);
+    pc2.connectDataConnection(5001,5000);
+    log("connect for data channel called");
   }
 
 function start() {
@@ -236,7 +245,7 @@ function start() {
       log("pc1 onClosedConnection ");
     }
 
-    pc1.addStream(pc1.createFakeMediaStream("audio"));
+    pc1.addStream(pc1.createFakeMediaStream("audio",true));
     pc1.createOffer(step1, failed);
   }
 

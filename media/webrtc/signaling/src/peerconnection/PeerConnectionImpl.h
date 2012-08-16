@@ -385,14 +385,17 @@ private:
 
   // The DTLS identity
   mozilla::RefPtr<DtlsIdentity> mIdentity;
-  // Singleton list of all the PeerConnections
-  static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 
-public:
+  nsCOMPtr<nsIEventTarget> mDTLSTarget;
 #ifdef MOZILLA_INTERNAL_API
   // DataConnection that's used to get all the DataChannels
 	nsAutoPtr<mozilla::DataChannelConnection> mDataConnection;
 #endif
+
+  // Singleton list of all the PeerConnections
+  static std::map<const std::string, PeerConnectionImpl *> peerconnections;
+
+public:
 
   unsigned short listenPort;
   unsigned short connectPort;
