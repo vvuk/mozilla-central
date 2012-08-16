@@ -642,7 +642,7 @@ int nr_ice_component_nominated_pair(nr_ice_component *comp, nr_ice_cand_pair *pa
 
       p2=TAILQ_NEXT(p2,entry);
     }
-    r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s)/comp(%d): cancelling done %s",comp->stream->pctx->label,comp->stream->label,comp->component_id);
+    r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s)/comp(%d): cancelling done",comp->stream->pctx->label,comp->stream->label,comp->component_id);
 
     if(r=nr_ice_media_stream_component_nominated(comp->stream,comp))
       ABORT(r);
