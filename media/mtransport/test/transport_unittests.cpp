@@ -122,6 +122,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
     dtls_->SetRole(name == "P2" ?
                    TransportLayerDtls::CLIENT :
                    TransportLayerDtls::SERVER);
+
+    std::size_t fingerprint_len;
+
+    nsresult res = identity_->ComputeFingerprint("sha-1",
+                                             fingerprint_,
+                                             sizeof(fingerprint_),
+                                             &fingerprint_len);
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+    ASSERT_EQ(20, fingerprint_len);
   }
 
   ~TransportTestPeer() {
@@ -173,6 +182,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     // Listen for media events
     flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+    flow_.SignalStateChange.connect(this, &TransportTestPeer::StateChanged);
 
     // Start gathering
     test_utils.sts_target()->Dispatch(
@@ -234,6 +244,25 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
 
+  void StateChanged(TransportFlow *flow, TransportLayer::State state) {
+    if (state == TransportLayer::OPEN) {
+      std::cerr << "Now connected" << std::endl;
+
+      size_t peer_fingerprint_len;
+      unsigned char peer_fingerprint[100];
+      
+      nsresult res = DtlsIdentity::ComputeFingerprint(
+          dtls_->GetPeerCert(), "sha-1",
+          peer_fingerprint, sizeof(peer_fingerprint), &peer_fingerprint_len);
+      ASSERT_TRUE(NS_SUCCEEDED(res));
+      ASSERT_EQ(20, peer_fingerprint_len);
+      
+      ASSERT_EQ(0, memcmp(peer_fingerprint,
+                          peer_->fingerprint_,
+                          peer_fingerprint_len));
+    }
+  }
+
   void PacketReceived(TransportFlow * flow, const unsigned char* data,
                       size_t len) {
     std::cerr << "Received " << len << " bytes" << std::endl;
@@ -266,6 +295,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   std::map<std::string, std::vector<std::string> > candidates_;
   TransportTestPeer *peer_;
   bool gathering_complete_;
+  unsigned char fingerprint_[100];
 };
 
 

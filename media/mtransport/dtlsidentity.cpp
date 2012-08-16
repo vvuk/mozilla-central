@@ -136,6 +136,8 @@ mozilla::RefPtr<DtlsIdentity> DtlsIdentity::Generate(const std::string name) {
       private_key.forget(), certificate.forget()));
 }
 
+
+
 DtlsIdentity::~DtlsIdentity() {
   if (privkey_)
     SECKEY_DestroyPrivateKey(privkey_);
