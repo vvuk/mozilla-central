@@ -149,6 +149,8 @@ typedef enum {
 #define CISCO_BLFPICKUP_STRING  "x-cisco-serviceuri-blfpickup"
 #define JOIN_ACROSS_LINES_DISABLED 0
 #define CC_MAX_TRACKS          8   // <EM> query this figure
+#define CC_MAX_STREAMS         2   // TODO: expand signaling to handle more than one of each a/v.
+
 
 /*
  *
@@ -737,8 +739,7 @@ typedef struct cc_media_remote_track_table_t_ {
 } cc_media_remote_track_table_t;
 
 typedef struct cc_media_remote_stream_table_t_ {
-    uint32_t          num_streams;
-    cc_media_remote_track_table_t  streams[CC_MAX_TRACKS];
+    cc_media_remote_track_table_t  streams[CC_MAX_STREAMS];
 } cc_media_remote_stream_table_t;
 
 typedef struct cc_media_local_track_table_t_ {
