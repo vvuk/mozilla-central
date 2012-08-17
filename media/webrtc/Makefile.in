@@ -12,15 +12,9 @@ include $(DEPTH)/config/autoconf.mk
 DIRS = \
   trunk \
   trunk/testing \
+  signaling \
+  signalingtest \
   $(NULL)
-
-ifneq ($(OS_TARGET),WINNT)
-DIRS += \
-        signaling \
-        signalingtest \
-        $(NULL)
-
-endif
 
 # These Makefiles don't have corresponding Makefile.ins
 NO_SUBMAKEFILES_RULE = 1

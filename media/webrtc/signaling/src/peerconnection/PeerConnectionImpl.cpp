@@ -78,7 +78,7 @@ public:
 
   ~PeerConnectionObserverDispatch(){}
 
-  nsresult Run()
+  NS_IMETHOD Run()
   {
     switch (mType) {
       case PC_OBSERVER_CALLBACK:
@@ -409,7 +409,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   for (size_t i = 0; i<sizeof(handle_bin); i++) {
     char hex[3];
-    snprintf(hex, 3, "%.2x", handle_bin[i]);
+    PR_snprintf(hex, 3, "%.2x", handle_bin[i]);
     mHandle += hex;
   }
 

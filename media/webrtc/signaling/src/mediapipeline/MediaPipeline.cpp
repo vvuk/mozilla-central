@@ -27,9 +27,12 @@
 
 #include "runnable_utils.h"
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 // Logging context
 MLOG_INIT("mediapipeline");
-
 
 namespace mozilla {
 
@@ -617,7 +620,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
       0, samples_length, nsAudioStream::FORMAT_S16_LE);
 
     char buf[32];
-    snprintf(buf, 32, "%p", source);
+    PR_snprintf(buf, 32, "%p", source);
     MLOG(PR_LOG_DEBUG, "Appended audio segments to stream " << buf);
     source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
@@ -684,7 +687,7 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
 
   VideoSegment segment;
   char buf[32];
-  snprintf(buf, 32, "%p", source);
+  PR_snprintf(buf, 32, "%p", source);
   MLOG(PR_LOG_DEBUG, "Appended video segments to stream " << buf);
 
   segment.AppendFrame(image.forget(), 1, gfxIntSize(width_, height_));

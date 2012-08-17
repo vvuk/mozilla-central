@@ -2401,8 +2401,8 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
     CSFLogDebug(logTag, "Making new transport flow for level=%d rtcp=%s", level, rtcp ? "true" : "false");
 
     char id[32];
-    snprintf(id, sizeof(id), "%s:%d,%s",
-             pc->GetHandle().c_str(), level, rtcp ? "rtcp" : "rtp");
+    PR_snprintf(id, sizeof(id), "%s:%d,%s",
+                pc->GetHandle().c_str(), level, rtcp ? "rtcp" : "rtp");
     flow = new TransportFlow(id);
 
     flow->PushLayer(new TransportLayerIce("flow", pc->ice_ctx(),

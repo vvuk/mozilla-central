@@ -209,7 +209,9 @@
             'SIP_OS_WINDOWS',
             'WIN32', 
             'GIPS_VER=3480',
-            'SIPCC_BUILD'
+            'SIPCC_BUILD',
+            'HAVE_WINSOCK2_H',
+            'CPR_STDINT_INCLUDE=\\"mozilla/StandardInteger.h\\"'
           ],
           
           'cflags_mozilla': [
