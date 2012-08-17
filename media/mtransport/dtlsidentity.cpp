@@ -213,7 +213,7 @@ std::string DtlsIdentity::FormatFingerprint(const unsigned char *digest,
   char group[3];
   
   for (std::size_t i=0; i < size; i++) {
-    snprintf(group, 3, "%.2x", digest[i]);
+    PR_snprintf(group, 3, "%.2x", digest[i]);
     if (i != 0){
       str += ":";
     }

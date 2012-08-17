@@ -64,5 +64,9 @@ int nr_write_pid_file(char *pid_filename);
 int nr_reg_uint4_fetch_and_check(NR_registry key, UINT4 min, UINT4 max, int log_fac, int die, UINT4 *val);
 int nr_reg_uint8_fetch_and_check(NR_registry key, UINT8 min, UINT8 max, int log_fac, int die, UINT8 *val);
 
+#ifdef WIN32
+int snprintf(char *buffer, size_t n, const char *format, ...);
+#endif
+
 #endif
 
