@@ -2367,6 +2367,9 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
                   TransportLayerDtls::CLIENT : TransportLayerDtls::SERVER);
     dtls->SetIdentity(pc->GetIdentity());
 
+    // TODO(ekr@rtfm.com): SECURITY: Add remote fingerprint
+    dtls->SetVerificationAllowAll();
+
     std::vector<PRUint16> srtp_ciphers;
     srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
     srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_32);

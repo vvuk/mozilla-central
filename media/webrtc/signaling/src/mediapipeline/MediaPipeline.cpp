@@ -37,7 +37,7 @@ static char kDTLSExporterLabel[] = "EXTRACTOR-dtls_srtp";
 
 nsresult MediaPipeline::Init() {
   conduit_->AttachTransport(transport_);
-  
+
   PR_ASSERT(rtp_transport_);
 
   nsresult res;
@@ -70,9 +70,13 @@ nsresult MediaPipeline::Init() {
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
   // TODO(ekr@rtfm.com): check for double changes. This shouldn't happen,
   // but...
-  MLOG(PR_LOG_DEBUG, "Flow is ready");
-  if (state == TransportLayer::OPEN)
+  if (state == TransportLayer::OPEN) {
+    MLOG(PR_LOG_DEBUG, "Flow is ready");
     TransportReady(flow);
+  } else if (state == TransportLayer::CLOSED ||
+             state == TransportLayer::ERROR) {
+    TransportFailed(flow);
+  }
 }
 
 nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
@@ -177,6 +181,19 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
                                                   &MediaPipeline::
                                                   RtcpPacketReceived);
   }
+
+  return NS_OK;
+}
+
+nsresult MediaPipeline::TransportFailed(TransportFlow *flow) {
+  bool rtcp =  flow == rtp_transport_.get() ? false : true;
+
+  MLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
+
+  // TODO(ekr@rtfm.com): SECURITY: Figure out how to clean up if the
+  // connection was good and now it is bad.
+  // TODO(ekr@rtfm.com): Report up so that the PC knows we
+  // have experienced an error.
 
   return NS_OK;
 }
@@ -307,7 +324,7 @@ void MediaPipeline::PacketReceived(TransportLayer *layer,
 
 nsresult MediaPipelineTransmit::Init() {
   // TODO(ekr@rtfm.com): Check for errors
-  MLOG(PR_LOG_DEBUG, "Attaching pipeline to stream " << static_cast<void *>(stream_) << 
+  MLOG(PR_LOG_DEBUG, "Attaching pipeline to stream " << static_cast<void *>(stream_) <<
                     " conduit type=" << (conduit_->type() == MediaSessionConduit::AUDIO ?
                                          "audio" : "video") <<
                     " hints=" << stream_->GetHintContents());
@@ -403,7 +420,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
                          const MediaSegment& queued_media) {
   if (!pipeline_)
     return;  // Detached
-  
+
   MLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
 
   // Return early if we are not connected to avoid queueing stuff
