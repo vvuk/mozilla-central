@@ -932,7 +932,7 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
         start_media = media;
         end_media   = media;
     }
-
+    
     /* Start receive channel for the media(s) */
     GSMSDP_FOR_MEDIA_LIST(media, start_media, end_media, dcb) {
         if (!GSMSDP_MEDIA_ENABLED(media)) {
@@ -1035,6 +1035,8 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     sdpmode = 0;
                 	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
                         if (dcb->peerconnection) {
+                          // TODO(emannion): make negotiation fail when the other side
+                          // has not offered DTLS-SRTP
                           ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
                             media->level,
                             pc_stream_id,
@@ -1044,8 +1046,7 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                             vcmRtpToMediaPayload(media->payload,
                             media->remote_dynamic_payload_type_value,
                             media->mode),
-                            FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                            FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                            "", "",  // TODO(ekr@rtfm.com): Add the digest algorithm
                             &attrs);
                         }
                         else if (!sdpmode) {
@@ -1277,6 +1278,8 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
               }
             }
             else {
+              // TODO(emannion): make negotiation fail when the other side
+              // has not offered DTLS-SRTP
               if (vcmTxStartICE(media->cap_index, group_id,
                   media->refid,
                   media->level,
@@ -1290,8 +1293,7 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     media->remote_dynamic_payload_type_value,
                     media->mode),
                   (short)dscp,
-                  FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                  FSM_NEGOTIATED_CRYPTO_TX_KEY(media),
+                  "", "",  // TODO(ekr@rtfm.com): Add the digest algorithm
                   &attrs) == -1) 
               {
                 LSM_DEBUG(DEB_L_C_F_PREFIX"%s: vcmTxStartICE failed\n",

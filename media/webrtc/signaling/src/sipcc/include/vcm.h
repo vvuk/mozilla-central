@@ -579,8 +579,8 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[in]   call_handle  - call handle
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[in]   payload      - payload type
- *  @param[in]   algorithmID  - crypto alogrithm ID
- *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
+ *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
  *
  *  Returns: zero(0) for success; otherwise, ERROR for failure
@@ -596,8 +596,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
-        vcm_crypto_algorithmID algorithmID,
-        vcm_crypto_key_t *tx_key,
+        const char *fingerprint_algorithm,
+        const char *fingerprint,
         vcm_mediaAttrs_t *attrs);
 
 /**
@@ -656,8 +656,8 @@ int vcmTxStart(cc_mcapid_t mcap_id,
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[in]   payload      - payload type
  *  @param[in]   tos          - bit marking
- *  @param[in]   algorithmID  - crypto alogrithm ID
- *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
+ *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
  *
  *  Returns: zero(0) for success; otherwise, ERROR for failure
@@ -674,8 +674,8 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
         short tos,
-        vcm_crypto_algorithmID algorithmID,
-        vcm_crypto_key_t *tx_key,
+        const char *fingerprint_algorithm,
+        const char *fingerprint,
         vcm_mediaAttrs_t *attrs);
 
 

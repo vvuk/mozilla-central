@@ -899,6 +899,7 @@ short vcmCreateRemoteStream(
   return 0;
 }
 
+
 /*
  * Get DTLS key data
  *
@@ -915,16 +916,38 @@ short vcmGetDtlsIdentity(const char *peerconnection,
                 size_t max_digest_alg_len,
                 char *digestp,
                 size_t max_digest_len) {
-
-  CSFLogDebug( logTag, "%s vcmGetDtlsIdentity: PC = %s", __FUNCTION__, peerconnection);
-
-  // This function will be completed by ekr@rtfm.com
-  sstrncpy(digest_algp, "SHA-1", max_digest_alg_len);
-
-  sstrncpy(digestp, "4A:AD:B9:B1:3F:82:18:3B:54:02:12:DF:3E:5D:49:6B:19:E5:7C:AB", max_digest_len);
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
+      sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+  
+  unsigned char digest[40];
+  size_t digest_len;
+  
+  nsresult res = pc->impl()->GetIdentity()->ComputeFingerprint("sha-1", digest,
+                                                               sizeof(digest),
+                                                               &digest_len);
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s: Could not compute identity fingerprint", __FUNCTION__);
+    return VCM_ERROR;
+  }
+  PR_ASSERT(digest_len == 20);
+  std::string fingerprint_txt = DtlsIdentity::FormatFingerprint(digest, digest_len);
+  if (max_digest_len <= fingerprint_txt.size()) {
+    CSFLogError( logTag, "%s: Formatted digest will not fit in provided buffer",
+                 __FUNCTION__);
+    return VCM_ERROR;
+  }
+  
+  sstrncpy(digest_algp, "sha-1", max_digest_alg_len);
+  sstrncpy(digestp, fingerprint_txt.c_str(), max_digest_len);
 
   return 0;
 }
+
 
 /**
  *   Should we remove this from external API
@@ -1107,8 +1130,8 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[in]   call_handle  - call handle
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[in]   payload      - payload type
- *  @param[in]   algorithmID  - crypto alogrithm ID
- *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
+ *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
  *
  *  Returns: zero(0) for success; otherwise, ERROR for failure
@@ -1124,8 +1147,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
-        vcm_crypto_algorithmID algorithmID,
-        vcm_crypto_key_t *tx_key,
+        const char *fingerprint_alg,
+        const char *fingerprint,                  
         vcm_mediaAttrs_t *attrs)
 {
   CSFLogDebug( logTag, "%s(%s)", __FUNCTION__, peerconnection);
@@ -1645,8 +1668,8 @@ int vcmTxStart(cc_mcapid_t mcap_id,
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[in]   payload      - payload type
  *  @param[in]   tos          - bit marking
- *  @param[in]   algorithmID  - crypto alogrithm ID
- *  @param[in]   tx_key       - tx key used when algorithm ID is encrypting.
+ *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
+ *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
  *
  *  Returns: zero(0) for success; otherwise, ERROR for failure
@@ -1664,8 +1687,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
         short tos,
-        vcm_crypto_algorithmID algorithmID,
-        vcm_crypto_key_t *tx_key,
+        const char *fingerprint_alg,
+        const char *fingerprint,                  
         vcm_mediaAttrs_t *attrs)
 {
   CSFLogDebug( logTag, "%s(%s)", __FUNCTION__, peerconnection);

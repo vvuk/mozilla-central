@@ -41,7 +41,6 @@ EXPORTS		= \
 		nsGenericElement.h \
 		nsMappedAttributeElement.h \
 		nsStyledElement.h \
-		nsDOMDataChannel.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom
@@ -74,7 +73,6 @@ CPPSRCS		= \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMBlobBuilder.cpp \
-		nsDOMDataChannel.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMFile.cpp \
 		nsDOMFileReader.cpp \
@@ -139,6 +137,12 @@ CPPSRCS		= \
 		nsDOMMutationObserver.cpp \
 		$(NULL)
 
+ifdef MOZ_WEBRTC
+EXPORTS += nsDOMDataChannel.h
+CPPSRCS += nsDOMDataChannel.cpp
+LOCAL_INCLUDES += -I$(topsrcdir)/netwerk/sctp/datachannel
+endif
+
 # Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
 # nsTextFragment.cpp
 ifneq (,$(INTEL_ARCHITECTURE))
@@ -188,7 +192,6 @@ INCLUDES	+= \
 		-I$(topsrcdir)/js/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		-I$(topsrcdir)/netwerk/base/src \
-		-I$(topsrcdir)/netwerk/sctp/datachannel \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

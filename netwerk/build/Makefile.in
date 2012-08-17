@@ -35,13 +35,11 @@ SHARED_LIBRARY_LIBS = \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
   $(NULL)
 
-ifneq ($(MOZ_BUILD_APP),mobile)
-ifneq ($(MOZ_BUILD_APP),b2g)
+ifdef MOZ_SCTP
 SHARED_LIBRARY_LIBS += \
   ../sctp/datachannel/$(LIB_PREFIX)nkdatachan_s.$(LIB_SUFFIX) \
   ../sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX) \
   $(NULL)
-endif
 endif
 
 ifeq ($(OS_ARCH),WINNT)

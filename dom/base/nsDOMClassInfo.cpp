@@ -539,7 +539,9 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "GeneratedEvents.h"
 #include "mozilla/Likely.h"
 
+#ifdef MOZ_WEBRTC
 #include "nsIDOMDataChannel.h"
+#endif
 
 #undef None // something included above defines this preprocessor symbol, maybe Xlib headers
 #include "WebGLContext.h"
@@ -1701,8 +1703,10 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(MozActivity, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
+#ifdef MOZ_WEBRTC
   NS_DEFINE_CLASSINFO_DATA(DataChannel, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
+#endif
 };
 
 // Objects that should be constructable through |new Name();|
@@ -4511,10 +4515,12 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+#ifdef MOZ_WEBRTC
   DOM_CLASSINFO_MAP_BEGIN(DataChannel, nsIDOMDataChannel)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataChannel)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
+#endif
 
 #ifdef DEBUG
   {
