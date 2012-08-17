@@ -159,18 +159,16 @@ PeerConnection.prototype = {
     let id = offer.sdp.match(ire);
     let fprint = offer.sdp.match(fre);
      
-    dump("!!! "+ this._uniqId + " : fprint = " + fprint[1]);
+    dump("!!! "+ this._uniqId + " : fprint = " + fprint[1] + "\n");
 
     if (id.length == 2 && fprint.length == 2) {
       IDService.verifyIdentity(id[1], function(err, val) {
-	if (!val) {
-            dump("!!! : no verified value");
-	    dump("!!! : err =" + err);
-
-	}
-        else {
-	    dump("!!! : verified value = " + val.message);
-	}
+        if (!val) {
+          dump("!!! : no verified value\n");
+          dump("!!! : err =" + err + "\n");
+        } else {
+          dump("!!! : verified value = " + val.message + "\n");
+        }
 
         if (val && (fprint[1] == val.message)) {
           self._onVerifyIdentitySuccess.onCallback(val);
@@ -397,7 +395,7 @@ PeerConnectionObserver.prototype = {
     }
 
     let sig = this._dompc._pc.fingerprint;
-    dump("!!! " + this._dompc._uniqId + " : fingerprint = " + sig);
+    dump("!!! " + this._dompc._uniqId + " : fingerprint = " + sig + "\n");
 
     // FIXME! Save the origin of the window that created the dompc.
     let self = this;

@@ -32,7 +32,8 @@ AuthModule.prototype = {
     // XXX need to deal with the case where the cert has expired between
     // selectIdentity and now
     RelyingParty._generateAssertion(
-      aOrigin, this.identity, {message:aMessage}, aCallback
+      // Base64 while signing, UnBase64 while verifying
+      aOrigin, this.identity, {message:btoa(aMessage)}, aCallback
     );
   },
   verify: function(aAssertion, aCallback) {
@@ -70,7 +71,8 @@ let verifyIdentity = function verifyIdentity(aSignature, aCallback) {
     }
     let ret = {
       aud: message.aud,
-      message: message.message,
+      // UnBase64 since we btoa'd on signing
+      message: atob(message.message),
       iss: val.iss,
       exp: val.exp,
       iat: val.iat,
