@@ -32,7 +32,11 @@
 #include "DataChannel.h"
 #include "DataChannelProtocol.h"
 
-PRLogModuleInfo* dataChannelLog;
+#include "mtransport/runnable_utils.h"
+
+#ifdef PR_LOGGING
+PRLogModuleInfo* dataChannelLog = PR_NewLogModule("DataChannel");
+#endif
 
 // XXX Notes
 // Use static casts
@@ -46,9 +50,6 @@ PRLogModuleInfo* dataChannelLog;
 #define ARRAY_LEN(x) (sizeof((x))/sizeof((x)[0]))
 #endif
 
-#undef LOG
-#define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
-
 // NS_ENSURE_TRUE for void functions
 #define DC_ENSURE_TRUE(x)                                     \
   PR_BEGIN_MACRO                                              \
@@ -61,6 +62,58 @@ PRLogModuleInfo* dataChannelLog;
 static bool sctp_initialized;
 
 namespace mozilla {
+
+#if 0
+// XXX Not ready...
+nsRefPtr<DataChannelShutdown> gDataChannelShutdown;
+
+class DataChannelShutdown MOZ_FINAL : public nsIObserver
+{
+  // This needs to be tied to some form object that is guaranteed to be
+  // around (singleton likely) unless we want to shutdown sctp whenever
+  // we're not using it (and in which case we'd keep a refcnt'd object
+  // ref'd by each DataChannelConnection to release the SCTP usrlib via
+  // sctp_finish)
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  DataChannelShutdown() 
+    { 
+      nsCOMPtr<nsIObserverService> observerService =
+        mozilla::services::GetObserverService();
+      if (!observerService)
+        return;
+
+      nsresult rv = observerService->AddObserver(this,
+                                                 NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                                 true);
+      DC_ENSURE_TRUE(rv == NS_OK);
+
+      gDataChannelShutdown = this; 
+    }
+  ~DataChannelShutdown() 
+    {
+      nsCOMPtr<nsIObserverService> observerService =
+        mozilla::services::GetObserverService();
+      if (!observerService)
+        return;
+
+      nsresult rv = observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+      DC_ENSURE_TRUE(rv == NS_OK);
+
+      gDataChannelShutdown = NULL; 
+    }
+
+  NS_IMETHODIMP Observe(nsISupports* aSubject, const char* aTopic,
+                        const PRUnichar* aData) {
+    if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
+      usrsctp_finish();
+    }
+  }
+}
+#endif
+
 
 static int
 receive_cb(struct socket* sock, union sctp_sockstore addr, 
@@ -80,7 +133,8 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   mMasterSocket = NULL;
   mListener = listener;
   mNumChannels = 0;
-
+  mLocalPort = 0;
+  mRemotePort = 0;
   LOG(("Constructor DataChannelConnection=%p, listener=%p", this, mListener));
 
   mStreamsOut.AppendElements(mStreamsOut.Capacity());
@@ -99,7 +153,7 @@ DataChannelConnection::~DataChannelConnection()
 }
 
 bool
-DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
+DataChannelConnection::Init(unsigned short aPort, bool aUsingDtls)
 {
   struct sctp_udpencaps encaps;
   struct sctp_assoc_value av;
@@ -116,21 +170,15 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
   {
     MutexAutoLock lock(mLock);
     if (!sctp_initialized) {
-      LOG(("sctp_init(%d)",port+1));
+      if (aUsingDtls) {
+        LOG(("sctp_init(DTLS)"));
+        usrsctp_init(0,DataChannelConnection::SctpDtlsOutput);
+      } else {
+        LOG(("sctp_init(%d)",aPort));
+        usrsctp_init(aPort,NULL);
+      }
 
-#if 0
-      // This needs to be tied to some form object that is guaranteed to be
-      // around (singleton likely) unless we want to shutdown sctp whenever
-      // we're not using it (and in which case we'd keep a refcnt'd object
-      // ref'd by each DataChannelConnection to release the SCTP usrlib via
-      // sctp_finish)
-      mObserverService = mozilla::services::GetObserverService();
-      NS_ENSURE_TRUE(mObserverService,false);
-      mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);
-#endif
-      usrsctp_init(port,NULL); // XXX fix
-
-      usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
+      usrsctp_sysctl_set_sctp_debug_on(0 /*SCTP_DEBUG_ALL*/);
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
     }
@@ -138,22 +186,26 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
 
   // Open sctp association across tunnel
   // XXX This code will need to change to support SCTP-over-DTLS
-  if ((mMasterSocket = usrsctp_socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, this)) == NULL) {
+  if ((mMasterSocket = usrsctp_socket(
+         aUsingDtls ? AF_CONN : AF_INET,
+         SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, this)) == NULL) {
     return false;
   }
 
-  // XXX this gets replaced when we have a DTLS connection to use
-  memset(&encaps, 0, sizeof(encaps));
-  encaps.sue_address.ss_family = AF_INET;
-  encaps.sue_port = htons(port^1); // XXX also causes problems with loopback
-  if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_REMOTE_UDP_ENCAPS_PORT,
-                         (const void*)&encaps, 
-                         (socklen_t)sizeof(struct sctp_udpencaps)) < 0) {
-    LOG(("*** failed encaps"));
-    usrsctp_close(mMasterSocket);
-    return false;
+  if (!aUsingDtls) {
+    memset(&encaps, 0, sizeof(encaps));
+    encaps.sue_address.ss_family = AF_INET;
+    encaps.sue_port = htons(aPort); // XXX also causes problems with loopback
+    if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_REMOTE_UDP_ENCAPS_PORT,
+                           (const void*)&encaps, 
+                           (socklen_t)sizeof(struct sctp_udpencaps)) < 0) {
+      LOG(("*** failed encaps"));
+      usrsctp_close(mMasterSocket);
+      mMasterSocket = NULL;
+      return false;
+    }
+    LOG(("SCTP encapsulation local port %d",aPort));
   }
-  LOG(("SCTP encapsulation remote port %d, local port %d",port^1,port));
 
   av.assoc_id = SCTP_ALL_ASSOC;
   av.assoc_value = SCTP_ENABLE_RESET_STREAM_REQ | SCTP_ENABLE_CHANGE_ASSOC_REQ;
@@ -161,6 +213,7 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
                          (socklen_t)sizeof(struct sctp_assoc_value)) < 0) {
     LOG(("*** failed enable stream reset"));
     usrsctp_close(mMasterSocket);
+    mMasterSocket = NULL;
     return false;
   }
   
@@ -173,6 +226,7 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
     if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
       LOG(("*** failed setsockopt SCTP_EVENT"));
       usrsctp_close(mMasterSocket);
+      mMasterSocket = NULL;
     }
   }
 
@@ -180,17 +234,115 @@ DataChannelConnection::Init(unsigned short port/* XXX DTLSConnection &tunnel*/)
   return true;
 }
 
+bool 
+DataChannelConnection::ConnectDTLS(TransportFlow *aFlow, PRUint16 localport, PRUint16 remoteport)
+{
+  LOG(("Connect DTLS local %d, remote %d",localport,remoteport));
+
+  NS_PRECONDITION(mMasterSocket,"SCTP wasn't initialized before ConnectDTLS!");
+  NS_ENSURE_TRUE(aFlow,false);
+
+  mTransportFlow = aFlow;
+  mTransportFlow->SignalPacketReceived.connect(this, &DataChannelConnection::PacketReceived);
+  mLocalPort = localport;
+  mRemotePort = remoteport;
+
+  PR_CreateThread(
+    PR_SYSTEM_THREAD,
+    DataChannelConnection::DTLSConnectThread, this,
+    PR_PRIORITY_NORMAL,
+    PR_GLOBAL_THREAD,
+    PR_JOINABLE_THREAD, 0
+  );
+
+  return true; // not finished yet
+}
+
+/* static */
+void
+DataChannelConnection::DTLSConnectThread(void *data)
+{
+  DataChannelConnection *_this = static_cast<DataChannelConnection*>(data);
+  struct sockaddr_conn addr;
+
+  memset(&addr, 0, sizeof(addr));
+  addr.sconn_family = AF_CONN;
+#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+  addr.sconn_len = sizeof(addr);
+#endif
+  addr.sconn_port = htons(_this->mLocalPort);
+
+  int r = usrsctp_bind(_this->mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr),
+                       sizeof(addr));
+  if (r < 0) {
+    LOG(("usrsctp_bind failed: %d",r));
+    return;
+  }
+
+  // This is the remote addr
+  addr.sconn_port = htons(_this->mRemotePort);
+  addr.sconn_addr = static_cast<void *>(_this);
+  r = usrsctp_connect(_this->mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr),
+                      sizeof(addr));
+  if (r < 0) {
+    LOG(("usrsctp_connect failed: %d",r));
+    return;
+  }
+
+  // Notify Connection open
+  // XXX We need to make sure connection sticks around until the message is delivered
+  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,_this));
+  // XXX any locking needed?
+  _this->mNumChannels = 0;
+  _this->mSocket = _this->mMasterSocket;  // XXX Be careful!  
+  _this->mState = OPEN;
+  LOG(("DTLS connect() succeeded!  Entering connected mode"));
+
+  NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                            DataChannelOnMessageAvailable::ON_CONNECTION,
+                            _this, NULL));
+
+  // XXX post return?
+  return;
+}
+
+void 
+DataChannelConnection::PacketReceived(TransportFlow *flow, 
+                                      const unsigned char *data, size_t len)
+{
+  //LOG(("%p: SCTP/DTLS received %ld bytes",this,len));
+
+  // Pass the data to SCTP
+  usrsctp_conninput(static_cast<void *>(this), data, len, 0);
+}
+
+// XXX Merge with SctpDtlsOutput?
+int
+DataChannelConnection::SendPacket(const unsigned char *data, size_t len)
+{
+  //LOG(("%p: SCTP/DTLS sent %ld bytes",this,len));
+  return mTransportFlow->SendPacket(data, len) < 0 ? 1 : 0;
+}
+
+/* static */
+int 
+DataChannelConnection::SctpDtlsOutput(void *addr, void *buffer, size_t length,
+                                      uint8_t tos, uint8_t set_df)
+{
+  DataChannelConnection *peer = static_cast<DataChannelConnection *>(addr);
+
+  return peer->SendPacket(static_cast<unsigned char *>(buffer), length);
+}
+
 // listen for incoming associations
+// Blocks! - Don't call this from main thread!
 bool
 DataChannelConnection::Listen(unsigned short port)
 {
   struct sockaddr_in addr;
   socklen_t addr_len;
-  // XXX EVIL and blocks  -- replace
-  if (port == 0)
-    port = 13;
 
-  // XXX This code will need to change to support SCTP-over-DTLS
+  NS_WARN_IF_FALSE(!NS_IsMainThread(), "Blocks, do not call from main thread!!!");
 
   /* Acting as the 'server' */
   memset((void *)&addr, 0, sizeof(addr));
@@ -219,7 +371,7 @@ DataChannelConnection::Listen(unsigned short port)
   }
   mState = OPEN;
 
-  LOG(("Accepting incoming connection.  Entering connected mode. mSocket=%p, masterSocket=%p", mSocket, mMasterSocket));
+  //LOG(("Accepting incoming connection.  Entering connected mode. mSocket=%p, masterSocket=%p", mSocket, mMasterSocket));
 
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
@@ -231,14 +383,14 @@ DataChannelConnection::Listen(unsigned short port)
   return true;
 }
 
+// Blocks! - Don't call this from main thread!
 bool
 DataChannelConnection::Connect(const char *addr, unsigned short port)
 {
   struct sockaddr_in addr4;
   struct sockaddr_in6 addr6;
-  // XXX EVIL and blocks  -- replace
 
-  // XXX This code will need to change to support SCTP-over-DTLS
+  NS_WARN_IF_FALSE(!NS_IsMainThread(), "Blocks, do not call from main thread!!!");
 
   /* Acting as the connector */
   LOG(("Connecting to %s, port %u",addr, port));
@@ -412,25 +564,6 @@ DataChannelConnection::SendOpenAckMessage(PRUint16 streamOut)
 
   return SendControlMessage(&ack, sizeof(ack), streamOut);
 }
-
-#if 0
-PRInt32
-DataChannelConnection::SendErrorResponse(struct sctp_rcvinfo rcv,
-                                         uint8_t error)
-{
-  struct rtcweb_datachannel_open_response response;
-
-  response.msg_type = DATA_CHANNEL_OPEN_RESPONSE;
-  response.reverse_stream = rcv.rcv_sid;
-  response.error = error;
-
-  /*
-    send the error back on the incoming stream id - we can report errors on any stream
-    as reverse_stream tells the other side what request got an error.
-  */
-  return SendControlMessage(&response, sizeof(response), rcv.rcv_sid);
-}
-#endif
 
 PRInt32
 DataChannelConnection::SendOpenRequestMessage(PRUint16 streamOut, bool unordered,
@@ -653,7 +786,7 @@ void
 DataChannelConnection::HandleUnknownMessage(PRUint32 ppid, size_t length, PRUint16 streamIn)
 {
   /* XXX: Send an error message? */
-  LOG(("unknown DataChannel message received: %u, len %d on stream %u",ppid,length,streamIn));
+  LOG(("unknown DataChannel message received: %u, len %ld on stream %lu",ppid,length,streamIn));
   NS_WARNING("unknown DataChannel message received");
   return;
 }
@@ -1175,7 +1308,7 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
       break;
   }
   if ((prPolicy == SCTP_PR_SCTP_NONE) && (prValue != 0)) {
-    return (NULL);
+    return NULL;
   }
 
   flags = !inOrder ? DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED : 0;
@@ -1191,19 +1324,22 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
 
   if (streamOut == INVALID_STREAM) {
     RequestMoreStreamsOut();
-  } else {
-    mStreamsOut[streamOut] = channel;
-    if (!SendOpenRequestMessage(streamOut, !inOrder, prPolicy, prValue)) {
-      if (errno == EAGAIN) {
-        channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_REQ;
-      } else {
-        mStreamsOut[streamOut] = NULL;
-        delete channel;
-        return NULL;
-      }
+    return channel;
+  }
+  mStreamsOut[streamOut] = channel;
+
+  if (!SendOpenRequestMessage(streamOut, !inOrder, prPolicy, prValue)) {
+    LOG(("SendOpenRequest failed, errno = %d",errno));
+    if (errno == EAGAIN) {
+      channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_REQ;
+    } else {
+      mStreamsOut[streamOut] = NULL;
+      MutexAutoUnlock unlock(mLock);
+      delete channel;
+      return NULL;
     }
   }
-  return (channel);
+  return channel;
 }
 
 void

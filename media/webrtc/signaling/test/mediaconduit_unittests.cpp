@@ -131,10 +131,90 @@ private:
   mozilla::RefPtr<mozilla::AudioSessionConduit> mOtherSession;
   std::string iFile;
   std::string oFile;
+
+  int WriteWaveHeader(int rate, int channels, FILE* outFile);
+  int FinishWaveHeader(FILE* outFile);
 };
 
 const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_FREQUENCY = 16000;
 const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_LENGTH  = 160;
+
+int AudioSendAndReceive::WriteWaveHeader(int rate, int channels, FILE* outFile)
+{
+  //Hardcoded for 16 bit samples
+  unsigned char header[] = {
+    // File header
+    0x52, 0x49, 0x46, 0x46, // 'RIFF'
+    0x00, 0x00, 0x00, 0x00, // chunk size
+    0x57, 0x41, 0x56, 0x45, // 'WAVE'
+    // fmt chunk. We always write 16-bit samples.
+    0x66, 0x6d, 0x74, 0x20, // 'fmt '
+    0x10, 0x00, 0x00, 0x00, // chunk size
+    0x01, 0x00,             // WAVE_FORMAT_PCM
+    0xFF, 0xFF,             // channels
+    0xFF, 0xFF, 0xFF, 0xFF, // sample rate
+    0x00, 0x00, 0x00, 0x00, // data rate
+    0xFF, 0xFF,             // frame size in bytes
+    0x10, 0x00,             // bits per sample
+    // data chunk
+    0x64, 0x61, 0x74, 0x61, // 'data'
+    0xFE, 0xFF, 0xFF, 0x7F  // chunk size
+  };
+
+#define set_uint16le(buffer, value) \
+  (buffer)[0] = (value) & 0xff; \
+  (buffer)[1] = (value) >> 8;
+#define set_uint32le(buffer, value) \
+  set_uint16le( (buffer), (value) & 0xffff ); \
+  set_uint16le( (buffer) + 2, (value) >> 16 );
+
+  // set dynamic header fields
+  set_uint16le(header + 22, channels);
+  set_uint32le(header + 24, rate);
+  set_uint16le(header + 32, channels*2);
+
+  size_t written = fwrite(header, 1, sizeof(header), outFile);
+  if (written != sizeof(header)) {
+    cerr << "Writing WAV header failed" << endl;
+    return -1;
+  }
+
+  return 0;
+}
+
+// Update the WAVE file header with the written length
+int AudioSendAndReceive::FinishWaveHeader(FILE* outFile)
+{
+  // Measure how much data we've written
+  long end = ftell(outFile);
+  if (end < 16) {
+    cerr << "Couldn't get output file length" << endl;
+    return (end < 0) ? end : -1;
+  }
+
+  // Update the header
+  unsigned char size[4];
+  int err = fseek(outFile, 40, SEEK_SET);
+  if (err < 0) {
+    cerr << "Couldn't seek to WAV file header." << endl;
+    return err;
+  }
+  set_uint32le(size, (end - 44) & 0xffffffff);
+  size_t written = fwrite(size, 1, sizeof(size), outFile);
+  if (written != sizeof(size)) {
+    cerr << "Couldn't write data size to WAV header" << endl;
+    return -1;
+  }
+
+  // Return to the end
+  err = fseek(outFile, 0, SEEK_END);
+  if (err < 0) {
+    cerr << "Couldn't seek to WAV file end." << endl;
+    return err;
+  }
+
+  return 0;
+}
 
 //Hardcoded for 16 bit samples for now
 void AudioSendAndReceive::GenerateAndReadSamples()
@@ -143,25 +223,27 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
    int sampleLengthDecoded = 0;
 
-   int sampleLengthInBits = PLAYOUT_SAMPLE_LENGTH * sizeof(short);
+   int sampleLengthInBytes = PLAYOUT_SAMPLE_LENGTH * sizeof(short);
 
-   memset(audioInput,0,sampleLengthInBits);
-   memset(audioOutput,0,sampleLengthInBits);
+   memset(audioInput,0,sampleLengthInBytes);
+   memset(audioOutput,0,sampleLengthInBytes);
 
    FILE* inFile    = fopen( iFile.c_str(), "rb");
    FILE* outFile   = fopen( oFile.c_str(), "wb");
+
+   WriteWaveHeader(PLAYOUT_SAMPLE_FREQUENCY, 1, outFile);
 
    bool finish = false;
    //loop thru the samples for 6 seconds
    int t = 0;
    do
    {
-     int read_ = fread(audioInput,1,sampleLengthInBits,inFile);
+     int read_ = fread(audioInput,1,sampleLengthInBytes,inFile);
 
-     if(read_ != sampleLengthInBits)
+     if(read_ != sampleLengthInBytes)
       {
         finish = true;
-        printf("\n Couldn't read %d bytes.. Exiting ", sampleLengthInBits);
+        printf("\n Couldn't read %d bytes.. Exiting ", sampleLengthInBytes);
         break;
       }
 
@@ -177,12 +259,12 @@ void AudioSendAndReceive::GenerateAndReadSamples()
         cerr << " Zero length Sample " << endl;
       }
 
-      int wrote_  = fwrite (audioOutput, 1 , sampleLengthInBits, outFile);
-      if(wrote_ != sampleLengthInBits)
+      int wrote_  = fwrite (audioOutput, 1 , sampleLengthInBytes, outFile);
+      if(wrote_ != sampleLengthInBytes)
       {
         finish = true;
-        printf("\n Couldn't Write  %d bytes.. Exiting ", sampleLengthInBits);
-        cerr << "Couldn't Write " << sampleLengthInBits << "bytes" << endl;
+        printf("\n Couldn't Write  %d bytes.. Exiting ", sampleLengthInBytes);
+        cerr << "Couldn't Write " << sampleLengthInBytes << "bytes" << endl;
         break; 
       }
 
@@ -192,6 +274,8 @@ void AudioSendAndReceive::GenerateAndReadSamples()
 
    }while(finish == false);
   
+   FinishWaveHeader(outFile);
+
    fclose(inFile);
    fclose(outFile);
 }
@@ -339,7 +423,7 @@ class TransportConduitTest : public ::testing::Test
   {
     //input and output file names
     iAudiofilename = "audio_short16.pcm";
-    oAudiofilename = "recorded.pcm";
+    oAudiofilename = "recorded.wav";
     std::string rootpath = ProjectRootPath();
 
     fileToPlay = rootpath+"media"+kPathDelimiter+"webrtc"+kPathDelimiter+"trunk"+kPathDelimiter+"test"+kPathDelimiter+"data"+kPathDelimiter+"voice_engine"+kPathDelimiter+iAudiofilename;

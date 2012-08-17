@@ -15,6 +15,10 @@
 #include "nsTArray.h"
 #include "mozilla/Mutex.h"
 #include "DataChannelProtocol.h"
+#include "talk/base/sigslot.h"
+#include "mtransport/transportflow.h"
+#include "mtransport/transportlayer.h"
+#include "mtransport/transportlayerprsock.h"
 
 extern "C" {
   struct socket;
@@ -52,7 +56,7 @@ public:
 
 
 // One per PeerConnection
-class DataChannelConnection
+class DataChannelConnection: public sigslot::has_slots<>
 {
 public:
   class DataConnectionListener {
@@ -72,14 +76,16 @@ public:
   DataChannelConnection(DataConnectionListener *listener);
   virtual ~DataChannelConnection();
 
-  bool Init(unsigned short port /* XXX DTLSConnection &tunnel*/);
+  bool Init(unsigned short aPort, bool aUsingDtls);
 
-  // XXX These will need to be replaced with something better
-  // They block; they require something to decide on listener/connector,
-  // etc.  Apparently SCTP associations can be simultaneously opened from
-  // each end and the stack resolves it.
+  // These block; they require something to decide on listener/connector
+  // (though you can do simultaneous Connect()).  Do not call these from
+  // the main thread!
   bool Listen(unsigned short port);
   bool Connect(const char *addr, unsigned short port);
+
+  // Connect using a TransportFlow (DTLS) channel
+  bool ConnectDTLS(TransportFlow *aFlow, PRUint16 localport, PRUint16 remoteport);
 
   typedef enum {
     RELIABLE=0,
@@ -128,6 +134,10 @@ public:
   DataConnectionListener *mListener;
 
 private:
+  static void DTLSConnectThread(void *data);
+  int SendPacket(const unsigned char* data, size_t len);
+  void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
+  static int SctpDtlsOutput(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df);
   DataChannel* FindChannelByStreamIn(PRUint16 streamIn);
   DataChannel* FindChannelByStreamOut(PRUint16 streamOut);
   PRUint16 FindFreeStreamOut();
@@ -171,6 +181,10 @@ private:
   struct socket *mSocket;
   PRUint16 mNumChannels;
   PRUint16 mState;
+
+  nsRefPtr<TransportFlow> mTransportFlow;
+  PRUint16 mLocalPort;
+  PRUint16 mRemotePort;
 };
 
 class DataChannel {

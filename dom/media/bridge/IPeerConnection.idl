@@ -97,11 +97,13 @@ interface IPeerConnection : nsISupports
   /* For testing purposes only! */
   nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
 
-  nsIDOMDataChannel createDataChannel();
+  /* Bring up SCTP/DTLS/UDP connection*/
+  void connectDataConnection(in unsigned short localport, in unsigned short remoteport);
+  nsIDOMDataChannel createDataChannel(/* XXX param object */);
 
   /* XXX remove these */
   void listen(in unsigned short port);
-  void connect(in DOMString addr, in unsigned short port);
+  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport);
 
   /* For identity */
   readonly attribute string fingerprint;

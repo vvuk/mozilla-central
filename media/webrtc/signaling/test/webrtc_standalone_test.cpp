@@ -177,7 +177,7 @@ class WebrtcTest : public ::testing::Test {
     PR_Sleep(PR_SecondsToInterval(2));
 
     std::string rootpath = ProjectRootPath();
-    filename = "recorded.pcm";
+    filename = "recorded.wav";
     fileToPlay =
              rootpath+"media"+kPathDelimiter+"webrtc"+kPathDelimiter+"signaling"+kPathDelimiter+"test"+kPathDelimiter+filename;
     cerr << "File is " << fileToPlay << endl;

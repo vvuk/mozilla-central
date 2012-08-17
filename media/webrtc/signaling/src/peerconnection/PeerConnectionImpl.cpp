@@ -18,6 +18,9 @@
 #include "nss.h"
 #include "pk11pub.h"
 
+#include "nsNetCID.h"
+#include "nsIServiceManager.h"
+#include "nsISocketTransportService.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 
@@ -471,15 +474,36 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 }
 
 NS_IMETHODIMP
+PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remoteport)
+{
+#ifdef MOZILLA_INTERNAL_API
+    mDataConnection = new mozilla::DataChannelConnection(this);
+    NS_ENSURE_TRUE(mDataConnection,NS_ERROR_FAILURE);
+    mDataConnection->Init(localport, true);
+    // XXX errors?
+
+    // XXX Fix!  get the correct flow for DataChannel
+    // XXX FIX! Main Thread?  Do we need to get this off?
+    nsRefPtr<TransportFlow> flow = GetTransportFlow(1,false).get();
+    std::cerr << "Transportflow[1] = " << flow.get() << std::endl;
+    
+    mDataConnection->ConnectDTLS(flow, localport, remoteport);
+    // XXX errors?
+    return NS_OK;
+#else
+    return NS_ERROR_FAILURE;
+#endif
+}
+
+NS_IMETHODIMP
 PeerConnectionImpl::CreateDataChannel(nsIDOMDataChannel** aRetval)
 {
 #ifdef MOZILLA_INTERNAL_API
   mozilla::DataChannel *aDataChannel;
+  nsresult rv;
 
   if (!mDataConnection) {
-    mDataConnection = new mozilla::DataChannelConnection(this);
-    NS_ENSURE_TRUE(mDataConnection,NS_ERROR_FAILURE);
-    mDataConnection->Init(0); // XXX FIX port value
+    return NS_ERROR_FAILURE;
   }
   aDataChannel = mDataConnection->Open(/* "",  */
                                        mozilla::DataChannelConnection::RELIABLE,
@@ -504,7 +528,7 @@ PeerConnectionImpl::Listen(unsigned short port)
 #ifdef MOZILLA_INTERNAL_API
   if (!mDataConnection) {
     mDataConnection = new mozilla::DataChannelConnection(this);
-    mDataConnection->Init(port);
+    mDataConnection->Init(port, false);
   }
   
   listenPort = port;
@@ -535,18 +559,18 @@ PeerConnectionImpl::ListenThread(void *data)
 
 // XXX Temporary - remove
 NS_IMETHODIMP
-PeerConnectionImpl::Connect(const nsAString &addr, unsigned short port)
+PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 remoteport)
 {
   std::cerr << "PeerConnectionImpl::Connect()" << std::endl;
 #ifdef MOZILLA_INTERNAL_API
   char *s = ToNewCString(addr);
   if (!mDataConnection) {
     mDataConnection = new mozilla::DataChannelConnection(this);
-    mDataConnection->Init(port^1);
+    mDataConnection->Init(localport, false);
   }
 
   connectStr = s;
-  connectPort = port;
+  connectPort = remoteport;
   PR_CreateThread(
     PR_SYSTEM_THREAD,
     PeerConnectionImpl::ConnectThread, this,
@@ -874,6 +898,10 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
       break;
     case SETREMOTEDESC:
       mRemoteSDP = mRemoteRequestedSDP;
+      break;
+    case CONNECTED:
+      std::cerr << "Setting PeerConnnection state to kActive" << std::endl;
+      ChangeReadyState(kActive);
       break;
     default:
       break;

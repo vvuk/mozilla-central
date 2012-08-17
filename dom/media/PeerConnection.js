@@ -321,6 +321,12 @@ PeerConnection.prototype = {
     return channel;
   },
 
+  connectDataConnection: function(localport, remoteport) {
+    dump("!!! " + this._uniqId + " : ConnectDataConnection() called\n");
+    this._pc.connectDataConnection(localport, remoteport);
+    dump("!!! " + this._uniqId + " : ConnectDataConnection() returned\n");
+  },
+
   // FIX - remove connect() and listen()
   listen: function(port) {
     dump("!!! " + this._uniqId + " : listen() called\n");
@@ -328,9 +334,9 @@ PeerConnection.prototype = {
     dump("!!! " + this._uniqId + " : listen() returned\n");
   },
 
-  connect: function(addr, port) {
+  connect: function(addr, localport, remoteport) {
     dump("!!! " + this._uniqId + " : connect() called\n");
-    this._pc.connect(addr, port);
+    this._pc.connect(addr, localport, remoteport);
     dump("!!! " + this._uniqId + " : connect() returned\n");
   },
 
@@ -475,7 +481,13 @@ PeerConnectionObserver.prototype = {
     if (state == Ci.IPeerConnectionObserver.kIceState) {
       switch (this._dompc._pc.iceState) {
         case Ci.IPeerConnection.kIceWaiting:
+          dump("!!! ICE waiting...\n");
+          this._dompc._executeNext();
+	  break
         case Ci.IPeerConnection.kIceChecking:
+          dump("!!! ICE checking...\n");
+          this._dompc._executeNext();
+	  break
         case Ci.IPeerConnection.kIceConnected:
           dump("!!! " + this._dompc._uniqId + " : ICE gathering is complete, calling _executeNext! \n");
           this._dompc._executeNext();

@@ -69,6 +69,8 @@ EXPORTS_mtransport = \
   ../transportlayerlog.h \
   ../transportlayerloopback.h \
   ../transportlayerprsock.h \
+  ../m_cpp_utils.h \
+  ../runnable_utils.h \
   $(NULL)
 
 CPPSRCS = \
