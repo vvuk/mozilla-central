@@ -431,6 +431,21 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   // Create the DTLS Identity
   mIdentity = DtlsIdentity::Generate("self");
   
+  // Set the fingerprint. Right now assume we only have one
+  // DTLS identity
+  unsigned char fingerprint[64];
+  size_t fingerprint_length;
+  res = mIdentity->ComputeFingerprint("sha-1",
+                                      fingerprint,
+                                      sizeof(fingerprint),
+                                      &fingerprint_length);
+  PR_ASSERT(NS_SUCCEEDED(res));
+  if (!NS_SUCCEEDED(res))
+    return NS_ERROR_FAILURE;
+  
+  mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
+                                                         fingerprint_length);
+
   // Busy-wait until we are ready
   // TODO(ekr@rtfm.com): This needs to be fixed with deferred operation
   // in PeerConnection.js

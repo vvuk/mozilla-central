@@ -361,7 +361,7 @@ private:
   std::string mLocalSDP;
   std::string mRemoteSDP;
 
-  // DTLS fingerprint, fake it for now.
+  // DTLS fingerprint
   std::string mFingerprint;
 
   // A list of streams returned from GetUserMedia

@@ -158,9 +158,20 @@ PeerConnection.prototype = {
 
     let id = offer.sdp.match(ire);
     let fprint = offer.sdp.match(fre);
+     
+    dump("!!! "+ this._uniqId + " : fprint = " + fprint[1]);
 
     if (id.length == 2 && fprint.length == 2) {
       IDService.verifyIdentity(id[1], function(err, val) {
+	if (!val) {
+            dump("!!! : no verified value");
+	    dump("!!! : err =" + err);
+
+	}
+        else {
+	    dump("!!! : verified value = " + val.message);
+	}
+
         if (val && (fprint[1] == val.message)) {
           self._onVerifyIdentitySuccess.onCallback(val);
           self._displayVerification(val.principal.email);
@@ -386,6 +397,7 @@ PeerConnectionObserver.prototype = {
     }
 
     let sig = this._dompc._pc.fingerprint;
+    dump("!!! " + this._dompc._uniqId + " : fingerprint = " + sig);
 
     // FIXME! Save the origin of the window that created the dompc.
     let self = this;
@@ -403,7 +415,7 @@ PeerConnectionObserver.prototype = {
       let idline = "a=identity:" + ast + "\r\n";
 
       let parts = offer.split("m=");
-      let finalOffer = parts[0] + sigline + idline;
+      let finalOffer = parts[0] + idline;
       for (let i = 1; i < parts.length; i++) {
         finalOffer += "m=" + parts[i];
       }
