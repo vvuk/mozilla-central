@@ -27,12 +27,15 @@
 #undef __APPLE__
 #endif
 
+#include "nsServiceManagerUtils.h"
+#include "nsIObserverService.h"
+#include "nsIObserver.h"
+#include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
+#include "mtransport/runnable_utils.h"
 #include "DataChannel.h"
 #include "DataChannelProtocol.h"
-
-#include "mtransport/runnable_utils.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* dataChannelLog = PR_NewLogModule("DataChannel");
@@ -63,12 +66,12 @@ static bool sctp_initialized;
 
 namespace mozilla {
 
-#if 0
-// XXX Not ready...
-nsRefPtr<DataChannelShutdown> gDataChannelShutdown;
+class DataChannelShutdown;
+DataChannelShutdown *gDataChannelShutdown;
 
-class DataChannelShutdown MOZ_FINAL : public nsIObserver
+class DataChannelShutdown : public nsIObserver
 {
+public:
   // This needs to be tied to some form object that is guaranteed to be
   // around (singleton likely) unless we want to shutdown sctp whenever
   // we're not using it (and in which case we'd keep a refcnt'd object
@@ -76,7 +79,6 @@ class DataChannelShutdown MOZ_FINAL : public nsIObserver
   // sctp_finish)
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
 
   DataChannelShutdown() 
     { 
@@ -85,34 +87,39 @@ class DataChannelShutdown MOZ_FINAL : public nsIObserver
       if (!observerService)
         return;
 
+      // XXX Verify this is true
+      ++mRefCnt;    // Our refcnt must be > 0 when we call this, or we'll get deleted!
       nsresult rv = observerService->AddObserver(this,
-                                                 NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                                 true);
+                                                 "profile-change-net-teardown",
+                                                 false);
+      --mRefCnt;
       DC_ENSURE_TRUE(rv == NS_OK);
-
-      gDataChannelShutdown = this; 
     }
   ~DataChannelShutdown() 
     {
       nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
-      if (!observerService)
-        return;
+      if (observerService)
+        observerService->RemoveObserver(this, "profile-change-net-teardown");
 
-      nsresult rv = observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
-      DC_ENSURE_TRUE(rv == NS_OK);
-
-      gDataChannelShutdown = NULL; 
+      // We know this is a simple pointer
+      gDataChannelShutdown = nullptr;
     }
 
   NS_IMETHODIMP Observe(nsISupports* aSubject, const char* aTopic,
                         const PRUnichar* aData) {
-    if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
-      usrsctp_finish();
+    if (strcmp(aTopic, "profile-change-net-teardown") == 0) {
+      LOG(("Shutting down SCTP"));
+      if (sctp_initialized) {
+        usrsctp_finish();
+        sctp_initialized = false;
+      }
     }
+    return NS_OK;
   }
-}
-#endif
+};
+
+NS_IMPL_ISUPPORTS1(DataChannelShutdown, nsIObserver);
 
 
 static int
@@ -181,6 +188,8 @@ DataChannelConnection::Init(unsigned short aPort, bool aUsingDtls)
       usrsctp_sysctl_set_sctp_debug_on(0 /*SCTP_DEBUG_ALL*/);
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
+
+      gDataChannelShutdown = new DataChannelShutdown();
     }
   }
 

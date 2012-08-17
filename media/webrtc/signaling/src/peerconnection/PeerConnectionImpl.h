@@ -132,8 +132,8 @@ class Fake_VideoGenerator {
     mozilla::layers::PlanarYCbCrImage::Data data;
     data.mYChannel = frame;
     data.mYSize = gfxIntSize(WIDTH, HEIGHT);
-    data.mYStride = WIDTH * lumaBpp / 8.0;
-    data.mCbCrStride = WIDTH * chromaBpp / 8.0;
+    data.mYStride = (PRInt32) (WIDTH * lumaBpp / 8.0);
+    data.mCbCrStride = (PRInt32) (WIDTH * chromaBpp / 8.0);
     data.mCbChannel = frame + HEIGHT * data.mYStride;
     data.mCrChannel = data.mCbChannel + HEIGHT * data.mCbCrStride / 2;
     data.mCbCrSize = gfxIntSize(WIDTH / 2, HEIGHT / 2);

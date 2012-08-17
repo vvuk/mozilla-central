@@ -72,15 +72,6 @@ interface nsIDOMRTCPeerConnection : nsISupports
 
   /* Data channel */
   nsIDOMDataChannel createDataChannel();
-
-  /* Bring up SCTP/DTLS/UDP connection */
-  /* XXX remove */
-  void connectDataConnection(in unsigned short localport, in unsigned short remoteport);
-
-  /* XXX remove these */
-  void listen(in unsigned short port);
-  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport);
-
   attribute RTCPeerConnectionCallbackVoid onConnection;
   attribute RTCPeerConnectionCallbackVoid onClosedConnection;
   attribute RTCPeerConnectionCallback onDataChannel;
@@ -100,4 +91,10 @@ interface nsIDOMRTCPeerConnection : nsISupports
   nsIDOMMediaStream createFakeMediaStream(in string type,
                                           [optional] in boolean mute
                                           );
+
+  /* Bring up SCTP/DTLS/UDP connection */
+  /* XXX remove */
+  void connectDataConnection(in unsigned short localport, in unsigned short remoteport);
+  void listen(in unsigned short port);
+  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport);
 };
