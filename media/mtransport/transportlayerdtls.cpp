@@ -34,6 +34,10 @@ PRDescIdentity TransportLayerDtls::nspr_layer_identity = PR_INVALID_IO_LAYER;
 
 std::string TransportLayerDtls::ID("mt_dtls");
 
+// TODO(ekr@rtfm.com): Implement a mode for this where 
+// the channel is not ready until confirmed externally
+// (e.g., after cert check).
+  
 #define UNIMPLEMENTED MLOG(PR_LOG_ERROR, \
     "Call to unimplemented function "<< __FUNCTION__); PR_ASSERT(false)
 

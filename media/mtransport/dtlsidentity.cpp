@@ -201,4 +201,22 @@ nsresult DtlsIdentity::ComputeFingerprint(const CERTCertificate *cert,
   return NS_OK;
 }
 
+// Format the fingerprint in RFC 4572 Section 5 format, colons and
+// all.
+std::string DtlsIdentity::FormatFingerprint(const unsigned char *digest,
+                                            std::size_t size) {
+  std::string str("");
+  char group[3];
+  
+  for (std::size_t i=0; i < size; i++) {
+    snprintf(group, 3, "%.2x", digest[i]);
+    if (i != 0){
+      str += ":";
+    }
+    str += group;
+  }
+
+  PR_ASSERT(str.size() == (size * 3 - 1));  // Check result length
+  return str;
+}
 

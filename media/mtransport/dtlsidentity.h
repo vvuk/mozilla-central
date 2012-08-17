@@ -67,6 +67,9 @@ class DtlsIdentity : public mozilla::RefCounted<DtlsIdentity> {
                                      std::size_t size,
                                      std::size_t *digest_length);
 
+  static std::string FormatFingerprint(const unsigned char *digest,
+                                       std::size_t size);
+
  private:
   DtlsIdentity(SECKEYPrivateKey *privkey, CERTCertificate *cert)
       : privkey_(privkey), cert_(cert) {}
