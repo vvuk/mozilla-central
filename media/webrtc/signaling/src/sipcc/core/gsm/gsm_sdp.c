@@ -1492,16 +1492,16 @@ gsmsdp_set_rtcp_mux_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p,
  * fingerprint_len - string len of fingerprint
  */
 static void
-gsmsdp_set_dtls_fingerprint_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, char *hash_func,
-		int hash_func_len, char *fingerprint, int fingerprint_len)
+gsmsdp_set_dtls_fingerprint_attribute (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, 
+  char *hash_func,char *fingerprint)
 {
     uint16_t      a_instance = 0;
     sdp_result_e  result;
-    char hash_and_fingerprint[hash_func_len + fingerprint_len + 2];
+    char hash_and_fingerprint[FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2];
 
-    sstrncpy(hash_and_fingerprint, (cc_string_t)hash_func, hash_func_len);
+    sstrncpy(hash_and_fingerprint, (cc_string_t)hash_func, FSMDEF_MAX_DIGEST_ALG_LEN);
     sstrncat(hash_and_fingerprint, (cc_string_t)" ", sizeof(hash_and_fingerprint) - strlen(hash_and_fingerprint) - 1);
-    sstrncat(hash_and_fingerprint, (cc_string_t)fingerprint, fingerprint_len);
+    sstrncat(hash_and_fingerprint, (cc_string_t)fingerprint, FSMDEF_MAX_DIGEST_LEN);
 
     result = sdp_add_new_attr(sdp_p, level, 0, sdp_attr, &a_instance);
     if (result != SDP_SUCCESS) {
@@ -4515,7 +4515,7 @@ gsmsdp_create_local_sdp (fsmdef_dcb_t *dcb_p, boolean force_streams_enabled)
 
     if(strlen(dcb_p->digest_alg)  > 0)
         gsmsdp_set_dtls_fingerprint_attribute (SDP_ATTR_DTLS_FINGERPRINT, SDP_SESSION_LEVEL,
-            dcb_p->sdp->src_sdp, dcb_p->digest_alg, FSMDEF_MAX_DIGEST_ALG_LEN, dcb_p->digest, FSMDEF_MAX_DIGEST_LEN);
+            dcb_p->sdp->src_sdp, dcb_p->digest_alg, dcb_p->digest);
 
     if (!sdpmode) {
 
