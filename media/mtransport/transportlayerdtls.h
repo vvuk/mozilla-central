@@ -51,15 +51,22 @@ public:
      TransportLayer(DGRAM),
      identity_(NULL),
      role_(CLIENT),
+     verification_mode_(VERIFY_UNSET),
+     digest_algorithm_(),
+     digest_len_(0),
+     digest_value_(),
      pr_fd_(NULL),
      ssl_fd_(NULL),
      helper_(NULL),
-     peer_cert_(NULL) {}
+     peer_cert_(NULL),
+     auth_hook_called_(false) {}
 
   virtual ~TransportLayerDtls();
 
 
   enum Role { CLIENT, SERVER};
+  enum Verification { VERIFY_UNSET, VERIFY_ALLOW_ALL, VERIFY_DIGEST};
+  const static int kMaxDigestLength = 64;
 
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
@@ -68,6 +75,11 @@ public:
   void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) {
     identity_ = identity;
   }
+  nsresult SetVerificationAllowAll();
+  nsresult SetVerificationDigest(const std::string digest_algorithm,
+                             const unsigned char *digest_value,
+                             size_t digest_len);
+
   nsresult SetSrtpCiphers(std::vector<PRUint16> ciphers);
   nsresult GetSrtpCipher(PRUint16 *cipher);
 
@@ -109,12 +121,20 @@ private:
                                        PRFileDesc *fd,
                                        PRBool checksig,
                                        PRBool isServer);
+  SECStatus AuthCertificateHook(PRFileDesc *fd,
+                                PRBool checksig,
+                                PRBool isServer);
+
   static void TimerCallback(nsITimer *timer, void *arg);
 
   mozilla::RefPtr<DtlsIdentity> identity_;
   std::vector<PRUint16> srtp_ciphers_;
 
   Role role_;
+  Verification verification_mode_;
+  std::string digest_algorithm_;
+  size_t digest_len_;
+  unsigned char digest_value_[kMaxDigestLength];
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
@@ -122,6 +142,7 @@ private:
   CERTCertificate *peer_cert_;
   nsCOMPtr<nsIEventTarget> target_;
   nsCOMPtr<nsITimer> timer_;
+  bool auth_hook_called_;
 
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity
 };

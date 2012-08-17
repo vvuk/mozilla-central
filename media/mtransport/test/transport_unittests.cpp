@@ -123,8 +123,6 @@ class TransportTestPeer : public sigslot::has_slots<> {
                    TransportLayerDtls::CLIENT :
                    TransportLayerDtls::SERVER);
 
-    std::size_t fingerprint_len;
-
     nsresult res = identity_->ComputeFingerprint("sha-1",
                                              fingerprint_,
                                              sizeof(fingerprint_),
@@ -136,6 +134,28 @@ class TransportTestPeer : public sigslot::has_slots<> {
   ~TransportTestPeer() {
     loopback_->Disconnect();
   }
+
+
+  void SetDtlsAllowAll() {
+    nsresult res = dtls_->SetVerificationAllowAll();
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+  }
+  void SetDtlsPeer(TransportTestPeer *peer, bool damage) {
+    unsigned char fingerprint_to_set[TransportLayerDtls::kMaxDigestLength];
+    memcpy(fingerprint_to_set,
+           peer->fingerprint_,
+           peer->fingerprint_len_);
+    if (damage)
+      fingerprint_to_set[0]++;
+
+    nsresult res = dtls_->SetVerificationDigest(
+        "sha-1",
+        fingerprint_to_set,
+        peer->fingerprint_len_);
+
+    ASSERT_TRUE(NS_SUCCEEDED(res));
+  }
+
 
   void ConnectSocket(TransportTestPeer *peer) {
     nsresult res;
@@ -247,19 +267,6 @@ class TransportTestPeer : public sigslot::has_slots<> {
   void StateChanged(TransportFlow *flow, TransportLayer::State state) {
     if (state == TransportLayer::OPEN) {
       std::cerr << "Now connected" << std::endl;
-
-      size_t peer_fingerprint_len;
-      unsigned char peer_fingerprint[100];
-      
-      nsresult res = DtlsIdentity::ComputeFingerprint(
-          dtls_->GetPeerCert(), "sha-1",
-          peer_fingerprint, sizeof(peer_fingerprint), &peer_fingerprint_len);
-      ASSERT_TRUE(NS_SUCCEEDED(res));
-      ASSERT_EQ(20, peer_fingerprint_len);
-      
-      ASSERT_EQ(0, memcmp(peer_fingerprint,
-                          peer_->fingerprint_,
-                          peer_fingerprint_len));
     }
   }
 
@@ -275,6 +282,10 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
   bool connected() {
     return flow_.state() == TransportLayer::OPEN;
+  }
+
+  bool failed() {
+    return flow_.state() == TransportLayer::ERROR;
   }
 
   size_t received() { return received_; }
@@ -295,7 +306,8 @@ class TransportTestPeer : public sigslot::has_slots<> {
   std::map<std::string, std::vector<std::string> > candidates_;
   TransportTestPeer *peer_;
   bool gathering_complete_;
-  unsigned char fingerprint_[100];
+  unsigned char fingerprint_[TransportLayerDtls::kMaxDigestLength];
+  size_t fingerprint_len_;
 };
 
 
@@ -324,11 +336,28 @@ class TransportTest : public ::testing::Test {
     p2_ = new TransportTestPeer(target_, "P2");
   }
 
+  void SetDtlsPeer(bool damage = false) {
+    p1_->SetDtlsPeer(p2_, damage);
+    p2_->SetDtlsPeer(p1_, damage);
+  }
+
+  void SetDtlsAllowAll() {
+    p1_->SetDtlsAllowAll();
+    p2_->SetDtlsAllowAll();
+  }
+
   void ConnectSocket() {
     p1_->ConnectSocket(p2_);
     p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->connected(), 10000);
     ASSERT_TRUE_WAIT(p2_->connected(), 10000);
+  }
+
+  void ConnectSocketExpectFail() {
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
+    ASSERT_TRUE_WAIT(p1_->failed(), 10000);
+    ASSERT_TRUE_WAIT(p2_->failed(), 10000);
   }
 
   void InitIce() {
@@ -366,23 +395,45 @@ class TransportTest : public ::testing::Test {
 };
 
 
-// TODO(ekr@rtfm.com): add a test with more values
+TEST_F(TransportTest, TestNoDtlsVerificationSettings) {
+  ConnectSocketExpectFail();
+}
+
+TEST_F(TransportTest, TestConnect) {
+  SetDtlsPeer();
+  ConnectSocket();
+}
+
+TEST_F(TransportTest, TestConnectAllowAll) {
+  SetDtlsAllowAll();
+  ConnectSocket();
+}
+
+TEST_F(TransportTest, TestConnectBadDigest) {
+  SetDtlsPeer(true);
+  ConnectSocketExpectFail();
+}
+
 TEST_F(TransportTest, TestTransfer) {
+  SetDtlsPeer();
   ConnectSocket();
   TransferTest(1);
 }
 
 TEST_F(TransportTest, TestConnectLoseFirst) {
+  SetDtlsPeer();
   p1_->SetLoss(0);
   ConnectSocket();
   TransferTest(1);
 }
 
 TEST_F(TransportTest, TestConnectIce) {
+  SetDtlsPeer();
   ConnectIce();
 }
 
 TEST_F(TransportTest, TestTransferIce) {
+  SetDtlsPeer();
   ConnectIce();
   TransferTest(1);
 }

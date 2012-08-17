@@ -34,10 +34,10 @@ PRDescIdentity TransportLayerDtls::nspr_layer_identity = PR_INVALID_IO_LAYER;
 
 std::string TransportLayerDtls::ID("mt_dtls");
 
-// TODO(ekr@rtfm.com): Implement a mode for this where 
+// TODO(ekr@rtfm.com): Implement a mode for this where
 // the channel is not ready until confirmed externally
 // (e.g., after cert check).
-  
+
 #define UNIMPLEMENTED MLOG(PR_LOG_ERROR, \
     "Call to unimplemented function "<< __FUNCTION__); PR_ASSERT(false)
 
@@ -347,7 +347,9 @@ TransportLayerDtls::~TransportLayerDtls() {
   timer_->Cancel();
   if (peer_cert_) CERT_DestroyCertificate(peer_cert_);
   // Must delete helper after ssl_fd_ b/c ssl_fd_ causes an alert
-  PR_Close(ssl_fd_);
+  if (ssl_fd_) {
+    PR_Close(ssl_fd_);
+  }
 }
 
 nsresult TransportLayerDtls::InitInternal() {
@@ -378,6 +380,38 @@ void TransportLayerDtls::WasInserted() {
 };
 
 
+nsresult TransportLayerDtls::SetVerificationAllowAll() {
+  // Defensive programming
+  if (verification_mode_ != VERIFY_UNSET)
+    return NS_ERROR_ALREADY_INITIALIZED;
+
+  verification_mode_ = VERIFY_ALLOW_ALL;
+
+  return NS_OK;
+}
+
+nsresult
+TransportLayerDtls::SetVerificationDigest(const std::string digest_algorithm,
+                                          const unsigned char *digest_value,
+                                          size_t digest_len) {
+  // Defensive programming
+  if (verification_mode_ != VERIFY_UNSET)
+    return NS_ERROR_ALREADY_INITIALIZED;
+
+  // Note that we do not sanity check these values for length.
+  // We merely ensure they will fit into the buffer.
+  // TODO(ekr@rtfm.com): is there a Data construct we could use?
+  if (digest_len > sizeof(digest_value_))
+    return NS_ERROR_INVALID_ARG;
+  memcpy(digest_value_, digest_value, digest_len);
+  digest_len_ = digest_len;
+  digest_algorithm_ = digest_algorithm;
+
+  verification_mode_ = VERIFY_DIGEST;
+
+  return NS_OK;
+}
+
 // TODO(ekr@rtfm.com): make sure this is called from STS. Otherwise
 // we have thread safety issues
 bool TransportLayerDtls::Setup() {
@@ -393,6 +427,12 @@ bool TransportLayerDtls::Setup() {
     MLOG(PR_LOG_ERROR, "Can't start DTLS without an identity");
     return false;
   }
+
+  if (verification_mode_ == VERIFY_UNSET) {
+    MLOG(PR_LOG_ERROR, "Can't start DTLS without specifying a verification mode");
+    return false;
+  }
+
   if (!nspr_layer_identity == PR_INVALID_IO_LAYER) {
     nspr_layer_identity = PR_GetUniqueIdentity("nssstreamadapter");
   }
@@ -598,11 +638,11 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
   }
 
   helper_->PacketReceived(data, len);
-  
+
   // If we're still connecting, try to handshake
   if (state_ == CONNECTING) {
     Handshake();
-  } 
+  }
 
   // Now try a recv if we're open, since there might be data left
   if (state_ == OPEN) {
@@ -617,7 +657,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
       SetState(CLOSED);
     } else {
       PRInt32 err = PR_GetError();
-      
+
       if (err == PR_WOULD_BLOCK_ERROR) {
         // This gets ignored
         MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
@@ -728,17 +768,83 @@ nsresult TransportLayerDtls::ExportKeyingMaterial(const std::string& label,
   return NS_OK;
 }
 
-// This always returns true, but stores the certificate for
-// later use.
 SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
                                                   PRFileDesc *fd,
                                                   PRBool checksig,
                                                   PRBool isServer) {
   TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
 
-  stream->peer_cert_ = SSL_PeerCertificate(fd);
+  return stream->AuthCertificateHook(fd, checksig, isServer);
+}
 
-  return SECSuccess;
+SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
+                                                  PRBool checksig,
+                                                  PRBool isServer) {
+  CERTCertificate *peer_cert = NULL;
+  peer_cert = SSL_PeerCertificate(fd);
+
+  // We are not set up to take this being called multiple
+  // times. Change this if we ever add renegotiation.
+  PR_ASSERT(!auth_hook_called_);
+  if (auth_hook_called_)
+    return SECFailure;
+  auth_hook_called_ = true;
+
+  PR_ASSERT(verification_mode_ != VERIFY_UNSET);
+  PR_ASSERT(peer_cert_ == NULL);
+
+  switch (verification_mode_) {
+    case VERIFY_UNSET:
+      // Jump to error exit
+      break;
+    case VERIFY_ALLOW_ALL:
+      peer_cert_ = peer_cert;
+      return SECSuccess;
+
+    case VERIFY_DIGEST: {
+      CERTCertificate *peer_cert =
+          SSL_PeerCertificate(fd);
+
+      unsigned char computed_digest[kMaxDigestLength];
+      size_t computed_digest_len;
+
+      nsresult res =
+          DtlsIdentity::ComputeFingerprint(peer_cert,
+                                           digest_algorithm_,
+                                           computed_digest,
+                                           sizeof(computed_digest),
+                                           &computed_digest_len);
+      if (!NS_SUCCEEDED(res)) {
+        MLOG(PR_LOG_ERROR, "Could not compute peer fingerprint for digest " <<
+             digest_algorithm_);
+        // Go to end
+        break;
+      }
+
+      if (computed_digest_len != digest_len_) {
+        MLOG(PR_LOG_ERROR, "Digest is wrong length " << digest_len_ <<
+             " should be " << computed_digest_len << " for algorithm " <<
+             digest_algorithm_);
+        // Go to end
+        break;
+      }
+
+      if (memcmp(digest_value_, computed_digest, computed_digest_len) != 0) {
+        MLOG(PR_LOG_ERROR, "Digest does not match");
+        // Go to end
+        break;
+      }
+
+      // Matches, we are good to go
+      peer_cert_ = peer_cert;
+      return SECSuccess;
+    }
+  }
+
+  if (peer_cert) {
+    CERT_DestroyCertificate(peer_cert);
+  }
+  return SECFailure;
 }
 
 void TransportLayerDtls::TimerCallback(nsITimer *timer, void *arg) {
