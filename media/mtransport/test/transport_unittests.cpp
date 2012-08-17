@@ -126,9 +126,9 @@ class TransportTestPeer : public sigslot::has_slots<> {
     nsresult res = identity_->ComputeFingerprint("sha-1",
                                              fingerprint_,
                                              sizeof(fingerprint_),
-                                             &fingerprint_len);
+                                             &fingerprint_len_);
     EXPECT_TRUE(NS_SUCCEEDED(res));
-    EXPECT_EQ(20, fingerprint_len);
+    EXPECT_EQ(20, fingerprint_len_);
   }
 
   ~TransportTestPeer() {
