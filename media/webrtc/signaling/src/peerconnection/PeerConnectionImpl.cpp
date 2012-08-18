@@ -135,17 +135,29 @@ public:
               break;
 
             case REMOTESTREAMADD:
+            {
               streams = mInfo->getMediaStreams();
-              stream = mPC->GetRemoteStream(streams->media_stream_id)->GetMediaStream();
+              nsRefPtr<RemoteSourceStreamInfo> remoteStream = mPC->GetRemoteStream(streams->media_stream_id);
 
-              hint = stream->GetHintContents();
-              if (hint == nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
-                mObserver->OnAddStream(stream, "audio");
-              } else if (hint == nsDOMMediaStream::HINT_CONTENTS_VIDEO) {
-                mObserver->OnAddStream(stream, "video");
+              PR_ASSERT(remoteStream.get());
+
+              if (!remoteStream.get())
+              {
+                CSFLogErrorS(logTag, __FUNCTION__ << " GetRemoteStream returned NULL");
+              }
+              else
+              {
+                stream = remoteStream->GetMediaStream();
+
+                hint = stream->GetHintContents();
+                if (hint == nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
+                  mObserver->OnAddStream(stream, "audio");
+                } else if (hint == nsDOMMediaStream::HINT_CONTENTS_VIDEO) {
+                  mObserver->OnAddStream(stream, "video");
+                }
               }
               break;
-
+            }
             default:
               CSFLogDebugS(logTag, ": **** CALL STATE IS: " << statestr);
               break;
@@ -1015,7 +1027,7 @@ PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream)
 nsRefPtr<LocalSourceStreamInfo>
 PeerConnectionImpl::GetLocalStream(int index)
 {
-  if (index >= (int) mLocalSourceStreams.Length())
+  if (index < 0 || index >= (int) mLocalSourceStreams.Length())
     return NULL;
 
   PR_ASSERT(mLocalSourceStreams[index]);
@@ -1025,7 +1037,7 @@ PeerConnectionImpl::GetLocalStream(int index)
 nsRefPtr<RemoteSourceStreamInfo>
 PeerConnectionImpl::GetRemoteStream(int index)
 {
-  if (index >= (int) mRemoteSourceStreams.Length())
+  if (index < 0 || index >= (int) mRemoteSourceStreams.Length())
     return NULL;
 
   PR_ASSERT(mRemoteSourceStreams[index]);

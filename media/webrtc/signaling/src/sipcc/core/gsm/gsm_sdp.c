@@ -56,6 +56,7 @@
 #include "sip_interface_regmgr.h"
 #include "platform_api.h"
 #include "vcm.h"
+#include "prlog.h"
 
 //TODO Need to place this in a portable location
 #define MULTICAST_START_ADDRESS 0xe1000000
@@ -103,41 +104,6 @@ typedef enum {
     MEDIA_TABLE_GLOBAL,
     MEDIA_TABLE_SESSION
 } media_table_e;
-
-cc_media_remote_stream_table_t g_media_remote_stream_table = {
-    0,
-    {
-       {
-        0,
-        0,
-        {
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-        },
-      },
-      {
-        0,
-        0,
-        {
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-          {0, FALSE},
-        },
-      },
-    }
-};
-
 
 
 /* Forward references */
@@ -242,6 +208,8 @@ static const cc_media_remote_stream_table_t *gsmsdp_get_media_stream_table (fsmd
 
     if ( dcb_p->remote_media_stream_tbl == NULL ) {
         dcb_p->remote_media_stream_tbl = (cc_media_remote_stream_table_t*) cpr_malloc(sizeof(cc_media_remote_stream_table_t));
+        memset(dcb_p->remote_media_stream_tbl, 0, sizeof(cc_media_remote_stream_table_t));
+
         if ( dcb_p->remote_media_stream_tbl == NULL ) {
 
              GSM_ERR_MSG(GSM_L_C_F_PREFIX"media track table malloc failed.\n",
@@ -249,8 +217,6 @@ static const cc_media_remote_stream_table_t *gsmsdp_get_media_stream_table (fsmd
              return NULL;
          }
     }
-
-    *(dcb_p->remote_media_stream_tbl) = g_media_remote_stream_table;
 
     return (dcb_p->remote_media_stream_tbl);
 }
@@ -4090,10 +4056,12 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         	 */
         	if (notify_stream_added) {
 
-        	    for (j=0; j < dcb_p->remote_media_stream_tbl->num_streams; j++ ) {
-
+        	    for (j=0; j < CC_MAX_STREAMS; j++ ) {
+                // If this stream has been created it should have >0 tracks.
+                if (dcb_p->remote_media_stream_tbl->streams[j].num_tracks) {
                     ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
                		        dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
+                }
         	    }
         	}
         }
@@ -5885,11 +5853,14 @@ void gsmsdp_add_remote_stream(uint16_t idx, int pc_stream_id, fsmdef_dcb_t *dcb_
   * Currently this just creates 1 track per 1 stream.
   */
 
-  dcb_p->remote_media_stream_tbl->num_streams++;
-  dcb_p->remote_media_stream_tbl->streams[idx].num_tracks = 1;
-  dcb_p->remote_media_stream_tbl->streams[idx].media_stream_id = pc_stream_id;
-  dcb_p->remote_media_stream_tbl->streams[idx].track[0].media_stream_track_id = idx+1;
-  dcb_p->remote_media_stream_tbl->streams[idx].track[0].video = (media->type == 0 ? FALSE : TRUE);
+  PR_ASSERT(idx < CC_MAX_STREAMS);
+
+  if (idx < CC_MAX_STREAMS) {
+    dcb_p->remote_media_stream_tbl->streams[idx].num_tracks = 1;
+    dcb_p->remote_media_stream_tbl->streams[idx].media_stream_id = pc_stream_id;
+    dcb_p->remote_media_stream_tbl->streams[idx].track[0].media_stream_track_id = idx+1;
+    dcb_p->remote_media_stream_tbl->streams[idx].track[0].video = (media->type == 0 ? FALSE : TRUE);
+  }
 }
 
 
