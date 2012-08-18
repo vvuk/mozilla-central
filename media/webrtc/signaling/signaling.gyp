@@ -588,7 +588,6 @@
       #
       
       'defines' : [
-      'NO_NSPR_10_SUPPORT',
       ],
 
       #
@@ -656,7 +655,6 @@
             'STUBBED_OUT',
             'USE_PRINTF'
             'LINUX',
-            'NO_NSPR_10_SUPPORT',
           ],
 
           'cflags': [
@@ -786,6 +784,7 @@
             'STUBBED_OUT',
             'USE_PRINTF',
             '_DARWIN_C_SOURCE',
+            'NO_NSPR_10_SUPPORT',
           ],
           
           'cflags': [
