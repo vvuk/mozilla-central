@@ -154,15 +154,16 @@ NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, message)
 NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)
 {
-  // XXX until we support labels
-  aLabel = NS_LITERAL_STRING("Help I'm trapped inside a DataChannel factory! ");
+  mDataChannel->GetLabel(aLabel);
   return NS_OK;
 }
 
+// XXX should be GetType()
 NS_IMETHODIMP
 nsDOMDataChannel::GetReliable(bool* aReliable)
 {
-  *aReliable = false; // With the amount of time I implemented this in
+  *aReliable = true; //mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE;
+                      // With the amount of time I implemented this in
                       // it certainly isn't reliable!
   return NS_OK;
 }

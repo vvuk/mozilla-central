@@ -103,7 +103,8 @@
     pc2 = new mozPeerConnection();
 
     pc2.onDataChannel = function(channel) {
-      log("pc2 onDataChannel [" +num_channels + "] = " + channel);
+      log("pc2 onDataChannel [" +num_channels + "] = " + channel +
+          ", label='" + channel.label + "'");
       dc2 = channel;
       datachannels[num_channels] = channel;
       num_channels++;
@@ -188,7 +189,8 @@ function start() {
 
     pc1.onDataChannel = function(channel) {
       // In case pc2 opens a channel
-      log("pc1 onDataChannel [" +num_channels + "] = " + channel);
+      log("pc1 onDataChannel [" +num_channels + "] = " + channel +
+          ", label='" + channel.label + "'");
       datachannels[num_channels] = channel;
       num_channels++;
 
@@ -217,7 +219,8 @@ function start() {
     }
     pc1.onConnection = function() {
       log("pc1 onConnection ");
-      dc1 = pc1.createDataChannel();
+      dc1 = pc1.createDataChannel("This is pc1",
+            {type: 2, outOfOrderAllowed: true});
       log("pc1 created channel " + dc1);
       channel = dc1;
 

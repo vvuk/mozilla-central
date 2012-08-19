@@ -95,7 +95,7 @@ public:
     PARTIAL_RELIABLE_TIMED = 4
   } Type;
     
-  DataChannel *Open(/* const std::wstring& channel_label,*/
+  DataChannel *Open(const nsACString& label,
                     Type type, bool inOrder, 
                     PRUint32 prValue, DataChannelListener *aListener,
                     nsISupports *aContext);
@@ -143,7 +143,8 @@ private:
   PRUint16 FindFreeStreamOut();
   bool RequestMoreStreamsOut();
   PRInt32 SendControlMessage(void *msg, PRUint32 len, PRUint16 streamOut);
-  PRInt32 SendOpenRequestMessage(PRUint16 streamOut, bool unordered, PRUint16 prPolicy, PRUint32 prValue);
+  PRInt32 SendOpenRequestMessage(const nsACString& label,PRUint16 streamOut,
+                                 bool unordered, PRUint16 prPolicy, PRUint32 prValue);
   PRInt32 SendOpenResponseMessage(PRUint16 streamOut, PRUint16 streamIn);
   PRInt32 SendOpenAckMessage(PRUint16 streamOut);
   void SendDeferredMessages();
@@ -199,11 +200,13 @@ public:
   DataChannel(DataChannelConnection *connection,
               PRUint16 streamOut, PRUint16 streamIn, 
               PRUint16 state,
+              const nsACString& label,
               PRUint16 policy, PRUint32 value,
               PRUint32 flags,
               DataChannelListener *aListener,
               nsISupports *aContext) : 
-    mListener(aListener), mConnection(connection), mState(state),
+    mListener(aListener), mConnection(connection),
+    mLabel(label), mState(state),
     mStreamOut(streamOut), mStreamIn(streamIn),
     mPrPolicy(policy), mPrValue(value),
     mFlags(0), mContext(aContext)
@@ -263,11 +266,14 @@ public:
   // XXX I'd like this to be protected or private...
   DataChannelListener *mListener;
 
+  void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
+
 private:
   friend class DataChannelOnMessageAvailable;
   friend class DataChannelConnection;
 
   DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
+  nsCString mLabel;
   PRUint16 mState;
   PRUint16 mStreamOut;
   PRUint16 mStreamIn;

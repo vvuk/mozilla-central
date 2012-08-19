@@ -2954,6 +2954,26 @@ dnl NB - later gcc versions require -mmmx for this header to be successfully
 dnl included (or another option which implies it, such as -march=pentium-mmx)
 MOZ_CHECK_HEADERS(mmintrin.h)
 
+dnl Check for sin_len - used by SCTP; only appears in Mac/*BSD generally
+MOZ_CHECK_HEADERS(sys/types.h)
+AC_MSG_CHECKING(for sockaddr_in.sin_len)
+AC_CACHE_VAL(ac_cv_sockaddr_in_sin_len,
+ [AC_TRY_COMPILE([#ifdef HAVE_SYS_TYPES_H
+                  #include <sys/types.h>
+                  #endif
+                  #include <netinet/in.h>
+                  struct sockaddr_in x;
+                  void *foo = (void*) &x.sin_len;],
+                  [],
+                  [ac_cv_sockaddr_in_sin_len=true],
+                  [ac_cv_sockaddr_in_sin_len=false])])
+if test "$ac_cv_sockaddr_in_sin_len" = true ; then
+  AC_DEFINE(HAVE_SIN_LEN)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
 dnl Check whether the compiler supports the new-style C++ standard
 dnl library headers (i.e. <new>) or needs the old "new.h"
 AC_LANG_CPLUSPLUS

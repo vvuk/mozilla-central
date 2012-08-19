@@ -323,9 +323,12 @@ PeerConnection.prototype = {
     dump("!!! " + this._uniqId + " : removeStream returned\n");
   },
 
-  createDataChannel: function() {
+    createDataChannel: function(label, dict) {
     dump("!!! " + this._uniqId + " : createDataChannel called\n");
-    let channel = this._pc.createDataChannel(/*args*/);
+    let channel = this._pc.createDataChannel(label,dict.type,
+					     dict.outOfOrderAllowed,
+					     dict.maxRetransmitTime,
+					     dict.maxRetransmitNum);
     dump("!!! " + this._uniqId + " : createDataChannel returned\n");
     return channel;
   },

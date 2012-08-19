@@ -34,7 +34,7 @@ struct rtcweb_datachannel_open_request {
   uint16_t flags;
   uint16_t reliability_params;
   int16_t  priority;
-  char     label[1]; // keep VC++ happy...
+  char     label[1]; // keep VC++ happy...  UTF8 null-terminated string
 } SCTP_PACKED;
 
 struct rtcweb_datachannel_open_response {

@@ -405,7 +405,7 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   LOG(("Connecting to %s, port %u",addr, port));
   memset((void *)&addr4, 0, sizeof(struct sockaddr_in));
   memset((void *)&addr6, 0, sizeof(struct sockaddr_in6));
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
   addr4.sin_len = sizeof(struct sockaddr_in);
   addr6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
@@ -534,6 +534,7 @@ DataChannelConnection::SendControlMessage(void *msg, PRUint32 len, PRUint16 stre
 {
   struct sctp_sndinfo sndinfo;
 
+  // XXX fix!  Main-thread IO
   memset(&sndinfo, 0, sizeof(struct sctp_sndinfo));
   sndinfo.snd_sid = streamOut;
   sndinfo.snd_ppid = htonl(DATA_CHANNEL_PPID_CONTROL);
@@ -575,38 +576,46 @@ DataChannelConnection::SendOpenAckMessage(PRUint16 streamOut)
 }
 
 PRInt32
-DataChannelConnection::SendOpenRequestMessage(PRUint16 streamOut, bool unordered,
+DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
+                                              PRUint16 streamOut, bool unordered,
                                               PRUint16 prPolicy, PRUint32 prValue)
 {
   /* XXX: This should be encoded in a better way */
-  struct rtcweb_datachannel_open_request req;
+  char *temp = ToNewCString(label);
+  int len = strlen(temp); // not including nul
+  struct rtcweb_datachannel_open_request *req = 
+    (struct rtcweb_datachannel_open_request*) malloc(sizeof(*req)+len);
+   // careful - ok because request includes 1 char label
 
-  memset(&req, 0, sizeof(struct rtcweb_datachannel_open_request));
-  req.msg_type = DATA_CHANNEL_OPEN_REQUEST;
+  memset(req, 0, sizeof(struct rtcweb_datachannel_open_request));
+  req->msg_type = DATA_CHANNEL_OPEN_REQUEST;
   switch (prPolicy) {
   case SCTP_PR_SCTP_NONE:
     /* XXX: What about DATA_CHANNEL_RELIABLE_STREAM */
-    req.channel_type = DATA_CHANNEL_RELIABLE;
+    req->channel_type = DATA_CHANNEL_RELIABLE;
     break;
   case SCTP_PR_SCTP_TTL:
     /* XXX: What about DATA_CHANNEL_UNRELIABLE */
-    req.channel_type = DATA_CHANNEL_PARTIAL_RELIABLE_TIMED;
+    req->channel_type = DATA_CHANNEL_PARTIAL_RELIABLE_TIMED;
     break;
   case SCTP_PR_SCTP_RTX:
-    req.channel_type = DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT;
+    req->channel_type = DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT;
     break;
   default:
     // FIX! need to set errno!  Or make all these SendXxxx() funcs return 0 or errno!
+    NS_Free(temp);
     return (0);
   }
-  req.flags = htons(0);
+  req->flags = htons(0);
   if (unordered) {
-    req.flags |= htons(DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED);
+    req->flags |= htons(DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED);
   }
-  req.reliability_params = htons((uint16_t)prValue); /* XXX Why 16-bit */
-  req.priority = htons(0); /* XXX: add support */
-
-  return SendControlMessage(&req, sizeof(req), streamOut);
+  req->reliability_params = htons((uint16_t)prValue); /* XXX Why 16-bit */
+  req->priority = htons(0); /* XXX: add support */
+  strcpy(&req->label[0],temp);
+  
+  NS_Free(temp);
+  return SendControlMessage(req, sizeof(*req)+len, streamOut);
 }
 
 void
@@ -622,7 +631,7 @@ DataChannelConnection::SendDeferredMessages()
 
     // Only one of these should be set....
     if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_REQ) {
-      if (SendOpenRequestMessage(channel->mStreamOut, 
+      if (SendOpenRequestMessage(channel->mLabel, channel->mStreamOut, 
                                  channel->mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED,
                                  channel->mPrPolicy, channel->mPrValue)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_REQ;
@@ -674,6 +683,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
   PRUint16 prPolicy;
   PRUint16 streamOut;
   PRUint32 flags;
+  nsCString label(nsDependentCString(req->label));
 
   if ((channel = FindChannelByStreamIn(streamIn))) {
     LOG(("ERROR: HandleOpenRequestMessage: channel for stream %d is in state %d instead of CLOSED.",
@@ -710,6 +720,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
 
   channel = new DataChannel(this, streamOut, streamIn,
                             DataChannel::CONNECTING,
+                            label,
                             prPolicy, prValue,
                             flags,
                             NULL, NULL);
@@ -720,8 +731,8 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
     mStreamsOut[streamOut] = channel;
     if (SendOpenResponseMessage(streamOut, streamIn)) {
       mNumChannels++;
-      LOG(("successful open of in: %u, out: %u, total channels %d\n",
-           streamIn, streamOut, mNumChannels));
+      LOG(("successful incoming open of '%s' in: %u, out: %u, total channels %d\n",
+           label.get(),streamIn, streamOut, mNumChannels));
 
       /* Notify ondatachannel */
       // XXX We need to make sure connection sticks around until the message is delivered
@@ -864,6 +875,7 @@ DataChannelConnection::HandleMessage(char *buffer, size_t length, PRUint32 ppid,
       msg = (struct rtcweb_datachannel_ack *)buffer;
       switch (msg->msg_type) {
         case DATA_CHANNEL_OPEN_REQUEST:
+          LOG(("length %u, sizeof(*req) = %u",length,sizeof(*req)));
           DC_ENSURE_TRUE(length >= sizeof(*req));
 
           req = (struct rtcweb_datachannel_open_request *)buffer;
@@ -1286,7 +1298,7 @@ DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t d
 }
 
 DataChannel *
-DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrder, 
+DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder, 
                             PRUint32 prValue, DataChannelListener *aListener,
                             nsISupports *aContext)
 {
@@ -1294,8 +1306,8 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
   PRUint16 streamOut, prPolicy;
   PRUint32 flags;
 
-  LOG(("DC Open: type %u, inorder %d, prValue %u, listener %p, context %p",
-       type, inOrder, prValue, aListener, aContext));
+  LOG(("DC Open: label %s, type %u, inorder %d, prValue %u, listener %p, context %p",
+       PromiseFlatCString(label).get(),type, inOrder, prValue, aListener, aContext));
   MutexAutoLock lock(mLock);
   switch (type) {
     case DATA_CHANNEL_RELIABLE:
@@ -1324,7 +1336,7 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
   streamOut = FindFreeStreamOut(); // may be INVALID_STREAM!
   channel = new DataChannel(this, streamOut, INVALID_STREAM,
                             DataChannel::CONNECTING,
-                            type, prValue,
+                            label, type, prValue,
                             flags,
                             aListener, aContext);
   if (!channel) { // XXX remove - infallible malloc
@@ -1337,7 +1349,7 @@ DataChannelConnection::Open(/*const std::wstring& label,*/ Type type, bool inOrd
   }
   mStreamsOut[streamOut] = channel;
 
-  if (!SendOpenRequestMessage(streamOut, !inOrder, prPolicy, prValue)) {
+  if (!SendOpenRequestMessage(label, streamOut, !inOrder, prPolicy, prValue)) {
     LOG(("SendOpenRequest failed, errno = %d",errno));
     if (errno == EAGAIN) {
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_REQ;
@@ -1404,10 +1416,12 @@ DataChannelConnection::SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bo
   uint16_t flags;
   DataChannel *channel;
 
+  NS_ENSURE_STATE(mState == OPEN || mState == CONNECTING);
+
   if (isBinary)
-    LOG(("Sending to stream %d: %d bytes",stream,len));
+    LOG(("Sending to stream %u: %u bytes",stream,len));
   else
-    LOG(("Sending to stream %d: %s",stream,data));
+    LOG(("Sending to stream %u: %s",stream,data));
   // XXX if we want more efficiency, translate flags once at open time
   channel = mStreamsOut[stream];
   if (!channel)
@@ -1433,8 +1447,11 @@ DataChannelConnection::SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bo
   spa.sendv_sndinfo = sndinfo;
   spa.sendv_prinfo = prinfo;
   spa.sendv_flags = SCTP_SEND_SNDINFO_VALID | SCTP_SEND_PRINFO_VALID;
-  LOG(("Sending open for stream %d",stream));
 
+  // XXX fix!  Main-thread IO
+  // XXX FIX!  to deal with heavy overruns of JS trying to pass data in
+  // (more than the buffersize) queue data onto another thread to do the
+  // actual sends.  See netwerk/protocol/websocket/WebSocketChannel.cpp
   if ((result = usrsctp_sendv(mSocket, data, len,
                               NULL, 0, 
                               (void *)&spa, (socklen_t)sizeof(struct sctp_sendv_spa),

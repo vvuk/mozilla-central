@@ -523,18 +523,25 @@ PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remotepor
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateDataChannel(nsIDOMDataChannel** aRetval)
+PeerConnectionImpl::CreateDataChannel(const nsACString& label,
+                                      PRUint16 type,
+                                      bool outOfOrderAllowed,
+                                      PRUint16 maxTime,
+                                      PRUint16 maxNum,
+                                      nsIDOMDataChannel** aRetval)
 {
 #ifdef MOZILLA_INTERNAL_API
   mozilla::DataChannel *aDataChannel;
-  nsresult rv;
+  mozilla::DataChannelConnection::Type theType = (mozilla::DataChannelConnection::Type) type;
 
   if (!mDataConnection) {
     return NS_ERROR_FAILURE;
   }
-  aDataChannel = mDataConnection->Open(/* "",  */
-                                       mozilla::DataChannelConnection::RELIABLE,
-                                       true, 0, NULL, NULL);
+  aDataChannel = mDataConnection->Open(label, 
+      theType, !outOfOrderAllowed, 
+      type == mozilla::DataChannelConnection::PARTIAL_RELIABLE_REXMIT ? maxNum :
+      (type == mozilla::DataChannelConnection::PARTIAL_RELIABLE_TIMED ? maxTime : 0),
+                                       NULL, NULL);
   if (!aDataChannel)
     return NS_ERROR_FAILURE;
 
