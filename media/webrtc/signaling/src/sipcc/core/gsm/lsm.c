@@ -1046,7 +1046,8 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                             vcmRtpToMediaPayload(media->payload,
                             media->remote_dynamic_payload_type_value,
                             media->mode),
-                            "", "",  // TODO(ekr@rtfm.com): Add the digest algorithm
+                            FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
+                            FSM_NEGOTIATED_CRYPTO_DIGEST(media),
                             &attrs);
                         }
                         else if (!sdpmode) {
@@ -1293,7 +1294,8 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     media->remote_dynamic_payload_type_value,
                     media->mode),
                   (short)dscp,
-                  "", "",  // TODO(ekr@rtfm.com): Add the digest algorithm
+                  FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
+                  FSM_NEGOTIATED_CRYPTO_DIGEST(media),
                   &attrs) == -1) 
               {
                 LSM_DEBUG(DEB_L_C_F_PREFIX"%s: vcmTxStartICE failed\n",

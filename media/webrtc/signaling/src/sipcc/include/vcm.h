@@ -258,7 +258,7 @@ typedef enum vcm_audio_bits_ {
 typedef enum {
     VCM_INVLID_ALGORITM_ID = -1,    /* invalid algorithm ID.             */
     VCM_NO_ENCRYPTION = 0,          /* no encryption                     */
-    VCM_AES_128_COUNTER             /* AES 128 counter mode (32 bits HMAC)*/
+    VCM_AES_128_COUNTER,            /* AES 128 counter mode (32 bits HMAC)*/
 } vcm_crypto_algorithmID;
 
 /**
@@ -596,7 +596,7 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
-        const char *fingerprint_algorithm,
+        const char *fingerprint_alg,
         const char *fingerprint,
         vcm_mediaAttrs_t *attrs);
 
@@ -674,7 +674,7 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
         short tos,
-        const char *fingerprint_algorithm,
+        const char *fingerprint_alg,
         const char *fingerprint,
         vcm_mediaAttrs_t *attrs);
 

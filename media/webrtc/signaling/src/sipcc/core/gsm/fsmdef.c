@@ -3147,7 +3147,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
             return (SM_RC_END);
         }
 
-        cause = gsmsdp_install_peer_dtls_data_attributes(fcb);
+        cause = gsmsdp_configure_dtls_data_attributes(fcb);
     	if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
             return (SM_RC_END);
@@ -3270,7 +3270,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
             return (SM_RC_END);
         }
 
-        cause = gsmsdp_install_peer_dtls_data_attributes(fcb);
+        cause = gsmsdp_configure_dtls_data_attributes(fcb);
     	if (cause != CC_CAUSE_OK) {
             ui_set_remote_description(evSetRemoteDescError, line, call_id, dcb->caller_id.call_instance_id, NULL, PC_SETREMOTEDESCERROR);
             return (SM_RC_END);

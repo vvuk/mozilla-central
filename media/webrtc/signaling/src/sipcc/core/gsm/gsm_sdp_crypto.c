@@ -1324,11 +1324,12 @@ void
 gsmsdp_init_sdp_media_transport (fsmdef_dcb_t *dcb_p, void *sdp_p,
                                  fsmdef_media_t *media)
 {
+    int  rtpsavpf = 0;
+    int  sdpmode = 0;
+
     /* Initialize crypto context */
     gsmsdp_init_crypto_context(media);
 
-    int            rtpsavpf = 0;
-    int            sdpmode = 0;
     config_get_value(CFGID_RTPSAVPF, &rtpsavpf, sizeof(rtpsavpf));
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
 

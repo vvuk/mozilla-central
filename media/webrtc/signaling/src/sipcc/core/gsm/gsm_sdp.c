@@ -5667,62 +5667,70 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
 }
 
 /*
- * gsmsdp_install_peer_dtls_data_attributes
+ * gsmsdp_configure_dtls_data_attributes
+ *
+ * Sets DTLS alg type and digest in the media streams
+ * If data is found at session level then that is used for each media stream
+ * else each media stream is set with its corresponding DTLS data from the remote SDP
  *
  * fcb_p - pointer to the fcb
  *
  */
 cc_causes_t
-gsmsdp_install_peer_dtls_data_attributes(fsm_fcb_t *fcb_p)
+gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
 {
     char            *fingerprint;
+    char            *session_fingerprint;
     sdp_result_e    sdp_res;
+    sdp_result_e    sdp_session_res;
     short           vcm_res;
     fsmdef_dcb_t    *dcb_p = fcb_p->dcb;
     cc_sdp_t        *sdp_p = dcb_p->sdp;
     fsmdef_media_t  *media;
-    int             level;
+    int             level = SDP_SESSION_LEVEL;
     short           result;
     char           *token;
-    char           line_to_split[FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2];
+    char            line_to_split[FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2];
     char           *delim = " ";
-    char           digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
-    char           digest[FSMDEF_MAX_DIGEST_LEN];
+    char            digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
+    char            digest[FSMDEF_MAX_DIGEST_LEN];
 
-
-    sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, SDP_SESSION_LEVEL,
-                                      0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
-
-    if (sdp_res != SDP_SUCCESS)
-        return CC_CAUSE_ERROR;
-
-    sstrncpy(line_to_split, fingerprint, FSMDEF_MAX_DIGEST_ALG_LEN + FSMDEF_MAX_DIGEST_LEN + 2);
-
-    token = strtok(line_to_split, delim);
-
-    sstrncpy(digest_alg, token, FSMDEF_MAX_DIGEST_ALG_LEN);
-
-    token = strtok(NULL, delim);
-
-    sstrncpy(digest, token, FSMDEF_MAX_DIGEST_LEN);
-
-
-    /*
-     * Not sure what this stub should look like
-     *
-
-        vcm_res = vcmSetDtlsXXXXParams(dcb_p->peerconnection, digest_alg, digest);
-        if (vcm_res)
-          return (CC_CAUSE_ERROR);
-     */
+    // First check for session level alg and key
+    sdp_session_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, SDP_SESSION_LEVEL,
+                                      0, SDP_ATTR_DTLS_FINGERPRINT, 1, &session_fingerprint);
 
     /* Now process all the media lines */
     GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
-      if (!GSMSDP_MEDIA_ENABLED(media))
-        continue;
+        if (!GSMSDP_MEDIA_ENABLED(media))
+            continue;
 
-      sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, media->level,
-                                        0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
+        // check for media level alg and key
+        sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, media->level,
+                                    0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
+
+        if (SDP_SUCCESS == sdp_res ) {
+            sstrncpy(line_to_split, fingerprint, sizeof(line_to_split));
+        } else if (SDP_SUCCESS == sdp_session_res) {
+        	sstrncpy(line_to_split, session_fingerprint, sizeof(line_to_split));
+        }
+
+        if (SDP_SUCCESS == sdp_res || SDP_SUCCESS == sdp_session_res) {
+            if(NULL == (token = strtok(line_to_split, delim)))
+                return CC_CAUSE_ERROR;
+
+            sstrncpy(digest_alg, token, FSMDEF_MAX_DIGEST_ALG_LEN);
+            if(NULL == (token = strtok(NULL, delim)))
+            	return CC_CAUSE_ERROR;
+
+            sstrncpy(digest, token, FSMDEF_MAX_DIGEST_LEN);
+
+            sstrncpy(media->negotiated_crypto.algorithm, digest_alg, FSMDEF_MAX_DIGEST_ALG_LEN);
+            sstrncpy(media->negotiated_crypto.digest, digest, FSMDEF_MAX_DIGEST_LEN);
+        } else {
+            GSM_DEBUG(DEB_F_PREFIX"DTLS attribute error\n",
+        	                               DEB_F_PREFIX_ARGS(GSM, __FUNCTION__));
+            return CC_CAUSE_ERROR;
+        }
     }
 
     return CC_CAUSE_OK;

@@ -66,6 +66,9 @@ typedef enum {
 #define FSMDEF_NO_DCB              (NULL)
 #define FSMDEF_ERR_ONHOOK_TMR_SECS (20)
 
+#define FSMDEF_MAX_DIGEST_ALG_LEN  10
+#define FSMDEF_MAX_DIGEST_LEN      32 * 3
+
 // Should match define for SIP stack MAX_SIP_URL_LENGTH
 #define FSMDEF_MAX_CALLER_ID_LEN (256)
 
@@ -148,6 +151,8 @@ typedef struct fsmdef_negotiated_crypto_t_ {
     vcm_crypto_key_t        tx_key;        /* tx key                  */
     vcm_crypto_key_t        rx_key;        /* rx key                  */
     uint32_t                flags;         /* misc. flags.            */
+    const char              algorithm[FSMDEF_MAX_DIGEST_ALG_LEN];
+    const char              digest[FSMDEF_MAX_DIGEST_LEN];
 } fsmdef_negotiated_crypto_t;
 
 /*
@@ -443,8 +448,6 @@ typedef struct {
     char *ice_ufrag;
     char *ice_pwd;
 
-#define FSMDEF_MAX_DIGEST_ALG_LEN 10
-#define FSMDEF_MAX_DIGEST_LEN 70
     char digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
     char digest[FSMDEF_MAX_DIGEST_LEN];
 
@@ -715,12 +718,19 @@ void fsmdef_call_cc_state_dialing(fsmdef_dcb_t *dcb, boolean suppressStutter);
 #define FSM_GET_CACHED_ORIENTATION(dcb) (dcb->orientation)
 #define FSM_SET_CACHED_ORIENTATION(dcb, value) (dcb->orientation = value)
 #define FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media)                  \
-       ((media->transport == SDP_TRANSPORT_RTPSAVP) ?        \
+       ((media->transport == SDP_TRANSPORT_RTPSAVP  ||       \
+         media->transport == SDP_TRANSPORT_RTPSAVPF) ?        \
         media->negotiated_crypto.algorithmID : VCM_NO_ENCRYPTION)
 #define FSM_NEGOTIATED_CRYPTO_RX_KEY(media)       \
        &media->negotiated_crypto.rx_key
 #define FSM_NEGOTIATED_CRYPTO_TX_KEY(media)       \
        &media->negotiated_crypto.tx_key
+
+#define FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media)       \
+       &media->negotiated_crypto.algorithm
+
+#define FSM_NEGOTIATED_CRYPTO_DIGEST(media)       \
+       &media->negotiated_crypto.digest
 
 int fsmutil_get_call_attr(fsmdef_dcb_t *dcb, line_t line, callid_t call_id);
 uint16_t fsmutil_get_ci_id(line_t line);

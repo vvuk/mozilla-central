@@ -144,7 +144,7 @@ boolean is_gsmsdp_media_ip_updated_to_latest( fsmdef_dcb_t * dcb );
 
 void gsmsdp_add_remote_stream(uint16_t idx, int pc_stream_id, fsmdef_dcb_t * dcb, fsmdef_media_t *media);
 cc_causes_t gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p);
-cc_causes_t gsmsdp_install_peer_dtls_data_attributes(fsm_fcb_t *fcb_p);
+cc_causes_t gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p);
 
 #endif
 
