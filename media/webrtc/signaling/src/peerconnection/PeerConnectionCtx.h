@@ -77,10 +77,6 @@ class PeerConnectionCtx : public CSF::CC_Observer {
     mSipccState = state;
   }
 
-
-  // The local address. Hack for SIPCC
-  std::string mAddr;
-
   // SIPCC objects
   PeerConnectionImpl::SipccState mSipccState;  // TODO(ekr@rtfm.com): refactor this out? What does it do?
   CSF::CallControlManagerPtr mCCM;

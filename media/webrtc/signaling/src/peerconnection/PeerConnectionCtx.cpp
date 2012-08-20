@@ -71,20 +71,16 @@ void PeerConnectionCtx::Destroy() {
   instance = NULL;
 }
 
-// Signatures for address
-// TODO(ekr@rtfm.com): remove
-std::string GetLocalActiveInterfaceAddressSDP();
-std::string NetAddressToStringSDP(const struct sockaddr* net_address,
-                               socklen_t address_len);
-
 nsresult PeerConnectionCtx::Initialize() {
-  // TODO(ekr@rtfm.com): Remove this code
-  mAddr = GetLocalActiveInterfaceAddressSDP();
   mCCM = CSF::CallControlManager::create();
   if (!mCCM.get())
     return NS_ERROR_FAILURE;
 
-  mCCM->setLocalIpAddressAndGateway(mAddr,"");  // TODO(ekr@rtfm.com): Remove
+  // Dummy address for c-line from RCC 5737.
+  // TODO(emannion@cisco.com): Make this address something
+  // else fixed but invalid. Probably 0.0.0.0 but that 
+  // does not currently work.
+  mCCM->setLocalIpAddressAndGateway("192.0.2.1","");
 
   // Add the local audio codecs
   // FIX - Get this list from MediaEngine instead
@@ -159,65 +155,5 @@ void PeerConnectionCtx::onCallEvent(ccapi_call_event_e callEvent,
   CSFLogDebug(logTag, "Calling PC");
   pc->impl()->onCallEvent(callEvent, call, info);
 }
-
-
-#include <sys/socket.h>
-#include <errno.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netdb.h>
-
-// POSIX Only Implementation
-std::string GetLocalActiveInterfaceAddressSDP()
-{
-	std::string local_ip_address = "0.0.0.0";
-#ifndef WIN32
-	int sock_desc_ = INVALID_SOCKET;
-	sock_desc_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	struct sockaddr_in proxy_server_client;
- 	proxy_server_client.sin_family = AF_INET;
-	proxy_server_client.sin_addr.s_addr	= inet_addr("10.0.0.1");
-	proxy_server_client.sin_port = 12345;
-	fcntl(sock_desc_,F_SETFL,  O_NONBLOCK);
-	int ret = connect(sock_desc_, reinterpret_cast<sockaddr*>(&proxy_server_client),
-                    sizeof(proxy_server_client));
-
-	if(ret == SOCKET_ERROR)
-	{
-	}
-
-	struct sockaddr_storage source_address;
-	socklen_t addrlen = sizeof(source_address);
-	ret = getsockname(
-			sock_desc_, reinterpret_cast<struct sockaddr*>(&source_address),&addrlen);
-
-	//get the  ip address
-	local_ip_address = NetAddressToStringSDP(
-						reinterpret_cast<const struct sockaddr*>(&source_address),
-						sizeof(source_address));
-	close(sock_desc_);
-#else
-	hostent* localHost;
-	localHost = gethostbyname("");
-	local_ip_v4_address_ = inet_ntoa (*(struct in_addr *)*localHost->h_addr_list);
-#endif
-	return local_ip_address;
-}
-
-//Only POSIX Complaint as of 7/6/11
-#ifndef WIN32
-std::string NetAddressToStringSDP(const struct sockaddr* net_address,
-                               socklen_t address_len) {
-
-  // This buffer is large enough to fit the biggest IPv6 string.
-  char buffer[128];
-  int result = getnameinfo(net_address, address_len, buffer, sizeof(buffer),
-                           NULL, 0, NI_NUMERICHOST);
-  if (result != 0) {
-    buffer[0] = '\0';
-  }
-  return std::string(buffer);
-}
-#endif
 
 }  // namespace sipcc
