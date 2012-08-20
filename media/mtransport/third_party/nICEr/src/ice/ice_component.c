@@ -458,7 +458,7 @@ static int nr_ice_component_stun_server_cb(void *cb_arg,nr_stun_server_ctx *stun
           ABORT(R_BAD_DATA);
         }
         pcand->priority=attr->u.priority;
-        pcand->state=NR_ICE_CAND_PEER_CANDIDATE;
+        pcand->state=NR_ICE_CAND_PEER_CANDIDATE_PAIRED;;
         TAILQ_INSERT_TAIL(&comp->candidates,pcand,entry_comp);
 
         if(r=nr_ice_candidate_pair_create(comp->stream->pctx,cand,pcand,
@@ -570,16 +570,24 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
       }
       pcand=TAILQ_FIRST(&pcomp->candidates);
       while(pcand){
-        nr_ice_compute_codeword(pcand->label,strlen(pcand->label),codeword);
-        r_log(LOG_ICE,LOG_DEBUG,"Examining peer candidate %s:%s",codeword,pcand->label);
+        /* Only pair peer candidates which have not yet been paired.
+           This allows "trickle ICE". (Not yet standardized, but
+           part of WebRTC).
 
-        if(r=nr_ice_candidate_pair_create(pctx,lcand,pcand,&pair))
-          ABORT(r);
-        
-        if(r=nr_ice_candidate_pair_insert(&pcomp->stream->check_list,
-          pair))
-          ABORT(r);
+           TODO(ekr@rtfm.com): Add refernece to the spec when there
+           is one.
+         */
+        if (pcand->state = NR_ICE_CAND_PEER_CANDIDATE_UNPAIRED) {
+          nr_ice_compute_codeword(pcand->label,strlen(pcand->label),codeword);
+          r_log(LOG_ICE,LOG_DEBUG,"Examining peer candidate %s:%s",codeword,pcand->label);
           
+          if(r=nr_ice_candidate_pair_create(pctx,lcand,pcand,&pair))
+            ABORT(r);
+          
+          if(r=nr_ice_candidate_pair_insert(&pcomp->stream->check_list,
+              pair))
+            ABORT(r);
+        }
         pcand=TAILQ_NEXT(pcand,entry_comp);
       }
     
@@ -600,6 +608,14 @@ int nr_ice_component_pair_candidates(nr_ice_peer_ctx *pctx, nr_ice_component *lc
     next_cand:
       lcand=TAILQ_NEXT(lcand,entry_comp);
     } 
+
+    /* Mark all peer candidates as paired */
+    pcand=TAILQ_FIRST(&pcomp->candidates);
+    while(pcand){
+      pcand->state = NR_ICE_CAND_PEER_CANDIDATE_PAIRED;
+      
+      pcand=TAILQ_NEXT(pcand,entry_comp);
+    }
 
     _status=0;
   abort:

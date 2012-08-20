@@ -52,16 +52,18 @@ struct nr_ice_media_stream_ {
   char *pwd;    /* ICE password */
 
   int ice_state;
-#define NR_ICE_MEDIA_STREAM_CHECKS_FROZEN      1
-#define NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE      2
-#define NR_ICE_MEDIA_STREAM_CHECKS_COMPLETED   3
-#define NR_ICE_MEDIA_STREAM_CHECKS_FAILED      4
+
+#define NR_ICE_MEDIA_STREAM_UNPAIRED           1
+#define NR_ICE_MEDIA_STREAM_CHECKS_FROZEN      2
+#define NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE      3
+#define NR_ICE_MEDIA_STREAM_CHECKS_COMPLETED   4
+#define NR_ICE_MEDIA_STREAM_CHECKS_FAILED      5
 
   nr_ice_cand_pair_head check_list;
   void *timer;  /* Check list periodic timer */
 
 //  nr_ice_cand_pair_head valid_list;
-  
+
   STAILQ_ENTRY(nr_ice_media_stream_) entry;
 };
 

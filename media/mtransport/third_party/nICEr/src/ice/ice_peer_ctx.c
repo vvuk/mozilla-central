@@ -43,6 +43,8 @@ static char *RCSSTRING __UNUSED__="$Id: ice_peer_ctx.c,v 1.2 2008/04/28 17:59:01
 #include "async_timer.h"
 
 static void nr_ice_peer_ctx_destroy_cb(int s, int how, void *cb_arg);
+static int nr_ice_peer_ctx_parse_stream_attributes_int(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, nr_ice_media_stream *pstream, char **attrs, int attr_ct);
+static int nr_ice_ctx_parse_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_stream *pstream, char *candidate);
 
 int nr_ice_peer_ctx_create(nr_ice_ctx *ctx, nr_ice_handler *handler,char *label, nr_ice_peer_ctx **pctxp)
   {
@@ -54,7 +56,7 @@ int nr_ice_peer_ctx_create(nr_ice_ctx *ctx, nr_ice_handler *handler,char *label,
 
     if(!(pctx->label=r_strdup(label)))
       ABORT(R_NO_MEMORY);
-    
+
     pctx->ctx=ctx;
     pctx->handler=handler;
 
@@ -98,14 +100,14 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
     nr_ice_candidate *cand=0;
     nr_ice_component *comp,*comp2;
     int r,_status;
-    int i,j;
 
-    /* Note: use component_ct from our own stream since components other
-       than this offered by the other side are unusable */
+    /*
+      Note: use component_ct from our own stream since components other
+      than this offered by the other side are unusable */
     if(r=nr_ice_media_stream_create(pctx->ctx,stream->label,stream->component_ct,&pstream))
       ABORT(r);
-    
-    /* Match up the local and remote components */ 
+
+    /* Match up the local and remote components */
     comp=STAILQ_FIRST(&stream->components);
     comp2=STAILQ_FIRST(&pstream->components);
     while(comp){
@@ -114,44 +116,13 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
       comp=STAILQ_NEXT(comp,entry);
       comp2=STAILQ_NEXT(comp2,entry);
     }
-        
 
-    pstream->ice_state=NR_ICE_MEDIA_STREAM_CHECKS_FROZEN;
     pstream->local_stream=stream;
     pstream->pctx=pctx;
 
-    for(i=0;i<attr_ct;i++){
-      if(!strncmp(attrs[i],"ice-",4)){
-        if(r=nr_ice_peer_ctx_parse_media_stream_attribute(pctx,pstream,attrs[i]))
-          continue;
-        continue;
-      }
-        
-      if(r=nr_ice_peer_candidate_from_attribute(pctx->ctx,attrs[i],pstream,&cand))
-        continue;
-      if(cand->component_id-1>=pstream->component_ct){
-        r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) specified too many components",pctx->ctx->label,pctx->label);
-        continue;
-      }
+    if (r=nr_ice_peer_ctx_parse_stream_attributes_int(pctx,stream,pstream,attrs,attr_ct))
+      ABORT(r);
 
-      /* Not the fastest way to find a component, but it's what we got */
-      j=1;
-      for(comp=STAILQ_FIRST(&pstream->components);comp;comp=STAILQ_NEXT(comp,entry)){
-        if(j==cand->component_id)
-          break;
-
-        j++;
-      }
-      
-      if(!comp){
-        r_log(LOG_ICE,LOG_ERR,"Peer answered with more components than we offered");
-        ABORT(R_BAD_DATA);
-      }
-      
-      cand->component=comp;
-
-      TAILQ_INSERT_TAIL(&comp->candidates,cand,entry_comp);
-    }
 
     STAILQ_INSERT_TAIL(&pctx->peer_streams,pstream,entry);
 
@@ -159,6 +130,133 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
   abort:
     return(_status);
   }
+
+static int nr_ice_peer_ctx_parse_stream_attributes_int(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, nr_ice_media_stream *pstream, char **attrs, int attr_ct)
+  {
+    nr_ice_candidate *cand=0;
+    nr_ice_component *comp,*comp2;
+    int r,_status;
+    int i;
+    int need_to_pair = 0;
+
+    for(i=0;i<attr_ct;i++){
+      if(!strncmp(attrs[i],"ice-",4)){
+        if(r=nr_ice_peer_ctx_parse_media_stream_attribute(pctx,pstream,attrs[i])) {
+          r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) specified bogus ICE attribute",pctx->ctx->label,pctx->label);
+          continue;
+        }
+      }
+      else if (!strncmp(attrs[i],"candidate",9)){
+        if(r=nr_ice_ctx_parse_candidate(pctx,pstream,attrs[i])) {
+          r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) specified bogus candidate",pctx->ctx->label,pctx->label);
+          continue;
+        }
+      }
+      else {
+        r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) specified bogus attribute",pctx->ctx->label,pctx->label);
+      }
+    }
+
+    _status=0;
+  abort:
+    return(_status);
+  }
+
+static int nr_ice_ctx_parse_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_stream *pstream, char *candidate)
+  {
+    nr_ice_candidate *cand=0;
+    nr_ice_component *comp;
+    int j;
+    int r, _status;
+
+    if(r=nr_ice_peer_candidate_from_attribute(pctx->ctx,candidate,pstream,&cand))
+      ABORT(r);
+    if(cand->component_id-1>=pstream->component_ct){
+      r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) specified too many components",pctx->ctx->label,pctx->label);
+      ABORT(R_BAD_DATA);
+    }
+
+    /* Not the fastest way to find a component, but it's what we got */
+    j=1;
+    for(comp=STAILQ_FIRST(&pstream->components);comp;comp=STAILQ_NEXT(comp,entry)){
+      if(j==cand->component_id)
+        break;
+
+      j++;
+    }
+
+    if(!comp){
+      r_log(LOG_ICE,LOG_ERR,"Peer answered with more components than we offered");
+      ABORT(R_BAD_DATA);
+    }
+
+    cand->component=comp;
+
+    TAILQ_INSERT_TAIL(&comp->candidates,cand,entry_comp);
+
+    _status=0;
+ abort:
+    if (_status) {
+      nr_ice_candidate_destroy(&cand);
+    }
+    return(_status);
+  }
+
+
+
+int nr_ice_peer_ctx_parse_trickle_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, char *candidate)
+  {
+    /* First need to find the stream. Because we don't have forward pointers,
+       iterate through all the peer streams to find one that matches us */
+    nr_ice_media_stream *pstream;
+    int r,_status;
+    int i,j;
+    int needs_pairing = 0;
+
+    pstream=STAILQ_FIRST(&pctx->peer_streams);
+    while(pstream) {
+      if (pstream->local_stream == stream)
+        break;
+    }
+    if (!pstream) {
+      r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) has no stream matching stream %s",pctx->ctx->label,pctx->label,stream->label);
+      ABORT(R_NOT_FOUND);
+    }
+
+    switch(pstream->ice_state) {
+      case NR_ICE_MEDIA_STREAM_UNPAIRED:
+        break;
+      case NR_ICE_MEDIA_STREAM_CHECKS_FROZEN:
+      case NR_ICE_MEDIA_STREAM_CHECKS_ACTIVE:
+        needs_pairing = 1;
+        break;
+      default:
+        r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s), stream(%s) tried to trickle ICE in inappropriate state %d",pctx->ctx->label,pctx->label,stream->label,pstream->ice_state);
+        ABORT(R_ALREADY);
+        break;
+    }
+
+    if(r=nr_ice_ctx_parse_candidate(pctx,pstream,candidate)){
+      ABORT(r);
+    }
+
+    /* If ICE is running (i.e., we are in FROZEN or ACTIVE states)
+       then we need to pair this new candidate. For now we
+       just re-pair the stream which is inefficient but still
+       fine because we suppress duplicate pairing */
+    if (needs_pairing) {
+      if(r=nr_ice_media_stream_pair_candidates(pctx, stream, pstream)) {
+        r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s), stream(%s) failed to pair trickle ICE candidates",pctx->ctx->label,pctx->label,stream->label);
+        ABORT(r);
+      }
+    }
+
+    _status =0;
+ abort:
+    return(_status);
+
+  }
+
 
 int nr_ice_peer_ctx_pair_candidates(nr_ice_peer_ctx *pctx)
   {
@@ -217,9 +315,24 @@ int nr_ice_peer_ctx_destroy(nr_ice_peer_ctx **pctxp)
     return(0);
   }
 
+
 /* Start the checks for the first media stream (S 5.7)
    The rest remain FROZEN */
 int nr_ice_peer_ctx_start_checks(nr_ice_peer_ctx *pctx)
+  {
+    return nr_ice_peer_ctx_start_checks2(pctx, 0);
+  }
+
+/* Start checks for some media stream.
+
+   If allow_non_first == 0, then we only look at the first stream,
+   which is 5245-complaint.
+
+   If allow_non_first == 1 then we find the first non-empty stream
+   This is not compliant with RFC 5245 but is necessary to make trickle ICE
+   work plausibly
+*/
+int nr_ice_peer_ctx_start_checks2(nr_ice_peer_ctx *pctx, int allow_non_first)
   {
     int r,_status;
     nr_ice_media_stream *stream;
@@ -228,11 +341,28 @@ int nr_ice_peer_ctx_start_checks(nr_ice_peer_ctx *pctx)
     if(!stream)
       ABORT(R_FAILED);
 
+    while (stream) {
+      if(!TAILQ_EMPTY(&stream->check_list))
+        break;
+
+      if(!allow_non_first){
+        r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) first stream has empty check list",pctx->ctx->label,pctx->label);
+        ABORT(R_FAILED);
+      }
+
+      stream=STAILQ_NEXT(stream, entry);
+    }
+
+    if (!stream) {
+      r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) no streams with non-empty check lists",pctx->ctx->label,pctx->label);
+      ABORT(R_NOT_FOUND);
+    }
+
     if (stream->ice_state == NR_ICE_MEDIA_STREAM_CHECKS_FROZEN) {
-        if(r=nr_ice_media_stream_unfreeze_pairs(pctx,stream))
-          ABORT(r);
-        if(r=nr_ice_media_stream_start_checks(pctx,stream))
-          ABORT(r);
+      if(r=nr_ice_media_stream_unfreeze_pairs(pctx,stream))
+        ABORT(r);
+      if(r=nr_ice_media_stream_start_checks(pctx,stream))
+        ABORT(r);
     }
 
     _status=0;

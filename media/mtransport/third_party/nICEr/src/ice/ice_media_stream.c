@@ -42,7 +42,7 @@ static char *RCSSTRING __UNUSED__="$Id: ice_media_stream.c,v 1.2 2008/04/28 17:5
 #include "ice_ctx.h"
 
 static char *nr_ice_media_stream_states[]={"INVALID",
-  "FROZEN","ACTIVE","COMPLETED","FAILED"
+  "UNPAIRED","FROZEN","ACTIVE","COMPLETED","FAILED"
 };
 
 int nr_ice_media_stream_set_state(nr_ice_media_stream *str, int state);
@@ -73,7 +73,7 @@ int nr_ice_media_stream_create(nr_ice_ctx *ctx,char *label,int components, nr_ic
     TAILQ_INIT(&stream->check_list);
 
     stream->component_ct=components;
-    
+    stream->ice_state = NR_ICE_MEDIA_STREAM_UNPAIRED;
     *streamp=stream;
 
     _status=0;
@@ -81,7 +81,7 @@ int nr_ice_media_stream_create(nr_ice_ctx *ctx,char *label,int components, nr_ic
     if(_status){
       nr_ice_media_stream_destroy(&stream);
     }
-    return(_status);            
+    return(_status);
   }
 
 int nr_ice_media_stream_destroy(nr_ice_media_stream **streamp)
@@ -271,10 +271,15 @@ int nr_ice_media_stream_pair_candidates(nr_ice_peer_ctx *pctx,nr_ice_media_strea
     while(pcomp){
       if(r=nr_ice_component_pair_candidates(pctx,lcomp,pcomp))
         ABORT(r);
-      
+
       lcomp=STAILQ_NEXT(lcomp,entry);
       pcomp=STAILQ_NEXT(pcomp,entry);
     };
+
+    if (pstream->ice_state == NR_ICE_MEDIA_STREAM_UNPAIRED) {
+      r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): unfreezing stream %s",pstream->pctx->label,pstream->label);
+      pstream->ice_state = NR_ICE_MEDIA_STREAM_CHECKS_FROZEN;
+    }
 
     _status=0;
   abort:
@@ -294,11 +299,13 @@ static void nr_ice_media_stream_check_timer_cb(int s, int h, void *cb_arg)
 
     timer_val=stream->pctx->ctx->Ta*stream->pctx->active_streams;
 
+    if (stream->ice_state == NR_ICE_MEDIA_STREAM_CHECKS_COMPLETED) {
+      r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): bogus state for stream %s",stream->pctx->label,stream->label);
+    }
     assert(stream->ice_state != NR_ICE_MEDIA_STREAM_CHECKS_COMPLETED);
     
     r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s): check timer expired for media stream %s",stream->pctx->label,stream->label);
     stream->timer=0;
-
 
     /* Find the highest priority WAITING check and move it to RUNNING */
     pair=TAILQ_FIRST(&stream->check_list);
@@ -311,7 +318,7 @@ static void nr_ice_media_stream_check_timer_cb(int s, int h, void *cb_arg)
     /* Hmmm... No WAITING. Let's look for FROZEN */
     if(!pair){
       pair=TAILQ_FIRST(&stream->check_list);
-      
+
       while(pair){
         if(pair->state==NR_ICE_PAIR_STATE_FROZEN){
           if(r=nr_ice_candidate_pair_unfreeze(stream->pctx,pair))
@@ -326,6 +333,8 @@ static void nr_ice_media_stream_check_timer_cb(int s, int h, void *cb_arg)
       nr_ice_candidate_pair_start(pair->pctx,pair); /* Ignore failures */
       NR_ASYNC_TIMER_SET(timer_val,nr_ice_media_stream_check_timer_cb,cb_arg,&stream->timer);
     }
+    /* TODO(ekr@rtfm.com): Report on the special case where there are no checks to
+       run at all */
     _status=0;
   abort:
     return;

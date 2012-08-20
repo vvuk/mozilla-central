@@ -832,7 +832,7 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
     attributes.push_back(candidates[i]);
   }
 
-  nsresult res = stream->ParseCandidates(attributes);
+  nsresult res = stream->ParseAttributes(attributes);
 
   if (!NS_SUCCEEDED(res)) {
     CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
@@ -1152,7 +1152,7 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         const char *peerconnection,
         vcm_media_payload_type_t payload,
         const char *fingerprint_alg,
-        const char *fingerprint,                  
+        const char *fingerprint,
         vcm_mediaAttrs_t *attrs)
 {
   CSFLogDebug( logTag, "%s(%s)", __FUNCTION__, peerconnection);

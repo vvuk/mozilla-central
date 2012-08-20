@@ -246,7 +246,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     for (size_t i=0; i<streams_.size(); ++i) {
       test_utils.sts_target()->Dispatch(
-        WrapRunnableRet(peer_->streams_[i], &NrIceMediaStream::ParseCandidates,
+        WrapRunnableRet(peer_->streams_[i], &NrIceMediaStream::ParseAttributes,
                         candidates_[streams_[i]->name()], &res), NS_DISPATCH_SYNC);
 
       ASSERT_TRUE(NS_SUCCEEDED(res));

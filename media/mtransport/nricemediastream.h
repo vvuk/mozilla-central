@@ -53,8 +53,11 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
   // Get the default candidate as host and port
   nsresult GetDefaultCandidate(int component, std::string *host, int *port);
 
-  // Parse remote candidates
-  nsresult ParseCandidates(std::vector<std::string>& candidates);
+  // Parse remote attributes
+  nsresult ParseAttributes(std::vector<std::string>& candidates);
+
+  // Parse trickle ICE candidate
+  nsresult ParseTrickleCandidate(const std::string& candidate);
 
   // The underlying nICEr stream
   nr_ice_media_stream *stream() { return stream_; }

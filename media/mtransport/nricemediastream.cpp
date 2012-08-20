@@ -75,7 +75,7 @@ NrIceMediaStream::Create(NrIceCtx *ctx,
                          int components) {
   mozilla::RefPtr<NrIceMediaStream> stream =
     new NrIceMediaStream(ctx, name, components);
-  
+
   int r = nr_ice_add_media_stream(ctx->ctx(),
                                   const_cast<char *>(name.c_str()),
                                   components, &stream->stream_);
@@ -93,21 +93,21 @@ NrIceMediaStream::~NrIceMediaStream() {
   // are attached to the ice ctx.
 }
 
-nsresult NrIceMediaStream::ParseCandidates(std::vector<std::string>&
-                                           candidates) {
+nsresult NrIceMediaStream::ParseAttributes(std::vector<std::string>&
+                                           attributes) {
   if (!stream_)
     return NS_ERROR_FAILURE;
 
-  std::vector<char *> candidates_in;
+  std::vector<char *> attributes_in;
 
-  for (size_t i=0; i<candidates.size(); ++i) {
-    candidates_in.push_back(const_cast<char *>(candidates[i].c_str()));
+  for (size_t i=0; i<attributes.size(); ++i) {
+    attributes_in.push_back(const_cast<char *>(attributes[i].c_str()));
   }
   
   int r = nr_ice_peer_ctx_parse_stream_attributes(ctx_->peer(),
                                                   stream_,
-                                                  &candidates_in[0],
-                                                  candidates_in.size());
+                                                  &attributes_in[0],
+                                                  attributes_in.size());
   if (r) {
     MLOG(PR_LOG_ERROR, "Couldn't parse attributes for stream "
          << name_ << "'");
@@ -116,6 +116,35 @@ nsresult NrIceMediaStream::ParseCandidates(std::vector<std::string>&
   
   return NS_OK;
 }
+
+// Parse trickle ICE candidate
+nsresult NrIceMediaStream::ParseTrickleCandidate(const std::string& candidate) {
+  int r;
+
+  r = nr_ice_peer_ctx_parse_trickle_candidate(ctx_->peer(),
+                                              stream_,
+                                              const_cast<char *>(
+                                                  candidate.c_str()));
+  if (r) {
+    if (r == R_ALREADY) {
+      MLOG(PR_LOG_ERROR, "Trickle candidates are redundant for stream '"
+         << name_ << "' because it is completed");
+
+    } else {
+      MLOG(PR_LOG_ERROR, "Couldn't parse trickle candidate for stream '"
+         << name_ << "'");
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  if (ctx_->state() == NrIceCtx::ICE_CTX_GATHERED) {
+    // Try to start checks if they are not already started
+    return ctx_->StartChecks();
+  }
+
+  return NS_OK;
+}
+
 
 void NrIceMediaStream::EmitAllCandidates() {
   char **attrs = 0;

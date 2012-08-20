@@ -132,7 +132,7 @@ nr_ice_peer_candidate_from_attribute(nr_ice_ctx *ctx,char *orig,nr_ice_media_str
 
     cand->ctx=ctx;
     cand->isock=0;
-    cand->state=NR_ICE_CAND_PEER_CANDIDATE;
+    cand->state=NR_ICE_CAND_PEER_CANDIDATE_UNPAIRED;
     cand->stream=stream;
     skip_whitespace(&str);
 

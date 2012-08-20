@@ -72,10 +72,18 @@ class NrIceMediaStream;
 
 class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
  public:
+  enum State { ICE_CTX_INIT,
+               ICE_CTX_GATHERING,
+               ICE_CTX_GATHERED,
+               ICE_CTX_CHECKING,
+               ICE_CTX_OPEN,
+               ICE_CTX_FAILED
+  };
+
   static mozilla::RefPtr<NrIceCtx> Create(const std::string& name,
                                           bool offerer);
   virtual ~NrIceCtx();
-  
+
   nr_ice_ctx *ctx() { return ctx_; }
   nr_ice_peer_ctx *peer() { return peer_; }
 
@@ -85,6 +93,9 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
 
   // The name of the ctx
   const std::string& name() const { return name_; }
+
+  // Current state
+  State state() const { return state_; }
 
   // Get the global attributes
   std::vector<std::string> GetGlobalAttributes();
@@ -111,22 +122,23 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   nsCOMPtr<nsIEventTarget> thread() { return sts_target_; }
 
  private:
-  NrIceCtx(const std::string& name, bool offerer) 
-      : name_(name),
-        offerer_(offerer),
-        streams_(),
-        ctx_(NULL),
-        peer_(NULL),
-        ice_handler_vtbl_(NULL),
-        ice_handler_(NULL) {}
+  NrIceCtx(const std::string& name, bool offerer)
+      : state_(ICE_CTX_INIT),
+      name_(name),
+      offerer_(offerer),
+      streams_(),
+      ctx_(NULL),
+      peer_(NULL),
+      ice_handler_vtbl_(NULL),
+      ice_handler_(NULL) {}
 
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
-  // Callbacks for nICEr 
+  // Callbacks for nICEr
   static void initialized_cb(NR_SOCKET s, int h, void *arg);  // ICE initialized
 
   // Handler implementation
-  static int select_pair(void *obj,nr_ice_media_stream *stream, 
+  static int select_pair(void *obj,nr_ice_media_stream *stream,
                          int component_id, nr_ice_cand_pair **potentials,
                          int potential_ct);
   static int stream_ready(void *obj, nr_ice_media_stream *stream);
@@ -143,7 +155,10 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   // Find a media stream by stream ptr. Gross
   mozilla::RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
+  // Set the state
+  void SetState(State state);
 
+  State state_;
   const std::string name_;
   bool offerer_;
   std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;

@@ -48,7 +48,8 @@ struct nr_ice_candidate_ {
 #define NR_ICE_CAND_STATE_INITIALIZING     2
 #define NR_ICE_CAND_STATE_INITIALIZED      3
 #define NR_ICE_CAND_STATE_FAILED           4
-#define NR_ICE_CAND_PEER_CANDIDATE         10
+#define NR_ICE_CAND_PEER_CANDIDATE_UNPAIRED 9
+#define NR_ICE_CAND_PEER_CANDIDATE_PAIRED   10
   struct nr_ice_ctx_ *ctx;
   nr_ice_socket *isock;               /* The socket to read from
                                          (it contains all other candidates

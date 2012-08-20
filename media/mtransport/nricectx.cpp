@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 // Original author: ekr@rtfm.com
 
 // Some of this code is cut-and-pasted from nICEr. Copyright is:
@@ -179,7 +180,7 @@ int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
 
 int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   MLOG(PR_LOG_DEBUG, "stream_failed called");
-  
+
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
   mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
@@ -187,6 +188,7 @@ int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   // Streams which do not exist should never fail.
   PR_ASSERT(s);
 
+  ctx->SetState(ICE_CTX_FAILED);
   s -> SignalFailed(s);
 
   return 0;
@@ -198,12 +200,14 @@ int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
 
+  ctx->SetState(ICE_CTX_OPEN);
+
   // Signal that we are done
   ctx->SignalCompleted(ctx);
 
   return 0;
 }
- 
+
 int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
                         nr_ice_media_stream *stream, int component_id,
                         UCHAR *msg, int len) {
@@ -264,7 +268,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
     NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
 
-    NR_reg_set_string((char *)"ice.stun.server.0.addr", "216.93.246.14");
+    NR_reg_set_string((char *)"ice.stun.server.0.addr", (char *)"216.93.246.14");
     NR_reg_set_uint2((char *)"ice.stun.server.0.port",3478);
     NR_reg_set_uint4((char *)"stun.client.maximum_transmits",4);
   }
@@ -328,7 +332,7 @@ mozilla::RefPtr<NrIceMediaStream>
 NrIceCtx::CreateStream(const std::string& name, int components) {
   mozilla::RefPtr<NrIceMediaStream> stream =
     NrIceMediaStream::Create(this, name, components);
-  
+
   streams_.push_back(stream);
 
   return stream;
@@ -339,26 +343,27 @@ nsresult NrIceCtx::StartGathering() {
   this->AddRef();
   int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
                             this);
-  
+
   if (r && r != R_WOULDBLOCK) {
       MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
       this->Release();
       return NS_ERROR_FAILURE;
   }
-  
+
+  SetState(ICE_CTX_GATHERING);
+
   return NS_OK;
 }
 
 void NrIceCtx::EmitAllCandidates() {
   MLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
        << name_ << "'");
-  
+
   for(size_t i=0; i<streams_.size(); ++i) {
     streams_[i]->EmitAllCandidates();
   }
-  
-  // Report that we are done gathering
+
   SignalGatheringCompleted(this);
 }
 
@@ -369,7 +374,7 @@ mozilla::RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
       return streams_[i];
     }
   }
-  
+
   return NULL;
 }
 
@@ -401,7 +406,7 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
   for (size_t i=0; i<attrs.size(); ++i) {
     attrs_in.push_back(const_cast<char *>(attrs[i].c_str()));
   }
-  
+
   int r = nr_ice_peer_ctx_parse_global_attributes(peer_, &attrs_in[0],
                                                   attrs.size());
   if (r) {
@@ -416,18 +421,25 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
 nsresult NrIceCtx::StartChecks() {
   int r;
 
-  r=nr_ice_peer_ctx_pair_candidates(peer_); 
+  r=nr_ice_peer_ctx_pair_candidates(peer_);
   if (r) {
     MLOG(PR_LOG_ERROR, "Couldn't pair candidates on "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
 
-  r = nr_ice_peer_ctx_start_checks(peer_);
+  r = nr_ice_peer_ctx_start_checks2(peer_,1);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
-         << name_ << "'");
-    return NS_ERROR_FAILURE;
+    if (r == R_NOT_FOUND) {
+      MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
+           << name_ << "' assuming trickle ICE");
+    } else {
+      MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
+           << name_ << "'");
+      return NS_ERROR_FAILURE;
+    }
+  } else {
+    SetState(ICE_CTX_CHECKING);
   }
 
   return NS_OK;
@@ -436,9 +448,12 @@ nsresult NrIceCtx::StartChecks() {
 
 void NrIceCtx::initialized_cb(NR_SOCKET s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
-  
+
+  ctx->SetState(ICE_CTX_GATHERED);
+
+  // Report that we are done gathering
   ctx->EmitAllCandidates();
-  
+
   ctx->Release();
 }
 
@@ -452,6 +467,12 @@ nsresult NrIceCtx::Finalize() {
   }
 
   return NS_OK;
+}
+
+void NrIceCtx::SetState(State state) {
+  MLOG(PR_LOG_DEBUG, "NrIceCtx(" << name_ << "): state " <<
+       state_ << "->" << state);
+  state_ = state;
 }
 
 extern "C" {
