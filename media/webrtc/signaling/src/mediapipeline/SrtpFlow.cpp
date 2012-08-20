@@ -6,8 +6,6 @@
 
 #include "SrtpFlow.h"
 
-// TODO(ekr@rtfm.com): Figure out some way to get ntohl portably
-#include "netinet/in.h"
 #include "srtp.h"
 #include "ssl.h"
 #include "sslproto.h"
