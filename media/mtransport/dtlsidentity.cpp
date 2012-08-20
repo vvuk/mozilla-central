@@ -8,7 +8,11 @@
 #include "sechash.h"
 #include "ssl.h"
 
+#include "nsError.h"
 #include "dtlsidentity.h"
+#include "logging.h"
+
+MLOG_INIT("mtransport");
 
 // Helper class to avoid having a crapload of if (!NULL) statements at
 // the end to clean up. The way you use this is you instantiate the
@@ -220,3 +224,48 @@ std::string DtlsIdentity::FormatFingerprint(const unsigned char *digest,
   return str;
 }
 
+// Parse a fingerprint in RFC 4572 format.
+// Note that this tolerates some badly formatted data, in particular:
+// (a) arbitrary runs of colons 
+// (b) colons at the beginning or end.
+nsresult DtlsIdentity::ParseFingerprint(const std::string fp,
+                                        unsigned char *digest,
+                                        size_t size,
+                                        size_t *length) {
+  size_t offset = 0;
+  bool top_half = true;
+  unsigned char val;
+
+  for (size_t i=0; i<fp.length(); i++) {
+    if (offset >= size) {
+      // Note: no known way for offset to get > size
+      MLOG(PR_LOG_ERROR, "Fingerprint too long for buffer");
+      return NS_ERROR_INVALID_ARG;
+    }
+      
+    if (top_half && (fp[i] == ':')) {
+      continue;
+    } else if ((fp[i] >= '0') && (fp[i] <= '9')) {
+      val |= fp[i] - '0';
+    } else if ((fp[i] >= 'a') && (fp[i] <= 'f')) {
+      val |= fp[i] - 'a' + 10;
+    } else {
+      MLOG(PR_LOG_ERROR, "Invalid fingerprint value " << fp[i]);
+      return NS_ERROR_ILLEGAL_VALUE;;
+    }
+
+    if (top_half) {
+      val <<= 4;
+      top_half = false;
+    } else {
+      digest[offset++] = val;
+      top_half = true;
+      val = 0;
+    }
+  }
+  
+  *length = offset;
+
+  return NS_OK;
+}
+    

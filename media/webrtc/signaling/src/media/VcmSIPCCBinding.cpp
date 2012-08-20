@@ -112,7 +112,11 @@ static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload,
 
 static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload,
                                      mozilla::VideoCodecConfig **config);
-static mozilla::RefPtr<TransportFlow> vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp);
+static mozilla::RefPtr<TransportFlow> vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc,
+                                                             int level, bool rtcp,
+                                                             const char *fingerprint_alg,
+                                                             const char *fingerprint
+                                                             );
 
 // The media provider passsed in here will be owned by VcmSIPCCBinding, and so it destroys
 // it later.
@@ -924,7 +928,7 @@ short vcmGetDtlsIdentity(const char *peerconnection,
     return VCM_ERROR;
   }
   
-  unsigned char digest[40];
+  unsigned char digest[TransportLayerDtls::kMaxDigestLength];
   size_t digest_len;
   
   nsresult res = pc->impl()->GetIdentity()->ComputeFingerprint("sha-1", digest,
@@ -1171,9 +1175,11 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
   }
   // Create the transport flows
   mozilla::RefPtr<TransportFlow> rtp_flow =
-      vcmCreateTransportFlow(pc->impl(), level, false);
+      vcmCreateTransportFlow(pc->impl(), level, false,
+                             fingerprint_alg, fingerprint);
   mozilla::RefPtr<TransportFlow> rtcp_flow =
-      vcmCreateTransportFlow(pc->impl(), level, true);
+      vcmCreateTransportFlow(pc->impl(), level, true,
+                             fingerprint_alg, fingerprint);
 
   if (CC_IS_AUDIO(mcap_id)) {
     // Find the appropriate media conduit config
@@ -1704,9 +1710,11 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
   
   // Create the transport flows
   mozilla::RefPtr<TransportFlow> rtp_flow = 
-      vcmCreateTransportFlow(pc->impl(), level, false);
+      vcmCreateTransportFlow(pc->impl(), level, false,
+                             fingerprint_alg, fingerprint);                             
   mozilla::RefPtr<TransportFlow> rtcp_flow = 
-      vcmCreateTransportFlow(pc->impl(), level, true);
+      vcmCreateTransportFlow(pc->impl(), level, true,
+                             fingerprint_alg, fingerprint);
 
   if (CC_IS_AUDIO(mcap_id)) {
     // Find the appropriate media conduit config
@@ -2346,11 +2354,20 @@ static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
 }
 
 static mozilla::RefPtr<TransportFlow>
-vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
+vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
+                       const char *fingerprint_alg,
+                       const char *fingerprint) {
+
+  // TODO(ekr@rtfm.com): Check that if the flow already exists the digest
+  // is the same. The only way that can happen is if
+  //
+  // (a) We have an error or
+  // (b) The other side bundled but had mismatched digests for each line
+  //
+  // Not clear that either of these cases matters.
   mozilla::RefPtr<TransportFlow> flow;
-
   flow = pc->GetTransportFlow(level, rtcp);
-
+  
   if (!flow) {
     CSFLogDebug(logTag, "Making new transport flow for level=%d rtcp=%s", level, rtcp ? "true" : "false");
 
@@ -2367,14 +2384,28 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp) {
                   TransportLayerDtls::CLIENT : TransportLayerDtls::SERVER);
     dtls->SetIdentity(pc->GetIdentity());
 
-    // TODO(ekr@rtfm.com): SECURITY: Add remote fingerprint
-    dtls->SetVerificationAllowAll();
+    unsigned char remote_digest[TransportLayerDtls::kMaxDigestLength];
+    size_t digest_len;
+  
+    nsresult res = DtlsIdentity::ParseFingerprint(fingerprint,
+                                                  remote_digest,
+                                                  sizeof(remote_digest),
+                                                  &digest_len);
+    if (!NS_SUCCEEDED(res)) {
+      CSFLogError(logTag, "Could not convert fingerprint");
+      return NULL;
+    }
+    res = dtls->SetVerificationDigest(fingerprint_alg, remote_digest, digest_len);
+    if (!NS_SUCCEEDED(res)) {
+      CSFLogError(logTag, "Could not set remote DTLS digest");
+      return NULL;
+    }
 
     std::vector<PRUint16> srtp_ciphers;
     srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
     srtp_ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_32);
 
-    nsresult res = dtls->SetSrtpCiphers(srtp_ciphers);
+    res = dtls->SetSrtpCiphers(srtp_ciphers);
     if (!NS_SUCCEEDED(res)) {
       CSFLogError(logTag, "Couldn't set SRTP ciphers");
       return NULL;

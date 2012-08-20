@@ -13,7 +13,7 @@
 #include "logging.h"
 
 #include "mozilla/RefPtr.h"
-
+  
 // Logging context
 MLOG_INIT("mediapipeline");
 

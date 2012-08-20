@@ -77,8 +77,8 @@ public:
   }
   nsresult SetVerificationAllowAll();
   nsresult SetVerificationDigest(const std::string digest_algorithm,
-                             const unsigned char *digest_value,
-                             size_t digest_len);
+                                 const unsigned char *digest_value,
+                                 size_t digest_len);
 
   nsresult SetSrtpCiphers(std::vector<PRUint16> ciphers);
   nsresult GetSrtpCipher(PRUint16 *cipher);
