@@ -501,7 +501,7 @@ sctp_ctlinput(cmd, sa, vip)
 		bzero(&to, sizeof(to));
 		bzero(&from, sizeof(from));
 		from.sin_family = to.sin_family = AF_INET;
-#if !defined(__Windows__)
+#ifdef HAVE_SIN_LEN
 		from.sin_len = to.sin_len = sizeof(to);
 #endif
 		from.sin_port = sh->src_port;
@@ -7300,7 +7300,7 @@ sctp_accept(struct socket *so, struct mbuf *nam)
 		bzero((caddr_t)sin, sizeof(*sin));
 #endif
 		sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 		sin->sin_len = sizeof(*sin);
 #endif
 		sin->sin_port = ((struct sockaddr_in *)&store)->sin_port;
@@ -7451,7 +7451,7 @@ sctp_ingetaddr(struct socket *so, struct mbuf *nam)
 	memset(sin, 0, sizeof(*sin));
 #endif
 	sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	sin->sin_len = sizeof(*sin);
 #endif
 	inp = (struct sctp_inpcb *)so->so_pcb;
@@ -7575,7 +7575,7 @@ sctp_peeraddr(struct socket *so, struct mbuf *nam)
 	memset(sin, 0, sizeof(*sin));
 #endif
 	sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	sin->sin_len = sizeof(*sin);
 #endif
 

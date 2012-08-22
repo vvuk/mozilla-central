@@ -86,7 +86,7 @@ in6_sin6_2_sin(struct sockaddr_in *sin, struct sockaddr_in6 *sin6)
 	uint32_t temp;
 #endif
 	bzero(sin, sizeof(*sin));
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	sin->sin_len = sizeof(struct sockaddr_in);
 #endif
 	sin->sin_family = AF_INET;

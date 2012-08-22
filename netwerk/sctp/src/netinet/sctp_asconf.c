@@ -185,7 +185,7 @@ sctp_process_asconf_add_ip(struct sockaddr *src, struct sctp_asconf_paramhdr *ap
 		sin = (struct sockaddr_in *)&sa_store;
 		bzero(sin, sizeof(*sin));
 		sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 		sin->sin_len = sizeof(struct sockaddr_in);
 #endif
 		sin->sin_port = stcb->rport;
@@ -335,7 +335,7 @@ sctp_process_asconf_delete_ip(struct sockaddr *src,
 		sin = (struct sockaddr_in *)&sa_store;
 		bzero(sin, sizeof(*sin));
 		sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 		sin->sin_len = sizeof(struct sockaddr_in);
 #endif
 		sin->sin_port = stcb->rport;
@@ -466,7 +466,7 @@ sctp_process_asconf_set_primary(struct sockaddr *src,
 		sin = (struct sockaddr_in *)&sa_store;
 		bzero(sin, sizeof(*sin));
 		sin->sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 		sin->sin_len = sizeof(struct sockaddr_in);
 #endif
 		sin->sin_addr.s_addr = v4addr->addr;
@@ -2801,7 +2801,7 @@ sctp_process_initack_addresses(struct sctp_tcb *stcb, struct mbuf *m,
 #ifdef INET
 	bzero(&sin, sizeof(sin));
 	sin.sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	sin.sin_len = sizeof(sin);
 #endif
 	sin.sin_port = stcb->rport;

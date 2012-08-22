@@ -2503,7 +2503,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in));
 	dst.sin_family = AF_INET;
 	dst.sin_addr.s_addr = ip->ip_dst.s_addr;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	dst.sin_len = sizeof(struct sockaddr_in);
 #endif
 	if (use_udp_tunneling) {

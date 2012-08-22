@@ -3561,7 +3561,7 @@ sctp_process_cmsgs_for_init(struct sctp_tcb *stcb, struct mbuf *control, int *er
 				}
 				memset(&sin, 0, sizeof(struct sockaddr_in));
 				sin.sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 				sin.sin_len = sizeof(struct sockaddr_in);
 #endif
 				sin.sin_port = stcb->rport;
@@ -3676,7 +3676,7 @@ sctp_findassociation_cmsgs(struct sctp_inpcb **inp_p,
 				}
 				memset(&sin, 0, sizeof(struct sockaddr_in));
 				sin.sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 				sin.sin_len = sizeof(struct sockaddr_in);
 #endif
 				sin.sin_port = port;
@@ -5466,7 +5466,7 @@ sctp_are_there_new_addresses(struct sctp_association *asoc,
 #ifdef INET
 	memset(&sin4, 0, sizeof(sin4));
 	sin4.sin_family = AF_INET;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	sin4.sin_len = sizeof(sin4);
 #endif
 #endif
