@@ -234,7 +234,7 @@ nsresult DtlsIdentity::ParseFingerprint(const std::string fp,
                                         size_t *length) {
   size_t offset = 0;
   bool top_half = true;
-  unsigned char val;
+  unsigned char val = 0;
 
   for (size_t i=0; i<fp.length(); i++) {
     if (offset >= size) {
