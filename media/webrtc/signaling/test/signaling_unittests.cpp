@@ -210,7 +210,7 @@ TestObserver::OnStateChange(PRUint32 state_type)
     break;
   case kSdpState:
     cout << "SDP State: " << endl;
-    NS_ENSURE_SUCCESS(rv, rv);
+    // NS_ENSURE_SUCCESS(rv, rv);
     break;
   case kSipccState:
     rv = pc->GetSipccState(&gotstate);
@@ -542,11 +542,11 @@ public:
     a1_.CreateOffer(hints, false, true);
   }
 
-  void CreateOfferAudioOnly(char * hints) {
+  void CreateOfferAudioOnly(const char * hints) {
     a1_.CreateOffer(hints, true, false);
   }
 
-  void CreateOfferRemoveStream(char * hints) {
+  void CreateOfferRemoveStream(const char * hints) {
 	a1_.CreateOffer(hints, true, true);
     a1_.CreateOfferRemoveStream(hints, false, true);
   }

@@ -209,7 +209,7 @@ class RemoteSourceStreamInfo {
   nsDOMMediaStream* GetMediaStream();
   void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo);
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo)
  private:
   nsRefPtr<nsDOMMediaStream> mMediaStream;
   std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;

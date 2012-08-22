@@ -78,7 +78,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   int rtcp_packets_received() const { return rtp_packets_received_; }
 
   // Thread counting
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline);
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline)
 
  protected:
   // Separate class to allow ref counting

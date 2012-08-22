@@ -46,7 +46,7 @@ class SrtpFlow {
   nsresult UnprotectRtcp(void *in, int in_len,
                          int max_len, int *out_len);
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(SrtpFlow);
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(SrtpFlow)
 
   static void srtp_event_handler(srtp_event_data_t *data);
 
