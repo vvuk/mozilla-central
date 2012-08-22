@@ -578,9 +578,9 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
   }
 
   // "total" is absolute stream time.
-  StreamTime desired = total - played_;
+  // StreamTime desired = total - played_;
   played_ = total;
-  double time_s = MediaTimeToSeconds(desired);
+  //double time_s = MediaTimeToSeconds(desired);
 
   // Number of 10 ms samples we need
   //int num_samples = ceil(time_s / .01f);
