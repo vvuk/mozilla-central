@@ -21,6 +21,7 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
+#include "nsDOMFile.h"
 
 #include "DataChannel.h"
 
@@ -32,7 +33,8 @@ class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(mozilla::DataChannel* aDataChannel) : mDataChannel(aDataChannel)
+  nsDOMDataChannel(mozilla::DataChannel* aDataChannel) : mDataChannel(aDataChannel),
+                                                         mBinaryType(DC_BINARY_TYPE_BLOB)
   {}
 
   nsresult Init(nsPIDOMWindow* aDOMWindow);
@@ -68,9 +70,17 @@ private:
                          bool &aIsBinary, PRUint32 &aOutgoingLength,
                          JSContext *aCx);
 
+  nsresult CreateResponseBlob(const nsACString& aData, JSContext *aCx,
+                              jsval &jsData);
+
   // Owning reference
   nsAutoPtr<mozilla::DataChannel> mDataChannel;
   nsString  mUTF16Origin;
+  enum
+  {
+    DC_BINARY_TYPE_ARRAYBUFFER,
+    DC_BINARY_TYPE_BLOB,
+  } mBinaryType;
 
   NS_DECL_EVENT_HANDLER(open)
   NS_DECL_EVENT_HANDLER(error)
@@ -185,13 +195,30 @@ nsDOMDataChannel::GetBufferedAmount(PRUint32* aBufferedAmount)
 NS_IMETHODIMP
 nsDOMDataChannel::GetBinaryType(nsAString& aBinaryType)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  switch (mBinaryType) {
+  case DC_BINARY_TYPE_ARRAYBUFFER:
+    aBinaryType.AssignLiteral("arraybuffer");
+    break;
+  case DC_BINARY_TYPE_BLOB:
+    aBinaryType.AssignLiteral("blob");
+    break;
+  default:
+    NS_ERROR("Should not happen");
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMDataChannel::SetBinaryType(const nsAString& aBinaryType)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  if (aBinaryType.EqualsLiteral("arraybuffer")) {
+    mBinaryType = DC_BINARY_TYPE_ARRAYBUFFER;
+  } else if (aBinaryType.EqualsLiteral("blob")) {
+    mBinaryType = DC_BINARY_TYPE_BLOB;
+  } else  {
+    return NS_ERROR_INVALID_ARG;
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -233,8 +260,7 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
              "Unknown state in nsWebSocket::Send");
 
   if (msgStream) {
-    // XXX fix!
-    //rv = mDataChannel->SendBinaryStream(msgStream, msgLen);
+    rv = mDataChannel->SendBinaryStream(msgStream, msgLen);
   } else {
     if (isBinary) {
       rv = mDataChannel->SendBinaryMsg(msgString);
@@ -324,17 +350,34 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
   return NS_OK;
 }
 
+// Initial implementation: only stores to RAM, not file
+// TODO: bug 704447: large file support
 nsresult
-nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aMsg,
+nsDOMDataChannel::CreateResponseBlob(const nsACString& aData, JSContext *aCx,
+                                     jsval &jsData)
+{
+  PRUint32 blobLen = aData.Length();
+  void *blobData = PR_Malloc(blobLen);
+  nsCOMPtr<nsIDOMBlob> blob;
+  if (blobData) {
+    memcpy(blobData, aData.BeginReading(), blobLen);
+    blob = new nsDOMMemoryFile(blobData, blobLen, EmptyString());
+  } else {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  JSObject* scope = JS_GetGlobalForScopeChain(aCx);
+  return nsContentUtils::WrapNative(aCx, scope, blob, &jsData, nullptr, true);
+}
+
+nsresult
+nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
                                        bool isBinary)
 {
+  nsresult rv;
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
-  LOG(("DoOnMessageAvailable\n"));
-  // XXX don't need this yet
-  if (isBinary) {
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
+  LOG(("DoOnMessageAvailable%s\n",isBinary ? ((mBinaryType == DC_BINARY_TYPE_BLOB) ? " (blob)" : " (binary)" : "")));
+
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
   NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
 
@@ -345,22 +388,38 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aMsg,
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JSAutoRequest ar(cx);
+  jsval jsData;
 
-  NS_ConvertUTF8toUTF16 utf16data(aMsg);
-  JSString* jsString;
-  jsString = JS_NewUCStringCopyN(cx, utf16data.get(), utf16data.Length());
-  NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
+  if (isBinary) {
+    if (mBinaryType == DC_BINARY_TYPE_BLOB) {
+      rv = CreateResponseBlob(aData, cx, jsData);
+      NS_ENSURE_SUCCESS(rv, rv);
+    } else if (mBinaryType == DC_BINARY_TYPE_ARRAYBUFFER) {
+      JSObject *arrayBuf;
+      rv = nsContentUtils::CreateArrayBuffer(cx, aData, &arrayBuf);
+      NS_ENSURE_SUCCESS(rv, rv);
+      jsData = OBJECT_TO_JSVAL(arrayBuf);
+    } else {
+      NS_RUNTIMEABORT("Unknown binary type!");
+      return NS_ERROR_UNEXPECTED;
+    }
+  } else {
+    NS_ConvertUTF8toUTF16 utf16data(aData);
+    JSString* jsString;
+    jsString = JS_NewUCStringCopyN(cx, utf16data.get(), utf16data.Length());
+    NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
 
-  jsval data = STRING_TO_JSVAL(jsString);
+    jsData = STRING_TO_JSVAL(jsString);
+  }
 
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nsnull, nsnull);
+  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nsnull, nsnull);
   NS_ENSURE_SUCCESS(rv,rv);
 
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
   rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("message"),
                                       false, false,
-                                      data, mUTF16Origin, EmptyString(),
+                                      jsData, mUTF16Origin, EmptyString(),
                                       nsnull);
   NS_ENSURE_SUCCESS(rv,rv);
   event->SetTrusted(true);

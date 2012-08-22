@@ -33,6 +33,7 @@
 #include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
+#include "nsNetUtil.h"
 #include "mtransport/runnable_utils.h"
 #include "DataChannel.h"
 #include "DataChannelProtocol.h"
@@ -131,7 +132,6 @@ receive_cb(struct socket* sock, union sctp_sockstore addr,
   return connection->ReceiveCallback(sock, data, datalen, rcv, flags);
 }
 
-
 DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
    mLock("netwerk::sctp::DataChannel")
 {
@@ -142,6 +142,8 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
   mNumChannels = 0;
   mLocalPort = 0;
   mRemotePort = 0;
+  mDeferTimeout = 10;
+  mTimerRunning = false;
   LOG(("Constructor DataChannelConnection=%p, listener=%p", this, mListener));
 
   mStreamsOut.AppendElements(mStreamsOut.Capacity());
@@ -158,6 +160,11 @@ DataChannelConnection::~DataChannelConnection()
 {
   CloseAll();
 }
+
+NS_IMPL_THREADSAFE_QUERY_INTERFACE1(DataChannelConnection,
+                                    nsITimerCallback)
+NS_IMPL_THREADSAFE_ADDREF(DataChannelConnection)
+NS_IMPL_THREADSAFE_RELEASE(DataChannelConnection)
 
 bool
 DataChannelConnection::Init(unsigned short aPort, bool aUsingDtls)
@@ -241,6 +248,60 @@ DataChannelConnection::Init(unsigned short aPort, bool aUsingDtls)
 
   mSocket = NULL;
   return true;
+}
+
+nsresult
+DataChannelConnection::StartDefer()
+{
+  nsresult rv;
+  // XXX Is this lock needed?  Timers can only be inited from the main thread...
+  //MutexAutoLock lock(mLock);
+  if (!mDeferredTimer) {
+    mDeferredTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
+    if (NS_FAILED(rv)) {
+      LOG(("%s: cannot create deferred send timer",__FUNCTION__));
+      // XXX and do....?
+      return rv;
+    }
+  }
+
+  if (!mTimerRunning) {
+    rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
+                                          nsITimer::TYPE_ONE_SHOT);
+    if (NS_FAILED(rv)) {
+      LOG(("%s: cannot initialize open timer",__FUNCTION__));
+      // XXX and do....?
+      return rv;
+    }
+    mTimerRunning = true;
+  }
+  return NS_OK;
+}
+
+// nsITimerCallback
+
+NS_IMETHODIMP
+DataChannelConnection::Notify(nsITimer *timer)
+{
+  LOG(("%s: %p [%p] (%dms), sending deferred messages", __FUNCTION__, this, timer, mDeferTimeout));
+
+  if (timer == mDeferredTimer) {
+    if (SendDeferredMessages() != 0) {
+      // XXX I don't think i need the lock, since this must be main thread...
+      nsresult rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
+                                                     nsITimer::TYPE_ONE_SHOT);
+      if (NS_FAILED(rv)) {
+        LOG(("%s: cannot initialize open timer",__FUNCTION__));
+        // XXX and do....?
+        return rv;
+      }
+      mTimerRunning = true;
+    } else {
+      LOG(("Turned off deferred send timer"));
+      mTimerRunning = false;
+    }
+  }
+  return NS_OK;
 }
 
 bool 
@@ -618,13 +679,22 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
   return SendControlMessage(req, sizeof(*req)+len, streamOut);
 }
 
-void
+// XXX This should use a separate thread (outbound queue) which should
+// select() to know when to *try* to send data to the socket again.
+// Alternatively, it can use a timeout, but that's guaranteed to be wrong
+// (just not sure in what direction).  We could re-implement NSPR's
+// PR_POLL_WRITE/etc handling... with a lot of work.
+bool
 DataChannelConnection::SendDeferredMessages()
 {
   PRUint32 i;
   DataChannel *channel;
+  bool still_blocked = false;
+  bool sent = false;
 
-  for (i = 0; i < mStreamsOut.Length(); i++) {
+  // XXX For total fairness, on a still_blocked we'd start next time at the
+  // same index.  Sorry, not going to bother for now.
+  for (i = 0; i < mStreamsOut.Length() && !still_blocked; i++) {
     channel = mStreamsOut[i];
     if (!channel)
       continue;
@@ -635,42 +705,114 @@ DataChannelConnection::SendDeferredMessages()
                                  channel->mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED,
                                  channel->mPrPolicy, channel->mPrValue)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_REQ;
+        sent = true;
       } else {
-        if (errno != EAGAIN) {
-          /* XXX: error handling */
+        if (errno == EAGAIN) {
+          still_blocked = true;
+        } else {
+          // Close the channel, inform the user
           mStreamsOut[channel->mStreamOut] = NULL;
           channel->mState = CLOSED;
-          // XXX FIX  Close the channel, inform the user?
+          // Don't need to reset; we didn't open it
+          NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                                    DataChannelOnMessageAvailable::ON_CHANNEL_CLOSED, this,
+                                    channel));
         }
       }
     }
-    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_RSP) {
+    if (!still_blocked &&
+        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_RSP) {
       if (SendOpenResponseMessage(channel->mStreamOut, channel->mStreamIn)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_RSP;
+        sent = true;
       } else {
-        if (errno != EAGAIN) {
+        if (errno == EAGAIN) {
+          still_blocked = true;
+        } else {
+          // Close the channel
+          // Don't need to reset; we didn't open it
+          // The other side may be left with a hanging Open.  Our inability to
+          // send the open response means we can't easily tell them about it
+          // We haven't informed the user/DOM of the creation yet, so just
+          // delete the channel.
           mStreamsIn[channel->mStreamIn]   = NULL;
           mStreamsOut[channel->mStreamOut] = NULL;
           delete channel;
         }
       }
     }
-    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_ACK) {
+    if (!still_blocked &&
+        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_ACK) {
       if (SendOpenAckMessage(channel->mStreamOut)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_ACK;
+        sent = true;
       } else {
-        if (errno != EAGAIN) {
-          /* XXX: error handling */
-          // Send error?  Close channel?
-          mStreamsIn[channel->mStreamIn]   = NULL;
-          mStreamsOut[channel->mStreamOut] = NULL;
-          channel->mState = CLOSED;
-          // XXX FIX  Close the channel, inform the user?
+        if (errno == EAGAIN) {
+          still_blocked = true;
+        } else {
+          // Close the channel, inform the user
+          Close(channel->mStreamOut);
         }
       }
     }
+    if (!still_blocked &&
+        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_DATA) {
+      bool failed_send = false;
+      PRInt32 result;
+
+      if (channel->mState == CLOSED || channel->mState == CLOSING) {
+        channel->mBufferedData.Spa.Clear();
+        channel->mBufferedData.Data.Clear();
+        channel->mBufferedData.Length.Clear();
+      }
+      while (!channel->mBufferedData.Spa.IsEmpty() &&
+             !failed_send) {
+        struct sctp_sendv_spa *spa = channel->mBufferedData.Spa[0];
+        const char *data           = channel->mBufferedData.Data[0];
+        PRUint32 len               = channel->mBufferedData.Length[0];
+
+        // SCTP will return EMSGSIZE if the message is bigger than the buffer
+        // size (or EAGAIN if there isn't space)
+        if ((result = usrsctp_sendv(mSocket, data, len,
+                                    NULL, 0,
+                                    (void *)spa, (socklen_t)sizeof(struct sctp_sendv_spa),
+                                    SCTP_SENDV_SPA,
+                                    spa->sendv_sndinfo.snd_flags) < 0)) {
+          if (errno == EAGAIN) {
+            // leave queued for resend
+            failed_send = true;
+            LOG(("queue full again when resending %d bytes (%d)",len,result));
+          } else {
+            LOG(("error %d re-sending string",errno));
+            failed_send = true;
+          }
+        } else {
+          //LOG(("Resent buffer of %d bytes (%d)",len,result));
+          sent = true;
+          channel->mBufferedData.Spa.RemoveElementAt(0);
+          channel->mBufferedData.Data.RemoveElementAt(0);
+          channel->mBufferedData.Length.RemoveElementAt(0);
+        }
+      }
+      if (channel->mBufferedData.Spa.IsEmpty())
+        channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_DATA;
+      else
+        still_blocked = true;
+    }
   }
-  return;
+
+  if (!still_blocked) {
+    // adjust time for next wait
+    return false;
+  }
+  // adjust time?  More time for next wait if we didn't send anything, less if did
+  // Pretty crude, but better than nothing; just to keep CPU use down
+  if (!sent && mDeferTimeout < 50)
+    mDeferTimeout++;
+  else if (sent && mDeferTimeout > 10)
+    mDeferTimeout--;
+
+  return true;
 }
 
 void
@@ -743,6 +885,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
     } else {
       if (errno == EAGAIN) {
         channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_RSP;
+        StartDefer();
       } else {
         /* XXX: Signal error to the other end. */
         mStreamsIn[streamIn] = NULL;
@@ -752,6 +895,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
     }
   }
 }
+
 
 void
 DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel_open_response *rsp,
@@ -765,21 +909,29 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
 
   DC_ENSURE_TRUE(channel != NULL);
   DC_ENSURE_TRUE(channel->mState == CONNECTING);
-  DC_ENSURE_TRUE(!FindChannelByStreamIn(streamIn));
 
-  channel->mStreamIn = streamIn;
-  channel->mState = OPEN;
-  mStreamsIn[streamIn] = channel;
-  if (SendOpenAckMessage(streamOut)) {
-    channel->mFlags = 0;
+  if (rsp->error) {
+    LOG(("%s: error in response to open of channel %d (%s)",
+         __FUNCTION__, streamOut, channel->mLabel.get()));
+    
   } else {
-    // XXX Only on EAGAIN!?  And if not, then close the channel??
-    channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_ACK;
+    DC_ENSURE_TRUE(!FindChannelByStreamIn(streamIn));
+
+    channel->mStreamIn = streamIn;
+    channel->mState = OPEN;
+    mStreamsIn[streamIn] = channel;
+    if (SendOpenAckMessage(streamOut)) {
+      channel->mFlags = 0;
+    } else {
+      // XXX Only on EAGAIN!?  And if not, then close the channel??
+      channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_ACK;
+      StartDefer();
+    }
+    LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
+    NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                              DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
+                              channel));
   }
-  LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
-  NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
-                          DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
-                          channel));
   return;
 }
 
@@ -830,7 +982,7 @@ DataChannelConnection::HandleDataMessage(PRUint32 ppid,
   DC_ENSURE_TRUE(channel->mState != CLOSED);
 
   {
-    nsCString recvData(buffer, length);
+    nsCAutoString recvData(buffer, length);
 
     switch (ppid) {
       case DATA_CHANNEL_PPID_DOMSTRING:
@@ -843,11 +995,33 @@ DataChannelConnection::HandleDataMessage(PRUint32 ppid,
           NS_ERROR("DataChannel:: text message invalid utf-8");
           return;
         }
+        NS_WARN_IF_FALSE(channel->mBinaryBuffer.IsEmpty(),"Binary message aborted by text message!");
+        if (!channel->mBinaryBuffer.IsEmpty())
+          channel->mBinaryBuffer.Truncate(0);
         break;
+
       case DATA_CHANNEL_PPID_BINARY:
+        channel->mBinaryBuffer += recvData;
+        LOG(("DataChannel: Received binary message of length %lu (total %u) on channel id %d",
+             length, channel->mBinaryBuffer.Length(),channel->mStreamOut));
+        return; // Not ready to notify application
+
+      case DATA_CHANNEL_PPID_BINARY_LAST:
         LOG(("DataChannel: Received binary message of length %lu on channel id %d",
              length, channel->mStreamOut));
+        if (!channel->mBinaryBuffer.IsEmpty()) {
+          channel->mBinaryBuffer += recvData;
+          LOG(("%s: sending ON_DATA (binary fragmented) for %p",__FUNCTION__,channel));
+          NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                              DataChannelOnMessageAvailable::ON_DATA, this,
+                              channel, channel->mBinaryBuffer, 
+                              channel->mBinaryBuffer.Length()));
+          channel->mBinaryBuffer.Truncate(0);
+          return;
+        }
+        // else send using recvData normally
         break;
+
       default:
         NS_ERROR("Unknown data PPID");
         return;
@@ -900,6 +1074,7 @@ DataChannelConnection::HandleMessage(char *buffer, size_t length, PRUint32 ppid,
       break;
     case DATA_CHANNEL_PPID_DOMSTRING:
     case DATA_CHANNEL_PPID_BINARY:
+    case DATA_CHANNEL_PPID_BINARY_LAST:
       HandleDataMessage(ppid, buffer, length, streamIn);
       break;
     default:
@@ -1158,6 +1333,9 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
             channel->mPrValue = 0;
             channel->mFlags = 0;
             channel->mState = CLOSED;
+            NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                                      DataChannelOnMessageAvailable::ON_CHANNEL_CLOSED, this,
+                                      channel));
           } else {
             ResetOutgoingStream(channel->mStreamOut);
             channel->mState = CLOSING;
@@ -1174,6 +1352,9 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
             channel->mPrValue = 0;
             channel->mFlags = 0;
             channel->mState = CLOSED;
+            NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                                      DataChannelOnMessageAvailable::ON_CHANNEL_CLOSED, this,
+                                      channel));
           }
         }
       }
@@ -1215,6 +1396,7 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
           } else {
             channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_RSP;
           }
+          StartDefer();
         } else {
           /* We will not find more ... */
           break;
@@ -1353,6 +1535,7 @@ DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder,
     LOG(("SendOpenRequest failed, errno = %d",errno));
     if (errno == EAGAIN) {
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_REQ;
+      StartDefer();
     } else {
       mStreamsOut[streamOut] = NULL;
       MutexAutoUnlock unlock(mLock);
@@ -1372,6 +1555,9 @@ DataChannelConnection::Close(PRUint16 streamOut)
   LOG(("Closing stream %d",streamOut));
   channel = FindChannelByStreamOut(streamOut);
   if (channel) {
+    channel->mBufferedData.Spa.Clear();
+    channel->mBufferedData.Data.Clear();
+    channel->mBufferedData.Length.Clear();
     ResetOutgoingStream(channel->mStreamOut);
     SendOutgoingStreamReset();
     channel->mState = CLOSING;
@@ -1398,34 +1584,15 @@ void DataChannelConnection::CloseAll()
 }
 
 PRInt32
-DataChannelConnection::SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bool isBinary)
+DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
+                                       PRUint32 length, PRUint32 ppid)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
-  // We really could allow this from other threads, so long as we deal with
-  // asynchronosity issues with channels closing, in particular access to
-  // mStreamsOut, and issues with the association closing (access to mSocket).
-
-  const char *data = aMsg.BeginReading();
-  struct sctp_prinfo prinfo;
-  struct sctp_sndinfo sndinfo;
-  struct sctp_sendv_spa spa;
-  PRUint32 len     = aMsg.Length();
-  PRInt32 result;
-  PRUint32 ppid = htonl((isBinary ? DATA_CHANNEL_PPID_BINARY : 
-                         DATA_CHANNEL_PPID_DOMSTRING));
   uint16_t flags;
-  DataChannel *channel;
+  struct sctp_sendv_spa spa;
+  PRInt32 result;
 
-  NS_ENSURE_STATE(mState == OPEN || mState == CONNECTING);
-
-  if (isBinary)
-    LOG(("Sending to stream %u: %u bytes",stream,len));
-  else
-    LOG(("Sending to stream %u: %s",stream,data));
-  // XXX if we want more efficiency, translate flags once at open time
-  channel = mStreamsOut[stream];
-  if (!channel)
-    return 0;
+  NS_ENSURE_TRUE(channel->mState == OPEN || channel->mState == CONNECTING,0);
+  NS_WARN_IF_FALSE(length > 0,"Length is 0?!");
 
   flags = (channel->mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED) ? SCTP_UNORDERED : 0;
 
@@ -1435,30 +1602,164 @@ DataChannelConnection::SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bo
   if (channel->mState == CONNECTING) {
     flags &= ~SCTP_UNORDERED;
   }
-  sndinfo.snd_ppid = ppid;
-  sndinfo.snd_sid = stream;
-  sndinfo.snd_flags = flags;
-  sndinfo.snd_context = 0;
-  sndinfo.snd_assoc_id = 0;
+  spa.sendv_sndinfo.snd_ppid = htonl(ppid);
+  spa.sendv_sndinfo.snd_sid = channel->mStreamOut;
+  spa.sendv_sndinfo.snd_flags = flags;
+  spa.sendv_sndinfo.snd_context = 0;
+  spa.sendv_sndinfo.snd_assoc_id = 0;
 
-  prinfo.pr_policy = SCTP_PR_SCTP_TTL;
-  prinfo.pr_value = channel->mPrValue;
+  spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_TTL;
+  spa.sendv_prinfo.pr_value = channel->mPrValue;
 
-  spa.sendv_sndinfo = sndinfo;
-  spa.sendv_prinfo = prinfo;
   spa.sendv_flags = SCTP_SEND_SNDINFO_VALID | SCTP_SEND_PRINFO_VALID;
 
   // XXX fix!  Main-thread IO
   // XXX FIX!  to deal with heavy overruns of JS trying to pass data in
   // (more than the buffersize) queue data onto another thread to do the
   // actual sends.  See netwerk/protocol/websocket/WebSocketChannel.cpp
-  if ((result = usrsctp_sendv(mSocket, data, len,
-                              NULL, 0, 
-                              (void *)&spa, (socklen_t)sizeof(struct sctp_sendv_spa),
-                              SCTP_SENDV_SPA, flags) < 0)) {
+
+  // SCTP will return EMSGSIZE if the message is bigger than the buffer
+  // size (or EAGAIN if there isn't space)
+  if (channel->mBufferedData.Spa.IsEmpty()) {
+    result = usrsctp_sendv(mSocket, data, length,
+                           NULL, 0, 
+                           (void *)&spa, (socklen_t)sizeof(struct sctp_sendv_spa),
+                           SCTP_SENDV_SPA, flags);
+    //LOG(("Sent buffer (len=%u), result=%d",length,result));
+  } else {
+    // Fake EAGAIN if we're already buffering data
+    result = -1;
+    errno = EAGAIN;
+  }
+  if (result < 0) {
+    if (errno == EAGAIN) {
+      // queue data for resend!  And queue any further data for the stream until it is...
+      char *tempData = (char *) malloc(length);
+      memcpy(tempData,data,length);
+      struct sctp_sendv_spa *tempSpa = (struct sctp_sendv_spa *) malloc(sizeof(spa));
+      memcpy(tempSpa,&spa,sizeof(spa));
+      channel->mBufferedData.Spa.AppendElement(tempSpa); // owned by mBufferedData array
+      channel->mBufferedData.Data.AppendElement(tempData); // owned by mBufferedData array
+      channel->mBufferedData.Length.AppendElement(length);
+      channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_DATA;
+      //LOG(("Queued %u buffers (len=%u)",channel->mBufferedData.Spa.Length(),length));
+      StartDefer();
+      return 0;
+    }
     LOG(("error %d sending string",errno));
   }
   return result;
 }
 
+// Handles fragmenting binary messages
+PRInt32
+DataChannelConnection::SendBinary(DataChannel *channel, const char *data,
+                                  PRUint32 len)
+{
+  // Since there's a limit on network buffer size and no limits on message
+  // size, and we don't want to use EOR mode (multiple writes for a
+  // message, but all other streams are blocked until you finish sending
+  // this message), we need to add application-level fragmentatio of large
+  // messages.  On a reliable channel, these can be simply rebuilt into a
+  // large message.  On an unreliable channel, we can't and don't know how
+  // long to wait, and there are no retransmissions, and no easy way to
+  // tell the user "this part is missing", so on unreliable channels we
+  // need to return an error if sending more bytes than the network buffers
+  // can hold, and perhaps a lower number.
+
+  // XXX We *really* don't want to do this from main thread!
+  if (len > DATA_CHANNEL_MAX_BINARY_FRAGMENT &&
+      channel->mPrPolicy == DATA_CHANNEL_RELIABLE) {
+    PRInt32 sent=0;
+    PRUint32 origlen = len;
+    LOG(("Sending binary message length %u in chunks",len));
+    // XXX check flags for out-of-order, or force in-order for large binary messages
+    while (len > 0) {
+      PRUint32 sendlen = PR_MIN(len,DATA_CHANNEL_MAX_BINARY_FRAGMENT);
+      PRUint32 ppid;
+      len -= sendlen;
+      ppid = len > 0 ? DATA_CHANNEL_PPID_BINARY : DATA_CHANNEL_PPID_BINARY_LAST;
+      //LOG(("Send chunk of %d bytes, ppid %d",sendlen,ppid));
+      // Note that these might end up being deferred and queued.
+      sent += SendMsgInternal(channel, data, sendlen, ppid);
+      data += sendlen;
+    }
+    LOG(("Sent %d buffers for %u bytes, %d sent immediately, % buffers queued",
+         (origlen+DATA_CHANNEL_MAX_BINARY_FRAGMENT-1)/DATA_CHANNEL_MAX_BINARY_FRAGMENT,
+         origlen,sent,
+         channel->mBufferedData.Spa.Length()));
+    return sent;
+  }
+  NS_WARN_IF_FALSE(len <= DATA_CHANNEL_MAX_BINARY_FRAGMENT,
+                   "Sending too-large data on unreliable channel!");
+
+  // This will fail if the message is too large
+  return SendMsgInternal(channel, data, len, DATA_CHANNEL_PPID_BINARY_LAST);
+}
+
+PRInt32
+DataChannelConnection::SendBlob(PRUint16 stream, nsIInputStream *aBlob)
+{
+  DataChannel *channel = mStreamsOut[stream];
+  NS_ENSURE_TRUE(channel,0);
+  // Spawn a thread to send the data
+
+  LOG(("Sending blob to stream %u",stream));
+
+  // XXX to do this safely, we must enqueue these atomically onto the
+  // output socket.  We need a sender thread(s?) to enque data into the
+  // socket and to avoid main-thread IO that might block.  Even on a
+  // background thread, we may not want to block on one stream's data.
+  // I.e. run non-blocking and service multiple channels.
+
+  // For now as a hack, block main thread while sending it.
+  nsAutoPtr<nsCString> temp(new nsCString());
+  PRUint32 len;
+  aBlob->Available(&len);
+  nsresult rv = NS_ReadInputStreamToString(aBlob, *temp, len);
+
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  aBlob->Close();
+  //aBlob->Release(); We didn't AddRef() the way WebSocket does in OutboundMessage (yet)
+
+  // Consider if it makes sense to split the message ourselves for
+  // transmission, at least on RELIABLE channels.  Sending large blobs via
+  // unreliable channels requires some level of application involvement, OR
+  // sending them at big, single messages, which if large will probably not
+  // get through.
+
+  // XXX For now, send as one large binary message.  We should also signal
+  // (via PPID) that it's a blob.
+  const char *data = temp.get()->BeginReading();
+  len              = temp.get()->Length();
+
+  return SendBinary(channel, data, len);
+}
+
+PRInt32
+DataChannelConnection::SendMsgCommon(PRUint16 stream, const nsACString &aMsg,
+                                     bool isBinary)
+{
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
+  // We really could allow this from other threads, so long as we deal with
+  // asynchronosity issues with channels closing, in particular access to
+  // mStreamsOut, and issues with the association closing (access to mSocket).
+
+  const char *data = aMsg.BeginReading();
+  PRUint32 len     = aMsg.Length();
+  DataChannel *channel;
+
+  if (isBinary)
+    LOG(("Sending to stream %u: %u bytes",stream,len));
+  else
+    LOG(("Sending to stream %u: %s",stream,data));
+  // XXX if we want more efficiency, translate flags once at open time
+  channel = mStreamsOut[stream];
+  NS_ENSURE_TRUE(channel,0);
+
+  if (isBinary)
+    return SendBinary(channel, data, len);
+  return SendMsgInternal(channel, data, len, DATA_CHANNEL_PPID_DOMSTRING);
+}
 }

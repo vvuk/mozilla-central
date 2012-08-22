@@ -13,6 +13,8 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
+#include "nsIInputStream.h"
+#include "nsITimer.h"
 #include "mozilla/Mutex.h"
 #include "DataChannelProtocol.h"
 #include "talk/base/sigslot.h"
@@ -56,9 +58,13 @@ public:
 
 
 // One per PeerConnection
-class DataChannelConnection: public sigslot::has_slots<>
+class DataChannelConnection: public nsITimerCallback,
+                             public sigslot::has_slots<>
 {
 public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSITIMERCALLBACK
+
   class DataConnectionListener {
   public:
     virtual ~DataConnectionListener() {}
@@ -103,7 +109,6 @@ public:
   void Close(PRUint16 stream);
   void CloseAll();
 
-  PRInt32 SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bool isBinary);
   PRInt32 SendMsg(PRUint16 stream, const nsACString &aMsg)
     {
       return SendMsgCommon(stream, aMsg, false);
@@ -112,6 +117,7 @@ public:
     {
       return SendMsgCommon(stream, aMsg, true);
     }
+  PRInt32 SendBlob(PRUint16 stream, nsIInputStream *aBlob);
 
   // Called on data reception from the SCTP library
   // must(?) be public so my c->c++ tramploine can call it
@@ -147,7 +153,13 @@ private:
                                  bool unordered, PRUint16 prPolicy, PRUint32 prValue);
   PRInt32 SendOpenResponseMessage(PRUint16 streamOut, PRUint16 streamIn);
   PRInt32 SendOpenAckMessage(PRUint16 streamOut);
-  void SendDeferredMessages();
+  PRInt32 SendMsgInternal(DataChannel *channel, const char *data,
+                          PRUint32 length, PRUint32 ppid);
+  PRInt32 SendBinary(DataChannel *channel, const char *data,
+                     PRUint32 len);
+  PRInt32 SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bool isBinary);
+  nsresult StartDefer();
+  bool SendDeferredMessages();
   void SendOutgoingStreamReset();
   void ResetOutgoingStream(PRUint16 streamOut);
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
@@ -186,6 +198,11 @@ private:
   nsRefPtr<TransportFlow> mTransportFlow;
   PRUint16 mLocalPort;
   PRUint16 mRemotePort;
+
+  // Timer to control when we try to resend blocked messages
+  nsCOMPtr<nsITimer> mDeferredTimer;
+  PRUint32 mDeferTimeout;
+  bool mTimerRunning;
 };
 
 class DataChannel {
@@ -245,11 +262,20 @@ public:
         return false;
     }
 
-  // Send a binary message (blob or TypedArray)
+  // Send a binary message (TypedArray)
   bool SendBinaryMsg(const nsACString &aMsg)
     {
       if (mStreamOut != INVALID_STREAM)
         return (mConnection->SendBinaryMsg(mStreamOut, aMsg) > 0);
+      else
+        return false;
+    }
+
+  // Send a binary blob
+  bool SendBinaryStream(nsIInputStream *aBlob, PRUint32 msgLen)
+    {
+      if (mStreamOut != INVALID_STREAM)
+        return (mConnection->SendBlob(mStreamOut, aBlob /* XXX , msgLen */) > 0);
       else
         return false;
     }
@@ -272,6 +298,8 @@ private:
   friend class DataChannelOnMessageAvailable;
   friend class DataChannelConnection;
 
+  nsresult AddDataToBinaryMsg(const char *data, PRUint32 size);
+
   DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
   nsCString mLabel;
   PRUint16 mState;
@@ -282,6 +310,12 @@ private:
   PRUint32 mFlags;
   PRUint32 mId;
   nsCOMPtr<nsISupports> mContext;
+  nsCString mBinaryBuffer;
+  struct {
+    nsTArray<nsAutoPtr<struct sctp_sendv_spa>> Spa;
+    nsTArray<nsAutoPtr<const char>> Data;
+    nsTArray<PRUint32> Length;
+  } mBufferedData;
 };
 
 // used to dispatch notifications of incoming data to the main thread

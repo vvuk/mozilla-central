@@ -389,7 +389,7 @@ private:
   nsCOMPtr<nsIEventTarget> mDTLSTarget;
 #ifdef MOZILLA_INTERNAL_API
   // DataConnection that's used to get all the DataChannels
-	nsAutoPtr<mozilla::DataChannelConnection> mDataConnection;
+	nsRefPtr<mozilla::DataChannelConnection> mDataConnection;
 #endif
 
   // Singleton list of all the PeerConnections

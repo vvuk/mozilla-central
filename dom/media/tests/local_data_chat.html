@@ -10,9 +10,15 @@
 <tr><td><div><button id="thebutton" onClick="start();">Start!</button></div><br/></td></tr>
 <tr><td><form id="pc1_form" action="javascript:sendit(1)">
 <div>pc1 says: <input id="pc1_input" type="text" value="type here" onKeyPress="return submitenter(this,event)"/>
+<input type="submit"/></div></form></td>
+<td><form id="pc1_blob" action="javascript:sendblob(1)">
+<div>pc1 sends a blob: <input id="pc1_browse" type="file"/>
 <input type="submit"/></div></form></td></tr>
 <tr><td><form id="pc2_form" action="javascript:sendit(2)">
 <div>pc2 says: <input id="pc2_input" type="text" value="type here" onKeyPress="return submitenter(this,event)"/>
+<input type="submit"/></div></form></td>
+<td><form id="pc2_blob" action="javascript:sendblob(2)">
+<div>pc2 sends a blob: <input id="pc2_browse" type="file"/>
 <input type="submit"/></div></form></td></tr>
 <tr><td><div id="datawindow" style="
   width: 100%;
@@ -24,6 +30,8 @@
   let button = document.getElementById("thebutton");
   let text_pc1 = document.getElementById("pc1_input");
   let text_pc2 = document.getElementById("pc2_input");
+  let blob_pc1 = document.getElementById("pc1_browse");
+  let blob_pc2 = document.getElementById("pc2_browse");
   let datawindow = document.getElementById("datawindow");
 
   let pc1;
@@ -84,6 +92,19 @@
       else log("Unknown send " + which);
   };
 
+  var sendblob = function (which) {
+      iter = iter + 1;
+      //log("Sending blob #" + iter + " this = " + this);
+      if (which == 1) {
+         dc1.send(blob_pc1.files[0]);
+         blob_pc1.value = "";
+      } else if (which == 2) {
+         dc2.send(blob_pc2.files[0]);
+         blob_pc2.value = "";
+      }
+      else log("Unknown sendblob " + which);
+  };
+
   function failed(code) {
     log("Failure callback: " + code);
   }
@@ -108,10 +129,17 @@
       dc2 = channel;
       datachannels[num_channels] = channel;
       num_channels++;
+      log("pc2 created channel " + dc2 + " binarytype = " + dc2.binaryType);
+      channel.binaryType = "blob";
+      log("pc2 new binarytype = " + dc2.binaryType);
 
       channel.onmessage = function(evt) {
         iter2 = iter2 + 1;
-        fancy_log("*** pc1 said: " + evt.data,"red");
+        if (evt.data instanceof Blob) {
+          fancy_log("*** pc1 sent Blob: " + evt.data + ", length=" + evt.data.size,"red");
+        } else {
+          fancy_log("*** pc1 said: " + evt.data + ", length=" + evt.data.length,"red");
+        }
       };
 /*
       channel.addEventListener("message",function(evt) {
@@ -195,7 +223,11 @@ function start() {
       num_channels++;
 
       channel.onmessage = function(evt) {
-        fancy_log('pc2 said: ' + evt.data,"blue");
+        if (evt.data instanceof Blob) {
+          fancy_log("*** pc2 sent Blob: " + evt.data + ", length=" + evt.data.size,"blue");
+        } else {
+          fancy_log('pc2 said: ' + evt.data + ", length=" + evt.data.length,"blue");
+        }
       }
 /*
       channel.addEventListener("message",function(evt) {
@@ -220,9 +252,12 @@ function start() {
     pc1.onConnection = function() {
       log("pc1 onConnection ");
       dc1 = pc1.createDataChannel("This is pc1",
-            {type: 2, outOfOrderAllowed: true});
-      log("pc1 created channel " + dc1);
+            { type: 0});  //{type: 2, outOfOrderAllowed: true});
+      log("pc1 created channel " + dc1 + " binarytype = " + dc1.binaryType);
       channel = dc1;
+      channel.binaryType = "blob";
+      log("pc1 new binarytype = " + dc1.binaryType);
+      
 
       // Since we create the datachannel, don't wait for onDataChannel!
       channel.onmessage = function(evt) {
