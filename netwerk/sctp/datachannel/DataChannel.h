@@ -34,6 +34,18 @@ class DataChannelConnection;
 class DataChannel;
 class DataChannelOnMessageAvailable;
 
+class BufferedMsg
+{
+public:
+  BufferedMsg(struct sctp_sendv_spa &spa,const char *data,
+              PRUint32 length);
+  ~BufferedMsg();
+
+  struct sctp_sendv_spa *mSpa;
+  const char *mData;
+  PRUint32 mLength;
+};
+
 // Implemented by consumers of a Channel to receive messages.
 // Can't nest it in DataChannelConnection because C++ doesn't allow forward
 // refs to embedded classes
@@ -311,11 +323,7 @@ private:
   PRUint32 mId;
   nsCOMPtr<nsISupports> mContext;
   nsCString mBinaryBuffer;
-  struct {
-    nsTArray<nsAutoPtr<struct sctp_sendv_spa> > Spa;
-    nsTArray<nsAutoPtr<const char> > Data;
-    nsTArray<PRUint32> Length;
-  } mBufferedData;
+  nsTArray<nsAutoPtr<BufferedMsg> > mBufferedData;
 };
 
 // used to dispatch notifications of incoming data to the main thread

@@ -123,6 +123,22 @@ public:
 NS_IMPL_ISUPPORTS1(DataChannelShutdown, nsIObserver);
 
 
+BufferedMsg::BufferedMsg(struct sctp_sendv_spa &spa,const char *data,
+                         PRUint32 length) : mLength(length)
+{
+  mSpa = new sctp_sendv_spa;
+  *mSpa = spa;
+  char *tmp = new char[length]; // infallible malloc!
+  memcpy(tmp,data,length);
+  mData = tmp;
+}
+
+BufferedMsg::~BufferedMsg()
+{
+  delete mSpa;
+  delete mData;
+}
+
 static int
 receive_cb(struct socket* sock, union sctp_sockstore addr, 
            void *data, size_t datalen, 
@@ -761,15 +777,13 @@ DataChannelConnection::SendDeferredMessages()
       PRInt32 result;
 
       if (channel->mState == CLOSED || channel->mState == CLOSING) {
-        channel->mBufferedData.Spa.Clear();
-        channel->mBufferedData.Data.Clear();
-        channel->mBufferedData.Length.Clear();
+        channel->mBufferedData.Clear();
       }
-      while (!channel->mBufferedData.Spa.IsEmpty() &&
+      while (!channel->mBufferedData.IsEmpty() &&
              !failed_send) {
-        struct sctp_sendv_spa *spa = channel->mBufferedData.Spa[0];
-        const char *data           = channel->mBufferedData.Data[0];
-        PRUint32 len               = channel->mBufferedData.Length[0];
+        struct sctp_sendv_spa *spa = channel->mBufferedData[0]->mSpa;
+        const char *data           = channel->mBufferedData[0]->mData;
+        PRUint32 len               = channel->mBufferedData[0]->mLength;
 
         // SCTP will return EMSGSIZE if the message is bigger than the buffer
         // size (or EAGAIN if there isn't space)
@@ -789,12 +803,10 @@ DataChannelConnection::SendDeferredMessages()
         } else {
           //LOG(("Resent buffer of %d bytes (%d)",len,result));
           sent = true;
-          channel->mBufferedData.Spa.RemoveElementAt(0);
-          channel->mBufferedData.Data.RemoveElementAt(0);
-          channel->mBufferedData.Length.RemoveElementAt(0);
+          channel->mBufferedData.RemoveElementAt(0);
         }
       }
-      if (channel->mBufferedData.Spa.IsEmpty())
+      if (channel->mBufferedData.IsEmpty())
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_DATA;
       else
         still_blocked = true;
@@ -1555,9 +1567,7 @@ DataChannelConnection::Close(PRUint16 streamOut)
   LOG(("Closing stream %d",streamOut));
   channel = FindChannelByStreamOut(streamOut);
   if (channel) {
-    channel->mBufferedData.Spa.Clear();
-    channel->mBufferedData.Data.Clear();
-    channel->mBufferedData.Length.Clear();
+    channel->mBufferedData.Clear();
     ResetOutgoingStream(channel->mStreamOut);
     SendOutgoingStreamReset();
     channel->mState = CLOSING;
@@ -1620,7 +1630,7 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
 
   // SCTP will return EMSGSIZE if the message is bigger than the buffer
   // size (or EAGAIN if there isn't space)
-  if (channel->mBufferedData.Spa.IsEmpty()) {
+  if (channel->mBufferedData.IsEmpty()) {
     result = usrsctp_sendv(mSocket, data, length,
                            NULL, 0, 
                            (void *)&spa, (socklen_t)sizeof(struct sctp_sendv_spa),
@@ -1634,15 +1644,10 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
   if (result < 0) {
     if (errno == EAGAIN) {
       // queue data for resend!  And queue any further data for the stream until it is...
-      char *tempData = (char *) malloc(length);
-      memcpy(tempData,data,length);
-      struct sctp_sendv_spa *tempSpa = (struct sctp_sendv_spa *) malloc(sizeof(spa));
-      memcpy(tempSpa,&spa,sizeof(spa));
-      channel->mBufferedData.Spa.AppendElement(tempSpa); // owned by mBufferedData array
-      channel->mBufferedData.Data.AppendElement(tempData); // owned by mBufferedData array
-      channel->mBufferedData.Length.AppendElement(length);
+      BufferedMsg *buffered = new BufferedMsg(spa,data,length); // infallible malloc
+      channel->mBufferedData.AppendElement(buffered); // owned by mBufferedData array
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_DATA;
-      //LOG(("Queued %u buffers (len=%u)",channel->mBufferedData.Spa.Length(),length));
+      //LOG(("Queued %u buffers (len=%u)",channel->mBufferedData.Length(),length));
       StartDefer();
       return 0;
     }
@@ -1687,7 +1692,7 @@ DataChannelConnection::SendBinary(DataChannel *channel, const char *data,
     LOG(("Sent %d buffers for %u bytes, %d sent immediately, % buffers queued",
          (origlen+DATA_CHANNEL_MAX_BINARY_FRAGMENT-1)/DATA_CHANNEL_MAX_BINARY_FRAGMENT,
          origlen,sent,
-         channel->mBufferedData.Spa.Length()));
+         channel->mBufferedData.Length()));
     return sent;
   }
   NS_WARN_IF_FALSE(len <= DATA_CHANNEL_MAX_BINARY_FRAGMENT,
