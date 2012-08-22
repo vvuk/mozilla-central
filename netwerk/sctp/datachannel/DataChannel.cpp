@@ -96,7 +96,7 @@ public:
       --mRefCnt;
       DC_ENSURE_TRUE(rv == NS_OK);
     }
-  ~DataChannelShutdown() 
+  virtual ~DataChannelShutdown() 
     {
       nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();

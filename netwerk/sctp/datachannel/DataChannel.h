@@ -312,8 +312,8 @@ private:
   nsCOMPtr<nsISupports> mContext;
   nsCString mBinaryBuffer;
   struct {
-    nsTArray<nsAutoPtr<struct sctp_sendv_spa>> Spa;
-    nsTArray<nsAutoPtr<const char>> Data;
+    nsTArray<nsAutoPtr<struct sctp_sendv_spa> > Spa;
+    nsTArray<nsAutoPtr<const char> > Data;
     nsTArray<PRUint32> Length;
   } mBufferedData;
 };
