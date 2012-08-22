@@ -307,7 +307,6 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mFingerprint("TempFingerprint")
   , mLocalSourceStreamsLock(PR_NewLock())
   , mIceCtx(NULL)
-  , mIceStreams(NULL)
   , mIceState(kIceGathering)
   , mIdentity(NULL)
  {}
@@ -583,9 +582,9 @@ PeerConnectionImpl::Listen(unsigned short port)
 void
 PeerConnectionImpl::ListenThread(void *data)
 {
+#ifdef MOZILLA_INTERNAL_API
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
-#ifdef MOZILLA_INTERNAL_API
   ctx->mDataConnection->Listen(ctx->listenPort);
 #endif
   std::cerr << "PeerConnectionImpl::ListenThread() finished" << std::endl;
@@ -622,9 +621,9 @@ PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 
 void
 PeerConnectionImpl::ConnectThread(void *data)
 {
+#ifdef MOZILLA_INTERNAL_API
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
-#ifdef MOZILLA_INTERNAL_API
   ctx->mDataConnection->Connect(ctx->connectStr,ctx->connectPort);
 #endif
   std::cerr << "PeerConnectionImpl::ConnectThread() finished" << std::endl;

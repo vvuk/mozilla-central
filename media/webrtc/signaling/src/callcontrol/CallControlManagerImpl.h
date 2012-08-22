@@ -70,9 +70,6 @@ namespace CSF
         virtual void setAuthenticationString(const std::string &authString);
         virtual void setSecureCachePath(const std::string &secureCachePath);
 
-        // Local IP Address and DefaultGateway
-        virtual void setLocalIpAddressAndGateway(const std::string& localIpAddress, const std::string& defaultGW);
-
         // Add local codecs
         virtual void setAudioCodecs(int codecMask);
         virtual void setVideoCodecs(int codecMask);
@@ -119,10 +116,6 @@ namespace CSF
 		std::string secureCachePath;
 		bool multiClusterMode;
 		cc_int32_t sipccLoggingMask;
-
-        // Local IP Address
-		std::string localIpAddress;
-		std::string defaultGW;
 
 		AuthenticationStatusEnum::AuthenticationStatus authenticationStatus;
 

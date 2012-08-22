@@ -939,33 +939,33 @@ gsmsdp_get_local_source_v6_address (fsmdef_media_t *media)
  *
  * @param[in]sdp_p   - pointer to SDP (type void)
  * @param[in]level   - media level or line.
- * @param[in]addr    - cpr_ip_addr_t of the address to be set in the SDP.
+ * @param[in]addr    - string representation of IP address.
+ *                     Assumed to be IPV6 if larger than 15.
  *
  * @return           none.
  * @pre              (sdp_p not_eq NULL) and (addr not_eq NULL)
  *
  */
 static void
-gsmsdp_set_connection_address (void *sdp_p, uint16_t level, 
-                               cpr_ip_addr_t *addr)
+gsmsdp_set_connection_address (void *sdp_p, uint16_t level, char *addr)
 {
-    char     addr_str[MAX_IPADDR_STR_LEN];
-    char     *p_addr_str;
-
-    ipaddr2dotted(addr_str, addr);
-    p_addr_str = strtok(addr_str, "[ ]");
-
     /*
      * c= line <network type><address type><connection address>
      */
-    (void) sdp_set_conn_nettype(sdp_p, level, SDP_NT_INTERNET);
-    if (addr->type == CPR_IP_ADDR_IPV4) {
-        (void) sdp_set_conn_addrtype(sdp_p, level, SDP_AT_IP4);
-    } else if (addr->type == CPR_IP_ADDR_IPV6) {
-        (void) sdp_set_conn_addrtype(sdp_p, level, SDP_AT_IP6);
-    }
-    (void) sdp_set_conn_address(sdp_p, level, p_addr_str);
 
+    (void) sdp_set_conn_nettype(sdp_p, level, SDP_NT_INTERNET);
+
+    if (addr && (strlen(addr) > strlen("123.123.123.123")))
+    {
+      // Long IP address, must be IPV6
+      (void) sdp_set_conn_addrtype(sdp_p, level, SDP_AT_IP6);
+    }
+    else
+    {
+      (void) sdp_set_conn_addrtype(sdp_p, level, SDP_AT_IP4);
+    }
+
+    (void) sdp_set_conn_address(sdp_p, level, addr);
 }
 
 /*
@@ -2144,7 +2144,7 @@ gsmsdp_update_local_sdp_media (fsmdef_dcb_t *dcb_p, cc_sdp_t *cc_sdp_p,
         return;
     }
 
-    gsmsdp_set_connection_address(sdp_p, media->level, &media->src_addr);
+    gsmsdp_set_connection_address(sdp_p, media->level, dcb_p->ice_default_candidate_addr);
     (void) sdp_set_media_type(sdp_p, level, media->type);
     (void) sdp_set_media_portnum(sdp_p, level, port);
 
@@ -2838,9 +2838,7 @@ gsmsdp_add_unsupported_stream_to_local_sdp (cc_sdp_t *sdp_p,
      * at the media level can become complex. For this reason, the
      * unsupported media line will have "c=" with 0.0.0.0 address instead.
      */
-    addr.type  = CPR_IP_ADDR_IPV4;
-    addr.u.ip4 = 0; 
-    gsmsdp_set_connection_address(sdp_p->src_sdp, level, &addr); 
+    gsmsdp_set_connection_address(sdp_p->src_sdp, level, "0.0.0.0"); 
 }
 
 /*
@@ -4890,8 +4888,8 @@ gsmsdp_media_ip_changed (fsmdef_dcb_t *dcb_p)
                 if (dcb_p->sdp != NULL) {
                     gsmsdp_set_connection_address(dcb_p->sdp->src_sdp,
                             media->level,
-                            &media->src_addr);
-                } 
+                            dcb_p->ice_default_candidate_addr);
+                }   
                 ipaddr2dotted(addr_str, &media->src_addr);  // for logging
                 GSM_ERR_MSG("%s MEDIA IP_CHANGED: after Update IP %s"\
                             " before %s" ,fname, addr_str, curr_media_ip );

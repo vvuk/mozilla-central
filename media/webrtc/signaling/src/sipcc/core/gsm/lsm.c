@@ -686,7 +686,10 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
             &default_addr, &port_allocated,
             &candidates, &candidate_ct);
 
-          if (port_allocated != -1) {
+          // Check that we got a valid address and port
+          if (default_addr && (strlen(default_addr) > 0) && (port_allocated != -1)) {
+            sstrncpy(dcb->ice_default_candidate_addr, default_addr, sizeof(dcb->ice_default_candidate_addr));
+
             data->port = (uint16_t)port_allocated;
             media->candidate_ct = candidate_ct;
             media->candidatesp = candidates;

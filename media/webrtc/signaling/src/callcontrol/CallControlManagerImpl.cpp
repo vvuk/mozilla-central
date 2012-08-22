@@ -151,19 +151,6 @@ void CallControlManagerImpl::setSecureCachePath(const std::string &secureCachePa
     this->secureCachePath = secureCachePath;
 }
 
-// Local IP Address
-void CallControlManagerImpl::setLocalIpAddressAndGateway(const std::string& localIpAddress, const std::string& defaultGW)
-{
-    CSFLogInfoS(logTag, "setLocalIpAddressAndGateway(" << localIpAddress << ", " << defaultGW << ")");
-    this->localIpAddress = localIpAddress;
-    this->defaultGW = defaultGW;
-
-    if(softPhone != NULL)
-    {
-        softPhone->setLocalAddressAndGateway(this->localIpAddress, this->defaultGW);
-    }
-}
-
 // Add local codecs
 void CallControlManagerImpl::setAudioCodecs(int codecMask)
 {
@@ -198,19 +185,10 @@ bool CallControlManagerImpl::registerUser( const std::string& deviceName, const 
         return false;
     }
 
-    // Check preconditions.
-    if(localIpAddress.empty() || localIpAddress == "127.0.0.1")
-    {
-    	setConnectionState(ConnectionStatusEnum::eFailed);
-    	CSFLogErrorS(logTag, "registerUser() failed - No local IP address set!");
-    	return false;
-    }
-
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
     phone = softPhone;
     phone->init(user, password, domain, deviceName);
     softPhone->setLoggingMask(sipccLoggingMask);
-    softPhone->setLocalAddressAndGateway(localIpAddress, defaultGW);
     phone->addCCObserver(this);
 
     phone->setP2PMode(false);
@@ -238,19 +216,10 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
         return false;
     }
 
-    // Check preconditions.
-    if(localIpAddress.empty() || localIpAddress == "127.0.0.1")
-    {
-    	setConnectionState(ConnectionStatusEnum::eFailed);
-    	CSFLogErrorS(logTag, "startP2PMode() failed - No local IP address set!");
-    	return false;
-    }
-
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
     phone = softPhone;
     phone->init(user, "", "127.0.0.1", "sipdevice");
     softPhone->setLoggingMask(sipccLoggingMask);
-    softPhone->setLocalAddressAndGateway(localIpAddress, defaultGW);
     phone->addCCObserver(this);
 
     phone->setP2PMode(true);
@@ -274,18 +243,10 @@ bool CallControlManagerImpl::startSDPMode()
         return false;
     }
 
-    // Check preconditions.
-    if(localIpAddress.empty())
-    {
-    	CSFLogErrorS(logTag, "startSDPMode() failed - No local IP address set!");
-    	return false;
-    }
-
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
     phone = softPhone;
     phone->init("JSEP", "", "127.0.0.1", "sipdevice");
     softPhone->setLoggingMask(sipccLoggingMask);
-    softPhone->setLocalAddressAndGateway(localIpAddress, defaultGW);
     phone->addCCObserver(this);
     phone->setSDPMode(true);
  

@@ -151,8 +151,8 @@ typedef struct fsmdef_negotiated_crypto_t_ {
     vcm_crypto_key_t        tx_key;        /* tx key                  */
     vcm_crypto_key_t        rx_key;        /* rx key                  */
     uint32_t                flags;         /* misc. flags.            */
-    const char              algorithm[FSMDEF_MAX_DIGEST_ALG_LEN];
-    const char              digest[FSMDEF_MAX_DIGEST_LEN];
+    char                    algorithm[FSMDEF_MAX_DIGEST_ALG_LEN];
+    char                    digest[FSMDEF_MAX_DIGEST_LEN];
 } fsmdef_negotiated_crypto_t;
 
 /*
@@ -447,6 +447,7 @@ typedef struct {
 
     char *ice_ufrag;
     char *ice_pwd;
+    char ice_default_candidate_addr[MAX_IPADDR_STR_LEN];
 
     char digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
     char digest[FSMDEF_MAX_DIGEST_LEN];
@@ -727,10 +728,10 @@ void fsmdef_call_cc_state_dialing(fsmdef_dcb_t *dcb, boolean suppressStutter);
        &media->negotiated_crypto.tx_key
 
 #define FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media)       \
-       &media->negotiated_crypto.algorithm
+       media->negotiated_crypto.algorithm
 
 #define FSM_NEGOTIATED_CRYPTO_DIGEST(media)       \
-       &media->negotiated_crypto.digest
+       media->negotiated_crypto.digest
 
 int fsmutil_get_call_attr(fsmdef_dcb_t *dcb, line_t line, callid_t call_id);
 uint16_t fsmutil_get_ci_id(line_t line);

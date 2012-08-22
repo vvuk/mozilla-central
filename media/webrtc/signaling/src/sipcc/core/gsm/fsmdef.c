@@ -1128,6 +1128,7 @@ fsmdef_init_dcb (fsmdef_dcb_t *dcb, callid_t call_id,
 
     dcb->ice_ufrag = NULL;
     dcb->ice_pwd = NULL;
+    dcb->ice_default_candidate_addr[0] = '\0';
 
     dcb->digest_alg[0] = '\0';
     dcb->digest[0] = '\0';

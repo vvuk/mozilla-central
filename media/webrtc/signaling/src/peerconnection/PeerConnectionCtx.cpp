@@ -76,12 +76,6 @@ nsresult PeerConnectionCtx::Initialize() {
   if (!mCCM.get())
     return NS_ERROR_FAILURE;
 
- // Dummy address for c-line from RCC 5737.
- // TODO(emannion@cisco.com): Make this address something
- // else fixed but invalid. Probably 0.0.0.0 but that 
- // does not currently work.
- mCCM->setLocalIpAddressAndGateway("192.0.2.1","");
-
   // Add the local audio codecs
   // FIX - Get this list from MediaEngine instead
   int codecMask = 0;

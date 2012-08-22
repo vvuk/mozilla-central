@@ -116,12 +116,6 @@ namespace CSF
         virtual void setAuthenticationString(const std::string &authString) = 0;
         virtual void setSecureCachePath(const std::string &secureCachePath) = 0;
 
-        /**
-         * For now, recovery is not implemented.
-         * setLocalIpAddressAndGateway must be called before connect()ing in softphone mode.
-         */
-        virtual void setLocalIpAddressAndGateway(const std::string& localIpAddress, const std::string& defaultGW) = 0;
-
         // Add local codecs
         virtual void setAudioCodecs(int codecMask) = 0;
         virtual void setVideoCodecs(int codecMask) = 0;
