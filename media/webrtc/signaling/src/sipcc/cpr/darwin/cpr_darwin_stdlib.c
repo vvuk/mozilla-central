@@ -1402,7 +1402,7 @@ cpr_show_memory_tracking (void)
         /* Dump node's content and print as string*/
         debugif_printf("0x%08x %10ld %8u 0x%08x: %s:!!!\n", node.mem,
                        timestamp - node.timestamp,
-                       node.size, node.pc, (node.mem + SIZE_OF_MEMORY_HEADER));
+                       node.size, node.pc, (((char*) node.mem) + SIZE_OF_MEMORY_HEADER));
     }
 
     /* Done dump node content */

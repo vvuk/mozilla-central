@@ -1073,7 +1073,7 @@ cc_int_release (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
     static const char fname[] = "cc_int_release";
     cc_release_t *pmsg;
 
-    if ((dialstring == NULL)) {
+    if (dialstring == NULL) {
         CC_DEBUG(DEB_L_C_F_PREFIX "    cause= %s\n",
 			DEB_L_C_F_PREFIX_ARGS(CC_API, line, call_id, fname), cc_cause_name(cause));
     } else {

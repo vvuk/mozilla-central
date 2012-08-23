@@ -6263,7 +6263,7 @@ sipSPIAddContactHeader (ccsipCCB_t *ccb, sipMessage_t *request)
             sipMethod_t method = sipMethodInvalid;
 
             sipGetRequestMethod(request, &method);
-            if ((method == sipMethodRegister)) {
+            if (method == sipMethodRegister) {
                 strncat(pContactStr, ";expires=0;cisco-keep-alive",
                         MAX_SIP_HEADER_LENGTH - strlen(pContactStr) - 1);
             }

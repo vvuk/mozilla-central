@@ -10997,7 +10997,7 @@ ccsip_handle_early_ev_cc_feature (ccsipCCB_t *ccb, sipSMEvent_t *event)
             ccsip_save_local_msg_body(ccb, msg_body);
         }
         (void) sipSPISendUpdate(ccb);
-    } else if ((feature_type == CC_FEATURE_SELECT)) {
+    } else if (feature_type == CC_FEATURE_SELECT) {
     } else {
         CCSIP_DEBUG_STATE(get_debug_string(DEBUG_SIP_FEATURE_UNSUPPORTED),
                           ccb->index, ccb->dn_line, fname);

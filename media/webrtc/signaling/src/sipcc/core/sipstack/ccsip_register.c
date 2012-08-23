@@ -1556,7 +1556,7 @@ ccsip_handle_ev_tmr_retry (ccsipCCB_t *ccb, sipSMEvent_t *event)
         value = MAX_NON_INVITE_RETRY_ATTEMPTS;
     }
     if (ccb->retx_counter >= value) {
-        if ((ccb->cc_type == CC_CCM) /* RAMC Some other state */) {
+        if (ccb->cc_type == CC_CCM /* RAMC Some other state */) {
             /*
              * regmgr - Send event to the regmgr
              */
