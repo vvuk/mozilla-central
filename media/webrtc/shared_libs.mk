@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # shared libs for webrtc
-SHARED_LIBRARY_LIBS += \
+WEBRTC_LIBS = \
     $(call EXPAND_LIBNAME_PATH,jingle,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle) \
     $(call EXPAND_LIBNAME_PATH,srtp,$(DEPTH)/media/webrtc/trunk/third_party/libsrtp/libsrtp_libsrtp) \
     $(call EXPAND_LIBNAME_PATH,jingle_p2p,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_p2p) \
@@ -49,12 +49,6 @@ SHARED_LIBRARY_LIBS += \
   $(call EXPAND_LIBNAME_PATH,yuv,$(DEPTH)/media/webrtc/trunk/third_party/libyuv/libyuv_libyuv) \
   $(call EXPAND_LIBNAME_PATH,expat,$(DEPTH)/media/webrtc/trunk/third_party/expat/expat_expat) \
   $(call EXPAND_LIBNAME_PATH,webrtc_jpeg,$(DEPTH)/media/webrtc/trunk/src/common_video/common_video_webrtc_jpeg) \
+  $(call EXPAND_LIBNAME_PATH,nicer,$(DEPTH)/media/mtransport/third_party/nICEr/nicer_nicer) \
+  $(call EXPAND_LIBNAME_PATH,nrappkit,$(DEPTH)/media/mtransport/third_party/nrappkit/nrappkit_nrappkit) \
   $(NULL)
-
-ifneq ($(OS_TARGET),WINNT)
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/media/mtransport/third_party/nICEr/nicer_nicer/$(LIB_PREFIX)nicer.$(LIB_SUFFIX) \
-  $(DEPTH)/media/mtransport/third_party/nrappkit/nrappkit_nrappkit/$(LIB_PREFIX)nrappkit.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-

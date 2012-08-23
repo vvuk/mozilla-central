@@ -119,7 +119,11 @@ SHARED_LIBRARY_LIBS += $(MOZ_SKIA_LIBS)
 endif
 
 ifdef MOZ_WEBRTC
+ifndef MOZ_WEBRTC_IN_LIBXUL
+DEFINES += -DMOZ_WEBRTC_GKMEDIA=1
 include $(topsrcdir)/media/webrtc/shared_libs.mk
+SHARED_LIBRARY_LIBS += $(WEBRTC_LIBS)
+endif
 endif
 
 ifeq (WINNT,$(OS_TARGET))

@@ -50,7 +50,6 @@
 
 int strncasecmp (const char *s1, const char *s2, size_t length);
 int strcasecmp (const char *s1, const char *s2);
-char *strdup (const char *input_str);
 char *strcasestr (const char *s1, const char *s2);
 void upper_string (char *str);
 

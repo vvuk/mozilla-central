@@ -90,12 +90,11 @@ extern "C"
 #include "plat_api.h"
 
 // Possibly these should be turned off for linux too
-#ifdef WIN32
+#if 0
 boolean cpr_memory_mgmt_pre_init(size_t size)
 {
     return TRUE;
 }
-
 void debugCprMem(cc_debug_cpr_mem_options_e category, cc_debug_flag_e flag)
 {
 }

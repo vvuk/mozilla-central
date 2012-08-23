@@ -60,13 +60,6 @@ strcasecmp (const char *s1, const char *s2)
 }
 
 
-
-char *
-strdup (const char *input_str)
-{
-    return (_strdup(input_str));
-}
-
 /*
  *  Function: strcasestr
  *

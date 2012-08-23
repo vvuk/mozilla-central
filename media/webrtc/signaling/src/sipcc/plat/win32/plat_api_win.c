@@ -48,7 +48,7 @@
 
 static char ip_address[16];
 
-char* platGetIPAddr (void) {
+char* sipcc_platGetIPAddr (void) {
 	char szHostName[128] = "";
 	struct sockaddr_in SocketAddress;
 	struct hostent     *pHost        = 0;
