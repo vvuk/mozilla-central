@@ -86,6 +86,51 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
 
+# SCTP DEFINES
+ifeq ($(OS_TARGET),WINNT)
+# CALLBACK_API is mandatory on windows; capture that here
+DEFINES += \
+    -D__Userspace_os_Windows=1 \
+    -DCALLBACK_API=1 \
+    -D_LIB=1 \
+    $(NULL)
+CFLAGS += /I. /W3
+else
+ifeq ($(OS_TARGET),Darwin)
+DEFINES += \
+    -D__Userspace_os_Darwin=1 \
+    -D__APPLE_USE_RFC_2292=1 \
+    -U__APPLE__ \
+    $(NULL)
+else
+ifeq ($(OS_TARGET),Linux)
+DEFINES += -D__Userspace_os_Linux=1
+else
+ifeq ($(OS_TARGET),FreeBSD)
+DEFINES += \
+    -D__Userspace_os_FreeBSD=1 \
+    -U__FreeBSD__ \
+    $(NULL)
+else
+#default_fallback; probably doesn't work
+DEFINES += -D__Userspace_os_$(OS_TARGET)=1
+endif
+endif
+endif
+endif
+
+# XXX These MUST match options used to build libsctp currently
+DEFINES += \
+   -DSCTP_SIMPLE_ALLOCATOR=1 \
+   -DUSE_SCTP_SHA1=1 \
+   -DSCTP_PROCESS_LEVEL_LOCKS=1 \
+   -D__Userspace__=1 \
+   -DINET=1 \
+   -DINET6=1 \
+   -DCALLBACK_API=1 \
+   -DSCTP_DEBUG=1 \
+   $(NULL)
+
 # TODO: need to expand for other platforms
 ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
