@@ -153,6 +153,14 @@ typedef struct sdp_fmtp {
     u32                       bitrate;   
     u32                       mode;   
     
+    /* some OPUS specific fmtp params */
+    u32                       maxaveragebitrate;
+    u16                       usedtx;
+    u16                       stereo;
+    u16                       useinbandfec;
+    char                      maxcodedaudiobandwidth[SDP_MAX_STRING_LEN+1];
+    u16                       cbr;
+
 
     /* BEGIN - All Video related FMTP parameters */
     u16                       qcif;

@@ -455,6 +455,11 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
     u16          annex_k_val=0;
     u16          annex_n_val=0;
     ulong        l_val = 0;
+    u32          maxaveragebitrate=0;
+    u16          usedtx = 0;
+    u16          stereo = 0;
+    u16          useinbandfec = 0;
+    u16          cbr = 0;
 
     /* Find the payload type number. */
     attr_p->attr.fmtp.payload_num = (u16)sdp_getnextnumtok(ptr, &ptr, 
@@ -836,6 +841,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
 	    } 
 	    tok = tmp;
 	    tok++; temp=strtok(tok,",");
+	    iter++;
             if (temp) {
 	       iter=1;
                while (temp != NULL) {
@@ -846,7 +852,6 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
 		  if (iter == 3) 
                      custom_mpi=atoi(temp);
                   temp=strtok(NULL,",");
-		  iter++;
                }
             } 
             /* custom x,y and mpi values from tmp */
@@ -1659,6 +1664,182 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 fmtp_p->level_asymmetry_allowed = level_asymmetry_allowed;
                 codec_info_found = TRUE;
             }
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[43].name,
+                                   sdp_fmtp_codec_param[43].strlen) == 0) {
+    	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+    	    if (result1 != SDP_SUCCESS) {
+                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+    	        if (result1 != SDP_SUCCESS) {
+                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                            SDP_WARN("%s Warning: No maxaveragebitrate value specified for "
+                                     "fmtp attribute.", sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
+                        return (SDP_INVALID_PARAMETER);
+                    }
+                }
+                tok = tmp;
+    	    tok++;
+    	    maxaveragebitrate = atoi(tok);
+    	    if (maxaveragebitrate <= 0) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: Invalid maxaveragebitrate specified for "
+                                 "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+    		SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+    	    }
+    	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+    	    fmtp_p->maxaveragebitrate = maxaveragebitrate;
+    	    codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[44].name,
+                                   sdp_fmtp_codec_param[44].strlen) == 0) {
+    	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+    	    if (result1 != SDP_SUCCESS) {
+                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+    	        if (result1 != SDP_SUCCESS) {
+                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                            SDP_WARN("%s Warning: No maxaveragebitrate value specified for "
+                                     "fmtp attribute.", sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
+                        return (SDP_INVALID_PARAMETER);
+                    }
+                }
+                tok = tmp;
+    	    tok++;
+    	    usedtx = atoi(tok);
+    	    if (usedtx < 0 || usedtx > 1) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: Invalid usedtx specified for "
+                                 "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+    		SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+    	    }
+    	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+    	    fmtp_p->usedtx = usedtx;
+    	    codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[45].name,
+                                   sdp_fmtp_codec_param[45].strlen) == 0) {
+    	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+    	    if (result1 != SDP_SUCCESS) {
+                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+    	        if (result1 != SDP_SUCCESS) {
+                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                            SDP_WARN("%s Warning: No stereo value specified for "
+                                     "fmtp attribute.", sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
+                        return (SDP_INVALID_PARAMETER);
+                    }
+                }
+                tok = tmp;
+    	    tok++;
+    	    stereo = atoi(tok);
+    	    if (stereo < 0 || stereo > 1) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: Invalid stereo specified for "
+                                 "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+    		SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+    	    }
+    	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+    	    fmtp_p->stereo = stereo;
+    	    codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[46].name,
+                                   sdp_fmtp_codec_param[46].strlen) == 0) {
+    	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+    	    if (result1 != SDP_SUCCESS) {
+                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+    	        if (result1 != SDP_SUCCESS) {
+                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                            SDP_WARN("%s Warning: No stereo value specified for "
+                                     "fmtp attribute.", sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
+                        return (SDP_INVALID_PARAMETER);
+                    }
+                }
+                tok = tmp;
+    	    tok++;
+    	    useinbandfec = atoi(tok);
+    	    if (stereo < 0 || stereo > 1) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: Invalid useinbandfec specified for "
+                                 "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+    		SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+    	    }
+    	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+    	    fmtp_p->useinbandfec = useinbandfec;
+    	    codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[47].name,
+                                       sdp_fmtp_codec_param[47].strlen) == 0) {
+        	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+        	    if (result1 != SDP_SUCCESS) {
+        	        fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+        	        if (result1 != SDP_SUCCESS) {
+        		    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                                SDP_WARN("%s Warning: No maxcodedaudiobandwidth value specified for "
+                                         "fmtp attribute.", sdp_p->debug_str);
+                            }
+                            sdp_p->conf_p->num_invalid_param++;
+        		    SDP_FREE(temp_ptr);
+                            return (SDP_INVALID_PARAMETER);
+        		}
+        	    }
+        	    tok = tmp;
+        	    tok++;
+          	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+                    sstrncpy(fmtp_p->maxcodedaudiobandwidth , tok, sizeof(fmtp_p->maxcodedaudiobandwidth));
+        	    codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[48].name,
+                                   sdp_fmtp_codec_param[48].strlen) == 0) {
+    	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+    	    if (result1 != SDP_SUCCESS) {
+                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+    	        if (result1 != SDP_SUCCESS) {
+                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                            SDP_WARN("%s Warning: No cbr value specified for "
+                                     "fmtp attribute.", sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
+                        return (SDP_INVALID_PARAMETER);
+                    }
+                }
+                tok = tmp;
+    	    tok++;
+    	    cbr = atoi(tok);
+    	    if (stereo < 0 || stereo > 1) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: Invalid cbr specified for "
+                                 "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+    		SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+    	    }
+    	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
+    	    fmtp_p->cbr = cbr;
+    	    codec_info_found = TRUE;
+
         } else if (fmtp_ptr != NULL && *fmtp_ptr == '\n') { 
             temp=strtok(tmp,";");
             if (temp) {
@@ -2331,6 +2512,69 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
                  semicolon = TRUE;
              }
 	 }
+
+     if (fmtp_p->maxaveragebitrate > 0) {
+	    if (semicolon) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";maxaveragebitrate=%u",attr_p->attr.fmtp.maxaveragebitrate);
+                 semicolon = TRUE;
+	    } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "maxaveragebitrate=%u",attr_p->attr.fmtp.maxaveragebitrate);
+                 semicolon = TRUE;
+	    }
+	 }
+
+     if (fmtp_p->usedtx >= 0 && fmtp_p->usedtx <= 1) {
+	    if (semicolon) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";usedtx=%u",attr_p->attr.fmtp.usedtx);
+                 semicolon = TRUE;
+	    } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "usedtx=%u",attr_p->attr.fmtp.usedtx);
+                 semicolon = TRUE;
+	    }
+	 }
+
+     if (fmtp_p->stereo >= 0 && fmtp_p->stereo <= 1) {
+	    if (semicolon) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";stereo=%u",attr_p->attr.fmtp.stereo);
+                 semicolon = TRUE;
+	    } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "stereo=%u",attr_p->attr.fmtp.stereo);
+                 semicolon = TRUE;
+	    }
+	 }
+
+     if (fmtp_p->useinbandfec >= 0 && fmtp_p->useinbandfec <= 1) {
+	    if (semicolon) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";useinbandfec=%u",attr_p->attr.fmtp.useinbandfec);
+                 semicolon = TRUE;
+	    } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "useinbandfec=%u",attr_p->attr.fmtp.useinbandfec);
+                 semicolon = TRUE;
+	    }
+	 }
+
+     if (fmtp_p->maxcodedaudiobandwidth[0] != '\0') {
+         if (semicolon) {
+             *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";maxcodedaudiobandwidth=%s",
+                              attr_p->attr.fmtp.maxcodedaudiobandwidth);
+             semicolon = TRUE;
+         } else {
+             *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "maxcodedaudiobandwidth=%s",
+                              attr_p->attr.fmtp.maxcodedaudiobandwidth);
+             semicolon = TRUE;
+         }
+     }
+
+     if (fmtp_p->cbr >= 0 && fmtp_p->cbr <= 1) {
+	    if (semicolon) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";cbr=%u",attr_p->attr.fmtp.cbr);
+                 semicolon = TRUE;
+	    } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "cbr=%u",attr_p->attr.fmtp.cbr);
+                 semicolon = TRUE;
+	    }
+	 }
+
          break;
 	 
      case SDP_FMTP_NTE:

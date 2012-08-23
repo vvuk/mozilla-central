@@ -106,6 +106,10 @@ vcm_media_payload_type_t vcmRtpToMediaPayload (int32_t ptype,
         type = CREATE_MT_MAP(dynamic_ptype_value, VCM_Media_Payload_VP8);
         break;
 
+    case RTP_OPUS:
+        type = CREATE_MT_MAP(dynamic_ptype_value, VCM_Media_Payload_OPUS);
+        break;
+
     default:
         type = VCM_Media_Payload_NonStandard;
         err_msg(DEB_F_PREFIX "Can not map payload type=%d\n",

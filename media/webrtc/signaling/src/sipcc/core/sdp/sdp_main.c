@@ -197,7 +197,9 @@ const sdp_attrarray_t sdp_attr[SDP_MAX_ATTR_TYPES] =
     {"rtcp-mux", sizeof("rtcp-mux"),
       sdp_parse_attr_rtcp_mux_attr, sdp_build_attr_rtcp_mux_attr},
     {"fingerprint", sizeof("fingerprint"),
-      sdp_parse_attr_fingerprint_attr, sdp_build_attr_simple_string}
+      sdp_parse_attr_fingerprint_attr, sdp_build_attr_simple_string},
+    {"maxptime", sizeof("maxptime"),
+      sdp_parse_attr_simple_u32, sdp_build_attr_simple_u32}
 };
 
 /* Note: These *must* be in the same order as the enum types. */
@@ -415,7 +417,13 @@ const sdp_namearray_t sdp_fmtp_codec_param[SDP_MAX_FMTP_PARAM] =
      {"P", sizeof("P")}, /* 40 */
 
      {"mode",                sizeof("mode")},  /* 41 */
-    {"level-asymmetry-allowed",         sizeof("level-asymmetry-allowed")} /* 42 */
+    {"level-asymmetry-allowed",         sizeof("level-asymmetry-allowed")}, /* 42 */
+    {"maxaveragebitrate",               sizeof("maxaveragebitrate")}, /* 43 */
+    {"usedtx",                          sizeof("usedtx")}, /* 44 */
+    {"stereo",                          sizeof("stereo")}, /* 45 */
+    {"useinbandfec",                    sizeof("useinbandfec")}, /* 46 */
+    {"maxcodedaudiobandwidth",          sizeof("maxcodedaudiobandwidth")}, /* 47 */
+    {"cbr",                             sizeof("cbr")} /* 48 */
    
 } ;
 

@@ -444,6 +444,7 @@ map_VCM_Media_Payload_type( vcm_media_payload_type_t payload )
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_G726_24K,             cip_mmgr_MediaDefinitions_MEDIA_TYPE_G726_24K);
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_G726_16K,             cip_mmgr_MediaDefinitions_MEDIA_TYPE_G726_16K);
         MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_VP8,                  cip_mmgr_MediaDefinitions_MEDIA_TYPE_VP8);
+        MAKE_VCM_MEDIA_PAYLOAD_MAP_ENTRY(VCM_Media_Payload_OPUS,                 cip_mmgr_MediaDefinitions_MEDIA_TYPE_OPUS);
 
         mappingInitialised = true;
     }
@@ -2302,6 +2303,10 @@ static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
       *config = new mozilla::AudioCodecConfig(wire_payload, "PCMU", 8000, 80, 1, 64000);
       break;
 
+    case AudioPayloadType_OPUS:
+        *config = new mozilla::AudioCodecConfig(wire_payload, "OPUS", 48000, 80, 1, 64000);
+        break;
+
     case AudioPayloadType_G711ALAW56K:
     case AudioPayloadType_G711ULAW56K:
     case AudioPayloadType_G722_64K:
@@ -2311,6 +2316,7 @@ static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
     case AudioPayloadType_ILBC20:
     case AudioPayloadType_ILBC30:
     case AudioPayloadType_ISAC:
+
       /* TODO(snandaku@cisco.com): implement these */
       CSFLogError(logTag, "vcmPayloadType2AudioCodec unimplemented codec");
       PR_ASSERT(PR_FALSE);

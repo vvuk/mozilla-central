@@ -595,6 +595,20 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
     /* Set RTP/SAVPF, right now to always true */
     compare_or_set_boolean_value(CFGID_RTPSAVPF, gRTPSAVPF, (const unsigned char *) "rtpsavpf");
 
+    compare_or_set_boolean_value(CFGID_MAXAVBITRATE, gMAXAVBITRATE, (const unsigned char *) "maxavbitrate");
+
+    compare_or_set_boolean_value(CFGID_MAXCODEDAUDIOBW, gMAXCODEDAUDIOBW, (const unsigned char *) "maxcodedaudiobw");
+
+    compare_or_set_boolean_value(CFGID_USEDTX, gUSEDTX, (const unsigned char *) "usedtx");
+
+    compare_or_set_boolean_value(CFGID_STEREO, gSTEREO, (const unsigned char *) "stereo");
+
+    compare_or_set_boolean_value(CFGID_USEINBANDFEC, gUSEINBANDFEC, (const unsigned char *) "useinbandfec");
+
+    compare_or_set_boolean_value(CFGID_CBR, gCBR, (const unsigned char *) "cbr");
+
+    compare_or_set_boolean_value(CFGID_MAXPTIME, gMAXPTIME, (const unsigned char *) "maxptime");
+
     (void) isSecure; // XXX set but not used
     (void) isValid; // XXX set but not used
 }

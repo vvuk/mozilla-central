@@ -365,7 +365,8 @@ gsmsdp_init_media (fsmdef_media_t *media)
 {
     media->refid = CC_NO_MEDIA_REF_ID;
     media->type = SDP_MEDIA_INVALID; /* invalid (free entry) */
-    media->packetization_period = 20;
+    media->packetization_period = ATTR_PTIME;
+    media->max_packetization_period = ATTR_MAXPTIME;
     media->mode = (uint16_t)vcmGetILBCMode();
     media->vad = VCM_VAD_OFF;
     /* Default to audio codec */
@@ -394,6 +395,7 @@ gsmsdp_init_media (fsmdef_media_t *media)
     media->previous_sdp.dest_port = 0;
     media->previous_sdp.direction = SDP_DIRECTION_INACTIVE;
     media->previous_sdp.packetization_period = media->packetization_period;
+    media->previous_sdp.max_packetization_period = media->max_packetization_period;
     media->previous_sdp.payload_type = media->payload;
     media->previous_sdp.local_payload_type = media->payload;
     media->previous_sdp.tias_bw = SDP_INVALID_VALUE;
@@ -1081,7 +1083,25 @@ static void
 gsmsdp_set_media_attributes (uint32_t media_type, void *sdp_p, uint16_t level,
                              uint16_t payload_number)
 {
-    uint16_t a_inst, a_inst2;
+    uint16_t a_inst, a_inst2, a_inst3, a_inst4;
+    int      maxavbitrate = 0;
+    int      maxcodedaudiobw = 0;
+    int      usedtx = 0;
+    int      stereo = 0;
+    int      useinbandfec = 0;
+    int      cbr = 0;
+    int      maxptime = 0;
+
+
+    config_get_value(CFGID_MAXAVBITRATE, &maxavbitrate, sizeof(maxavbitrate));
+    config_get_value(CFGID_MAXCODEDAUDIOBW, &maxcodedaudiobw, sizeof(maxcodedaudiobw));
+    config_get_value(CFGID_USEDTX, &usedtx, sizeof(usedtx));
+    config_get_value(CFGID_STEREO, &stereo, sizeof(stereo));
+    config_get_value(CFGID_USEINBANDFEC, &useinbandfec, sizeof(useinbandfec));
+    config_get_value(CFGID_CBR, &cbr, sizeof(cbr));
+    config_get_value(CFGID_MAXPTIME, &maxptime, sizeof(maxptime));
+
+
 
     switch (media_type) { 
     case RTP_PCMU:             // type 0
@@ -1091,6 +1111,7 @@ gsmsdp_set_media_attributes (uint32_t media_type, void *sdp_p, uint16_t level,
     case RTP_ILBC:             
     case RTP_L16:
     case RTP_ISAC:
+    case RTP_OPUS:
         /*
          * add a=rtpmap line
          */
@@ -1170,6 +1191,63 @@ gsmsdp_set_media_attributes (uint32_t media_type, void *sdp_p, uint16_t level,
                                                  RTPMAP_ISAC_CLOCKRATE);
             break;
 
+        case RTP_OPUS:
+            (void) sdp_attr_set_rtpmap_encname(sdp_p, level, 0, a_inst,
+                                               SIPSDP_ATTR_ENCNAME_OPUS);
+
+            (void) sdp_attr_set_rtpmap_clockrate(sdp_p, level, 0, a_inst,
+            		RTPMAP_OPUS_CLOCKRATE);
+
+
+            /* a=fmtp options */
+            if (maxavbitrate || maxcodedaudiobw || usedtx || stereo || useinbandfec || cbr) {
+                if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_FMTP, &a_inst2)
+                    != SDP_SUCCESS) {
+                    return;
+                }
+
+                (void) sdp_attr_set_fmtp_payload_type (sdp_p, level, 0, a_inst2, payload_number);
+
+                if (maxavbitrate)
+                    sdp_attr_set_fmtp_max_average_bitrate (sdp_p, level, 0, a_inst2, FMTP_MAX_AVERAGE_BIT_RATE);
+
+                if(usedtx)
+                    sdp_attr_set_fmtp_usedtx (sdp_p, level, 0, a_inst2, FALSE);
+
+                if(stereo)
+                    sdp_attr_set_fmtp_stereo (sdp_p, level, 0, a_inst2, FALSE);
+
+                if(useinbandfec)
+                    sdp_attr_set_fmtp_useinbandfec (sdp_p, level, 0, a_inst2, FALSE);
+
+                if(maxcodedaudiobw) {
+                    sdp_attr_set_fmtp_maxcodedaudiobandwidth (sdp_p, level, 0, a_inst2,
+            		     max_coded_audio_bandwidth_table[opus_fb].name);
+                }
+
+                if(cbr)
+                    sdp_attr_set_fmtp_cbr (sdp_p, level, 0, a_inst2, FALSE);
+            }
+
+            /* a=ptime attribute */
+            if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_PTIME, &a_inst3)
+                    != SDP_SUCCESS) {
+                return;
+            }
+
+            sdp_attr_set_simple_u32(sdp_p, SDP_ATTR_PTIME, level, 0, a_inst3, ATTR_PTIME);
+
+            if(maxptime) {
+                /* a=maxptime attribute */
+                if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_MAXPTIME, &a_inst4)
+                        != SDP_SUCCESS) {
+                    return;
+                }
+
+                sdp_attr_set_simple_u32(sdp_p, SDP_ATTR_MAXPTIME, level, 0, a_inst4, ATTR_MAXPTIME);
+            }
+
+            break;
         }    
         break;
 
@@ -2503,9 +2581,16 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
     int             local_media_types[CC_MAX_MEDIA_TYPES];
     sdp_payload_ind_e pt_indicator;
     uint32          ptime = 0;
+    uint32          maxptime = 0;
     const char*     attr_label;
     uint16_t        level;
     boolean         explicit_reject = FALSE;
+    char           *maxcodedaudiobandwidth;
+    uint32          max_average_bitrate;
+    boolean         usedtx;
+    boolean         stereo;
+    boolean         useinbandfec;
+    boolean         cbr;
     
     if (!dcb_p || !sdp_p || !media) {
         return (RTP_NONE);
@@ -2685,6 +2770,29 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
                         media->mode = (uint16_t)sdp_attr_get_fmtp_mode_for_payload_type
                                                        (sdp_p->dest_sdp, level, 0,
                                                         media->remote_dynamic_payload_type_value);
+                    }
+                    if (media->payload == RTP_OPUS) {
+
+                        maxptime = sdp_attr_get_simple_u32(sdp_p->dest_sdp,
+                        		                          SDP_ATTR_MAXPTIME, level, 0, 1);
+                        if (maxptime != 0) {
+                            media->max_packetization_period = (uint16_t) maxptime;
+                        }
+
+                        /* fmtp options */
+                        sdp_attr_get_fmtp_max_average_bitrate (sdp_p->dest_sdp, level,
+                                                     0, 1, &max_average_bitrate);
+
+                        maxcodedaudiobandwidth = sdp_attr_get_fmtp_maxcodedaudiobandwidth
+                        		          (sdp_p->dest_sdp, level, 0, 1);
+
+                        sdp_attr_get_fmtp_usedtx (sdp_p->dest_sdp, level, 0, 1, &usedtx);
+
+                        sdp_attr_get_fmtp_stereo (sdp_p->dest_sdp, level, 0, 1, &stereo);
+
+                        sdp_attr_get_fmtp_useinbandfec (sdp_p->dest_sdp, level, 0, 1, &useinbandfec);
+
+                        sdp_attr_get_fmtp_cbr (sdp_p->dest_sdp, level, 0, 1, &cbr);
                     }
 
                     GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d\n",

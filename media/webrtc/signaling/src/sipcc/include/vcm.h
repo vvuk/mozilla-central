@@ -97,6 +97,7 @@
 #define VCM_CODEC_RESOURCE_H263     0x00000002
 #define VCM_CODEC_RESOURCE_VP8      0x00000100
 #define VCM_CODEC_RESOURCE_I420     0x00000200
+#define VCM_CODEC_RESOURCE_OPUS     0x00000400
 
 #define VCM_DSP_DECODEONLY  0
 #define VCM_DSP_ENCODEONLY  1
@@ -226,6 +227,7 @@ typedef enum
     VCM_Media_Payload_G726_32K = 82,
     VCM_Media_Payload_G726_24K = 83,
     VCM_Media_Payload_G726_16K = 84,
+    VCM_Media_Payload_OPUS = 109,
     VCM_Media_Payload_VP8 = 120,
     VCM_Media_Payload_I420 = 124,
     VCM_Media_Payload_Max           // Please leave this so we won't get compile errors.
@@ -339,6 +341,7 @@ typedef struct vcm_videoAttrs_t_ {
 /**  A structure carrying audio media specific attributes */
 typedef struct vcm_audioAttrs_t_ {
   cc_uint16_t packetization_period; /**< ptime value received in SDP */
+  cc_uint16_t max_packetization_period; /**< ptime value received in SDP */
   cc_int32_t avt_payload_type; /**< RTP payload type for AVT */
   vcm_vad_t vad; /**< Voice Activity Detection on or off */
   vcm_mixing_party_t mixing_party; /**< mixing_party */

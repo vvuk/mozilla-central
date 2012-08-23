@@ -1024,6 +1024,7 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     pc_stream_id = 1;
                 } else {
                     attrs.audio.packetization_period = media->packetization_period;
+                    attrs.audio.max_packetization_period = media->max_packetization_period;
                     attrs.audio.avt_payload_type = media->avt_payload_type;
                     attrs.audio.mixing_mode = mix_mode;
                     attrs.audio.mixing_party = mix_party;
@@ -1251,6 +1252,7 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
 
             } else if ( CC_IS_AUDIO(media->cap_index)){
                 attrs.audio.packetization_period = media->packetization_period;
+                attrs.audio.max_packetization_period = media->max_packetization_period;
                 attrs.audio.avt_payload_type = media->avt_payload_type;
                 attrs.audio.vad = media->vad;
                 attrs.audio.mixing_mode = mix_mode;

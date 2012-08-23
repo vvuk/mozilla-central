@@ -544,7 +544,7 @@ sip_config_local_supported_codecs_get (rtp_ptype aSupportedCodecs[],
     codec_mask = vcmGetAudioCodecList(VCM_DSP_FULLDUPLEX);
 
     if (!codec_mask) {
-        codec_mask = VCM_CODEC_RESOURCE_G711;
+        codec_mask = VCM_CODEC_RESOURCE_G711 | VCM_CODEC_RESOURCE_OPUS;
     }
     
     /*
@@ -684,6 +684,11 @@ config_set_current_codec_table (int codec_mask, rtp_ptype *codecs)
         codecs[idx] = RTP_PCMU;
         idx++;
         codecs[idx] = RTP_PCMA;
+        idx++;
+    }
+
+    if (codec_mask & VCM_CODEC_RESOURCE_OPUS) {
+        codecs[idx] = RTP_OPUS;
         idx++;
     }
 

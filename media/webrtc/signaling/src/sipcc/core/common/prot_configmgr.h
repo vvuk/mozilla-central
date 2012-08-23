@@ -272,6 +272,13 @@
 #define CFGID_SDPMODE                                CFGID_SDPMODE_BOOL
 #define CFGID_RTCPMUX                                CFGID_RTCPMUX_BOOL
 #define CFGID_RTPSAVPF                               CFGID_RTPSAVPF_BOOL
+#define CFGID_MAXAVBITRATE                           CFGID_MAXAVBITRATE_BOOL
+#define CFGID_MAXCODEDAUDIOBW                        CFGID_MAXCODEDAUDIOBW_BOOL
+#define CFGID_USEDTX                                 CFGID_USEDTX_BOOL
+#define CFGID_STEREO                                 CFGID_STEREO_BOOL
+#define CFGID_USEINBANDFEC                           CFGID_USEINBANDFEC_BOOL
+#define CFGID_CBR                                    CFGID_CBR_BOOL
+#define CFGID_MAXPTIME                               CFGID_MAXPTIME_BOOL
 
 /*********************************************************
  *

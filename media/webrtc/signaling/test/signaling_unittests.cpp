@@ -373,7 +373,7 @@ class SignalingAgent {
     pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateOffer(hints), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
-    SDPSanityCheck(pObserver->lastString, audio, video);
+    SDPSanityCheck(pObserver->lastString, audio, video, true);
     offer_ = pObserver->lastString;
   }
 
@@ -394,7 +394,7 @@ class SignalingAgent {
     pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateAnswer(hints, offer), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
-    SDPSanityCheck(pObserver->lastString, true, true);
+    SDPSanityCheck(pObserver->lastString, true, true, false);
     answer_ = pObserver->lastString;
   }
 
@@ -419,7 +419,7 @@ class SignalingAgent {
     pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateOffer(hints), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
-    SDPSanityCheck(pObserver->lastString, video, audio);
+    SDPSanityCheck(pObserver->lastString, video, audio, true);
     offer_ = pObserver->lastString;
   }
 
@@ -462,7 +462,7 @@ class SignalingAgent {
       ASSERT_EQ(pc->CreateAnswer(strHints, offer), NS_OK);
       ASSERT_TRUE(pObserver->WaitForObserverCall());
       ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
-      SDPSanityCheck(pObserver->lastString, true, true);
+      SDPSanityCheck(pObserver->lastString, true, true, false);
     }
 #endif
 
@@ -491,7 +491,7 @@ public:
 
 
 private:
-  void SDPSanityCheck(std::string sdp, bool shouldHaveAudio, bool shouldHaveVideo)
+  void SDPSanityCheck(std::string sdp, bool shouldHaveAudio, bool shouldHaveVideo, bool offer)
   {
     ASSERT_NE(sdp.find("v=0"), std::string::npos);
     ASSERT_NE(sdp.find("c=IN IP4"), std::string::npos);
@@ -499,7 +499,12 @@ private:
 
     if (shouldHaveAudio)
     {
-      ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
+    	if (offer)
+    		ASSERT_NE(sdp.find("a=rtpmap:109 opus/48000"), std::string::npos);
+
+
+    	// after negotiation we are left with one codec
+    	ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
     }
 
     if (shouldHaveVideo)

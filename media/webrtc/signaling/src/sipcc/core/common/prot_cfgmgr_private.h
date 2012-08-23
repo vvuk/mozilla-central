@@ -230,6 +230,12 @@ typedef struct
     char        version[4];
     int         rtcpmux;
     int         rtpsavpf;
+    int         maxavbitrate;
+    int         maxcodedaudiobw;
+    int         usedtx;
+    int         stereo;
+    int         useinbandfec;
+    int         cbr;
 } prot_cfg_t;
 
 static prot_cfg_t prot_cfg_block;
@@ -262,6 +268,7 @@ static const key_table_entry_t codec_table[] = {
     {"g722",             RTP_G722},
     {"iLBC",             RTP_ILBC},
     {"iSAC",             RTP_ISAC},
+    {"opus",             RTP_OPUS},
     {"none",             RTP_NONE}, 
     {0,                  RTP_NONE}
 };
@@ -441,6 +448,12 @@ var_t prot_cfg_table[CFGID_PROTOCOL_MAX+1] = {
         {"sdpmode", CFGVAR(sdpmode),       PA_INT, PR_INT, 0},
         {"rtcpmux", CFGVAR(rtcpmux),       PA_INT, PR_INT, 0},
         {"rtpsavpf", CFGVAR(rtpsavpf),       PA_INT, PR_INT, 0},
+        {"maxavbitrate", CFGVAR(maxavbitrate),       PA_INT, PR_INT, 0},
+        {"maxcodedaudiobw", CFGVAR(maxcodedaudiobw),       PA_INT, PR_INT, 0},
+        {"usedtx", CFGVAR(usedtx),       PA_INT, PR_INT, 0},
+        {"stereo", CFGVAR(stereo),       PA_INT, PR_INT, 0},
+        {"useinbandfec", CFGVAR(useinbandfec),       PA_INT, PR_INT, 0},
+        {"cbr", CFGVAR(cbr),       PA_INT, PR_INT, 0},
         {0,                              0,      0,      0, 0, 0}
   };
 

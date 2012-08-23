@@ -218,5 +218,13 @@ static const char gExternalNumberMask[] = "";
 static const char gVersion[] = "0.1";
 static boolean gRTCPMUX = FALSE;
 static boolean gRTPSAVPF = TRUE;
+static boolean gMAXAVBITRATE = FALSE;
+static boolean gMAXCODEDAUDIOBW = FALSE;
+static boolean gUSEDTX = FALSE;
+static boolean gSTEREO = FALSE;
+static boolean gUSEINBANDFEC = FALSE;
+static boolean gCBR = FALSE;
+static boolean gMAXPTIME = FALSE;
+
 
 #endif /* _CONFIG_H_ */

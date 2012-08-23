@@ -376,7 +376,6 @@ typedef enum {
     SDP_ANNEX_A,     /* 0 */
     SDP_ANNEX_B,
     SDP_BITRATE,
-    SDP_MODE,
 
     /* for video codecs */
     SDP_QCIF,
@@ -427,7 +426,14 @@ typedef enum {
     SDP_ANNEX_N,
     SDP_ANNEX_P,
 
+    SDP_MODE,
     SDP_LEVEL_ASYMMETRY_ALLOWED,
+    SDP_MAX_AVERAGE_BIT_RATE,
+    SDP_USED_TX,
+    SDP_STEREO,
+    SDP_USE_IN_BAND_FEC,
+    SDP_MAX_CODED_AUDIO_BW,
+    SDP_CBR,
     SDP_MAX_FMTP_PARAM,
     SDP_FMTP_PARAM_UNKNOWN
 } sdp_fmtp_codec_param_e;

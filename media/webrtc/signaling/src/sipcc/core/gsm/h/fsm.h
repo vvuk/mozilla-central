@@ -165,6 +165,7 @@ typedef struct fsmdef_previous_sdp_ {
     int32_t         payload_type;
     int32_t         local_payload_type;
     uint16_t        packetization_period;
+    uint16_t        max_packetization_period;
     sdp_direction_e direction;
     int32_t         tias_bw;
     int32_t         profile_level;
@@ -186,6 +187,7 @@ typedef struct fsmdef_media_t_ {
     int32_t         avt_payload_type;
     vcm_vad_t       vad;
     uint16_t        packetization_period;
+    uint16_t        max_packetization_period;
     uint16_t        mode;
     uint16_t        level;
     boolean         direction_set;
