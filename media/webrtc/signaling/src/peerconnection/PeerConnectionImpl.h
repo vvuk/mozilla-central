@@ -363,6 +363,7 @@ private:
 
   // DTLS fingerprint
   std::string mFingerprint;
+  std::string mRemoteFingerprint;
 
   // A list of streams returned from GetUserMedia
   PRLock *mLocalSourceStreamsLock;

@@ -111,7 +111,9 @@ interface IPeerConnection : nsISupports
 
   /* For identity */
   readonly attribute string fingerprint;
+  void setRemoteFingerprint(in string hash, in string fingerprint);
 
+  /* Attributes */
   readonly attribute string localDescription;
   readonly attribute string remoteDescription;
 

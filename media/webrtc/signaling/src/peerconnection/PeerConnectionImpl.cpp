@@ -375,8 +375,8 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStre
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer, 
-                               nsIDOMWindow* aWindow, 
+PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
+                               nsIDOMWindow* aWindow,
                                nsIThread* thread) {
   if (!observer) {
     return NS_ERROR_FAILURE;
@@ -441,7 +441,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   // Create the DTLS Identity
   mIdentity = DtlsIdentity::Generate("self");
-  
+
   // Set the fingerprint. Right now assume we only have one
   // DTLS identity
   unsigned char fingerprint[64];
@@ -453,7 +453,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   PR_ASSERT(NS_SUCCEEDED(res));
   if (!NS_SUCCEEDED(res))
     return NS_ERROR_FAILURE;
-  
+
   mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
 
@@ -512,7 +512,7 @@ PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remotepor
     // XXX FIX! Main Thread?  Do we need to get this off?
     nsRefPtr<TransportFlow> flow = GetTransportFlow(1,false).get();
     std::cerr << "Transportflow[1] = " << flow.get() << std::endl;
-    
+
     mDataConnection->ConnectDTLS(flow, localport, remoteport);
     // XXX errors?
     return NS_OK;
@@ -536,8 +536,8 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& label,
   if (!mDataConnection) {
     return NS_ERROR_FAILURE;
   }
-  aDataChannel = mDataConnection->Open(label, 
-      theType, !outOfOrderAllowed, 
+  aDataChannel = mDataConnection->Open(label,
+      theType, !outOfOrderAllowed,
       type == mozilla::DataChannelConnection::PARTIAL_RELIABLE_REXMIT ? maxNum :
       (type == mozilla::DataChannelConnection::PARTIAL_RELIABLE_TIMED ? maxTime : 0),
                                        NULL, NULL);
@@ -563,7 +563,7 @@ PeerConnectionImpl::Listen(unsigned short port)
     mDataConnection = new mozilla::DataChannelConnection(this);
     mDataConnection->Init(port, false);
   }
-  
+
   listenPort = port;
   PR_CreateThread(
     PR_SYSTEM_THREAD,
@@ -837,6 +837,18 @@ PeerConnectionImpl::AddIceCandidate(const char* strCandidate)
 }
 
 NS_IMETHODIMP
+PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerprint)
+{
+  if (fingerprint != NULL && (strcmp(hash, "sha-1") == 0)) {
+    mRemoteFingerprint = std::string(fingerprint);
+    std::cerr << "Setting remote fingerprint to " << mRemoteFingerprint << std::endl;
+    return NS_OK;
+  } else {
+    return NS_ERROR_FAILURE;
+  }
+}
+
+NS_IMETHODIMP
 PeerConnectionImpl::GetFingerprint(char** fingerprint)
 {
   if (!mIdentity) {
@@ -1012,7 +1024,7 @@ PeerConnectionImpl::IceCompleted(NrIceCtx *ctx)
 {
   CSFLogDebug(logTag, "ICE completed");
   mIceState = kIceConnected;
-  
+
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
     PeerConnectionObserverDispatch* runnable =
@@ -1075,7 +1087,7 @@ LocalSourceStreamInfo::StorePipeline(int track,
   mPipelines[track] = pipeline;
 }
 
-void 
+void
 RemoteSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline)
 {

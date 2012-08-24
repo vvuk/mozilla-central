@@ -135,7 +135,7 @@ PeerConnection.prototype = {
                          .getInterface(Ci.nsIWebNavigation)
                          .QueryInterface(Ci.nsIDocShell).chromeEventHandler;
     let chromeWin = browser.ownerDocument.defaultView;
-    
+
     dump("going to show identity popup\n");
 
     chromeWin.PopupNotifications.show(
@@ -158,7 +158,7 @@ PeerConnection.prototype = {
 
     let id = offer.sdp.match(ire);
     let fprint = offer.sdp.match(fre);
-     
+
     dump("!!! "+ this._uniqId + " : fprint = " + fprint[1] + "\n");
 
     if (id.length == 2 && fprint.length == 2) {
@@ -173,6 +173,11 @@ PeerConnection.prototype = {
         if (val && (fprint[1] == val.message)) {
           self._onVerifyIdentitySuccess.onCallback(val);
           self._displayVerification(val.principal.email);
+
+          // If the fingerprint was valid, set the remote fingerprint in the
+          // local PeerConnectionImpl
+          let fingerprint = fprint[1].split(" "); // sha-1 xx:xx:xx:...
+          self._pc.setRemoteFingerprint(fingerprint[0], fingerprint[1]);
           return;
         }
         self._onVerifyIdentityFailure.onCallback(err || "Signed message did not match");
