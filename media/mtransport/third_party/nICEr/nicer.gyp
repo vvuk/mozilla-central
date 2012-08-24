@@ -179,7 +179,7 @@
               
               ## Linux
               [ 'OS == "linux"', {
-                'cflags_mozilla': [
+                'cflags': [
                     '-Werror',
                     '-Wall',
                     '-Wno-parentheses',
