@@ -562,16 +562,21 @@ stun_get_siocgifconf_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
    int s = socket( AF_INET, SOCK_DGRAM, 0 );
    int len = 100 * sizeof(struct ifreq);
    int r;
+   int e;
+   char *ptr;
+   int tl;
+   int n;
+   struct ifreq ifr2;
 
    char buf[ len ];
 
    ifc.ifc_len = len;
    ifc.ifc_buf = buf;
 
-   int e = ioctl(s,SIOCGIFCONF,&ifc);
-   char *ptr = buf;
-   int tl = ifc.ifc_len;
-   int n=0;
+   e = ioctl(s,SIOCGIFCONF,&ifc);
+   ptr = buf;
+   tl = ifc.ifc_len;
+   n=0;
 
    while ( (tl > 0) && ( n < maxaddrs) )
    {
@@ -585,7 +590,6 @@ stun_get_siocgifconf_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
       tl -= si;
       ptr += si;
 
-      struct ifreq ifr2;
       ifr2 = *ifr;
 
       e = ioctl(s,SIOCGIFADDR,&ifr2);

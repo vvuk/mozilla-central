@@ -44,6 +44,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <strings.h>
 #ifndef WIN32
 #include <sys/param.h>
 #include <netinet/in.h>

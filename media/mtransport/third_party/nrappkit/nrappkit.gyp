@@ -146,6 +146,7 @@
                     '-Wno-parentheses',
                     '-Wno-strict-prototypes',
                     '-Wmissing-prototypes',
+		    '-Wno-unused-but-set-variable'
                  ],
                  'defines' : [
                      'DARWIN',

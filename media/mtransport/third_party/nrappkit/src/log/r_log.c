@@ -40,13 +40,22 @@
 static char *RCSSTRING __UNUSED__ ="$Id: r_log.c,v 1.10 2008/11/25 22:25:18 adamcain Exp $";
 
 
+#ifdef LINUX
+#define _BSD_SOURCE
+#endif
+
 #include "r_log.h"
 #include "hex.h"
+
 #include <string.h>
+#include <strings.h>
 #include <registry.h>
 #include <time.h>
+
+#include <syslog.h>
 #include "nr_common.h"
 #include "nr_reg_keys.h"
+
 
 #define LOGGING_DEFAULT_LEVEL  5
 
