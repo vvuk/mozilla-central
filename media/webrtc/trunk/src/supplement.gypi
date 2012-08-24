@@ -4,5 +4,6 @@
 {
   'variables': {
     'build_with_chromium': 0,
+    'build_with_mozilla': 1,
   }
 }

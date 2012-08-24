@@ -2072,7 +2072,7 @@ WebRtc_Word32 AudioDeviceLinuxALSA::ErrorRecovery(WebRtc_Word32 error,
     }
     else {
         WEBRTC_TRACE(kTraceError, kTraceAudioDevice, _id,
-                     "  Terriable, it shouldn't happen");
+                     "  Unrecoverable alsa stream error: %d", res);
     }
 
     return res;
@@ -2199,7 +2199,7 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
             ALSA_CAPTURE_WAIT_TIMEOUT);
         if (err == 0) //timeout occured
             WEBRTC_TRACE(kTraceStream, kTraceAudioDevice, _id,
-                         "caputre snd_pcm_wait timeout");
+                         "capture snd_pcm_wait timeout");
 
         return true;
     }
@@ -2212,7 +2212,7 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
     if (frames < 0)
     {
         WEBRTC_TRACE(kTraceError, kTraceAudioDevice, _id,
-                     "caputre snd_pcm_readi error: %s",
+                     "capture snd_pcm_readi error: %s",
                      LATE(snd_strerror)(frames));
         ErrorRecovery(frames, _handleRecord);
         UnLock();
@@ -2278,7 +2278,7 @@ bool AudioDeviceLinuxALSA::RecThreadProcess()
                 // TODO(xians): Shall we call ErrorRecovery() here?
                 _recordingDelay = 0;
                 WEBRTC_TRACE(kTraceError, kTraceAudioDevice, _id,
-                             "caputre snd_pcm_delay: %s",
+                             "capture snd_pcm_delay: %s",
                              LATE(snd_strerror)(err));
             }
 
