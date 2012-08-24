@@ -90,6 +90,8 @@ nr_reg_get_transport_addr(NR_registry prefix, int keep, nr_transport_addr *addr)
     if ((r=NR_reg_alloc2_string(prefix, "protocol", &protocol))) {
         if (r != R_NOT_FOUND)
             ABORT(r);
+        p = IPPROTO_UDP;
+
         protocol = 0;
     }
     else {
