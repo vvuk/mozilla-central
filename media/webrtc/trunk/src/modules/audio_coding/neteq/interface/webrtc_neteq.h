@@ -35,6 +35,7 @@ enum WebRtcNetEQDecoder
     kDecoderILBC,
     kDecoderISAC,
     kDecoderISACswb,
+    kDecoderOpus,
     kDecoderPCM16B,
     kDecoderPCM16Bwb,
     kDecoderPCM16Bswb32kHz,

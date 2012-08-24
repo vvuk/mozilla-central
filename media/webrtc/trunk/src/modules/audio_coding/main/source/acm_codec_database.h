@@ -76,6 +76,9 @@ class ACMCodecDB {
 #ifdef WEBRTC_CODEC_GSMFR
     , kGSMFR
 #endif
+#ifdef WEBRTC_CODEC_OPUS
+    , kOpus
+#endif
 #ifdef WEBRTC_CODEC_SPEEX
     , kSPEEX8
     , kSPEEX16
@@ -139,6 +142,9 @@ class ACMCodecDB {
 #endif
 #ifndef WEBRTC_CODEC_GSMFR
   enum {kGSMFR = -1};
+#endif
+#ifndef WEBRTC_CODEC_OPUS
+  enum {kOpus = -1};
 #endif
 #ifndef WEBRTC_CODEC_SPEEX
   enum {kSPEEX8 = -1};
@@ -282,6 +288,7 @@ class ACMCodecDB {
   static bool IsAMRwbRateValid(int rate);
   static bool IsG7291RateValid(int rate);
   static bool IsSpeexRateValid(int rate);
+  static bool IsOpusRateValid(int rate);
   static bool IsCeltRateValid(int rate);
 
   // Check if the payload type is valid, meaning that it is in the valid range

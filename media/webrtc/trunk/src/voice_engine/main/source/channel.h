@@ -514,6 +514,9 @@ public:
     WebRtc_UWord32 EncodeAndSend();
 
 private:
+
+    int GetCodec(int idx, CodecInst& codec);
+
     int InsertInbandDtmfTone();
     WebRtc_Word32
             MixOrReplaceAudioWithFile(const int mixingFrequency);

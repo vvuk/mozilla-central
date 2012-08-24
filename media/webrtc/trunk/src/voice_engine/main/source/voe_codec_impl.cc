@@ -684,6 +684,13 @@ void VoECodecImpl::ACMToExternalCodecRepresentation(CodecInst& toInst,
             }
         }
     }
+    else if (STR_CASE_CMP(fromInst.plname,"opus") == 0)
+    {
+        toInst.plfreq = 48000;
+        // TODO: This should not be a fixed value.
+        // Opus does not use fixed frame sizes.
+        toInst.pacsize = 960;
+    }
 }
 
 void VoECodecImpl::ExternalToACMCodecRepresentation(CodecInst& toInst,
@@ -722,6 +729,13 @@ void VoECodecImpl::ExternalToACMCodecRepresentation(CodecInst& toInst,
                 toInst.pacsize = 1920;
             }
         }
+    }
+    else if (STR_CASE_CMP(fromInst.plname,"opus") == 0)
+    {
+        toInst.plfreq = 32000;
+        // TODO: This should not be a fixed value.
+        // Opus does not use fixed frame sizes.
+        toInst.pacsize = 640;
     }
 }
 

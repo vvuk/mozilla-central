@@ -247,6 +247,12 @@ WebRtc_Word32 AudioConferenceMixerImpl::Process()
                     SetOutputFrequency(kSwbInHz);
                 }
                 break;
+            case 48000:
+                if(OutputFrequency() != kWbInHz)
+                {
+                    SetOutputFrequency(kWbInHz);
+                }
+                break;
             default:
                 assert(false);
 

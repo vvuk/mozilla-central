@@ -369,6 +369,14 @@ int WebRtcNetEQ_GetTimestampScaling(MCUInst_t *MCU_inst, int rtpPayloadType)
             MCU_inst->scalingFactor = kTSscalingTwo;
             break;
         }
+        case kDecoderOpus:
+        {
+            /* We resample Opus internally to 32 kHz, but timestamps are
+               counted at 48 kHz. So there are two output samples per three RTP
+               timestamp ticks. */
+            MCU_inst->scalingFactor = kTSscalingTwoThirds;
+            break;
+        }
         case kDecoderAVT:
         case kDecoderCNG:
         {

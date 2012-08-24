@@ -27,6 +27,9 @@ deps = {
   "trunk/third_party/libvpx":
     (Var("googlecode_url") % "webrtc") + "/trunk/third_party/libvpx@" + Var("webrtc_revision"),
 
+  "trunk/third_party/opus/source":
+    "http://git.opus-codec.org/opus.git",
+
   "trunk/build":
     Var("chromium_trunk") + "/src/build@" + Var("chromium_revision"),
 

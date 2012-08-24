@@ -22,6 +22,7 @@
 #include "transmit_mixer.h"
 #include "utility.h"
 #include "voe_base.h"
+#include "voe_codec_impl.h"
 #include "voe_external_media.h"
 #include "voe_rtp_rtcp.h"
 
@@ -1341,6 +1342,18 @@ Channel::~Channel()
     delete &_fileCritSect;
 }
 
+int Channel::GetCodec(int idx, CodecInst &codec)
+{
+    CodecInst codecCopy;
+    int ret;
+    ret = _audioCodingModule.Codec(idx, codecCopy);
+    if (ret != -1)
+    {
+        VoECodecImpl::ACMToExternalCodecRepresentation(codec, codecCopy);
+    }
+    return ret;
+}
+
 WebRtc_Word32
 Channel::Init()
 {
@@ -2422,11 +2435,13 @@ Channel::SetRecPayloadType(const CodecInst& codec)
         return 0;
     }
 
-    if (_rtpRtcpModule.RegisterReceivePayload(codec) != 0)
+    CodecInst acmCodec = codec;
+    VoECodecImpl::ExternalToACMCodecRepresentation(acmCodec, codec);
+    if (_rtpRtcpModule.RegisterReceivePayload(acmCodec) != 0)
     {
         // First attempt to register failed => de-register and try again
-        _rtpRtcpModule.DeRegisterReceivePayload(codec.pltype);
-        if (_rtpRtcpModule.RegisterReceivePayload(codec) != 0)
+        _rtpRtcpModule.DeRegisterReceivePayload(acmCodec.pltype);
+        if (_rtpRtcpModule.RegisterReceivePayload(acmCodec) != 0)
         {
             _engineStatisticsPtr->SetLastError(
                 VE_RTP_RTCP_MODULE_ERROR, kTraceError,
@@ -2434,10 +2449,10 @@ Channel::SetRecPayloadType(const CodecInst& codec)
             return -1;
         }
     }
-    if (_audioCodingModule.RegisterReceiveCodec(codec) != 0)
+    if (_audioCodingModule.RegisterReceiveCodec(acmCodec) != 0)
     {
-        _audioCodingModule.UnregisterReceiveCodec(codec.pltype);
-        if (_audioCodingModule.RegisterReceiveCodec(codec) != 0)
+        _audioCodingModule.UnregisterReceiveCodec(acmCodec.pltype);
+        if (_audioCodingModule.RegisterReceiveCodec(acmCodec) != 0)
         {
             _engineStatisticsPtr->SetLastError(
                 VE_AUDIO_CODING_MODULE_ERROR, kTraceError,
@@ -2454,13 +2469,15 @@ Channel::GetRecPayloadType(CodecInst& codec)
     WEBRTC_TRACE(kTraceInfo, kTraceVoice, VoEId(_instanceId,_channelId),
                  "Channel::GetRecPayloadType()");
     WebRtc_Word8 payloadType(-1);
-    if (_rtpRtcpModule.ReceivePayloadType(codec, &payloadType) != 0)
+    CodecInst acmCodec;
+    if (_rtpRtcpModule.ReceivePayloadType(acmCodec, &payloadType) != 0)
     {
         _engineStatisticsPtr->SetLastError(
             VE_RTP_RTCP_MODULE_ERROR, kTraceError,
             "GetRecPayloadType() failed to retrieve RX payload type");
         return -1;
     }
+    VoECodecImpl::ACMToExternalCodecRepresentation(codec, acmCodec);
     codec.pltype = payloadType;
     WEBRTC_TRACE(kTraceStateInfo, kTraceVoice, VoEId(_instanceId,_channelId),
                  "Channel::GetRecPayloadType() => pltype=%u", codec.pltype);
@@ -6373,6 +6390,10 @@ Channel::GetPlayoutTimeStamp(WebRtc_UWord32& playoutTimestamp)
         {
             playoutFrequency = 8000;
         }
+        else if(STR_CASE_CMP("opus", currRecCodec.plname) == 0)
+        {
+            playoutFrequency = 48000;
+        }
     }
     timestamp -= (delayMS * (playoutFrequency/1000));
 
@@ -6456,6 +6477,14 @@ Channel::UpdatePacketDelay(const WebRtc_UWord32 timestamp,
             // RFC 1890 and must remain unchanged for backward compatibility.
             rtpReceiveFrequency = 8000;
         }
+        else if(STR_CASE_CMP("opus", currRecCodec.plname) == 0)
+        {
+            // We are resampling Opus internally to 32,000 Hz until all our
+            // DSP routines can operate at 48,000 Hz, but the RTP clock
+            // rate for the Opus payload format is standardized to 48,000 Hz,
+            // because that is the maximum supported decoding sampling rate.
+            rtpReceiveFrequency = 48000;
+        }
     }
 
     const WebRtc_UWord32 timeStampDiff = timestamp - _playoutTimeStampRTP;
@@ -6473,6 +6502,9 @@ Channel::UpdatePacketDelay(const WebRtc_UWord32 timestamp,
                 break;
             case 32000:
                 timeStampDiffMs = timeStampDiff >> 5;
+                break;
+            case 48000:
+                timeStampDiffMs = timeStampDiff / 48;
                 break;
             default:
                 WEBRTC_TRACE(kTraceWarning, kTraceVoice,
@@ -6517,6 +6549,9 @@ Channel::UpdatePacketDelay(const WebRtc_UWord32 timestamp,
                 packetDelayMs = (WebRtc_UWord16)(
                     (timestamp - _previousTimestamp) >> 5);
                 break;
+            case 48000:
+                packetDelayMs = (WebRtc_UWord16)(
+                    (timestamp - _previousTimestamp) / 48);
             }
 
             if (packetDelayMs >= 10 && packetDelayMs <= 60)

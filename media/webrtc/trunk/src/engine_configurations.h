@@ -27,8 +27,12 @@
 //  [Voice] Codec settings
 // ----------------------------------------------------------------------------
 
+#define WEBRTC_CODEC_OPUS
+
+#ifndef WEBRTC_MOZILLA_BUILD
 #define WEBRTC_CODEC_ISAC       // floating-point iSAC implementation (default)
 // #define WEBRTC_CODEC_ISACFX  // fix-point iSAC implementation
+#endif
 #define WEBRTC_CODEC_AVT
 
 #ifndef WEBRTC_CHROMIUM_BUILD
