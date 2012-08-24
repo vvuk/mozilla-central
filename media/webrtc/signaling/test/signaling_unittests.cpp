@@ -33,6 +33,13 @@ static int kDefaultTimeout = 5000;
 
 namespace test {
 
+static const std::string strSampleCandidate =
+  "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n";
+
+static const std::string strSampleMid = "";
+
+static const unsigned short nSamplelevel = 2;
+
 static const std::string strSampleSdpAudioVideoNoIce =
   "v=0\r\n"
   "o=Cisco-SIPUA 4949 0 IN IP4 10.86.255.143\r\n"
@@ -441,6 +448,10 @@ class SignalingAgent {
     return state == sipcc::PeerConnectionImpl::kIceConnected;
   }
 
+  void AddIceCandidate(const char* candidate, const char* mid, unsigned short level) {
+    pc->AddIceCandidate(candidate, mid, level);
+  }
+
 #if 0
   void CreateOfferSetLocal(const char* hints) {
       CreateOffer(hints);
@@ -556,6 +567,11 @@ public:
     a1_.CreateOfferRemoveStream(hints, false, true);
   }
 
+  void CreateOfferAddCandidate(const char * hints, const char * candidate, const char * mid, unsigned short level) {
+    a1_.CreateOffer(hints, true, true);
+    a1_.AddIceCandidate(candidate, mid, level);
+  }
+
  protected:
   SignalingAgent a1_;  // Canonically "caller"
   SignalingAgent a2_;  // Canonically "callee"
@@ -589,6 +605,11 @@ TEST_F(SignalingTest, CreateOfferAudioOnly)
 TEST_F(SignalingTest, CreateOfferRemoveStream)
 {
 	CreateOfferRemoveStream("");
+}
+
+TEST_F(SignalingTest, CreateOfferAddCandidate)
+{
+	CreateOfferAddCandidate("", strSampleCandidate.c_str(), strSampleMid.c_str(), nSamplelevel);
 }
 
 TEST_F(SignalingTest, OfferAnswer)

@@ -617,3 +617,6 @@ void CC_SIPCCCall::removeStream(cc_media_stream_id_t stream_id, cc_media_track_i
   CCAPI_RemoveStream(callHandle, stream_id, track_id, media_type);
 }
 
+void CC_SIPCCCall::addICECandidate(const std::string & candidate, const std::string & mid, unsigned short level) {
+  CCAPI_AddICECandidate(callHandle, candidate.c_str(), mid.c_str(), (cc_level_t) level);
+}

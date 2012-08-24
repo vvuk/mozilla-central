@@ -115,6 +115,7 @@ static sm_rcs_t fsmdef_ev_localdesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_remotedesc(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_addstream(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_removestream(sm_event_t *event);
+static sm_rcs_t fsmdef_ev_addcandidate(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_default_feature_ack(sm_event_t *event);
 static sm_rcs_t fsmdef_ev_idle_setup(sm_event_t *event);
@@ -224,7 +225,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_COLLECT_INFO ---------------------------------------------------- */
@@ -253,7 +255,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_SETREMOTEDESC    */ fsmdef_ev_setremotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_CALL_SENT ------------------------------------------------------- */
@@ -284,7 +287,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_OUTGOING_PROCEEDING --------------------------------------------- */
@@ -315,7 +319,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_KPML_COLLECT_INFO ----------------------------------------------- */
@@ -346,7 +351,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_OUTGOING_ALERTING ----------------------------------------------- */
@@ -377,7 +383,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_INCOMING_ALERTING ----------------------------------------------- */
@@ -408,7 +415,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_CONNECTING ------------------------------------------------------ */
@@ -439,7 +447,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_JOINING --------------------------------------------------------- */
@@ -470,7 +479,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_CONNECTED ------------------------------------------------------- */
@@ -501,7 +511,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_CONNECTED_MEDIA_PEND  ------------------------------------------- */
@@ -532,7 +543,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_RELEASING ------------------------------------------------------- */
@@ -563,7 +575,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_HOLD_PENDING ---------------------------------------------------- */
@@ -594,7 +607,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_HOLDING --------------------------------------------------------- */
@@ -625,7 +639,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_RESUME_PENDING -------------------------------------------------- */
@@ -656,7 +671,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     },
 
 /* FSMDEF_S_PRESERVED  ------------------------------------------------------ */
@@ -687,7 +703,8 @@ static sm_function_t fsmdef_function_table[FSMDEF_S_MAX][CC_MSG_MAX] =
     /* FSMDEF_E_REMOTEDESC       */ fsmdef_ev_remotedesc,
     /* FSMDEF_E_SETPEERCONNECTION */fsmdef_ev_setpeerconnection,
     /* FSMDEF_E_ADDSTREAM        */ fsmdef_ev_addstream,
-    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream
+    /* FSMDEF_E_REMOVESTREAM     */ fsmdef_ev_removestream,
+    /* FAMDEF_E_ADDCANDIDATE     */ fsmdef_ev_addcandidate
     }
 };
 
@@ -3491,6 +3508,45 @@ fsmdef_ev_removestream(sm_event_t *event) {
     } else {
     	return (SM_RC_END);
     }
+
+	return (SM_RC_END);
+}
+
+static sm_rcs_t
+fsmdef_ev_addcandidate(sm_event_t *event) {
+    fsm_fcb_t           *fcb = (fsm_fcb_t *) event->data;
+    fsmdef_dcb_t        *dcb = fcb->dcb;
+    cc_causes_t         cause = CC_CAUSE_NORMAL;
+    cc_feature_t        *msg = (cc_feature_t *) event->msg;
+    int                 sdpmode = 0;
+    short               vcm_res;
+    uint16_t            level;
+
+    FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (sdpmode == FALSE) {
+
+        return (SM_RC_END);
+    }
+
+    if (dcb == NULL) {
+    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+    	return (fsmdef_release(fcb, cause, FALSE));
+    	return SM_RC_END;
+    }
+
+
+    /* Perform level lookup based on mid value */
+    /* comment until mid is properly updated
+    cause = gsmsdp_find_level_from_mid(dcb, (const char *)msg->data.candidate.mid, &level);
+    */
+
+    vcm_res = vcmSetIceCandidate(dcb->peerconnection, (char *)msg->data.candidate.candidate, msg->data.candidate.level);
+    if(vcm_res) {
+        FSM_DEBUG_SM(DEB_F_PREFIX"failure setting ice candidate.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+    }
+
 
 	return (SM_RC_END);
 }

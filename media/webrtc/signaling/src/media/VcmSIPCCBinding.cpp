@@ -764,6 +764,29 @@ short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd)
   return 0;
 }
 
+/* Set ice candidate for trickle ICE.
+ *
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  icecandidate - the icecandidate
+ *  @param[in]  level - the m line level
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, uint16_t level)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
+      sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+  return 0;
+}
+
 /* Start ICE checks
  *  @param[in]  peerconnection - the peerconnection in use
  *  @return 0 success, error failure

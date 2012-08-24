@@ -820,19 +820,19 @@ PeerConnectionImpl::RemoveStream(nsIDOMMediaStream* aMediaStream)
 }
 
 NS_IMETHODIMP
+PeerConnectionImpl::AddIceCandidate(const char* candidate, const char* mid, unsigned short level) {
+  CheckApiState();
+  mCall->addICECandidate(candidate, mid, level);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 PeerConnectionImpl::CloseStreams() {
   if (mReadyState != PeerConnectionImpl::kClosed)  {
     ChangeReadyState(PeerConnectionImpl::kClosing);
   }
 
   mCall->endCall();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-PeerConnectionImpl::AddIceCandidate(const char* strCandidate)
-{
-  mCall->addIceCandidate(strCandidate);
   return NS_OK;
 }
 

@@ -81,6 +81,7 @@ typedef struct {
   cc_media_stream_id_t stream_id;
   cc_media_track_id_t  track_id;
   cc_media_type_t      media_type;
+  cc_level_t           level;
 } ccSession_feature_t;
 
 typedef struct {

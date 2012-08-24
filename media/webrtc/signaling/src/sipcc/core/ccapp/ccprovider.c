@@ -600,6 +600,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
     session_data_t * sess_data_p;
     char digits[CC_MAX_DIALSTRING_LEN];
     char* data = (char*)ccData.info;
+    char* data1 =(char*)ccData.info1;
 
     CCAPP_DEBUG(DEB_L_C_F_PREFIX"event=%d data=%s",
                 DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, call_id, line_id, fname), event,
@@ -655,6 +656,12 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
            featdata.track.track_id = ccData.track_id;
            featdata.track.media_type = ccData.media_type;
            cc_int_feature2(CC_MSG_REMOVESTREAM, CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_REMOVESTREAM, &featdata);
+           break;
+         case CC_FEATURE_ADDICECANDIDATE:
+           featdata.candidate.level = ccData.level;
+           sstrncpy(featdata.candidate.candidate, data, sizeof(featdata.candidate.candidate)-1);
+           sstrncpy(featdata.candidate.mid, data1, sizeof(featdata.candidate.mid)-1);
+           cc_int_feature2(CC_MSG_ADDCANDIDATE, CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_ADDICECANDIDATE, &featdata);
            break;
          case CC_FEATURE_DIALSTR:
              if (CheckAndGetAvailableLine(&line_id, &call_id) == TRUE) {

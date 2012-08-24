@@ -476,6 +476,15 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp);
  */
 short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd);
 
+/* Set ice candidate for trickle ICE.
+ *
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  icecandidate - the icecandidate
+ *  @param[in]  level - the m line level
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, uint16_t level);
 
 /* Set remote ICE media-level parameters.
  * 

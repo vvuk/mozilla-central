@@ -59,6 +59,8 @@ typedef int cc_causes_t;
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
 #define  SDP_SIZE           4096   /* must increase this */
 #define  PC_HANDLE_SIZE     (1 + (sizeof(void *) * 2))
+#define  CANDIDATE_SIZE     150
+#define  MID_SIZE           150
 
 #include "sessionConstants.h"
 
@@ -127,6 +129,7 @@ typedef enum {
     CC_FEATURE_SETPEERCONNECTION,
     CC_FEATURE_ADDSTREAM,
     CC_FEATURE_REMOVESTREAM,
+    CC_FEATURE_ADDICECANDIDATE,
     CC_FEATURE_MAX
 } group_cc_feature_t;
 
@@ -193,6 +196,7 @@ typedef enum cc_msgs_t_ {
     CC_MSG_SETPEERCONNECTION,
     CC_MSG_ADDSTREAM,
     CC_MSG_REMOVESTREAM,
+    CC_MSG_ADDCANDIDATE,
     CC_MSG_AUDIT_ACK,
     CC_MSG_OPTIONS,
     CC_MSG_OPTIONS_ACK,
@@ -774,6 +778,15 @@ typedef struct cc_feature_data_track_t_ {
   cc_media_type_t      media_type;
 } cc_feature_data_track_t;
 
+
+typedef struct cc_feature_candidate_t_ {
+  uint16_t    level;
+  char        candidate[CANDIDATE_SIZE];
+  char        mid[MID_SIZE];
+} cc_feature_candidate_t;
+
+
+
 typedef union cc_feature_data_t {
     cc_feature_data_newcall_t   newcall;
     cc_feature_data_xfer_t      xfer;
@@ -797,6 +810,7 @@ typedef union cc_feature_data_t {
     cc_media_cap_t              caps;
     cc_feature_data_pc_t        pc;
     cc_feature_data_track_t     track;
+    cc_feature_candidate_t      candidate;
 } cc_feature_data_t;
 
 typedef struct cc_setup_t_ {
@@ -890,8 +904,6 @@ typedef struct cc_feature_t_ {
     boolean              data_valid;
     cc_jsep_action_t     action;
     char                 sdp[SDP_SIZE];
-    cc_media_track_id_t  track_id;
-    cc_media_type_t      media_type;
 } cc_feature_t;
 
 typedef struct cc_feature_ack_t_ {
@@ -1110,8 +1122,7 @@ void cc_int_release_complete(cc_srcs_t src_id, cc_srcs_t dst_id,
                              cc_kfact_t *kfactor);
 
 void cc_int_feature2(cc_msgs_t msg_id, cc_srcs_t src_id, cc_srcs_t dst_id,
-                    callid_t call_id,
-                    line_t line, cc_features_t feature_id,
+                    callid_t call_id, line_t line, cc_features_t feature_id,
                     cc_feature_data_t *data);
 
 void cc_createoffer(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,

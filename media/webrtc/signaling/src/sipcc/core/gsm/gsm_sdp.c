@@ -5981,4 +5981,23 @@ void gsmsdp_add_remote_stream(uint16_t idx, int pc_stream_id, fsmdef_dcb_t *dcb_
   }
 }
 
+cc_causes_t
+gsmsdp_find_level_from_mid(fsmdef_dcb_t * dcb_p, const char * mid, uint16_t *level) {
 
+    fsmdef_media_t  *media;
+    u32              mid_id;
+    char             buf[5];
+
+    GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
+        if (!GSMSDP_MEDIA_ENABLED(media))
+            continue;
+
+        mid_id = sdp_attr_get_simple_u32(dcb_p->sdp->dest_sdp, SDP_ATTR_MID, media->level, 0, 1);
+        snprintf(buf, sizeof(buf), "%u", mid_id);
+        if (strcmp(mid, buf) == 0) {
+        	*level = media->level;
+        	return CC_CAUSE_OK;
+        }
+    }
+    return CC_CAUSE_VALUE_NOT_FOUND;
+}

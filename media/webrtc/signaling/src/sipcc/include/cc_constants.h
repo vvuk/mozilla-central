@@ -78,6 +78,7 @@ typedef unsigned short cc_callid_t;
 typedef unsigned short cc_streamid_t;
 typedef unsigned short cc_mcapid_t;
 typedef unsigned short cc_groupid_t;
+typedef unsigned short cc_level_t;
 
 /**
  * Define the call instance id
@@ -501,6 +502,7 @@ typedef enum {
 	CC_CAUSE_SERV_ERR_UNAVAIL,
     CC_CAUSE_REMOTE_DISCONN_REQ_PLAYTONE,
     CC_CAUSE_OUT_OF_MEM,
+    CC_CAUSE_VALUE_NOT_FOUND,
 	CC_CAUSE_MAX
 } cc_cause_t;
 

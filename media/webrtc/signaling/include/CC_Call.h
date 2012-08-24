@@ -322,6 +322,8 @@ namespace CSF
         virtual void removeStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) = 0;
 
         virtual const std::string& getPeerConnection() const = 0;
+
+        virtual void addICECandidate(const std::string & candidate, const std::string & mid, unsigned short level) = 0;
     };
 }
 

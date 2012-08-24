@@ -89,7 +89,7 @@ interface IPeerConnection : nsISupports
    * call PeerConnectionImpl does not parse ICE candidates, just sticks them
    * into the SDP.
    */
-  void addIceCandidate(in string candidate);
+  void addIceCandidate(in string candidate, in string mid, in unsigned short level);
 
   /* Puts the SIPCC engine back to 'kIdle', shuts down threads, deletes state */
   void close();

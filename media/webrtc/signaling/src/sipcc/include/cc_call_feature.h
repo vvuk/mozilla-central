@@ -200,6 +200,8 @@ cc_return_t CC_CallFeature_AddStream(cc_call_handle_t call_handle, cc_media_stre
 
 cc_return_t CC_CallFeature_RemoveStream(cc_call_handle_t call_handle, cc_media_stream_id_t stream_id, cc_media_track_id_t id, cc_media_type_t media_type);
 
+cc_return_t CC_CallFeature_AddICECandidate(cc_call_handle_t call_handle, const char* candidate, const char *mid, cc_level_t level);
+
 /**
  * Initiate a speed dial.
  * @param call_handle call handle

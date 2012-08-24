@@ -217,8 +217,8 @@ static const int gSpeakerEnabled = 1;
 static const char gExternalNumberMask[] = "";
 static const char gVersion[] = "0.1";
 static boolean gRTCPMUX = FALSE;
-static boolean gRTPSAVPF = TRUE;
-static boolean gMAXAVBITRATE = FALSE;
+static boolean gRTPSAVPF = TRUE;           /* TRUE = RTP/SAVPF , FALSE = RTP/SAVP */
+static boolean gMAXAVBITRATE = FALSE;      /* Following six are OPUS fmtp options */
 static boolean gMAXCODEDAUDIOBW = FALSE;
 static boolean gUSEDTX = FALSE;
 static boolean gSTEREO = FALSE;

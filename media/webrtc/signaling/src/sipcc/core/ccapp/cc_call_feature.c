@@ -109,14 +109,14 @@ cc_return_t cc_invokeFeature(cc_call_handle_t call_handle, group_cc_feature_t fe
     case CC_FEATURE_CONF:
     case CC_FEATURE_XFER:
     case CC_FEATURE_HOLD:
-    	callFeature.featData.ccData.info = strlib_malloc(data, strlen(data));
+        callFeature.featData.ccData.info = strlib_malloc(data, strlen(data));
         callFeature.featData.ccData.info1 = NULL;
-    	break;
+        break;
 
     default:
         callFeature.featData.ccData.info = NULL;
         callFeature.featData.ccData.info1 = NULL;
-    	break;
+        break;
     }
 
     if (ccappTaskPostMsg(CCAPP_INVOKE_FEATURE, &callFeature, sizeof(session_feature_t), CCAPP_CCPROVIER) == CPR_FAILURE) {
@@ -131,7 +131,8 @@ cc_return_t cc_invokeFeature(cc_call_handle_t call_handle, group_cc_feature_t fe
  * Invoke a call feature.
  */
 cc_return_t cc_invokeFeatureSDPMode(cc_call_handle_t call_handle, group_cc_feature_t featureId, cc_sdp_direction_t video_pref,
-                             cc_jsep_action_t action, string_t data, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
+                             cc_jsep_action_t action, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id,
+                             cc_media_type_t media_type, uint16_t level, string_t data, string_t data1) {
 	session_feature_t callFeature;
     callFeature.session_id = (SESSIONTYPE_CALLCONTROL << CC_SID_TYPE_SHIFT) + call_handle;
     callFeature.featureID = featureId;
@@ -140,6 +141,7 @@ cc_return_t cc_invokeFeatureSDPMode(cc_call_handle_t call_handle, group_cc_featu
     callFeature.featData.ccData.media_type = media_type;
     callFeature.featData.ccData.stream_id = stream_id;
     callFeature.featData.ccData.track_id = track_id;
+    callFeature.featData.ccData.level = level;
 
     CCAPP_DEBUG(DEB_F_PREFIX"cc_invokeFeatureSDPMode:sid=%d, line=%d, cid=%d, fid=%d, video_pref=%s data=%s\n",
                         DEB_F_PREFIX_ARGS("cc_call_feature", "cc_invokeFeatureSDPMode"),
@@ -165,6 +167,10 @@ cc_return_t cc_invokeFeatureSDPMode(cc_call_handle_t call_handle, group_cc_featu
     case CC_FEATURE_SETPEERCONNECTION:
     	callFeature.featData.ccData.info = strlib_malloc(data, strlen(data));
         callFeature.featData.ccData.info1 = NULL;
+    	break;
+    case CC_FEATURE_ADDICECANDIDATE:
+    	callFeature.featData.ccData.info = strlib_malloc(data, strlen(data));
+        callFeature.featData.ccData.info1 = strlib_malloc(data1, strlen(data1));
     	break;
 
     default:
@@ -309,7 +315,7 @@ cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle) {
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEOFFER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, NULL, 0, 0, NO_STREAM);
+	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEOFFER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, NULL, NULL);
 }
 
 cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, string_t sdp) {
@@ -317,7 +323,7 @@ cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, string_t s
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEANSWER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, sdp, 0, 0, NO_STREAM);
+	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEANSWER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
@@ -325,7 +331,7 @@ cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETLOCALDESC, CC_SDP_DIRECTION_SENDRECV, action, sdp, 0, 0, NO_STREAM);
+	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETLOCALDESC, CC_SDP_DIRECTION_SENDRECV, action, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
@@ -333,7 +339,7 @@ cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
 			GET_LINE_ID(call_handle), fname));
 
-	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETREMOTEDESC, CC_SDP_DIRECTION_SENDRECV, action, sdp, 0, 0, NO_STREAM);
+	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETREMOTEDESC, CC_SDP_DIRECTION_SENDRECV, action, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc) {
@@ -342,7 +348,7 @@ cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_pe
 			GET_LINE_ID(call_handle), fname));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETPEERCONNECTION,
-          CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, pc, 0, 0, NO_STREAM);
+          CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, pc, NULL);
         return 0;
 }
 
@@ -352,7 +358,7 @@ cc_return_t CC_CallFeature_AddStream(cc_call_handle_t call_handle, cc_media_stre
 			GET_LINE_ID(call_handle), fname));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_ADDSTREAM,
-			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, NULL, stream_id, track_id, media_type);
+			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
 }
 
 cc_return_t CC_CallFeature_RemoveStream(cc_call_handle_t call_handle, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
@@ -361,9 +367,16 @@ cc_return_t CC_CallFeature_RemoveStream(cc_call_handle_t call_handle, cc_media_s
 			GET_LINE_ID(call_handle), fname));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_REMOVESTREAM,
-			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, NULL, stream_id, track_id, media_type);
+			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
 }
 
+cc_return_t CC_CallFeature_AddICECandidate(cc_call_handle_t call_handle, const char* candidate, const char *mid, cc_level_t level) {
+    CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
+            GET_LINE_ID(call_handle), __FUNCTION__));
+
+    return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_ADDICECANDIDATE,
+    		CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, (uint16_t)level, candidate, mid);
+}
 
 /**
  * Initiate a speed dial.
