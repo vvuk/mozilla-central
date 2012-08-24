@@ -62,7 +62,10 @@ static int TURN_PHASE_MODE[NUMBER_OF_STUN_CTX] = {
 
 
 static int nr_turn_client_next_action(nr_turn_client_ctx *ctx, int stun_ctx_state);
-static void nr_turn_client_cb(int s, int how, void *cb_arg);
+static void nr_turn_client_cb(NR_SOCKET s, int how, void *cb_arg);
+static int
+nr_turn_client_prepare_start(nr_turn_client_ctx *ctx, char *username, Data *password, UINT4 bandwidth_kbps, UINT4 lifetime_secs, NR_async_cb finished_cb, void *cb_arg);
+
 
 int
 nr_turn_client_next_action(nr_turn_client_ctx *ctx, int stun_ctx_state)
@@ -154,7 +157,7 @@ nr_turn_client_next_action(nr_turn_client_ctx *ctx, int stun_ctx_state)
 }
 
 void
-nr_turn_client_cb(int s, int how, void *cb_arg)
+nr_turn_client_cb(NR_SOCKET s, int how, void *cb_arg)
 {
     int r,_status;
     nr_turn_client_ctx *ctx = (nr_turn_client_ctx*)cb_arg;
@@ -241,7 +244,7 @@ nr_turn_client_ctx_destroy(nr_turn_client_ctx **ctxp)
     return(0);
 }
 
-int
+static int
 nr_turn_client_prepare_start(nr_turn_client_ctx *ctx, char *username, Data *password, UINT4 bandwidth_kbps, UINT4 lifetime_secs, NR_async_cb finished_cb, void *cb_arg)
 {
     int r,_status;

@@ -42,7 +42,7 @@ static char *RCSSTRING __UNUSED__="$Id: ice_peer_ctx.c,v 1.2 2008/04/28 17:59:01
 #include "nr_crypto.h"
 #include "async_timer.h"
 
-static void nr_ice_peer_ctx_destroy_cb(int s, int how, void *cb_arg);
+static void nr_ice_peer_ctx_destroy_cb(NR_SOCKET s, int how, void *cb_arg);
 static int nr_ice_peer_ctx_parse_stream_attributes_int(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, nr_ice_media_stream *pstream, char **attrs, int attr_ct);
 static int nr_ice_ctx_parse_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_stream *pstream, char *candidate);
 
@@ -97,7 +97,6 @@ int nr_ice_peer_ctx_create(nr_ice_ctx *ctx, nr_ice_handler *handler,char *label,
 int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, char **attrs, int attr_ct)
   {
     nr_ice_media_stream *pstream=0;
-    nr_ice_candidate *cand=0;
     nr_ice_component *comp,*comp2;
     int r,_status;
 
@@ -133,11 +132,8 @@ int nr_ice_peer_ctx_parse_stream_attributes(nr_ice_peer_ctx *pctx, nr_ice_media_
 
 static int nr_ice_peer_ctx_parse_stream_attributes_int(nr_ice_peer_ctx *pctx, nr_ice_media_stream *stream, nr_ice_media_stream *pstream, char **attrs, int attr_ct)
   {
-    nr_ice_candidate *cand=0;
-    nr_ice_component *comp,*comp2;
-    int r,_status;
+    int r;
     int i;
-    int need_to_pair = 0;
 
     for(i=0;i<attr_ct;i++){
       if(!strncmp(attrs[i],"ice-",4)){
@@ -157,9 +153,8 @@ static int nr_ice_peer_ctx_parse_stream_attributes_int(nr_ice_peer_ctx *pctx, nr
       }
     }
 
-    _status=0;
-  abort:
-    return(_status);
+    /* Doesn't fail because we just skip errors */
+    return(0);
   }
 
 static int nr_ice_ctx_parse_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_stream *pstream, char *candidate)
@@ -210,7 +205,6 @@ int nr_ice_peer_ctx_parse_trickle_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_
        iterate through all the peer streams to find one that matches us */
     nr_ice_media_stream *pstream;
     int r,_status;
-    int i,j;
     int needs_pairing = 0;
 
     pstream=STAILQ_FIRST(&pctx->peer_streams);
@@ -282,7 +276,7 @@ int nr_ice_peer_ctx_pair_candidates(nr_ice_peer_ctx *pctx)
     return(_status);
   }
 
-static void nr_ice_peer_ctx_destroy_cb(int s, int how, void *cb_arg)
+static void nr_ice_peer_ctx_destroy_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_peer_ctx *pctx=cb_arg;
     nr_ice_media_stream *str1,*str2;
@@ -393,7 +387,7 @@ int nr_ice_peer_ctx_dump_state(nr_ice_peer_ctx *pctx,FILE *out)
   }
 #endif
 
-static void nr_ice_peer_ctx_fire_done(int s, int how, void *cb_arg)
+static void nr_ice_peer_ctx_fire_done(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_peer_ctx *pctx=cb_arg;
 

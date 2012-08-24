@@ -140,7 +140,7 @@ int nr_ice_ctx_create(char *label, UINT4 flags, nr_ice_ctx **ctxp);
 int nr_ice_ctx_destroy(nr_ice_ctx **ctxp);
 int nr_ice_initialize(nr_ice_ctx *ctx, NR_async_cb done_cb, void *cb_arg);
 int nr_ice_add_candidate(nr_ice_ctx *ctx, nr_ice_candidate *cand);
-void nr_ice_initialize_finished_cb(int s, int h, void *cb_arg);
+void nr_ice_initialize_finished_cb(NR_SOCKET s, int h, void *cb_arg);
 int nr_ice_add_media_stream(nr_ice_ctx *ctx,char *label,int components, nr_ice_media_stream **streamp);
 int nr_ice_get_global_attributes(nr_ice_ctx *ctx,char ***attrsp, int *attrctp);
 int nr_ice_ctx_deliver_packet(nr_ice_ctx *ctx, nr_ice_component *comp, nr_transport_addr *source_addr, UCHAR *data, int len);

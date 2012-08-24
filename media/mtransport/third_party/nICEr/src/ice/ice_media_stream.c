@@ -211,7 +211,7 @@ int nr_ice_media_stream_get_attributes(nr_ice_media_stream *stream, char ***attr
 /* Get a default candidate per 4.1.4 */
 int nr_ice_media_stream_get_default_candidate(nr_ice_media_stream *stream, int component, nr_ice_candidate **candp)
   {
-    int r, _status;
+    int _status;
     nr_ice_component *comp;
     nr_ice_candidate *cand;
     nr_ice_candidate *best_cand = NULL;
@@ -288,7 +288,7 @@ int nr_ice_media_stream_pair_candidates(nr_ice_peer_ctx *pctx,nr_ice_media_strea
 
 /* S 5.8 -- run the highest priority WAITING pair or if not available
    FROZEN pair */
-static void nr_ice_media_stream_check_timer_cb(int s, int h, void *cb_arg)
+static void nr_ice_media_stream_check_timer_cb(NR_SOCKET s, int h, void *cb_arg)
   {
     int r,_status;
     nr_ice_media_stream *stream=cb_arg;

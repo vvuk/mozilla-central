@@ -120,7 +120,7 @@
           'conditions' : [
               ## Mac
               [ 'OS == "mac"', {
-                'cflags': [
+                'cflags_mozilla': [
                     '-Werror',
                     '-Wall',
                     '-Wno-parentheses',

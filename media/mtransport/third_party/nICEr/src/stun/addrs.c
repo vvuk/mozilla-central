@@ -114,6 +114,9 @@ static void stun_rt_xaddrs(caddr_t, caddr_t, struct rt_addrinfo *);
 static int stun_grab_addrs(char *name, int addrcount,
                struct ifa_msghdr *ifam,
                nr_transport_addr addrs[], int maxaddrs, int *count);
+static int
+nr_stun_is_duplicate_addr(nr_transport_addr addrs[], int count, nr_transport_addr *addr);
+
 
 /*
  * Expand the compacted form of addresses as returned via the
@@ -144,7 +147,7 @@ static int
 stun_grab_addrs(char *name, int addrcount, struct ifa_msghdr *ifam, nr_transport_addr addrs[], int maxaddrs, int *count)
 {
     int r,_status;
-    NR_SOCKET s = -1;
+    int s = -1;
     struct ifreq ifr;
     struct rt_addrinfo info;
     struct sockaddr_in *sin;
@@ -188,7 +191,6 @@ stun_grab_addrs(char *name, int addrcount, struct ifa_msghdr *ifam, nr_transport
 
         ifam = (struct ifa_msghdr *)((char *)ifam + ifam->ifam_msglen);
     }
-
 
     _status = 0;
   abort:
@@ -612,7 +614,7 @@ stun_get_siocgifconf_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
 }
 #endif
 
-int
+static int
 nr_stun_is_duplicate_addr(nr_transport_addr addrs[], int count, nr_transport_addr *addr)
 {
     int i;

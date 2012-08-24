@@ -63,10 +63,10 @@ static char *RCSSTRING __UNUSED__="$Id: ice_candidate.c,v 1.2 2008/04/28 17:59:0
 
 static int nr_ice_get_foundation(nr_ice_ctx *ctx,nr_ice_candidate *cand);
 static int nr_ice_srvrflx_start_stun(nr_ice_candidate *cand, NR_async_cb ready_cb, void *cb_arg);
-static void nr_ice_srvrflx_stun_finished_cb(int sock, int how, void *cb_arg);
+static void nr_ice_srvrflx_stun_finished_cb(NR_SOCKET sock, int how, void *cb_arg);
 #ifdef USE_TURN
 static int nr_ice_start_relay_turn(nr_ice_candidate *cand, NR_async_cb ready_cb, void *cb_arg);
-static void nr_ice_turn_allocated_cb(int sock, int how, void *cb_arg);
+static void nr_ice_turn_allocated_cb(NR_SOCKET sock, int how, void *cb_arg);
 #endif /* USE_TURN */
 
 char *nr_ice_candidate_type_names[]={0,"host","srflx","prflx","relay",0};
@@ -196,7 +196,7 @@ int nr_ice_candidate_destroy(nr_ice_candidate **candp)
     return(0);
   }
 
-void nr_ice_candidate_destroy_cb(int s, int h, void *cb_arg)
+void nr_ice_candidate_destroy_cb(NR_SOCKET s, int h, void *cb_arg)
   {
     nr_ice_candidate *cand=cb_arg;
     nr_ice_candidate_destroy(&cand);
@@ -341,7 +341,7 @@ int nr_ice_candidate_initialize(nr_ice_candidate *cand, NR_async_cb ready_cb, vo
     return(_status);
   }
 
-static void nr_ice_srvrflx_start_stun_timer_cb(int s, int how, void *cb_arg)
+static void nr_ice_srvrflx_start_stun_timer_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_candidate *cand=cb_arg;
     int r,_status;
@@ -395,7 +395,7 @@ static int nr_ice_srvrflx_start_stun(nr_ice_candidate *cand, NR_async_cb ready_c
   }
 
 #ifdef USE_TURN
-static void nr_ice_start_relay_turn_timer_cb(int s, int how, void *cb_arg)
+static void nr_ice_start_relay_turn_timer_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_candidate *cand=cb_arg;
     int r,_status;
@@ -451,7 +451,7 @@ static int nr_ice_start_relay_turn(nr_ice_candidate *cand, NR_async_cb ready_cb,
   }
 #endif /* USE_TURN */
 
-static void nr_ice_srvrflx_stun_finished_cb(int sock, int how, void *cb_arg)
+static void nr_ice_srvrflx_stun_finished_cb(NR_SOCKET sock, int how, void *cb_arg)
   {
     int _status;
     nr_ice_candidate *cand=cb_arg;
@@ -489,7 +489,7 @@ static void nr_ice_srvrflx_stun_finished_cb(int sock, int how, void *cb_arg)
   }
 
 #ifdef USE_TURN
-static void nr_ice_turn_allocated_cb(int s, int how, void *cb_arg)
+static void nr_ice_turn_allocated_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     int r,_status;
     nr_ice_candidate *cand=cb_arg;

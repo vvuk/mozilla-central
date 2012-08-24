@@ -44,7 +44,7 @@ static char *RCSSTRING __UNUSED__="$Id: ice_candidate_pair.c,v 1.2 2008/04/28 17
 
 static char *nr_ice_cand_pair_states[]={"UNKNOWN","FROZEN","WAITING","IN_PROGRESS","FAILED","SUCCEEDED","CANCELLED"};
 
-static void nr_ice_candidate_pair_restart_stun_controlled_cb(int s, int how, void *cb_arg);
+static void nr_ice_candidate_pair_restart_stun_controlled_cb(NR_SOCKET s, int how, void *cb_arg);
 static void nr_ice_candidate_pair_compute_codeword(nr_ice_cand_pair *pair,
   nr_ice_candidate *lcand, nr_ice_candidate *rcand);
 
@@ -185,7 +185,7 @@ int nr_ice_candidate_pair_unfreeze(nr_ice_peer_ctx *pctx, nr_ice_cand_pair *pair
     return(0);
   }
 
-static void nr_ice_candidate_pair_stun_cb(int s, int how, void *cb_arg)
+static void nr_ice_candidate_pair_stun_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     int r,_status;
     nr_ice_cand_pair *pair=cb_arg,*orig_pair;
@@ -527,7 +527,7 @@ int nr_ice_candidate_pair_insert(nr_ice_cand_pair_head *head,nr_ice_cand_pair *p
     return(0);
   }
 
-void nr_ice_candidate_pair_restart_stun_nominated_cb(int s, int how, void *cb_arg)
+void nr_ice_candidate_pair_restart_stun_nominated_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_cand_pair *pair=cb_arg;
     int r,_status;
@@ -548,7 +548,7 @@ void nr_ice_candidate_pair_restart_stun_nominated_cb(int s, int how, void *cb_ar
     return;
   }
 
-static void nr_ice_candidate_pair_restart_stun_controlled_cb(int s, int how, void *cb_arg)
+static void nr_ice_candidate_pair_restart_stun_controlled_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_cand_pair *pair=cb_arg;
     int r,_status;

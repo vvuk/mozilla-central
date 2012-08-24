@@ -757,7 +757,7 @@ int nr_ice_component_select_pair(nr_ice_peer_ctx *pctx, nr_ice_component *comp)
   }
 
 
-static void nr_ice_component_keepalive_cb(int s, int how, void *cb_arg)
+static void nr_ice_component_keepalive_cb(NR_SOCKET s, int how, void *cb_arg)
   {
     nr_ice_component *comp=cb_arg;
     UINT4 keepalive_timeout;
