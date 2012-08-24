@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "plstr.h"
 #include "cpr_types.h"
 #include "cpr_time.h"
 #include "cpr_stdio.h"
@@ -3683,14 +3684,14 @@ sipSPICheckContentHeaders (sipMessage_t *msg)
             return (SIP_SERV_ERR_INTERNAL);
         }
 
-        ptr = cpr_strtok(accepted_enc_str_dup, ", ", &lasts);
+        ptr = PL_strtok_r(accepted_enc_str_dup, ", ", &lasts);
 
         while (ptr) {
             if (strcmp(ptr, SIP_CONTENT_ENCODING_IDENTITY) == 0) {
                 found = TRUE;
                 break;
             }
-            ptr = cpr_strtok(NULL, ", ", &lasts);
+            ptr = PL_strtok_r(NULL, ", ", &lasts);
         }
 
         cpr_free(accepted_enc_str_dup);

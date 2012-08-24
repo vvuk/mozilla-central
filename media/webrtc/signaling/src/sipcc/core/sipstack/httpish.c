@@ -42,6 +42,7 @@
  *  code that converts from network(ie text) form to a usable structure
  *  and vice-versa.
  */
+#include "plstr.h"
 #include "cpr_types.h"
 #include "cpr_stdio.h"
 #include "cpr_stdlib.h"
@@ -292,6 +293,7 @@ httpish_msg_get_reqline (httpishMsg_t *msg)
     char *this_token;
     char *msgline;
     httpishReqLine_t *hreq = NULL;
+    char *strtok_state;
 
     if (!msg || !msg->mesg_line || !(msgline = cpr_strdup(msg->mesg_line))) {
         return NULL;
@@ -303,7 +305,7 @@ httpish_msg_get_reqline (httpishMsg_t *msg)
         return NULL;
     }
 
-    this_token = strtok(msgline, " ");
+    this_token = PL_strtok_r(msgline, " ", &strtok_state);
 
     if (!this_token) {
         cpr_free(hreq);
@@ -313,7 +315,7 @@ httpish_msg_get_reqline (httpishMsg_t *msg)
 
     hreq->method = cpr_strdup(this_token);
 
-    this_token = strtok(NULL, " ");
+    this_token = PL_strtok_r(NULL, " ", &strtok_state);
 
     if (!this_token) {
         cpr_free(hreq->method);
@@ -324,7 +326,7 @@ httpish_msg_get_reqline (httpishMsg_t *msg)
 
     hreq->url = cpr_strdup(this_token);
 
-    this_token = strtok(NULL, " ");
+    this_token = PL_strtok_r(NULL, " ", &strtok_state);
 
     if (!this_token) {
         cpr_free(hreq->method);
@@ -346,6 +348,7 @@ httpish_msg_get_respline (httpishMsg_t *msg)
     char *this_token;
     char *msgline;
     httpishRespLine_t *hrsp = NULL;
+    char *strtok_state;
 
     if (!msg || !msg->mesg_line) {
         return NULL;
@@ -363,7 +366,7 @@ httpish_msg_get_respline (httpishMsg_t *msg)
         return NULL;
     }
 
-    this_token = strtok(msgline, " ");
+    this_token = PL_strtok_r(msgline, " ", &strtok_state);
 
     if (!this_token) {
         cpr_free(hrsp);
@@ -373,7 +376,7 @@ httpish_msg_get_respline (httpishMsg_t *msg)
 
     hrsp->version = cpr_strdup(this_token);
 
-    this_token = strtok(NULL, " ");
+    this_token = PL_strtok_r(NULL, " ", &strtok_state);
 
     if (!this_token) {
         cpr_free(hrsp->version);
@@ -384,7 +387,7 @@ httpish_msg_get_respline (httpishMsg_t *msg)
 
     hrsp->status_code = (uint16_t) atoi(this_token);
 
-    this_token = strtok(NULL, " ");
+    this_token = PL_strtok_r(NULL, " ", &strtok_state);
 
     /* reason phrase is optional */
     if (this_token) {

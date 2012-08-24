@@ -37,6 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "plstr.h"
 #include "sdp_os_defs.h"
 #include "sdp.h"
 #include "sdp_private.h"
@@ -460,6 +461,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
     u16          stereo = 0;
     u16          useinbandfec = 0;
     u16          cbr = 0;
+    char*        strtok_state;
 
     /* Find the payload type number. */
     attr_p->attr.fmtp.payload_num = (u16)sdp_getnextnumtok(ptr, &ptr, 
@@ -840,7 +842,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
 		}
 	    } 
 	    tok = tmp;
-	    tok++; temp=strtok(tok,",");
+	    tok++; temp=PL_strtok_r(tok, ",", &strtok_state);
 	    iter++;
             if (temp) {
 	       iter=1;
@@ -851,7 +853,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                      custom_y=atoi(temp);
 		  if (iter == 3) 
                      custom_mpi=atoi(temp);
-                  temp=strtok(NULL,",");
+                  temp=PL_strtok_r(NULL, ",", &strtok_state);
                }
             } 
             /* custom x,y and mpi values from tmp */
@@ -885,7 +887,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
 		}
 	    } 
 	    tok = tmp;
-	    tok++; temp=strtok(tok,":");
+	    tok++; temp=PL_strtok_r(tok, ":", &strtok_state);
             if (temp) {
 	       iter=1;
                /* get par width and par height for the aspect ratio */
@@ -894,7 +896,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                      par_width=atoi(temp);
 		  else 
                      par_height=atoi(temp);
-                  temp=strtok(NULL,",");
+                  temp=PL_strtok_r(NULL, ",", &strtok_state);
 		  iter++;
                }
 	    }
@@ -927,7 +929,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
 		}
 	    } 
 	    tok = tmp;
-	    tok++; temp=strtok(tok,".");
+	    tok++; temp=PL_strtok_r(tok, ".", &strtok_state);
             if ( temp != NULL  ) {
                 cpcf=atoi(temp);
             }
@@ -1621,7 +1623,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
             fmtp_p->annex_p_val_picture_resize = 0;
             fmtp_p->annex_p_val_warp = 0;
             tok = tmp;
-            tok++; temp=strtok(tok,",");
+            tok++; temp=PL_strtok_r(tok, ",", &strtok_state);
             if (temp) {
                 iter=1;
                 while (temp != NULL) {
@@ -1629,7 +1631,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                         fmtp_p->annex_p_val_picture_resize = atoi(temp);
                     if (iter == 2) 
                         fmtp_p->annex_p_val_warp = atoi(temp);
-                    temp=strtok(NULL,",");
+                    temp=PL_strtok_r(NULL, ",", &strtok_state);
                     iter++;
                 }
             }            
@@ -1841,7 +1843,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
     	    codec_info_found = TRUE;
 
         } else if (fmtp_ptr != NULL && *fmtp_ptr == '\n') { 
-            temp=strtok(tmp,";");
+            temp=PL_strtok_r(tmp, ";", &strtok_state);
             if (temp) {
                 if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
                     SDP_PRINT("%s Annexes are possibly there for this fmtp %s  tmp: %s line\n", 
@@ -1863,7 +1865,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                     if (strchr(temp, 'T') !=NULL) {
                         attr_p->attr.fmtp.annex_t = TRUE;
                     } 
-                    temp=strtok(NULL,";");
+                    temp=PL_strtok_r(NULL, ";", &strtok_state);
                 }
             } /* if (temp) */         
             done = TRUE;

@@ -57,6 +57,7 @@
 #include "platform_api.h"
 #include "vcm.h"
 #include "prlog.h"
+#include "plstr.h"
 
 //TODO Need to place this in a portable location
 #define MULTICAST_START_ADDRESS 0xe1000000
@@ -2423,6 +2424,7 @@ gsmsdp_update_local_sdp_for_multicast (fsmdef_dcb_t *dcb_p,
     char            addr_str[MAX_IPADDR_STR_LEN];
     uint16_t        level;
     char            *p_addr_str;
+    char            *strtok_state;
 
     level = media->level;
 
@@ -2474,7 +2476,7 @@ gsmsdp_update_local_sdp_for_multicast (fsmdef_dcb_t *dcb_p,
      * Set the ip addr to the multicast ip addr.
      */
     ipaddr2dotted(addr_str, &media->dest_addr);
-    p_addr_str = strtok(addr_str, "[ ]");
+    p_addr_str = PL_strtok_r(addr_str, "[ ]", &strtok_state);
 
     /*
      * Set the local SDP port number to match far ends port number.
@@ -4226,6 +4228,7 @@ gsmsdp_init_local_sdp (cc_sdp_t **sdp_pp)
     int             nat_enable = 0;
     char           *p_addr_str;
     cpr_ip_mode_e   ip_mode;
+    char           *strtok_state;
 
     if (!sdp_pp) {
         return CC_CAUSE_ERROR;
@@ -4249,7 +4252,7 @@ gsmsdp_init_local_sdp (cc_sdp_t **sdp_pp)
 
 	ipaddr2dotted(addr_str, &ipaddr);
 
-    p_addr_str = strtok(addr_str, "[ ]");
+    p_addr_str = PL_strtok_r(addr_str, "[ ]", &strtok_state);
 
     /*
      * Create the local sdp struct
@@ -5800,6 +5803,7 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
     char           *delim = " ";
     char            digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
     char            digest[FSMDEF_MAX_DIGEST_LEN];
+    char           *strtok_state;
 
     // First check for session level alg and key
     sdp_session_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, SDP_SESSION_LEVEL,
@@ -5821,11 +5825,11 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
         }
 
         if (SDP_SUCCESS == sdp_res || SDP_SUCCESS == sdp_session_res) {
-            if(NULL == (token = strtok(line_to_split, delim)))
+            if(NULL == (token = PL_strtok_r(line_to_split, delim, &strtok_state)))
                 return CC_CAUSE_ERROR;
 
             sstrncpy(digest_alg, token, FSMDEF_MAX_DIGEST_ALG_LEN);
-            if(NULL == (token = strtok(NULL, delim)))
+            if(NULL == (token = PL_strtok_r(NULL, delim, &strtok_state)))
             	return CC_CAUSE_ERROR;
 
             sstrncpy(digest, token, FSMDEF_MAX_DIGEST_LEN);

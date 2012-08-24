@@ -95,9 +95,6 @@ extern boolean Is794x;
 
 static void show_register_data(void);
 
-/* extern function for CCM clock handler */
-extern void SipNtpUpdateClockFromCCM(void);
-
 #define SIP_REG_TMR_EXPIRE_TICKS 55000 /* msec; re-registration timer */
 #define REGISTER_CMD "register"
 #define SIP_REG_TMR_ACK_TICKS    32000 /* msec; supervision timer equivalent to Timer F */
@@ -810,9 +807,10 @@ ccsip_handle_ev_2xx (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
         // call ntp set time handler (TNP/cnu specific; stub for legacy)
         // do not call the handler if 2xx is from StdBy CCM
-        if (ccb->index != REG_BACKUP_CCB) {
-            SipNtpUpdateClockFromCCM();
-        }
+        // We do not need to set the time when in the browser
+        //if (ccb->index != REG_BACKUP_CCB) {
+        //    SipNtpUpdateClockFromCCM();
+        //}
     }
 
     contact = sippmh_get_cached_header_val(response, CONTACT);

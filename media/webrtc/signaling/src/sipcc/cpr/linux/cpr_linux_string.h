@@ -43,8 +43,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define cpr_strtok(a,b,c) strtok_r(a,b,c)
-
 /**
  * cpr_strdup
  *

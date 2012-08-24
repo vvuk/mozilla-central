@@ -239,6 +239,7 @@ set_month_from_str (char *month_str)
  *
  * @return none
  */
+#if 0
 void
 SipNtpUpdateClockFromCCM (void)
 {
@@ -257,14 +258,7 @@ SipNtpUpdateClockFromCCM (void)
 
     if (ccsip_get_ccm_date(date_hdr_str) == TRUE) {
 
-        /* windows does not support strtok_r() but it is needed
-         * for CNU multi thread
-         */
-#ifndef _WIN32
-        curr_token = (char *) strtok_r(date_hdr_str, " ,:\t\r\n", &last);
-#else
-        curr_token = (char *) strtok(date_hdr_str, " ,:\t\r\n");
-#endif
+        curr_token = (char *) PL_strtok_r(date_hdr_str, " ,:\t\r\n", &last);
 
         while (curr_token) {
             token[count++] = curr_token;
@@ -272,15 +266,7 @@ SipNtpUpdateClockFromCCM (void)
                 break;
             }
 
-            /* windows does not support strtok_r() but it is needed
-             * for CNU multi thread
-             */
-#ifndef _WIN32
-            curr_token = (char *) strtok_r(NULL, " ,:\t\r\n", &last);
-#else
-            curr_token = (char *) strtok(NULL, " ,:\t\r\n");
-#endif
-
+            curr_token = (char *) PL_strtok_r(NULL, " ,:\t\r\n", &last);
         }
         /* we must have exactly 8 tokens and last token must be "GMT" */
         if ((count == 8) && (strcmp(token[7], "GMT") == 0)) {
@@ -329,6 +315,7 @@ SipNtpUpdateClockFromCCM (void)
         }
     }
 }
+#endif
 
 
 /*

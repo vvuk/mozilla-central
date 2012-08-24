@@ -48,8 +48,6 @@
 #define bzero(s, n) memset((s), 0, (n))
 #define bcopy(src, dst, len) memcpy(dst, src, len); /* XXX Wrong */
 
-#define cpr_strtok(a,b,c) strtok_s(a,b,c)
-
 int strncasecmp (const char *s1, const char *s2, size_t length);
 int strcasecmp (const char *s1, const char *s2);
 char *strdup (const char *input_str);

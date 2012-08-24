@@ -46,6 +46,8 @@
  * and these are parsed using wrapper functions to those in
  * httpish.c
  */
+ 
+#include "plstr.h"
 #include "cpr_types.h"
 #include "cpr_stdio.h"
 #include "cpr_stdlib.h"
@@ -422,7 +424,7 @@ url_add_headers_to_list (char *url_strp, sipUrl_t *sip_url)
 
     sip_url->num_headers = num_head;
     num_head = 0;
-    url_strp = cpr_strtok(url_strp, "&?", &lasts);  
+    url_strp = PL_strtok_r(url_strp, "&?", &lasts);  
     while ((url_strp != NULL) && (num_head < sip_url->num_headers)) {
 
         tmp_ptr = strchr(url_strp, EQUAL_SIGN);
@@ -435,7 +437,7 @@ url_add_headers_to_list (char *url_strp, sipUrl_t *sip_url)
         sip_url->headerp[(uint16_t)num_head].value = tmp_ptr;
 
         num_head++;
-        url_strp = cpr_strtok(NULL, "&", &lasts);
+        url_strp = PL_strtok_r(NULL, "&", &lasts);
     }
 
     return 0;
@@ -1544,7 +1546,7 @@ sippmh_parse_from_or_to (char *input_loc_ptr, boolean dup_flag)
         sipLoc->tag = NULL;
         if (*more_ptr == SEMI_COLON) {
             *more_ptr++ = 0;
-            more_ptr = cpr_strtok(more_ptr, ";", &lasts);
+            more_ptr = PL_strtok_r(more_ptr, ";", &lasts);
             /* if we had a ; without any addr-params */
             if (more_ptr == NULL) {
                 parse_errno = PARSE_ERR_UNEXPECTED_EOS;
@@ -1557,7 +1559,7 @@ sippmh_parse_from_or_to (char *input_loc_ptr, boolean dup_flag)
                         tag_found = TRUE;
                         parse_errno = validate_tag(sipLoc, more_ptr);
                     } else {
-                        more_ptr = cpr_strtok(NULL, ";", &lasts);
+                        more_ptr = PL_strtok_r(NULL, ";", &lasts);
                     }
                 }
             }
@@ -2521,7 +2523,7 @@ sippmh_parse_cseq (const char *cseq)
         sipCseq->method = sipMethodInvalid;
 
         if (mycseq) {
-            char *this_token = cpr_strtok(mycseq, " ", &lasts);
+            char *this_token = PL_strtok_r(mycseq, " ", &lasts);
 
             if (this_token) {
                 sipCseq->number = strtoul(this_token, NULL, 10);
@@ -2533,7 +2535,7 @@ sippmh_parse_cseq (const char *cseq)
                     return (NULL);
                 }
 
-                this_token = cpr_strtok(NULL, " ", &lasts);
+                this_token = PL_strtok_r(NULL, " ", &lasts);
                 if (this_token) {
                     sipCseq->method = sippmh_get_method_code(this_token);
                 }
@@ -2891,10 +2893,10 @@ sippmh_parse_referto_headers (char *refto_line, char **header_arr)
         return 0;
     }
 
-    tmpHead = cpr_strtok(refto_line, "?&", &lasts);
+    tmpHead = PL_strtok_r(refto_line, "?&", &lasts);
     while (tmpHead != NULL) {
         header_arr[headNum++] = tmpHead;
-        tmpHead = cpr_strtok(NULL, "?&", &lasts);
+        tmpHead = PL_strtok_r(NULL, "?&", &lasts);
     }
     return headNum;
 }
@@ -3250,7 +3252,7 @@ sippmh_parse_replaces (char *input_repl, boolean dup_flag)
     }
 
 
-    this_tok = cpr_strtok(input_repl, ";", &lasts);
+    this_tok = PL_strtok_r(input_repl, ";", &lasts);
     while (this_tok != NULL) {
         if (strncasecmp(this_tok, TO_TAG, 6) == 0) {
             if (repcs->toTag != NULL) {
@@ -3308,7 +3310,7 @@ sippmh_parse_replaces (char *input_repl, boolean dup_flag)
             sippmh_free_replaces(repcs);
             return NULL;
         }
-        this_tok = cpr_strtok(NULL, ";", &lasts);
+        this_tok = PL_strtok_r(NULL, ";", &lasts);
     }
     /* check for errors */
     if ((repcs->callid == NULL) ||
@@ -4378,7 +4380,7 @@ sippmh_parse_user (char *url_main)
      * An assumption has been made that any parameters will come
      * after the number. i.e.: "15726;param=paramval"
      */
-    (void) cpr_strtok(user, ";", &lasts);
+    (void) PL_strtok_r(user, ";", &lasts);
     return (user);
 }
 
@@ -4698,7 +4700,7 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
     }
     unsupported_tokens = NULL; //no memory allocated yet
 
-    //need to keep own buffer since cpr_strtok is destructive
+    //need to keep own buffer since PL_strtok_r is destructive
     size = strlen(header) + 1;
     temp_header = (char *) cpr_malloc(size);
     if (temp_header == NULL) {
@@ -4708,7 +4710,7 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
     }
     sstrncpy(temp_header, header, size);
 
-    token = cpr_strtok(temp_header, delim, &lasts);
+    token = PL_strtok_r(temp_header, delim, &lasts);
     while (token != NULL) {
         bad_token = NULL;
 
@@ -4794,7 +4796,7 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
         }
 
         //get next token
-        token = cpr_strtok(NULL, delim, &lasts);
+        token = PL_strtok_r(NULL, delim, &lasts);
     }
     cpr_free(temp_header);
     return (tags);
