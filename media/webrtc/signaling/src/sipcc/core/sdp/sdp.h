@@ -889,6 +889,24 @@ extern sdp_result_e sdp_attr_set_fmtp_cif16  (void *sdp_ptr, u16 level,
 extern sdp_result_e sdp_attr_set_fmtp_maxbr  (void *sdp_ptr, u16 level, 
                                               u8 cap_num, u16 inst_num, 
                                               u16 maxbr);
+extern sdp_result_e sdp_attr_set_fmtp_max_average_bitrate (void *sdp_ptr, u16 level,
+                                                           u8 cap_num, u16 inst_num,
+                                                           u32 maxaveragebitrate);
+extern sdp_result_e sdp_attr_set_fmtp_usedtx (void *sdp_ptr, u16 level,
+                                              u8 cap_num, u16 inst_num,
+                                              tinybool usedtx);
+extern sdp_result_e sdp_attr_set_fmtp_stereo (void *sdp_ptr, u16 level,
+                                              u8 cap_num, u16 inst_num,
+                                              tinybool stereo);
+extern sdp_result_e sdp_attr_set_fmtp_useinbandfec (void *sdp_ptr, u16 level,
+                                                    u8 cap_num, u16 inst_num,
+                                                    tinybool useinbandfec);
+extern sdp_result_e sdp_attr_set_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
+                                                              u8 cap_num, u16 inst_num,
+                                                              const char *maxcodedaudiobandwidth);
+extern sdp_result_e sdp_attr_set_fmtp_cbr (void *sdp_ptr, u16 level,
+                                           u8 cap_num, u16 inst_num,
+                                           tinybool cbr);
 extern sdp_result_e sdp_attr_set_fmtp_custom (void *sdp_ptr, u16 level, 
                                               u8 cap_num, u16 inst_num, 
                                               u16 custom_x, u16 custom_y, 
@@ -1037,6 +1055,18 @@ extern int32 sdp_attr_get_fmtp_cif16 (void *sdp_ptr, u16 level,
                                       u8 cap_num, u16 inst_num);
 extern int32 sdp_attr_get_fmtp_maxbr (void *sdp_ptr, u16 level,
                                       u8 cap_num, u16 inst_num);
+extern sdp_result_e sdp_attr_get_fmtp_max_average_bitrate (void *sdp_ptr, u16 level,
+                                                           u8 cap_num, u16 inst_num, u32* val);
+extern sdp_result_e sdp_attr_get_fmtp_usedtx (void *sdp_ptr, u16 level,
+                                              u8 cap_num, u16 inst_num, tinybool* val);
+extern sdp_result_e sdp_attr_get_fmtp_stereo (void *sdp_ptr, u16 level,
+                                              u8 cap_num, u16 inst_num, tinybool* val);
+extern sdp_result_e sdp_attr_get_fmtp_useinbandfec (void *sdp_ptr, u16 level,
+                                                    u8 cap_num, u16 inst_num, tinybool* val);
+extern char* sdp_attr_get_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
+                                                             u8 cap_num, u16 inst_num);
+extern sdp_result_e sdp_attr_get_fmtp_cbr (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num, tinybool* val);
 extern int32 sdp_attr_get_fmtp_custom_x (void *sdp_ptr, u16 level,
                                          u8 cap_num, u16 inst_num);
 extern int32 sdp_attr_get_fmtp_custom_y (void *sdp_ptr, u16 level,

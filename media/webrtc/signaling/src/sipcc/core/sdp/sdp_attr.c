@@ -1713,7 +1713,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 tok = tmp;
     	    tok++;
     	    usedtx = atoi(tok);
-    	    if (usedtx < 0 || usedtx > 1) {
+    	    if (usedtx > 1) {
                     if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
                         SDP_WARN("%s Warning: Invalid usedtx specified for "
                                  "fmtp attribute.", sdp_p->debug_str);
@@ -1744,7 +1744,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 tok = tmp;
     	    tok++;
     	    stereo = atoi(tok);
-    	    if (stereo < 0 || stereo > 1) {
+    	    if (stereo > 1) {
                     if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
                         SDP_WARN("%s Warning: Invalid stereo specified for "
                                  "fmtp attribute.", sdp_p->debug_str);
@@ -1775,7 +1775,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 tok = tmp;
     	    tok++;
     	    useinbandfec = atoi(tok);
-    	    if (stereo < 0 || stereo > 1) {
+    	    if (useinbandfec > 1) {
                     if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
                         SDP_WARN("%s Warning: Invalid useinbandfec specified for "
                                  "fmtp attribute.", sdp_p->debug_str);
@@ -1827,7 +1827,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                 tok = tmp;
     	    tok++;
     	    cbr = atoi(tok);
-    	    if (stereo < 0 || stereo > 1) {
+    	    if (cbr > 1) {
                     if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
                         SDP_WARN("%s Warning: Invalid cbr specified for "
                                  "fmtp attribute.", sdp_p->debug_str);
@@ -2523,7 +2523,7 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
 	    }
 	 }
 
-     if (fmtp_p->usedtx >= 0 && fmtp_p->usedtx <= 1) {
+     if (fmtp_p->usedtx <= 1) {
 	    if (semicolon) {
                 *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";usedtx=%u",attr_p->attr.fmtp.usedtx);
                  semicolon = TRUE;
@@ -2533,7 +2533,7 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
 	    }
 	 }
 
-     if (fmtp_p->stereo >= 0 && fmtp_p->stereo <= 1) {
+     if (fmtp_p->stereo <= 1) {
 	    if (semicolon) {
                 *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";stereo=%u",attr_p->attr.fmtp.stereo);
                  semicolon = TRUE;
@@ -2543,7 +2543,7 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
 	    }
 	 }
 
-     if (fmtp_p->useinbandfec >= 0 && fmtp_p->useinbandfec <= 1) {
+     if (fmtp_p->useinbandfec <= 1) {
 	    if (semicolon) {
                 *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";useinbandfec=%u",attr_p->attr.fmtp.useinbandfec);
                  semicolon = TRUE;
@@ -2565,7 +2565,7 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
          }
      }
 
-     if (fmtp_p->cbr >= 0 && fmtp_p->cbr <= 1) {
+     if (fmtp_p->cbr <= 1) {
 	    if (semicolon) {
                 *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";cbr=%u",attr_p->attr.fmtp.cbr);
                  semicolon = TRUE;
