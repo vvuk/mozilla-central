@@ -6580,7 +6580,7 @@ sdp_result_e sdp_attr_set_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
  *              inst_num    The attribute instance number to check.
  * Returns:     maxcodedaudiobandwidth value.
  */
-const char* sdp_attr_get_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
+char* sdp_attr_get_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
                                           u8 cap_num, u16 inst_num)
 {
 
