@@ -200,7 +200,7 @@
               
               ## Linux
               [ 'OS == "linux"', {
-                'cflags': [
+                'cflags_mozilla': [
                     '-Werror',
                     '-Wall',
                     '-Wno-parentheses',
