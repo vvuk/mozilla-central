@@ -198,9 +198,8 @@
             'SECLIB_OPENSSL',
           ],
           
-          'cflags': [
-            '-fexceptions',
-            '-fno-common',
+          'cflags_mozilla': [
+            '-Werror',
           ],
         }],
         ['OS=="win"', {
@@ -213,7 +212,7 @@
             'SIPCC_BUILD'
           ],
           
-          'cflags': [
+          'cflags_mozilla': [
           ],
         }],
         ['OS=="mac"', {
@@ -225,9 +224,7 @@
             '_FORTIFY_SOURCE=2',
           ],
           
-          'cflags': [
-            '-fexceptions',
-            '-fno-common'
+          'cflags_mozilla': [
           ],
         }],
       ],
@@ -657,8 +654,8 @@
             'LINUX',
           ],
 
-          'cflags': [
-            '-g',
+          'cflags_mozilla': [
+            '-Werror',
           ],
         }],
         ['OS=="win"', {
@@ -720,7 +717,7 @@
             'GIPS_VER=3480',
           ],
           
-          'cflags': [
+          'cflags_mozilla': [
           ],
           
         }],
@@ -787,13 +784,7 @@
             'NO_NSPR_10_SUPPORT',
           ],
           
-          'cflags': [
-            '-g',
-            '-fexceptions',
-            '-fno-common',
-            '-isysroot', '/Developer/SDKs/MacOSX10.6.sdk',
-            '-mmacosx-version-min=10.5',
-            '-fast'
+          'cflags_mozilla': [
           ],
         }],
       ],

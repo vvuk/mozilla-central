@@ -194,6 +194,7 @@ int WebrtcAudioCodecSelector::init( webrtc::VoiceEngine* voeVoice, bool useLowBa
                 case AudioPayloadType_ILBC20:
                 case AudioPayloadType_ILBC30:
                 case AudioPayloadType_ISAC:
+                case AudioPayloadType_OPUS:
                   break;
                     
                 } // end of switch(csfPayload)
