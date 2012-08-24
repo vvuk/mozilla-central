@@ -64,7 +64,7 @@
 
   function start() {
     button.innerHTML = "Stop!";
-    button.onClick = stop;
+    button.onclick = stop;
 
     pc1 = new mozPeerConnection();
     pc2 = new mozPeerConnection();
@@ -100,7 +100,7 @@
     pc2.close();
 
     button.innerHTML = "Start!";
-    button.onClick = start;
+    button.onclick = start;
   }
 </script>
 

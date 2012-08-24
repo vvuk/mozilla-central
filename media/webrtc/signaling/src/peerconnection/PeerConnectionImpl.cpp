@@ -898,9 +898,11 @@ PeerConnectionImpl::GetIceState(PRUint32* state)
 NS_IMETHODIMP
 PeerConnectionImpl::Close()
 {
-  mCall->endCall();
+  if (mCall != NULL)
+    mCall->endCall();
 #ifdef MOZILLA_INTERNAL_API
-  mDataConnection->CloseAll();
+  if (mDataConnection != NULL)
+    mDataConnection->CloseAll();
 #endif
   // DataConnection will need to stay alive until all threads/runnables exit
   return NS_OK;

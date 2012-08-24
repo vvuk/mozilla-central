@@ -80,7 +80,7 @@
 
   function start() {
     button.innerHTML = "Stop!";
-    button.onClick = stop;
+    button.onclick = stop;
 
     pc1 = new mozPeerConnection();
     pc1.onRemoteStreamAdded = function(obj) {
@@ -112,7 +112,7 @@
     pc2.close();
 
     button.innerHTML = "Start!";
-    button.onClick = start;
+    button.onclick = start;
   }
 </script>
 
