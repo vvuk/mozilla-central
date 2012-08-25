@@ -251,8 +251,8 @@ function start() {
     }
     pc1.onConnection = function() {
       log("pc1 onConnection ");
-      dc1 = pc1.createDataChannel("This is pc1",
-            { type: 0});  //{type: 2, outOfOrderAllowed: true});
+      dc1 = pc1.createDataChannel("This is pc1",{}); // reliable (TCP-like)
+  //  dc1 = pc1.createDataChannel("This is pc1",{outOfOrderAllowed: true, maxRetransmitNum: 0}); // unreliable (UDP-like)
       log("pc1 created channel " + dc1 + " binarytype = " + dc1.binaryType);
       channel = dc1;
       channel.binaryType = "blob";

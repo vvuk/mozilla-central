@@ -59,10 +59,8 @@ struct rtcweb_datachannel_ack {
 
 /* channel_type values: */
 #define DATA_CHANNEL_RELIABLE                 0
-#define DATA_CHANNEL_RELIABLE_STREAM          1
-#define DATA_CHANNEL_UNRELIABLE               2
-#define DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT  3
-#define DATA_CHANNEL_PARTIAL_RELIABLE_TIMED   4
+#define DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT  1
+#define DATA_CHANNEL_PARTIAL_RELIABLE_TIMED   2
 
 /* flags values: */
 #define DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED 0x0001

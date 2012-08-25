@@ -28,10 +28,12 @@ interface RTCSessionDescription : nsISupports
   attribute string type;
 };
 
-/* Used to set the dimensions of a captured picture,
-   a preview stream, a video capture stream, etc. */
+/* If either maxRetransmitTime or maxRetransmitNum are set, it's
+   unreliable, else it's a reliable channel.  If both are set it's an
+   error.  outOfOrderAllowed can be used with any type of channel.  The
+   equivalent of UDP is { outOfOrderAllowed: true, maxRetransmitNum: 0 }.
+   The TCP equivalent is {}. */
 dictionary DataChannelInit {
-  unsigned short type;
   boolean outOfOrderAllowed;
   unsigned short maxRetransmitTime;
   unsigned short maxRetransmitNum;
@@ -41,13 +43,6 @@ dictionary DataChannelInit {
 [scriptable, uuid(94628e70-e96f-4170-871c-f993a49f065a)]
 interface nsIDOMRTCPeerConnection : nsISupports
 {
-  /* for 'type' in DataChannelInit dictionary */
-  const unsigned short DATACHANNEL_RELIABLE=0;
-  const unsigned short DATACHANNEL_RELIABLE_STREAM=1;
-  const unsigned short DATACHANNEL_UNRELIABLE=2;
-  const unsigned short DATACHANNEL_PARTIAL_RELIABLE_REXMIT=3;
-  const unsigned short DATACHANNEL_PARTIAL_RELIABLE_TIMED=4;
-
   void createOffer(in RTCPeerConnectionCallback successCallback,
     [optional] in RTCPeerConnectionCallback failureCallback,
     [optional] in jsval constraints);

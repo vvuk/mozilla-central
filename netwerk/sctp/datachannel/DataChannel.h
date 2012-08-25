@@ -107,10 +107,8 @@ public:
 
   typedef enum {
     RELIABLE=0,
-    RELIABLE_STREAM = 1,
-    UNRELIABLE = 2,
-    PARTIAL_RELIABLE_REXMIT = 3,
-    PARTIAL_RELIABLE_TIMED = 4
+    PARTIAL_RELIABLE_REXMIT = 1,
+    PARTIAL_RELIABLE_TIMED = 2
   } Type;
     
   DataChannel *Open(const nsACString& label,
@@ -295,7 +293,14 @@ public:
   // XXX I don't think we need SendBinaryStream()
 
   // Amount of data buffered to send
-  PRUint32 GetBufferedAmount() { return 0; /* XXX */ }
+  PRUint32 GetBufferedAmount()
+    {
+      PRUint32 buffered = 0;
+      for (PRUint32 i = 0; i < mBufferedData.Length(); i++) {
+        buffered += mBufferedData[i]->mLength;
+      }
+      return buffered;
+    }
 
   // Find out state
   PRUint16 GetReadyState() { return mState; }

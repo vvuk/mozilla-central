@@ -330,7 +330,20 @@ PeerConnection.prototype = {
 
     createDataChannel: function(label, dict) {
     dump("!!! " + this._uniqId + " : createDataChannel called\n");
-    let channel = this._pc.createDataChannel(label,dict.type,
+    if (dict.maxRetransmitTime != undefined &&
+	dict.maxRetransmitNum != undefined) {
+	// throw error
+    }
+    // must determine the type where we still know if entries are undefined
+    let type;
+    if (dict.maxRetransmitTime != undefined)
+	type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_TIMED;
+    else if  (dict.maxRetransmitNum != undefined)
+	type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_REXMIT;
+    else
+        type = Ci.IPeerConnection.DATACHANNEL_RELIABLE;
+
+    let channel = this._pc.createDataChannel(label,type,
 					     dict.outOfOrderAllowed,
 					     dict.maxRetransmitTime,
 					     dict.maxRetransmitNum);

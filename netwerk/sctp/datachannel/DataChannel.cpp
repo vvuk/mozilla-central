@@ -668,11 +668,9 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
   req->msg_type = DATA_CHANNEL_OPEN_REQUEST;
   switch (prPolicy) {
   case SCTP_PR_SCTP_NONE:
-    /* XXX: What about DATA_CHANNEL_RELIABLE_STREAM */
     req->channel_type = DATA_CHANNEL_RELIABLE;
     break;
   case SCTP_PR_SCTP_TTL:
-    /* XXX: What about DATA_CHANNEL_UNRELIABLE */
     req->channel_type = DATA_CHANNEL_PARTIAL_RELIABLE_TIMED;
     break;
   case SCTP_PR_SCTP_RTX:
@@ -848,15 +846,6 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
   switch (req->channel_type) {
     case DATA_CHANNEL_RELIABLE:
       prPolicy = SCTP_PR_SCTP_NONE;
-      break;
-#if 0
-    case DATA_CHANNEL_RELIABLE_STREAM:
-      prPolicy = SCTP_PR_SCTP_NONE;
-      break;
-#endif
-    case DATA_CHANNEL_UNRELIABLE:
-      prPolicy = SCTP_PR_SCTP_TTL;
-      NS_ASSERTION(ntohs(req->reliability_params),"UNRELIABLE DataChannels must have 0 TTL!");
       break;
     case DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT:
       prPolicy = SCTP_PR_SCTP_RTX;
@@ -1506,14 +1495,6 @@ DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder,
   switch (type) {
     case DATA_CHANNEL_RELIABLE:
       prPolicy = SCTP_PR_SCTP_NONE;
-      break;
-    case DATA_CHANNEL_RELIABLE_STREAM:
-      LOG(("Type RELIABLE_STREAM not supported yet"));
-      return NULL;
-    case DATA_CHANNEL_UNRELIABLE:
-      prPolicy = SCTP_PR_SCTP_TTL;
-      prValue  = 0;
-      // UNRELIABLE in-order is allowed
       break;
     case DATA_CHANNEL_PARTIAL_RELIABLE_REXMIT:
       prPolicy = SCTP_PR_SCTP_RTX;
