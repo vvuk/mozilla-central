@@ -2673,7 +2673,7 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in6));
 	dst.sin6_family = AF_INET6;
 	dst.sin6_addr = ip6->ip6_dst;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 	dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 

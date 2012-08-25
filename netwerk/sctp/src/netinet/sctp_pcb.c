@@ -2276,7 +2276,7 @@ sctp_findassociation_special_addr(struct mbuf *m, int offset,
 #endif
 #ifdef INET6
 	memset(&sin6, 0, sizeof(sin6));
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 	sin6.sin6_len = sizeof(sin6);
 #endif
 	sin6.sin6_family = AF_INET6;
@@ -2575,7 +2575,7 @@ sctp_findassociation_ep_asconf(struct mbuf *m, int offset,
 		}
 		sin6 = (struct sockaddr_in6 *)&remote_store;
 		sin6->sin6_family = AF_INET6;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 		sin6->sin6_len = sizeof(*sin6);
 #endif
 		sin6->sin6_port = sh->src_port;
@@ -4367,7 +4367,7 @@ sctp_add_remote_addr(struct sctp_tcb *stcb, struct sockaddr *newaddr,
 			return (-1);
 		}
 		/* assure len is set */
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 		sin6->sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		if (set_scope) {
@@ -6938,7 +6938,7 @@ sctp_load_addresses_from_init(struct sctp_tcb *stcb, struct mbuf *m,
 #ifdef INET6
 	memset(&sin6, 0, sizeof(sin6));
 	sin6.sin6_family = AF_INET6;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 	sin6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 	sin6.sin6_port = stcb->rport;

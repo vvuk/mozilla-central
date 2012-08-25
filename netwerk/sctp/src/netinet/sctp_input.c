@@ -628,7 +628,7 @@ sctp_handle_heartbeat_ack(struct sctp_heartbeat_chunk *cp,
 		if (cp->heartbeat.hb_info.addr_len == sizeof(struct sockaddr_in6)) {
 			sin6 = (struct sockaddr_in6 *)&store;
 			sin6->sin6_family = cp->heartbeat.hb_info.addr_family;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 			sin6->sin6_len = cp->heartbeat.hb_info.addr_len;
 #endif
 			sin6->sin6_port = stcb->rport;
@@ -2342,7 +2342,7 @@ sctp_process_cookie_new(struct mbuf *m, int iphlen, int offset,
 		sin6 = (struct sockaddr_in6 *)initack_src;
 		memset(sin6, 0, sizeof(*sin6));
 		sin6->sin6_family = AF_INET6;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 		sin6->sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		sin6->sin6_scope_id = cookie->scope_id;
@@ -2685,7 +2685,7 @@ sctp_handle_cookie_echo(struct mbuf *m, int iphlen, int offset,
 	case SCTP_IPV6_ADDRESS:
 		memset(&sin6, 0, sizeof(sin6));
 		sin6.sin6_family = AF_INET6;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 		sin6.sin6_len = sizeof(sin6);
 #endif
 		sin6.sin6_port = sh->src_port;
