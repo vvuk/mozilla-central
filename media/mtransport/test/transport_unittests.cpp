@@ -104,7 +104,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
  public:
   TransportTestPeer(nsCOMPtr<nsIEventTarget> target, std::string name)
       : name_(name), target_(target),
-        received_(0), flow_(name),
+        received_(0), flow_(new TransportFlow(name)),
         loopback_(new TransportLayerLoopback()),
         logging_(new TransportLayerLogging()),
         lossy_(new TransportLayerLossy()),
@@ -132,9 +132,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   ~TransportTestPeer() {
-    loopback_->Disconnect();
+    test_utils.sts_target()->Dispatch(
+      WrapRunnable(this, &TransportTestPeer::DestroyFlow),
+      NS_DISPATCH_SYNC);
   }
 
+  void DestroyFlow() {
+    loopback_->Disconnect();
+    flow_ = NULL;
+  }
 
   void SetDtlsAllowAll() {
     nsresult res = dtls_->SetVerificationAllowAll();
@@ -164,12 +170,12 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
     loopback_->Connect(peer->loopback_);
 
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(loopback_));
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(logging_));
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(lossy_));
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(loopback_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(logging_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(lossy_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(dtls_));
 
-    flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+    flow_->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
   }
 
   void InitIce() {
@@ -197,12 +203,12 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ice_ = new TransportLayerIce(name, ice_ctx_, stream, 1);
 
     // Assemble the stack
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(ice_));
-    ASSERT_EQ((nsresult)NS_OK, flow_.PushLayer(dtls_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(ice_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(dtls_));
 
     // Listen for media events
-    flow_.SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
-    flow_.SignalStateChange.connect(this, &TransportTestPeer::StateChanged);
+    flow_->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
+    flow_->SignalStateChange.connect(this, &TransportTestPeer::StateChanged);
 
     // Start gathering
     test_utils.sts_target()->Dispatch(
@@ -260,7 +266,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   TransportResult SendPacket(const unsigned char* data, size_t len) {
-    return flow_.SendPacket(data, len);
+    return flow_->SendPacket(data, len);
   }
 
 
@@ -281,11 +287,11 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   bool connected() {
-    return flow_.state() == TransportLayer::OPEN;
+    return flow_->state() == TransportLayer::OPEN;
   }
 
   bool failed() {
-    return flow_.state() == TransportLayer::ERROR;
+    return flow_->state() == TransportLayer::ERROR;
   }
 
   size_t received() { return received_; }
@@ -294,7 +300,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   std::string name_;
   nsCOMPtr<nsIEventTarget> target_;
   size_t received_;
-  TransportFlow flow_;
+    mozilla::RefPtr<TransportFlow> flow_;
   TransportLayerLoopback *loopback_;
   TransportLayerLogging *logging_;
   TransportLayerLossy *lossy_;
