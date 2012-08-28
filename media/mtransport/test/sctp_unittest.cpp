@@ -117,6 +117,10 @@ class TransportTestPeer : public sigslot::has_slots<> {
         static_cast<void *>(flow_.get()) << std::endl;
     usrsctp_close(sctp_);
 
+    test_utils.sts_target()->Dispatch(WrapRunnable(this,
+                                                   &TransportTestPeer::DisconnectInt),
+                                      NS_DISPATCH_SYNC);
+
     std::cerr << "~TransportTestPeer() completed" << std::endl;
   }
 
@@ -140,9 +144,16 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_GE(0, r);
   }
 
+  void DisconnectInt() {
+    if (flow_) {
+      flow_ = NULL;
+    }
+  }
+
   void Disconnect() {
     loopback_->Disconnect();
   }
+
 
   void StartTransfer(size_t to_send) {
     periodic_ = new SendPeriodic(this, to_send);
