@@ -42,9 +42,9 @@ static char *RCSSTRING __UNUSED__="$Id: ice_parser.c,v 1.2 2008/04/28 17:59:01 e
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <strings.h>
 #endif
 #include <string.h>
-#include <strings.h>
 #include <assert.h>
 #include <ctype.h>
 #include "nr_api.h"

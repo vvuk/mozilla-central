@@ -48,11 +48,14 @@ static char *RCSSTRING __UNUSED__ ="$Id: r_log.c,v 1.10 2008/11/25 22:25:18 adam
 #include "hex.h"
 
 #include <string.h>
+#ifndef _MSC_VER
 #include <strings.h>
+#include <syslog.h>
+#endif
 #include <registry.h>
 #include <time.h>
 
-#include <syslog.h>
+
 #include "nr_common.h"
 #include "nr_reg_keys.h"
 

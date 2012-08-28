@@ -37,12 +37,12 @@ static char *RCSSTRING __UNUSED__="$Id: transport_addr_reg.c,v 1.2 2008/04/28 17
 #include <csi_platform.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
 #include <memory.h>
 #include <sys/types.h>
 #ifdef WIN32
 #include <winsock2.h>
 #else
+#include <strings.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

@@ -44,8 +44,8 @@
 
 #include <assert.h>
 #include <string.h>
+#ifndef _MSC_VER
 #include <strings.h>
-#ifndef WIN32
 #include <sys/param.h>
 #include <netinet/in.h>
 #endif

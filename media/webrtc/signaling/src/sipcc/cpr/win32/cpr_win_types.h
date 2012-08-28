@@ -113,6 +113,11 @@ typedef int ssize_t;
 #endif
 
 /*
+ * Define pid_t.
+ */
+typedef int pid_t;
+
+/*
  * Define min/max
  *    defined in windef.h as lowercase
  */
