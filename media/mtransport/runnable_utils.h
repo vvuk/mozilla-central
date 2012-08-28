@@ -18,4 +18,8 @@ class runnable_args_base : public nsRunnable {
 
 #include "runnable_utils_generated.h"
 
+// Temporary hack. Really we want to have a template which will do this
+#define RUN_ON_THREAD(t, r, h) ((t && (t != nsRefPtr<nsIThread>(do_GetCurrentThread()))) ? t->Dispatch(r, h) : r->Run())
+
 #endif
+                

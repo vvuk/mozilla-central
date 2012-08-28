@@ -571,6 +571,9 @@ nsresult MediaPipelineReceiveAudio::Init() {
 
 void MediaPipelineReceiveAudio::PipelineListener::
 NotifyPull(MediaStreamGraph* graph, StreamTime total) {
+  if (!pipeline_)
+    return;  // Detached
+
   mozilla::SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
 

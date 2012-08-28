@@ -20,6 +20,7 @@
 
 #include "nsNetCID.h"
 #include "nsIServiceManager.h"
+#include "nsServiceManagerUtils.h"
 #include "nsISocketTransportService.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
@@ -309,6 +310,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mIceCtx(NULL)
   , mIceState(kIceGathering)
   , mIdentity(NULL)
+  , mSTSTarget(NULL)
  {}
 
 PeerConnectionImpl::~PeerConnectionImpl()
@@ -456,6 +458,11 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
+
+   // Find the STS thread
+   mSTSTarget = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
+   if (!NS_SUCCEEDED(res))
+     return NS_ERROR_FAILURE;
 
   // Busy-wait until we are ready
   // TODO(ekr@rtfm.com): This needs to be fixed with deferred operation
@@ -916,8 +923,52 @@ PeerConnectionImpl::Close()
   if (mDataConnection != NULL)
     mDataConnection->CloseAll();
 #endif
+
+  ShutdownMedia();
+
   // DataConnection will need to stay alive until all threads/runnables exit
+
   return NS_OK;
+}
+
+ void
+ PeerConnectionImpl::ShutdownMedia()
+ {
+   CSFLogDebugS(logTag, __FUNCTION__ << " Disconnecting media streams from PC");
+   // Disconnect ourselves from the DOM Media Streams
+   RUN_ON_THREAD(mThread, WrapRunnable(this,
+       &PeerConnectionImpl::DisconnectMediaStreams), NS_DISPATCH_SYNC);
+
+   CSFLogDebugS(logTag, __FUNCTION__ << " Disconnecting transport");
+   // Shutdown the transport.
+   RUN_ON_THREAD(mSTSTarget, WrapRunnable(
+       this, &PeerConnectionImpl::ShutdownMediaTransport), NS_DISPATCH_SYNC);
+
+  CSFLogDebugS(logTag, __FUNCTION__ << " Media shut down");
+}
+
+void
+PeerConnectionImpl::DisconnectMediaStreams()
+{
+  // TODO(ekr@rtfm.com): Lock
+  for (PRUint32 i=0; i < mLocalSourceStreams.Length(); ++i) {
+    mLocalSourceStreams[i]->Detach();
+  }
+
+  for (PRUint32 i=0; i < mRemoteSourceStreams.Length(); ++i) {
+    mRemoteSourceStreams[i]->Detach();
+  }
+
+  mLocalSourceStreams.Clear();
+  mRemoteSourceStreams.Clear();
+}
+
+void
+PeerConnectionImpl::ShutdownMediaTransport() 
+{
+  mTransportFlows.clear();
+  mIceStreams.clear();
+  mIceCtx = NULL;
 }
 
 void

@@ -6,6 +6,7 @@
 #define _PEER_CONNECTION_IMPL_H_
 
 #include <string>
+#include <iostream>
 #include <vector>
 #include <map>
 #include <cmath>
@@ -165,7 +166,9 @@ class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
 public:
   LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
     : mMediaStream(aMediaStream) {}
-  ~LocalSourceStreamInfo() {}
+  ~LocalSourceStreamInfo() {
+    mMediaStream = NULL;
+  }
 
   /**
    * Notify that changes to one of the stream tracks have been queued.
@@ -193,6 +196,19 @@ public:
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
 
+  void Detach() {
+    // Disconnect my own listener
+    GetMediaStream()->GetStream()->RemoveListener(this);
+
+    // walk through all the MediaPipelines and disconnect them.
+    for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+         ++it) {
+      it->second->DetachMediaStream();
+    }
+    mMediaStream = NULL;
+  }
+
 private:
   std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   nsRefPtr<nsDOMMediaStream> mMediaStream;
@@ -208,6 +224,16 @@ class RemoteSourceStreamInfo {
 
   nsDOMMediaStream* GetMediaStream();
   void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
+
+  void Detach() {
+    // walk through all the MediaPipelines and disconnect them.
+    for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+         ++it) {
+      it->second->DetachMediaStream();
+    }
+    mMediaStream = NULL;
+  }
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo)
  private:
@@ -341,6 +367,16 @@ private:
   void CheckApiState() {
     PR_ASSERT(mIceState != kIceGathering);
   }
+  
+  // Shut down media. Called on any thread.
+  void ShutdownMedia();
+
+  // Disconnect the media streams. Must be called on the
+  // main thread.
+  void DisconnectMediaStreams();
+
+  // Shutdown media transport. Must be called on STS thread.
+  void ShutdownMediaTransport();
 
   // The role we are adopting
   Role mRole;
@@ -387,7 +423,9 @@ private:
   // The DTLS identity
   mozilla::RefPtr<DtlsIdentity> mIdentity;
 
-  nsCOMPtr<nsIEventTarget> mDTLSTarget;
+  // The target to run stuff on
+  nsCOMPtr<nsIEventTarget> mSTSTarget;
+
 #ifdef MOZILLA_INTERNAL_API
   // DataConnection that's used to get all the DataChannels
 	nsRefPtr<mozilla::DataChannelConnection> mDataConnection;

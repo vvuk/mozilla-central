@@ -7,6 +7,7 @@
 #ifndef mediapipeline_h__
 #define mediapipeline_h__
 
+#include <iostream>
 #include <talk/base/sigslot.h>
 
 #ifdef USE_FAKE_MEDIA_STREAMS
@@ -65,12 +66,15 @@ class MediaPipeline : public sigslot::has_slots<> {
   }
 
   virtual ~MediaPipeline() {
-    transport_->Detach();
+    if (transport_)
+      transport_->Detach();
   }
 
   virtual nsresult Init();
 
   virtual Direction direction() const { return direction_; }
+
+  virtual void DetachMediaStream() {}
 
   int rtp_packets_sent() const { return rtp_packets_sent_; }
   int rtcp_packets_sent() const { return rtp_packets_sent_; }
@@ -158,11 +162,20 @@ class MediaPipelineTransmit : public MediaPipeline {
   nsresult Init();
 
   virtual ~MediaPipelineTransmit() {
-    stream_->GetStream()->RemoveListener(listener_);
+    if (stream_ && listener_){
+      stream_->GetStream()->RemoveListener(listener_);
 
-    // These shouldn't be necessary, but just to make sure
-    // that if we have messed up ownership somehow the
-    // interfaces just abort.
+      // These shouldn't be necessary, but just to make sure
+      // that if we have messed up ownership somehow the
+      // interfaces just abort.
+      listener_->Detach();
+    }
+  }
+
+  virtual void DetachMediaStream() {
+    // TODO(ekr@rtfm.com): Are multiple removes a problem?
+    stream_->GetStream()->RemoveListener(listener_);
+    stream_ = NULL;
     listener_->Detach();
   }
 
@@ -237,7 +250,16 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
   }
 
   ~MediaPipelineReceiveAudio() {
+    if (stream_ && listener_) {
+      stream_->GetStream()->RemoveListener(listener_);
+      listener_->Detach();
+    }
+  }
+
+  virtual void DetachMediaStream() {
+    // TODO(ekr@rtfm.com): Are multiple removes a problem?
     stream_->GetStream()->RemoveListener(listener_);
+    stream_ = NULL;
     listener_->Detach();
   }
 
