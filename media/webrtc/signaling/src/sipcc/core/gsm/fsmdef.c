@@ -3522,6 +3522,7 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
     short               vcm_res;
     uint16_t            level;
 
+
     FSM_DEBUG_SM(DEB_F_PREFIX"Entered.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
 
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));

@@ -5748,6 +5748,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
         pwd = NULL;
 
       candidate_ct = 0;
+      candidates = NULL;
       result = gsmsdp_get_ice_attributes (SDP_ATTR_ICE_CANDIDATE, media->level, sdp_p->dest_sdp,
                                           &candidates, &candidate_ct);
       if(!result)

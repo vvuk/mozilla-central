@@ -3,6 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <iostream>
+#include <map>
 #include <string>
 
 using namespace std;
@@ -33,12 +34,6 @@ static int kDefaultTimeout = 5000;
 
 namespace test {
 
-static const std::string strSampleCandidate =
-  "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n";
-
-static const std::string strSampleMid = "";
-
-static const unsigned short nSamplelevel = 2;
 
 static const std::string strSampleSdpAudioVideoNoIce =
   "v=0\r\n"
@@ -64,6 +59,14 @@ static const std::string strSampleSdpAudioVideoNoIce =
   "a=sendrecv\r\n"
   "a=candidate:1 1 UDP 2130706431 192.168.2.3 50007 typ host\r\n"
   "a=candidate:2 2 UDP 2130706431 192.168.2.4 50008 typ host\r\n";
+
+
+static const std::string strSampleCandidate =
+  "a=candidate:1 1 UDP 2130706431 192.168.2.1 50005 typ host\r\n";
+
+static const std::string strSampleMid = "";
+
+static const unsigned short nSamplelevel = 2;
 
 class TestObserver : public IPeerConnectionObserver
 {
@@ -287,6 +290,56 @@ TestObserver::FoundIceCandidate(const char* strCandidate)
   return NS_OK;
 }
 
+class ParsedSDP {
+ public:
+  ParsedSDP(std::string sdp) :
+      sdp_(),
+      sdp_without_ice_(),
+      sdp_lines_(),
+      ice_candidates_(),
+      levels_(0)
+  {
+    sdp_ = sdp;
+
+    size_t prev = 0;
+    size_t found = 0;
+
+    for(;;) {
+      
+      found = sdp.find('\n', found + 1);
+      
+      if (found == string::npos)
+        break;
+
+      std::string line = sdp.substr(prev, (found - prev) + 1);
+      sdp_lines_.push_back(line);
+
+      if (line.find("a=candidate") == 0) {
+        // This is a candidate, strip of a= and \r\n
+        std::string cand = line.substr(2, line.size() - 4);
+        ice_candidates_.insert(std::pair<int, std::string>(levels_, cand));
+      }
+      else {
+        sdp_without_ice_ += line;
+      }
+
+      if (line.find("m=") == 0) {
+        // This is an m-line
+        ++levels_;
+      }
+      
+      prev = found + 1;
+    }
+  }
+
+  std::string sdp_;
+  std::string sdp_without_ice_;
+  std::vector<std::string> sdp_lines_;
+  std::multimap<int, std::string> ice_candidates_;
+  int levels_;
+};
+
+
 class SignalingAgent {
  public:
   SignalingAgent() {
@@ -389,7 +442,7 @@ class SignalingAgent {
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateError, kDefaultTimeout);
   }
 
-  void CreateAnswer(const char* offer, const char* hints) {
+  void CreateAnswer(const char* hints, std::string offer) {
     // Create a media stream as if it came from GUM
     nsRefPtr<nsDOMMediaStream> domMediaStream = new nsDOMMediaStream();
 
@@ -399,7 +452,7 @@ class SignalingAgent {
     pc->AddStream(domMediaStream);
 
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->CreateAnswer(hints, offer), NS_OK);
+    ASSERT_EQ(pc->CreateAnswer(hints, offer.c_str()), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
     SDPSanityCheck(pObserver->lastString, true, true, false);
     answer_ = pObserver->lastString;
@@ -430,17 +483,29 @@ class SignalingAgent {
     offer_ = pObserver->lastString;
   }
 
-  void SetRemote(TestObserver::Action action, char* remote) {
+  void SetRemote(TestObserver::Action action, std::string remote) {
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->SetRemoteDescription(action, remote), NS_OK);
+    ASSERT_EQ(pc->SetRemoteDescription(action, remote.c_str()), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
   }
 
-  void SetLocal(TestObserver::Action action, char* local) {
+  void SetLocal(TestObserver::Action action, std::string local) {
     pObserver->state = TestObserver::stateNoResponse;
-    ASSERT_EQ(pc->SetLocalDescription(action, local), NS_OK);
+    ASSERT_EQ(pc->SetLocalDescription(action, local.c_str()), NS_OK);
     ASSERT_TRUE_WAIT(pObserver->state == TestObserver::stateSuccess, kDefaultTimeout);
   }
+
+  void DoTrickleIce(ParsedSDP &sdp) {
+    for (std::multimap<int, std::string>::iterator it = sdp.ice_candidates_.begin();
+         it != sdp.ice_candidates_.end(); ++it) {
+      if ((*it).first != 0) {
+        std::cerr << "Adding trickle ICE candidate " << (*it).second << std::endl;
+        
+        ASSERT_TRUE(NS_SUCCEEDED(pc->AddIceCandidate((*it).second.c_str(), "", (*it).first)));
+      }
+    }
+  }
+  
 
   bool IceCompleted() {
     PRUint32 state;
@@ -465,7 +530,7 @@ class SignalingAgent {
       ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
     }
 
-    void CreateAnswer(const char* hints)
+  void CreateAnswer(const char* hints, )
     {
       std::string offer = strSampleSdpAudioVideoNoIce;
       std::string strHints(hints);
@@ -542,7 +607,7 @@ public:
     a1_.CreateOffer(hints, true, true);
     a1_.SetLocal(TestObserver::OFFER, a1_.offer());
   }
-
+  
   void OfferAnswer(const char* ahints, const char* bhints) {
     a1_.CreateOffer(ahints, true, true);
     a1_.SetLocal(TestObserver::OFFER, a1_.offer());
@@ -550,6 +615,22 @@ public:
     a2_.CreateAnswer(bhints, a1_.offer());
     a2_.SetLocal(TestObserver::ANSWER, a2_.answer());
     a1_.SetRemote(TestObserver::ANSWER, a2_.answer());
+    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
+    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
+  }
+
+  void OfferAnswerTrickle(const char* ahints, const char* bhints) {
+    a1_.CreateOffer(ahints, true, true);
+    a1_.SetLocal(TestObserver::OFFER, a1_.offer());
+    ParsedSDP a1_offer(a1_.offer());
+    a2_.SetRemote(TestObserver::OFFER, a1_offer.sdp_without_ice_);
+    a2_.CreateAnswer(bhints, a1_offer.sdp_without_ice_);
+    a2_.SetLocal(TestObserver::ANSWER, a2_.answer());
+    ParsedSDP a2_answer(a2_.answer());
+    a1_.SetRemote(TestObserver::ANSWER, a2_answer.sdp_without_ice_);
+    // Now set the trickle ICE candidates
+    a1_.DoTrickleIce(a2_answer);
+    a2_.DoTrickleIce(a1_offer);
     ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
     ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
   }
@@ -626,6 +707,15 @@ TEST_F(SignalingTest, FullCall)
   ASSERT_GE(a1_.GetPacketsSent(0), 40);
   //ASSERT_GE(a2_.GetPacketsSent(0), 40);
   //ASSERT_GE(a1_.GetPacketsReceived(0), 40);
+  ASSERT_GE(a2_.GetPacketsReceived(0), 40);
+}
+
+TEST_F(SignalingTest, FullCallTrickle)
+{
+  OfferAnswerTrickle("", "");
+  PR_Sleep(kDefaultTimeout * 2); // Wait for some data to get written
+
+  ASSERT_GE(a1_.GetPacketsSent(0), 40);
   ASSERT_GE(a2_.GetPacketsReceived(0), 40);
 }
 

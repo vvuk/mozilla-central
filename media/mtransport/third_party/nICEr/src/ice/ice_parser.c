@@ -319,12 +319,17 @@ nr_ice_peer_candidate_from_attribute(nr_ice_ctx *ctx,char *orig,nr_ice_media_str
 
     skip_whitespace(&str);
 
-    assert(strlen(str) == 0);
-
+    /* This used to be an assert, but we don't want to exit on invalid
+       remote data */
+    if (strlen(str) != 0) {
+      ABORT(R_BAD_DATA);
+    }
+      
     *candp=cand;
 
     _status=0;
   abort:
+    /* TODO(ekr@rtfm.com): Fix memory leak if we have a parse error */
     if (_status)
         r_log(LOG_ICE,LOG_WARNING,"ICE(%s): Error parsing attribute: %s",ctx->label,orig);
 

@@ -211,6 +211,8 @@ int nr_ice_peer_ctx_parse_trickle_candidate(nr_ice_peer_ctx *pctx, nr_ice_media_
     while(pstream) {
       if (pstream->local_stream == stream)
         break;
+      
+      pstream = STAILQ_NEXT(pstream, entry);
     }
     if (!pstream) {
       r_log(LOG_ICE,LOG_ERR,"ICE(%s): peer (%s) has no stream matching stream %s",pctx->ctx->label,pctx->label,stream->label);

@@ -784,6 +784,21 @@ short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, u
     return VCM_ERROR;
   }
 
+  CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);      
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
+  if (!stream.get())
+    return VCM_ERROR;
+
+  nsresult res;
+  pc->impl()->ice_ctx()->thread()->Dispatch(
+    WrapRunnableRet(stream, &NrIceMediaStream::ParseTrickleCandidate, icecandidate, &res),
+    NS_DISPATCH_SYNC);
+
+  if (!NS_SUCCEEDED(res)) {
+    CSFLogError( logTag, "%s(): Could not parse trickle candidate for stream %d", __FUNCTION__, level);
+    return VCM_ERROR;
+  }
+
   return 0;
 }
 

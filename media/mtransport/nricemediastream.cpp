@@ -121,6 +121,8 @@ nsresult NrIceMediaStream::ParseAttributes(std::vector<std::string>&
 nsresult NrIceMediaStream::ParseTrickleCandidate(const std::string& candidate) {
   int r;
 
+  MLOG(PR_LOG_DEBUG, "NrIceCtx(" << ctx_->name() << "): parsing trickle candidate " << candidate);
+  
   r = nr_ice_peer_ctx_parse_trickle_candidate(ctx_->peer(),
                                               stream_,
                                               const_cast<char *>(
