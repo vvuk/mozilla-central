@@ -42,9 +42,9 @@ enum TrickleMode { TRICKLE_NONE, TRICKLE_DEFERRED };
 class IceTestPeer : public sigslot::has_slots<> {
  public:
 
-  IceTestPeer(const std::string& name, bool offerer) :
+  IceTestPeer(const std::string& name, bool offerer, bool set_priorities) :
       name_(name),
-      ice_ctx_(NrIceCtx::Create(name, offerer)),
+      ice_ctx_(NrIceCtx::Create(name, offerer, set_priorities)),
       streams_(),
       candidates_(),
       gathering_complete_(false),
@@ -201,7 +201,7 @@ class IceTestPeer : public sigslot::has_slots<> {
 
 class IceTest : public ::testing::Test {
  public:
-  IceTest() : p1_("P1", true), p2_("P2", false) {}
+  IceTest() : initted_(false) {}
 
   void SetUp() {
     nsresult rv;
@@ -210,43 +210,54 @@ class IceTest : public ::testing::Test {
   }
 
   void AddStream(const std::string& name, int components) {
-    p1_.AddStream(components);
-    p2_.AddStream(components);
+    Init(false);
+    p1_->AddStream(components);
+    p2_->AddStream(components);
+  }
+
+  void Init(bool set_priorities) {
+    if (!initted_) {
+      p1_ = new IceTestPeer("P1", true, set_priorities);
+      p2_ = new IceTestPeer("P2", false, set_priorities);
+    }
+    initted_ = true;
   }
 
   bool Gather(bool wait) {
-    p1_.Gather();
-    p2_.Gather();
+    Init(false);
+    p1_->Gather();
+    p2_->Gather();
 
-    EXPECT_TRUE_WAIT(p1_.gathering_complete(), 10000);
-    if (!p1_.gathering_complete())
+    EXPECT_TRUE_WAIT(p1_->gathering_complete(), 10000);
+    if (!p1_->gathering_complete())
       return false;
-    EXPECT_TRUE_WAIT(p2_.gathering_complete(), 10000);
-    if (!p2_.gathering_complete())
+    EXPECT_TRUE_WAIT(p2_->gathering_complete(), 10000);
+    if (!p2_->gathering_complete())
       return false;
 
     return true;
   }
 
   void Connect(TrickleMode trickle_mode = TRICKLE_NONE) {
-    p1_.Connect(&p2_, trickle_mode);
-    p2_.Connect(&p1_, trickle_mode);
+    p1_->Connect(p2_, trickle_mode);
+    p2_->Connect(p1_, trickle_mode);
 
-    ASSERT_TRUE_WAIT(p1_.ready_ct() == 1 && p2_.ready_ct() == 1, 5000);
-    ASSERT_TRUE_WAIT(p1_.ice_complete() && p2_.ice_complete(), 5000);
+    ASSERT_TRUE_WAIT(p1_->ready_ct() == 1 && p2_->ready_ct() == 1, 5000);
+    ASSERT_TRUE_WAIT(p1_->ice_complete() && p2_->ice_complete(), 5000);
   }
 
   void SendReceive() {
-    //    p1_.Send(2);
-    p1_.SendPacket(0, 1, reinterpret_cast<const unsigned char *>("TEST"), 4);
-    ASSERT_EQ(1, p1_.sent());
-    ASSERT_TRUE_WAIT(p2_.received() == 1, 1000);
+    //    p1_->Send(2);
+    p1_->SendPacket(0, 1, reinterpret_cast<const unsigned char *>("TEST"), 4);
+    ASSERT_EQ(1, p1_->sent());
+    ASSERT_TRUE_WAIT(p2_->received() == 1, 1000);
   }
 
  protected:
+  bool initted_;
   nsCOMPtr<nsIEventTarget> target_;
-  IceTestPeer p1_;
-  IceTestPeer p2_;
+  mozilla::ScopedDeletePtr<IceTestPeer> p1_;
+  mozilla::ScopedDeletePtr<IceTestPeer> p2_;
 };
 
 }  // end namespace
@@ -257,8 +268,21 @@ TEST_F(IceTest, TestGather) {
   ASSERT_TRUE(Gather(true));
 }
 
+TEST_F(IceTest, TestGatherAutoPrioritize) {
+  Init(false);
+  AddStream("first", 1);
+  ASSERT_TRUE(Gather(true));
+}
+
 
 TEST_F(IceTest, TestConnect) {
+  AddStream("first", 1);
+  ASSERT_TRUE(Gather(true));
+  Connect();
+}
+
+TEST_F(IceTest, TestConnectAutoPrioritize) {
+  Init(false);
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
   Connect();

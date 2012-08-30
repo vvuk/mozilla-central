@@ -225,7 +225,8 @@ int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
 
 
 mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
-                                           bool offerer) {
+                                           bool offerer,
+                                           bool set_interface_priorities) {
   mozilla::RefPtr<NrIceCtx> ctx = new NrIceCtx(name, offerer);
 
   // Initialize the crypto callbacks
@@ -241,33 +242,33 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
     NR_reg_set_uchar((char *)"ice.pref.type.host",125);
     NR_reg_set_uchar((char *)"ice.pref.type.relayed",126);
 
-    // Interface preferences: TODO(ekr@rtfm.com); this doesn't
-    // scale to multiple addresses
-    NR_reg_set_uchar((char *)"ice.pref.interface.rl0", 255);
-    NR_reg_set_uchar((char *)"ice.pref.interface.wi0", 254);
-    NR_reg_set_uchar((char *)"ice.pref.interface.lo0", 253);
-    NR_reg_set_uchar((char *)"ice.pref.interface.en1", 252);
-    NR_reg_set_uchar((char *)"ice.pref.interface.en0", 251);
-    NR_reg_set_uchar((char *)"ice.pref.interface.eth0", 252);
-    NR_reg_set_uchar((char *)"ice.pref.interface.eth1", 251);
-    NR_reg_set_uchar((char *)"ice.pref.interface.eth2", 249);
-    NR_reg_set_uchar((char *)"ice.pref.interface.ppp", 250);
-    NR_reg_set_uchar((char *)"ice.pref.interface.ppp0", 249);
-    NR_reg_set_uchar((char *)"ice.pref.interface.en2", 248);
-    NR_reg_set_uchar((char *)"ice.pref.interface.en3", 247);
-    NR_reg_set_uchar((char *)"ice.pref.interface.em0", 251);
-    NR_reg_set_uchar((char *)"ice.pref.interface.em1", 252);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet0", 240);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet1", 241);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet3", 239);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet4", 238);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet5", 237);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet6", 236);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet7", 235);
-    NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
-    NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
-    NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
-
+    if (set_interface_priorities) {
+      NR_reg_set_uchar((char *)"ice.pref.interface.rl0", 255);
+      NR_reg_set_uchar((char *)"ice.pref.interface.wi0", 254);
+      NR_reg_set_uchar((char *)"ice.pref.interface.lo0", 253);
+      NR_reg_set_uchar((char *)"ice.pref.interface.en1", 252);
+      NR_reg_set_uchar((char *)"ice.pref.interface.en0", 251);
+      NR_reg_set_uchar((char *)"ice.pref.interface.eth0", 252);
+      NR_reg_set_uchar((char *)"ice.pref.interface.eth1", 251);
+      NR_reg_set_uchar((char *)"ice.pref.interface.eth2", 249);
+      NR_reg_set_uchar((char *)"ice.pref.interface.ppp", 250);
+      NR_reg_set_uchar((char *)"ice.pref.interface.ppp0", 249);
+      NR_reg_set_uchar((char *)"ice.pref.interface.en2", 248);
+      NR_reg_set_uchar((char *)"ice.pref.interface.en3", 247);
+      NR_reg_set_uchar((char *)"ice.pref.interface.em0", 251);
+      NR_reg_set_uchar((char *)"ice.pref.interface.em1", 252);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet0", 240);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet1", 241);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet3", 239);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet4", 238);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet5", 237);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet6", 236);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet7", 235);
+      NR_reg_set_uchar((char *)"ice.pref.interface.vmnet8", 234);
+      NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
+      NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
+    }
+    
     NR_reg_set_string((char *)"ice.stun.server.0.addr", (char *)"216.93.246.14");
     NR_reg_set_uint2((char *)"ice.stun.server.0.port",3478);
     NR_reg_set_uint4((char *)"stun.client.maximum_transmits",4);

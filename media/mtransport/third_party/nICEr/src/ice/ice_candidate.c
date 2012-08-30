@@ -61,6 +61,8 @@ static char *RCSSTRING __UNUSED__="$Id: ice_candidate.c,v 1.2 2008/04/28 17:59:0
 #include "ice_util.h"
 #include "nr_socket_turn.h"
 
+static int next_automatic_preference = 224;
+
 static int nr_ice_get_foundation(nr_ice_ctx *ctx,nr_ice_candidate *cand);
 static int nr_ice_srvrflx_start_stun(nr_ice_candidate *cand, NR_async_cb ready_cb, void *cb_arg);
 static void nr_ice_srvrflx_stun_finished_cb(NR_SOCKET sock, int how, void *cb_arg);
@@ -76,7 +78,7 @@ int nr_ice_candidate_create(nr_ice_ctx *ctx,char *label,nr_ice_component *comp,n
     nr_ice_candidate *cand=0;
     nr_ice_candidate *tmp=0;
     int r,_status;
- 
+
     if(!(cand=RCALLOC(sizeof(nr_ice_candidate))))
       ABORT(R_NO_MEMORY);
     if(!(cand->label=r_strdup(label)))
@@ -283,8 +285,24 @@ int nr_ice_candidate_compute_priority(nr_ice_candidate *cand)
 
       
     if(r=NR_reg_get2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,
-      &interface_preference))
-      ABORT(r);
+      &interface_preference)) {
+      if (r==R_NOT_FOUND) {
+        if (next_automatic_preference == 1) {
+          r_log(LOG_ICE,LOG_DEBUG,"Out of preference values. Can't assign one for interface %s",cand->base.ifname);
+          ABORT(R_NOT_FOUND);
+        }
+        r_log(LOG_ICE,LOG_DEBUG,"Automatically assigning preference for interface %s->%d",cand->base.ifname,
+          next_automatic_preference);
+        if (r=NR_reg_set2_uchar(NR_ICE_REG_PREF_INTERFACE_PRFX,cand->base.ifname,next_automatic_preference)){
+          ABORT(r);
+        }
+        interface_preference=next_automatic_preference;
+        next_automatic_preference--;
+      }
+      else {
+        ABORT(r);
+      }
+    }
 
     cand->priority=
       (type_preference << 24) |

@@ -81,7 +81,8 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   };
 
   static mozilla::RefPtr<NrIceCtx> Create(const std::string& name,
-                                          bool offerer);
+                                          bool offerer,
+                                          bool set_interface_priorities = true);
   virtual ~NrIceCtx();
 
   nr_ice_ctx *ctx() { return ctx_; }
