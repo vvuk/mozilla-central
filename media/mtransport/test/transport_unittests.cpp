@@ -146,20 +146,27 @@ class TransportTestPeer : public sigslot::has_slots<> {
     nsresult res = dtls_->SetVerificationAllowAll();
     ASSERT_TRUE(NS_SUCCEEDED(res));
   }
-  void SetDtlsPeer(TransportTestPeer *peer, bool damage) {
-    unsigned char fingerprint_to_set[TransportLayerDtls::kMaxDigestLength];
-    memcpy(fingerprint_to_set,
-           peer->fingerprint_,
-           peer->fingerprint_len_);
-    if (damage)
-      fingerprint_to_set[0]++;
+  void SetDtlsPeer(TransportTestPeer *peer, int digests, unsigned int damage) {
+    unsigned int mask = 1;
 
-    nsresult res = dtls_->SetVerificationDigest(
-        "sha-1",
-        fingerprint_to_set,
-        peer->fingerprint_len_);
+    for (int i=0; i<digests; i++) {
+      unsigned char fingerprint_to_set[TransportLayerDtls::kMaxDigestLength];
 
-    ASSERT_TRUE(NS_SUCCEEDED(res));
+      memcpy(fingerprint_to_set,
+             peer->fingerprint_,
+             peer->fingerprint_len_);
+      if (damage & mask)
+        fingerprint_to_set[0]++;
+
+      nsresult res = dtls_->SetVerificationDigest(
+          "sha-1",
+          fingerprint_to_set,
+          peer->fingerprint_len_);
+
+      ASSERT_TRUE(NS_SUCCEEDED(res));
+
+      mask <<= 1;
+    }
   }
 
 
@@ -342,9 +349,9 @@ class TransportTest : public ::testing::Test {
     p2_ = new TransportTestPeer(target_, "P2");
   }
 
-  void SetDtlsPeer(bool damage = false) {
-    p1_->SetDtlsPeer(p2_, damage);
-    p2_->SetDtlsPeer(p1_, damage);
+  void SetDtlsPeer(int digests = 1, unsigned int damage = 0) {
+    p1_->SetDtlsPeer(p2_, digests, damage);
+    p2_->SetDtlsPeer(p1_, digests, damage);
   }
 
   void SetDtlsAllowAll() {
@@ -416,7 +423,32 @@ TEST_F(TransportTest, TestConnectAllowAll) {
 }
 
 TEST_F(TransportTest, TestConnectBadDigest) {
-  SetDtlsPeer(true);
+  SetDtlsPeer(1, 1);
+
+  ConnectSocketExpectFail();
+}
+
+TEST_F(TransportTest, TestConnectTwoDigests) {
+  SetDtlsPeer(2, 0);
+
+  ConnectSocket();
+}
+
+TEST_F(TransportTest, TestConnectTwoDigestsFirstBad) {
+  SetDtlsPeer(2, 1);
+
+  ConnectSocketExpectFail();
+}
+
+TEST_F(TransportTest, TestConnectTwoDigestsSecondBad) {
+  SetDtlsPeer(2, 2);
+
+  ConnectSocketExpectFail();
+}
+
+TEST_F(TransportTest, TestConnectTwoDigestsBothBad) {
+  SetDtlsPeer(2, 3);
+
   ConnectSocketExpectFail();
 }
 

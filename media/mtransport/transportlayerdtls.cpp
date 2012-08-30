@@ -395,17 +395,18 @@ TransportLayerDtls::SetVerificationDigest(const std::string digest_algorithm,
                                           const unsigned char *digest_value,
                                           size_t digest_len) {
   // Defensive programming
-  if (verification_mode_ != VERIFY_UNSET)
+  if (verification_mode_ != VERIFY_UNSET &&
+    verification_mode_ != VERIFY_DIGEST)
     return NS_ERROR_ALREADY_INITIALIZED;
 
   // Note that we do not sanity check these values for length.
   // We merely ensure they will fit into the buffer.
   // TODO(ekr@rtfm.com): is there a Data construct we could use?
-  if (digest_len > sizeof(digest_value_))
+  if (digest_len > kMaxDigestLength)
     return NS_ERROR_INVALID_ARG;
-  memcpy(digest_value_, digest_value, digest_len);
-  digest_len_ = digest_len;
-  digest_algorithm_ = digest_algorithm;
+
+  digests_.push_back(new VerificationDigest(
+      digest_algorithm, digest_value, digest_len));
 
   verification_mode_ = VERIFY_DIGEST;
 
@@ -777,6 +778,41 @@ SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
   return stream->AuthCertificateHook(fd, checksig, isServer);
 }
 
+SECStatus TransportLayerDtls::CheckDigest(mozilla::RefPtr<VerificationDigest> digest,
+                                          CERTCertificate *peer_cert) {
+  unsigned char computed_digest[kMaxDigestLength];
+  size_t computed_digest_len;
+
+  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Checking digest, algorithm=" << digest->algorithm_);
+  nsresult res =
+      DtlsIdentity::ComputeFingerprint(peer_cert,
+                                       digest->algorithm_,
+                                       computed_digest,
+                                       sizeof(computed_digest),
+                                       &computed_digest_len);
+  if (!NS_SUCCEEDED(res)) {
+    MLOG(PR_LOG_ERROR, "Could not compute peer fingerprint for digest " <<
+         digest->algorithm_);
+    // Go to end
+    return SECFailure;
+  }
+
+  if (computed_digest_len != digest->len_) {
+    MLOG(PR_LOG_ERROR, "Digest is wrong length " << digest->len_ <<
+         " should be " << computed_digest_len << " for algorithm " <<
+         digest->algorithm_);
+    return SECFailure;
+  }
+
+  if (memcmp(digest->value_, computed_digest, computed_digest_len) != 0) {
+    MLOG(PR_LOG_ERROR, "Digest does not match");
+    return SECFailure;
+  }
+
+  return SECSuccess;
+}
+
+
 SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
                                                   PRBool checksig,
                                                   PRBool isServer) {
@@ -805,39 +841,23 @@ SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
       CERTCertificate *peer_cert =
           SSL_PeerCertificate(fd);
 
-      unsigned char computed_digest[kMaxDigestLength];
-      size_t computed_digest_len;
+      PR_ASSERT(digests_.size() != 0);
+      // Check all the provided digests
 
-      nsresult res =
-          DtlsIdentity::ComputeFingerprint(peer_cert,
-                                           digest_algorithm_,
-                                           computed_digest,
-                                           sizeof(computed_digest),
-                                           &computed_digest_len);
-      if (!NS_SUCCEEDED(res)) {
-        MLOG(PR_LOG_ERROR, "Could not compute peer fingerprint for digest " <<
-             digest_algorithm_);
-        // Go to end
-        break;
+      SECStatus res= SECFailure;
+      for (size_t i = 0; i < digests_.size(); i++) {
+        mozilla::RefPtr<VerificationDigest> digest = digests_[i];
+        res = CheckDigest(digest, peer_cert);
+
+        if (res != SECSuccess)
+          break;
       }
 
-      if (computed_digest_len != digest_len_) {
-        MLOG(PR_LOG_ERROR, "Digest is wrong length " << digest_len_ <<
-             " should be " << computed_digest_len << " for algorithm " <<
-             digest_algorithm_);
-        // Go to end
-        break;
+      if (res == SECSuccess) {
+        // Matches all digests, we are good to go
+        peer_cert_ = peer_cert;
+        return SECSuccess;
       }
-
-      if (memcmp(digest_value_, computed_digest, computed_digest_len) != 0) {
-        MLOG(PR_LOG_ERROR, "Digest does not match");
-        // Go to end
-        break;
-      }
-
-      // Matches, we are good to go
-      peer_cert_ = peer_cert;
-      return SECSuccess;
     }
   }
 

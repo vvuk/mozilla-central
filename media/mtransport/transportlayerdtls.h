@@ -44,7 +44,6 @@ class NSPRHelper {
   std::queue<Packet *> input_;
 };
 
-
 class TransportLayerDtls : public TransportLayer {
 public:
  TransportLayerDtls() :
@@ -52,9 +51,7 @@ public:
      identity_(NULL),
      role_(CLIENT),
      verification_mode_(VERIFY_UNSET),
-     digest_algorithm_(),
-     digest_len_(0),
-     digest_value_(),
+     digests_(),
      pr_fd_(NULL),
      ssl_fd_(NULL),
      helper_(NULL),
@@ -110,6 +107,29 @@ public:
 private:
   DISALLOW_COPY_ASSIGN(TransportLayerDtls);
 
+  // A single digest to check
+  class VerificationDigest {
+   public:
+    VerificationDigest(std::string algorithm,
+                       const unsigned char *value, size_t len) {
+      PR_ASSERT(len <= sizeof(value_));
+
+      algorithm_ = algorithm;
+      memcpy(value_, value, len);
+      len_ = len;
+    }
+
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VerificationDigest);
+
+    std::string algorithm_;
+    size_t len_;
+    unsigned char value_[kMaxDigestLength];
+
+   private:
+    DISALLOW_COPY_ASSIGN(VerificationDigest);
+  };
+
+
   bool Setup();
   void Handshake();
 
@@ -127,14 +147,15 @@ private:
 
   static void TimerCallback(nsITimer *timer, void *arg);
 
+  SECStatus CheckDigest(mozilla::RefPtr<VerificationDigest> digest,
+                        CERTCertificate *cert);
+
   mozilla::RefPtr<DtlsIdentity> identity_;
   std::vector<PRUint16> srtp_ciphers_;
 
   Role role_;
   Verification verification_mode_;
-  std::string digest_algorithm_;
-  size_t digest_len_;
-  unsigned char digest_value_[kMaxDigestLength];
+  std::vector<mozilla::RefPtr<VerificationDigest> > digests_;
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
