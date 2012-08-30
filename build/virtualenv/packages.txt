@@ -6,6 +6,8 @@ mozlog.pth:testing/mozbase/mozlog
 mozprocess.pth:testing/mozbase/mozprocess
 mozprofile.pth:testing/mozbase/mozprofile
 mozrunner.pth:testing/mozbase/mozrunner
+moztest.pth:testing/mozbase/moztest
+mozcrash.pth:testing/mozbase/mozcrash
 blessings.pth:python/blessings
 mozbuild.pth:python/mozbuild
 mozilla.pth:build
