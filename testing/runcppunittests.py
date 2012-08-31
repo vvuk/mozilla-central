@@ -4,6 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+from __future__ import with_statement
 import sys, optparse, os, tempfile, shutil
 import mozprocess, mozinfo, mozlog, mozcrash
 from contextlib import contextmanager
