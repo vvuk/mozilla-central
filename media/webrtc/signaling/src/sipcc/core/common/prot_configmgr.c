@@ -680,15 +680,15 @@ config_set_current_codec_table (int codec_mask, rtp_ptype *codecs)
 {
     int idx = 0;
 
+    if (codec_mask & VCM_CODEC_RESOURCE_OPUS) {
+        codecs[idx] = RTP_OPUS;
+        idx++;
+    }
+
     if (codec_mask & VCM_CODEC_RESOURCE_G711) {
         codecs[idx] = RTP_PCMU;
         idx++;
         codecs[idx] = RTP_PCMA;
-        idx++;
-    }
-
-    if (codec_mask & VCM_CODEC_RESOURCE_OPUS) {
-        codecs[idx] = RTP_OPUS;
         idx++;
     }
 

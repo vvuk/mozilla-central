@@ -576,11 +576,11 @@ private:
     if (shouldHaveAudio)
     {
     	if (offer)
-    		ASSERT_NE(sdp.find("a=rtpmap:109 opus/48000"), std::string::npos);
+    		ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
 
 
     	// after negotiation we are left with one codec
-    	ASSERT_NE(sdp.find("a=rtpmap:0 PCMU/8000"), std::string::npos);
+    	ASSERT_NE(sdp.find("a=rtpmap:109 opus/48000"), std::string::npos);
     }
 
     if (shouldHaveVideo)
