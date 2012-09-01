@@ -17,11 +17,6 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsISocketTransportService.h"
-#include "nsDirectoryServiceUtils.h"
-#include "nsDirectoryServiceDefs.h"
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
 
 #include "nsServiceManagerUtils.h"
 
@@ -43,23 +38,6 @@ class MtransportTestUtils {
     if (!NS_SUCCEEDED(rv))
       return false;
 
-#ifdef MOZ_CRASHREPORTER
-    //TODO: move this to an even-more-common location to use in all
-    // C++ unittests
-    crashreporter_ = do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-    if (crashreporter_) {
-      nsCOMPtr<nsIProperties> dirsvc =
-	do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
-      nsCOMPtr<nsIFile> cwd;
-      rv = dirsvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-		       NS_GET_IID(nsIFile),
-		       getter_AddRefs(cwd));
-      if (!NS_SUCCEEDED(rv))
-	return false;
-      crashreporter_->SetEnabled(true);
-      crashreporter_->SetMinidumpPath(cwd);
-    }
-#endif
     return true;
   }
 
@@ -70,9 +48,6 @@ class MtransportTestUtils {
   nsCOMPtr<nsIComponentManager> manager_;
   nsCOMPtr<nsIIOService> ioservice_;
   nsCOMPtr<nsIEventTarget> sts_target_;
-#ifdef MOZ_CRASHREPORTER
-  nsCOMPtr<nsICrashReporter> crashreporter_;
-#endif
 };
 
 
