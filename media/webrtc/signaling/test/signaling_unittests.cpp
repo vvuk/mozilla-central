@@ -696,6 +696,7 @@ TEST_F(SignalingTest, CreateOfferAddCandidate)
 TEST_F(SignalingTest, OfferAnswer)
 {
   OfferAnswer("", "");
+  PR_Sleep(kDefaultTimeout * 2); // Wait for completion
 }
 
 TEST_F(SignalingTest, FullCall)
