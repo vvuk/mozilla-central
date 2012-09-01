@@ -41,7 +41,8 @@ class MediaPipeline : public sigslot::has_slots<> {
   enum Direction { TRANSMIT, RECEIVE };
 
   MediaPipeline(Direction direction,
-                nsCOMPtr<nsIThread> main_thread,
+                nsCOMPtr<nsIEventTarget> main_thread,
+                nsCOMPtr<nsIEventTarget> sts_thread,
                 nsDOMMediaStream* stream,
                 RefPtr<MediaSessionConduit> conduit,
                 mozilla::RefPtr<TransportFlow> rtp_transport,
@@ -52,6 +53,7 @@ class MediaPipeline : public sigslot::has_slots<> {
       rtp_transport_(rtp_transport),
       rtcp_transport_(rtcp_transport),
       main_thread_(main_thread),
+      sts_thread_(sts_thread),
       transport_(new PipelineTransport(this)),
       rtp_send_srtp_(),
       rtcp_send_srtp_(),
@@ -66,8 +68,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   }
 
   virtual ~MediaPipeline() {
-    if (transport_)
-      transport_->Detach();
+    DetachTransport();
   }
 
   virtual nsresult Init();
@@ -75,6 +76,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   virtual Direction direction() const { return direction_; }
 
   virtual void DetachMediaStream() {}
+  virtual void DetachTransport();
 
   int rtp_packets_sent() const { return rtp_packets_sent_; }
   int rtcp_packets_sent() const { return rtp_packets_sent_; }
@@ -92,6 +94,7 @@ class MediaPipeline : public sigslot::has_slots<> {
     PipelineTransport(MediaPipeline *pipeline) :
         pipeline_(pipeline) {}
     void Detach() { pipeline_ = NULL; }
+    MediaPipeline *pipeline() const { return pipeline_; }
 
     virtual nsresult SendRtpPacket(const void* data, int len);
     virtual nsresult SendRtcpPacket(const void* data, int len);
@@ -126,8 +129,10 @@ class MediaPipeline : public sigslot::has_slots<> {
   RefPtr<MediaSessionConduit> conduit_;
   RefPtr<TransportFlow> rtp_transport_;
   RefPtr<TransportFlow> rtcp_transport_;
-  nsCOMPtr<nsIThread> main_thread_;
+  nsCOMPtr<nsIEventTarget> main_thread_;
+  nsCOMPtr<nsIEventTarget> sts_thread_;
   mozilla::RefPtr<PipelineTransport> transport_;
+  bool transport_connected_;
   mozilla::RefPtr<SrtpFlow> rtp_send_srtp_;
   mozilla::RefPtr<SrtpFlow> rtcp_send_srtp_;
   mozilla::RefPtr<SrtpFlow> rtp_recv_srtp_;
@@ -139,6 +144,8 @@ class MediaPipeline : public sigslot::has_slots<> {
   bool muxed_;
 
  private:
+  virtual void DetachTransportInt();
+
   bool IsRtp(const unsigned char *data, size_t len);
 };
 
@@ -147,12 +154,14 @@ class MediaPipeline : public sigslot::has_slots<> {
 // and transmitting to the network.
 class MediaPipelineTransmit : public MediaPipeline {
  public:
-  MediaPipelineTransmit(nsCOMPtr<nsIThread> main_thread,
+  MediaPipelineTransmit(nsCOMPtr<nsIEventTarget> main_thread,
+                        nsCOMPtr<nsIEventTarget> sts_thread,
                         nsDOMMediaStream* stream,
                         RefPtr<MediaSessionConduit> conduit,
                         mozilla::RefPtr<TransportFlow> rtp_transport,
                         mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipeline(TRANSMIT, main_thread, stream, conduit, rtp_transport,
+      MediaPipeline(TRANSMIT, main_thread, sts_thread,
+                    stream, conduit, rtp_transport,
                     rtcp_transport),
       listener_(new PipelineListener(this)) {
     Init();  // TODO(ekr@rtfm.com): ignoring error
@@ -215,12 +224,14 @@ class MediaPipelineTransmit : public MediaPipeline {
 // rendering video.
 class MediaPipelineReceive : public MediaPipeline {
  public:
-  MediaPipelineReceive(nsCOMPtr<nsIThread> main_thread,
+  MediaPipelineReceive(nsCOMPtr<nsIEventTarget> main_thread,
+                       nsCOMPtr<nsIEventTarget> sts_thread,
                        nsDOMMediaStream* stream,
                        RefPtr<MediaSessionConduit> conduit,
                        mozilla::RefPtr<TransportFlow> rtp_transport,
                        mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipeline(RECEIVE, main_thread, stream, conduit, rtp_transport,
+      MediaPipeline(RECEIVE, main_thread, sts_thread,
+                    stream, conduit, rtp_transport,
                     rtcp_transport),
       segments_added_(0) {
   }
@@ -238,12 +249,14 @@ class MediaPipelineReceive : public MediaPipeline {
 // rendering audio.
 class MediaPipelineReceiveAudio : public MediaPipelineReceive {
  public:
-  MediaPipelineReceiveAudio(nsCOMPtr<nsIThread> main_thread,
+  MediaPipelineReceiveAudio(nsCOMPtr<nsIEventTarget> main_thread,
+                            nsCOMPtr<nsIEventTarget> sts_thread,
                             nsDOMMediaStream* stream,
                             RefPtr<AudioSessionConduit> conduit,
                             mozilla::RefPtr<TransportFlow> rtp_transport,
                             mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipelineReceive(main_thread, stream, conduit, rtp_transport,
+      MediaPipelineReceive(main_thread, sts_thread,
+                           stream, conduit, rtp_transport,
                            rtcp_transport),
       listener_(new PipelineListener(this)) {
     Init();
@@ -292,17 +305,18 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
 };
 
 
-
 // A specialization of pipeline for reading from the network and
 // rendering video.
 class MediaPipelineReceiveVideo : public MediaPipelineReceive {
  public:
-  MediaPipelineReceiveVideo(nsCOMPtr<nsIThread> main_thread,
+  MediaPipelineReceiveVideo(nsCOMPtr<nsIEventTarget> main_thread,
+                            nsCOMPtr<nsIEventTarget> sts_thread,
                             nsDOMMediaStream* stream,
                             RefPtr<VideoSessionConduit> conduit,
                             mozilla::RefPtr<TransportFlow> rtp_transport,
                             mozilla::RefPtr<TransportFlow> rtcp_transport) :
-      MediaPipelineReceive(main_thread, stream, conduit, rtp_transport,
+      MediaPipelineReceive(main_thread, sts_thread,
+                           stream, conduit, rtp_transport,
                            rtcp_transport),
       renderer_(new PipelineRenderer(this)) {
     Init();

@@ -70,6 +70,16 @@ nsresult MediaPipeline::Init() {
   return NS_OK;
 }
 
+void MediaPipeline::DetachTransportInt() {
+  transport_->Detach();
+}
+
+void MediaPipeline::DetachTransport() {
+  RUN_ON_THREAD(sts_thread_,
+                WrapRunnable(this, &MediaPipeline::DetachTransportInt),
+                NS_DISPATCH_SYNC);
+}
+
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
   // TODO(ekr@rtfm.com): check for double changes. This shouldn't happen,
   // but...
@@ -257,6 +267,11 @@ void MediaPipeline::increment_rtcp_packets_received() {
 void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
                                       const unsigned char *data,
                                       size_t len) {
+  if (!transport_->pipeline()) {
+    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    return;
+  }
+
   // TODO(ekr@rtfm.com): filter for DTLS here and in RtcpPacketReceived
   // TODO(ekr@rtfm.com): filter on SSRC for bundle
   increment_rtp_packets_received();
@@ -285,6 +300,11 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
 void MediaPipeline::RtcpPacketReceived(TransportLayer *layer,
                                               const unsigned char *data,
                                               size_t len) {
+  if (!transport_->pipeline()) {
+    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    return;
+  }
+
   increment_rtcp_packets_received();
 
   PR_ASSERT(rtcp_recv_srtp_);  // This should never happen
@@ -318,6 +338,11 @@ bool MediaPipeline::IsRtp(const unsigned char *data, size_t len) {
 void MediaPipeline::PacketReceived(TransportLayer *layer,
                                    const unsigned char *data,
                                    size_t len) {
+  if (!transport_->pipeline()) {
+    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    return;
+  }
+
   if (IsRtp(data, len)) {
     RtpPacketReceived(layer, data, len);
   } else {

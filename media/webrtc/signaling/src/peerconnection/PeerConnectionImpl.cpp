@@ -310,7 +310,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mIceCtx(NULL)
   , mIceState(kIceGathering)
   , mIdentity(NULL)
-  , mSTSTarget(NULL)
+  , mSTSThread(NULL)
  {}
 
 PeerConnectionImpl::~PeerConnectionImpl()
@@ -460,7 +460,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
                                                          fingerprint_length);
 
    // Find the STS thread
-   mSTSTarget = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
+   mSTSThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
    if (!NS_SUCCEEDED(res))
      return NS_ERROR_FAILURE;
 
@@ -941,7 +941,7 @@ PeerConnectionImpl::Close()
 
    CSFLogDebugS(logTag, __FUNCTION__ << " Disconnecting transport");
    // Shutdown the transport.
-   RUN_ON_THREAD(mSTSTarget, WrapRunnable(
+   RUN_ON_THREAD(mSTSThread, WrapRunnable(
        this, &PeerConnectionImpl::ShutdownMediaTransport), NS_DISPATCH_SYNC);
 
   CSFLogDebugS(logTag, __FUNCTION__ << " Media shut down");

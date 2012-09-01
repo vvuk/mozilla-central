@@ -92,19 +92,28 @@ class TestAgent {
     ASSERT_TRUE(NS_SUCCEEDED(ret));
   }
 
+  void StopInt() {
+    audio_->GetStream()->Stop();
+    audio_flow_ = NULL;
+    video_flow_ = NULL;
+    audio_pipeline_ = NULL;
+    video_pipeline_ = NULL;
+  }
+
   void Stop() {
     nsresult ret;
 
     MLOG(PR_LOG_DEBUG, "Stopping");
 
     test_utils.sts_target()->Dispatch(
-        WrapRunnableRet(audio_->GetStream(),
-                        &Fake_MediaStream::Stop, &ret),
+        WrapRunnable(this, &TestAgent::StopInt),
         NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(ret));
 
+    
     PR_Sleep(1000); // Deal with race condition
   }
+
 
  protected:
   mozilla::RefPtr<TransportFlow> audio_flow_;
@@ -132,7 +141,9 @@ class TestAgentSend : public TestAgent {
         ConfigureSendMediaCodec(&audio_config_);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL, audio_, audio_conduit_, audio_flow_, NULL);
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL,
+      test_utils.sts_target(),
+      audio_, audio_conduit_, audio_flow_, NULL);
 
 //    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
@@ -164,6 +175,7 @@ class TestAgentReceive : public TestAgent {
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
     audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(NULL,
+      test_utils.sts_target(),
       audio_,
       static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
       audio_flow_, NULL);

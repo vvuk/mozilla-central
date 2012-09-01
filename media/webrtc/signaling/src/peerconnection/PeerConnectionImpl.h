@@ -356,6 +356,9 @@ public:
   // Get the main thread
   nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
 
+  // Get the STS thread
+  nsCOMPtr<nsIEventTarget> GetSTSThread() { return mSTSThread; }
+
   // Get the DTLS identity
   mozilla::RefPtr<DtlsIdentity> const GetIdentity() { return mIdentity; }
 
@@ -367,7 +370,7 @@ private:
   void CheckApiState() {
     PR_ASSERT(mIceState != kIceGathering);
   }
-  
+
   // Shut down media. Called on any thread.
   void ShutdownMedia();
 
@@ -424,7 +427,7 @@ private:
   mozilla::RefPtr<DtlsIdentity> mIdentity;
 
   // The target to run stuff on
-  nsCOMPtr<nsIEventTarget> mSTSTarget;
+  nsCOMPtr<nsIEventTarget> mSTSThread;
 
 #ifdef MOZILLA_INTERNAL_API
   // DataConnection that's used to get all the DataChannels

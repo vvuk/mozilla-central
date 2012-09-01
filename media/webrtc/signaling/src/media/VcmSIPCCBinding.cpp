@@ -1244,7 +1244,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,
       new mozilla::MediaPipelineReceiveAudio(
-        pc->impl()->GetMainThread(),
+        pc->impl()->GetMainThread().get(),
+        pc->impl()->GetSTSThread(),
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
   } else if (CC_IS_VIDEO(mcap_id)) {
@@ -1271,7 +1272,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id,
       new mozilla::MediaPipelineReceiveVideo(
-        pc->impl()->GetMainThread(),
+        pc->impl()->GetMainThread().get(),
+        pc->impl()->GetSTSThread(),
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
 
@@ -1775,7 +1777,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
 
     mozilla::RefPtr<mozilla::MediaPipelineTransmit> pipeline =
       new mozilla::MediaPipelineTransmit(
-        pc->impl()->GetMainThread(),
+        pc->impl()->GetMainThread().get(),
+        pc->impl()->GetSTSThread(),
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow);
 
@@ -1806,9 +1809,10 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
     // Create the pipeline
     mozilla::RefPtr<mozilla::MediaPipeline> pipeline =
         new mozilla::MediaPipelineTransmit(
-            pc->impl()->GetMainThread(),
-            stream->GetMediaStream(),
-            conduit, rtp_flow, rtcp_flow);
+          pc->impl()->GetMainThread().get(),
+          pc->impl()->GetSTSThread(),
+          stream->GetMediaStream(),
+          conduit, rtp_flow, rtcp_flow);
 
     CSFLogDebug(logTag, "Created video pipeline %p, conduit=%p, pc_stream=%d pc_track=%d",
                 pipeline.get(), conduit.get(), pc_stream_id, pc_track_id);

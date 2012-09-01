@@ -62,7 +62,7 @@ nsresult Fake_SourceMediaStream::Start() {
 nsresult Fake_SourceMediaStream::Stop() {
   if (mTimer)
     mTimer->Cancel();
-  
+  mPeriodic->Detach();
   return NS_OK;
 }
 
@@ -90,7 +90,7 @@ nsresult Fake_MediaStreamBase::Start() {
 
 nsresult Fake_MediaStreamBase::Stop() {
   mTimer->Cancel();
-  
+
   return NS_OK;
 }
 
