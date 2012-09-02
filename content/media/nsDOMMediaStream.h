@@ -53,7 +53,7 @@ public:
   /**
    * Create an nsDOMMediaStream whose underlying stream is a SourceMediaStream.
    */
-  static already_AddRefed<nsDOMMediaStream> CreateInputStream(PRUint32 aHintContents);
+  static already_AddRefed<nsDOMMediaStream> CreateInputStream(uint32_t aHintContents);
 
   // Hints to tell the SDP generator about whether this
   // MediaStream probably has audio and/or video
@@ -61,8 +61,8 @@ public:
     HINT_CONTENTS_AUDIO = 0x00000001U,
     HINT_CONTENTS_VIDEO = 0x00000002U
   };
-  PRUint32 GetHintContents() const { return mHintContents; }
-  void SetHintContents(PRUint32 aHintContents) { mHintContents = aHintContents; }
+  uint32_t GetHintContents() const { return mHintContents; }
+  void SetHintContents(uint32_t aHintContents) { mHintContents = aHintContents; }
 
   /**
    * Create an nsDOMMediaStream whose underlying stream is a TrackUnionStream.
@@ -79,7 +79,7 @@ protected:
 
   // tells the SDP generator about whether this
   // MediaStream probably has audio and/or video
-  PRUint32 mHintContents;
+  uint32_t mHintContents;
 };
 
 #endif /* NSDOMMEDIASTREAM_H_ */
