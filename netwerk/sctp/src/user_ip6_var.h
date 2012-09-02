@@ -91,14 +91,10 @@ struct ip6_hdr {
 #define s6_addr32 __u6_addr.__u6_addr32
 #else
 #define IPPROTO_DONE 257
-#ifndef __USER_CODE
-#ifndef _NETINET_IN_H
 struct in6_pktinfo {
 	struct in6_addr ipi6_addr;
 	int ipi6_ifindex;
 };
-#endif
-#endif
 #endif
 #else
 #define IPPROTO_DONE 257

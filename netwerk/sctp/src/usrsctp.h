@@ -38,39 +38,23 @@ extern "C" {
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
-/*  to make sure some OSs define in6_pktinfo */
-#define __USE_GNU
 #include <netinet/in.h>
-#undef __USE_GNU
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <ws2ipdef.h>
-#include <ws2def.h>
 #endif
-
-/* Mac OS/X Snow Leopard seems to not have this */
-#ifndef IPPROTO_SCTP
-#define IPPROTO_SCTP 132	/* the Official IANA number :-) */
-#endif				/* !IPPROTO_SCTP */
 
 #if !defined(MSG_NOTIFICATION)
 #define MSG_NOTIFICATION 0x2000         /* SCTP notification */
 #endif
 
 #if defined(__Userspace_os_Windows)
-#if defined(_MSC_VER) && _MSC_VER >= 1600
-#include <stdint.h>
-#elif defined(SCTP_STDINT_INCLUDE)
-#include SCTP_STDINT_INCLUDE
-#else
 #define uint8_t   unsigned __int8
 #define uint16_t  unsigned __int16
 #define uint32_t  unsigned __int32
 #define int16_t   __int16
 #define int32_t   __int32
-#endif
-
 #define ssize_t   __int64
 #define MSG_EOR   0x8
 #ifndef EWOULDBLOCK
@@ -940,7 +924,7 @@ void getwintimeofday(struct timeval *tv);
 #endif
 
 void
-usrsctp_conninput(void *, const void *, size_t, uint8_t);
+usrsctp_conninput(void *, void *, size_t, uint8_t);
 
 int
 usrsctp_set_non_blocking(struct socket *, int);
@@ -1021,7 +1005,6 @@ USRSCTP_SYSCTL_DECL(sctp_buffer_splitting)
 USRSCTP_SYSCTL_DECL(sctp_initial_cwnd)
 #ifdef SCTP_DEBUG
 USRSCTP_SYSCTL_DECL(sctp_debug_on)
-#include <netinet/sctp_constants.h>
 #endif
 #ifdef  __cplusplus
 }

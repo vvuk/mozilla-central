@@ -400,7 +400,8 @@ soisdisconnecting(struct socket *so)
         so->so_snd.sb_state |= SBS_CANTSENDMORE;
         sowwakeup_locked(so);
         wakeup("dummy",so);
-        // requires 2 args but this was in orig        wakeup(&so->so_timeo);
+        /* requires 2 args but this was in orig */
+        /* wakeup(&so->so_timeo); */
 }
 
 
@@ -2503,7 +2504,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in));
 	dst.sin_family = AF_INET;
 	dst.sin_addr.s_addr = ip->ip_dst.s_addr;
-#ifdef HAVE_SIN_LEN
+#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
 	dst.sin_len = sizeof(struct sockaddr_in);
 #endif
 	if (use_udp_tunneling) {
@@ -2566,14 +2567,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	win_msg_hdr.dwFlags = 0;
 
 	if ((!use_udp_tunneling) && (SCTP_BASE_VAR(userspace_rawsctp) > -1)) {
-#if (WINVER < 0x600) /* WinXP */
-    if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp), 
-                  (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags,
-                  win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0)
-#else
-		if (WSASendMsg(SCTP_BASE_VAR(userspace_rawsctp), &win_msg_hdr, 0, &win_sent_len, NULL, NULL) != 0)
-#endif
-    {
+		if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 
 			*result = WSAGetLastError();
 		} else if (win_sent_len != send_len) {
@@ -2581,14 +2575,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 		}
 	}
 	if ((use_udp_tunneling) && (SCTP_BASE_VAR(userspace_udpsctp) > -1)) {
-#if (WINVER < 0x600) /* WinXP */
-    if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp), 
-                  (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags,
-                  win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0)
-#else
-		if (WSASendMsg(SCTP_BASE_VAR(userspace_udpsctp), &win_msg_hdr, 0, &win_sent_len, NULL, NULL) != 0)
-#endif
-    {
+		if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
 		} else if (win_sent_len != send_len) {
 			*result = WSAGetLastError();
@@ -2673,7 +2660,7 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in6));
 	dst.sin6_family = AF_INET6;
 	dst.sin6_addr = ip6->ip6_dst;
-#ifdef HAVE_SIN6_LEN
+#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
 	dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 
@@ -2738,28 +2725,14 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	win_msg_hdr.dwFlags = 0;
 
 	if ((!use_udp_tunneling) && (SCTP_BASE_VAR(userspace_rawsctp6) > -1)) {
-#if (WINVER < 0x600) /* WinXP */
-    if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp), 
-                  (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags,
-                  win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0)
-#else
-		if (WSASendMsg(SCTP_BASE_VAR(userspace_rawsctp6), &win_msg_hdr, 0, &win_sent_len, NULL, NULL) != 0)
-#endif
-    {
+		if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp6), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
 		} else if (win_sent_len != send_len) {
 			*result = WSAGetLastError();
 		}
 	}
 	if ((use_udp_tunneling) && (SCTP_BASE_VAR(userspace_udpsctp6) > -1)) {
-#if (WINVER < 0x600) /* WinXP */
-    if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp6), 
-                  (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags,
-                  win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0)
-#else
-		if (WSASendMsg(SCTP_BASE_VAR(userspace_udpsctp6), &win_msg_hdr, 0, &win_sent_len, NULL, NULL) != 0)
-#endif
-    {
+		if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp6), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
 		} else if (win_sent_len != send_len) {
 			*result = WSAGetLastError();
