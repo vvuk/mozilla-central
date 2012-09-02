@@ -84,9 +84,17 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
   return log;
 }
 
+#ifndef NO_CHROMIUM_LOGGING
 #define LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
 #define LOG_IF(info, condition) \
   if (!(condition)) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
+#else
+#include <sstream>
+
+#define LOG(info) std::stringstream()
+#define LOG_IF(info, condition) if (!(condition)) std::stringstream()
+#endif
+
 
 #ifdef DEBUG
 #define DLOG(info) LOG(info)

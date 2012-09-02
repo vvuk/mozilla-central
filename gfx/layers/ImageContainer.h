@@ -696,6 +696,8 @@ public:
 
   PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
 
+  nsAutoArrayPtr<uint8_t> mBuffer; // XXX DO NOT LET THIS BE MERGED TO M-C!!!!!!!!!!!!!!!!!!!!!!
+
 protected:
   /**
    * Make a copy of the YCbCr data into local storage.
@@ -716,7 +718,6 @@ protected:
   void SetOffscreenFormat(gfxASurface::gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
   gfxASurface::gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
-  nsAutoArrayPtr<uint8_t> mBuffer;
   uint32_t mBufferSize;
   Data mData;
   gfxIntSize mSize;

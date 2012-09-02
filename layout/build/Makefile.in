@@ -281,3 +281,4 @@ endif #}
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/camera
 
 DEFINES += -D_IMPL_NS_LAYOUT
+

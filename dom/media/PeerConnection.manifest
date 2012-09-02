@@ -1,0 +1,3 @@
+component {7cb2b368-b1ce-4560-acac-8e0dbda7d3d0} PeerConnection.js
+contract @mozilla.org/dom/peerconnection;1 {7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}
+category JavaScript-global-constructor mozPeerConnection @mozilla.org/dom/peerconnection;1

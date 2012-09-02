@@ -89,6 +89,8 @@ __defineSetter__("PluralForm", function (val) {
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
                                   "resource://gre/modules/TelemetryStopwatch.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "SignInToBrowser",
+                                  "resource:///modules/SignInToBrowser.jsm");
 
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
@@ -2506,6 +2508,15 @@ function BrowserOnAboutPageLoad(document) {
              getService(Components.interfaces.nsISessionStore);
     if (!ss.canRestoreLastSession)
       document.getElementById("launcher").removeAttribute("session");
+
+    // Check SITB status
+    if (SignInToBrowser.signedIn) {
+      document.getElementById("signin").textContent = SignInToBrowser.userInfo.email;
+    }
+    else {
+      // TODO: we need to update the page when the user logs in
+    }
+
   }
 }
 
@@ -2745,6 +2756,15 @@ let BrowserOnClick = {
 
       case "settings":
         openPreferences();
+        break;
+
+      case "signin":
+        if (false && SignInToBrowser.signedIn) { // TODO: enable this later
+          openPreferences("paneSync");
+        }
+        else {
+          openUILinkIn("about:signin", "current");
+        }
         break;
     }
   },

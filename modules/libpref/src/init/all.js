@@ -173,7 +173,7 @@ pref("media.webm.enabled", true);
 pref("media.h264.enabled", true);
 #endif
 #ifdef MOZ_WEBRTC
-pref("media.navigator.enabled", false);
+pref("media.navigator.enabled", true);
 #else
 #ifdef ANDROID
 pref("media.navigator.enabled", true);
@@ -349,6 +349,7 @@ pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.
 pref("toolkit.telemetry.debugSlowSql", false);
 
 // Identity module
+pref("dom.identity.enabled", true);
 pref("toolkit.identity.debug", false);
 
 // Disable remote debugging protocol logging

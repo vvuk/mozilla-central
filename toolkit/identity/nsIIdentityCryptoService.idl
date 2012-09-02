@@ -38,19 +38,20 @@ interface nsIIdentitySignCallback;
  */
 
 // "@mozilla.org/identity/crypto-service;1"
-[scriptable, builtinclass, uuid(f087e6bc-dd33-4f6c-a106-dd786e052ee9)]
+[scriptable, builtinclass, uuid(65667cfc-283b-4f9c-afec-4a4034103c2c)]
 interface nsIIdentityCryptoService : nsISupports
 {
   void generateKeyPair(in AUTF8String algorithm,
                        in nsIIdentityKeyGenCallback callback);
 
   ACString base64UrlEncode(in AUTF8String toEncode);
+  ACString base64UrlDecode(in AUTF8String toDecode);
 };
 
 /**
  * This interface provides a keypair and signing interface for Identity functionality
  */
-[scriptable, uuid(73962dc7-8ee7-4346-a12b-b039e1d9b54d)]
+[scriptable, uuid(63c51007-2b90-4973-9537-e0ef106a01b3)]
 interface nsIIdentityKeyPair : nsISupports
 {
   readonly attribute AUTF8String keyType;
@@ -81,7 +82,7 @@ interface nsIIdentityKeyPair : nsISupports
  * though there is discussion as to whether we need the nsresult,
  * we keep it so we can track deeper crypto errors.
  */
-[scriptable, function, uuid(90f24ca2-2b05-4ca9-8aec-89d38e2f905a)]
+[scriptable, function, uuid(03490d50-537b-4c53-a45a-291940ee62be)]
 interface nsIIdentityKeyGenCallback : nsISupports
 {
   void generateKeyPairFinished(in nsresult rv,
@@ -92,7 +93,7 @@ interface nsIIdentityKeyGenCallback : nsISupports
  * This interface provides a JavaScript callback object used to collect the
  * AUTF8String signature
  */
-[scriptable, function, uuid(2d3e5036-374b-4b47-a430-1196b67b890f)]
+[scriptable, function, uuid(c4ca494d-816d-440d-b86b-cc067c37a71c)]
 interface nsIIdentitySignCallback : nsISupports
 {
   /** On success, base64urlSignature is the base-64-URL-encoded signature

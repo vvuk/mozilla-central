@@ -545,3 +545,7 @@ DOMCI_CLASS(FileRequest)
 DOMCI_CLASS(LockedFile)
 
 DOMCI_CLASS(MozActivity)
+
+#ifdef MOZ_WEBRTC
+DOMCI_CLASS(DataChannel)
+#endif

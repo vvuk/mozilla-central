@@ -1,0 +1,38 @@
+#include "domstubs.idl"
+
+interface nsIDOMEventListener;
+interface nsIVariant;
+
+[scriptable, builtinclass, uuid(fb7a8ec4-c1eb-4d9f-b927-fbb8b4493e6d)]
+interface nsIDOMDataChannel : nsISupports
+{
+  readonly attribute DOMString label;
+  readonly attribute boolean reliable;
+
+  const unsigned short CONNECTING = 0;
+  const unsigned short OPEN = 1;
+  const unsigned short CLOSING = 2;
+  const unsigned short CLOSED = 3;
+
+  readonly attribute unsigned short readyState;
+  readonly attribute unsigned long bufferedAmount;
+
+  [implicit_jscontext] attribute jsval onopen;
+  [implicit_jscontext] attribute jsval onerror;
+  [implicit_jscontext] attribute jsval onclose;
+  [implicit_jscontext] attribute jsval onmessage;
+
+  attribute DOMString binaryType;
+
+  void close();
+
+  /**
+   * Transmits data to other end of the connection.
+   * @param data The data to be transmitted.  Arraybuffers and Blobs are sent as
+   * binary data.  Strings are sent as UTF-8 text data.  Other types are
+   * converted to a String and sent as a String.
+   * @return if the connection is still established and the data was queued or
+   *         sent successfully.
+   */
+  [implicit_jscontext] void send(in nsIVariant data);
+};

@@ -1,0 +1,43 @@
+<html>
+<body>
+<h1>Simple Test</h1>
+<button onclick="start();">Start</button>
+<div id="log"></div>
+<script>
+  var pc1, pc2;
+  var pc1_offer, pc2_answer;
+
+  function step1(offer) {
+    pc1_offer = offer;
+    pc1.setLocalDescription(offer, step2, failed);
+    log("called setLocal on pc1");
+  }
+
+  function step2() {
+    pc2 = new mozPeerConnection();
+    pc2.setRemoteDescription(pc1_offer, step3, failed);
+    log("called setRemote on pc2");
+  }
+
+  function step3() {
+    //pc2.addStream(pc2.createFakeMediaStream("audio"));
+    log("booyah");
+  }
+
+  function start() {
+    pc1 = new mozPeerConnection();
+    pc1.addStream(pc1.createFakeMediaStream("audio"));
+    pc1.createOffer(step1, failed);
+    log("called createOffer");
+  }
+
+  function failed(e) {
+    log("failure callback: " + e);
+  }
+
+  function log(m) {
+    document.getElementById("log").innerHTML += "<p>" + m + "</p>";
+  }
+</script>
+</body>
+</html>

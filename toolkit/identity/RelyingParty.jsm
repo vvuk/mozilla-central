@@ -77,8 +77,6 @@ IdentityRelyingParty.prototype = {
    *                  - doReady()
    *                  - doLogin()
    *                  - doLogout()
-   *                  - doError()
-   *                  - doCancel()
    *
    */
   watch: function watch(aRpCaller) {
@@ -193,6 +191,12 @@ IdentityRelyingParty.prototype = {
     log("_notifyLoginStateChanged: rpId:", aRpCallerId, "identity:", aIdentity);
 
     let options = {rpId: aRpCallerId};
+
+    let rp = this._rpFlows[aRpCallerId];
+    if (rp.windowId) {
+      options.windowId = rp.windowId;
+    }
+
     Services.obs.notifyObservers({wrappedJSObject: options},
                                  "identity-login-state-changed",
                                  aIdentity);
@@ -215,6 +219,9 @@ IdentityRelyingParty.prototype = {
     // Notify UX to display identity picker.
     // Pass the doc id to UX so it can pass it back to us later.
     let options = {rpId: aRPId, origin: rp.origin};
+    if (rp.windowId) {
+      options.windowId = rp.windowId;
+    }
 
     // Append URLs after resolving
     let baseURI = Services.io.newURI(rp.origin, null, null);
@@ -303,7 +310,7 @@ IdentityRelyingParty.prototype = {
 
     let cert = this._store.fetchIdentity(email)['cert'];
     if (cert) {
-      this._generateAssertion(audience, email, function generatedAssertion(err, assertion) {
+      this._generateAssertion(audience, email, {}, function generatedAssertion(err, assertion) {
         if (err) {
           log("ERROR: _getAssertion:", err);
         }
@@ -311,6 +318,7 @@ IdentityRelyingParty.prototype = {
         return aCallback(err, assertion);
       });
     }
+    return aCallback("_getAssertion: No certificate for " + email);
   },
 
   /**
@@ -324,11 +332,15 @@ IdentityRelyingParty.prototype = {
    * @param aIdentity
    *        (string) the email we're logging in with
    *
+   * @param aExtraParams
+   *        (object) extra fields in the signed block that will contain
+   *                 the assertion (optional).
+   *
    * @param aCallback
    *        (function) callback to invoke on completion
    *                   with first-positional parameter the error.
    */
-  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aCallback) {
+  _generateAssertion: function _generateAssertion(aAudience, aIdentity, aExtraParams, aCallback) {
     log("_generateAssertion: audience:", aAudience, "identity:", aIdentity);
 
     let id = this._store.fetchIdentity(aIdentity);
@@ -348,7 +360,7 @@ IdentityRelyingParty.prototype = {
       return;
     }
 
-    jwcrypto.generateAssertion(id.cert, kp, aAudience, aCallback);
+    jwcrypto.generateAssertionWithExtraParams(id.cert, kp, aAudience, aExtraParams, aCallback);
   },
 
   /**

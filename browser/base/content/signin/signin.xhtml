@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE html [
+  <!ENTITY % htmlDTD
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "DTD/xhtml1-strict.dtd">
+  %htmlDTD;
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+  %globalDTD;
+  <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd" >
+  %browserDTD;
+]>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Sign In</title>
+
+    <link rel="icon" type="image/png" id="favicon"
+          href="chrome://branding/content/icon16.png" />
+    <link rel="stylesheet" type="text/css" media="all"
+          href="chrome://browser/content/signin/signin.css" />
+
+    <script type="text/javascript;version=1.8"
+            src="chrome://browser/content/signin/signin.js" />
+  </head>
+
+  <body dir="&locale.dir;" onload="onload()">
+    <div id="title">Sign into Firefox</div>
+    <form id="form" onsubmit="return false">
+      <div id="description">Sign into the browser using your <b>Mozilla Persona Account</b>. We'll use magic and stuff to make it all work. <a href="https://browserid.org/" target="browserid">Learn more.</a> A'ight.</div>
+      <div id="verify" hidden="true">Please click on the link in the email we just sent you to verify your email address and complete this process.</div>
+      <div id="emailField" class="field">
+        <label for="email">Email:</label>
+        <input id="email" type="email" required="true" list="accountList" autocomplete="off"/>
+        <datalist id="accountList">
+        </datalist>
+      </div>
+      <div id="passwordField" class="field">
+        <label for="password">Password:</label>
+        <input id="password" type="password" required="true" />
+      </div>
+      <div id="passwordConfirmField" class="field" hidden="true">
+        <label for="passwordConfirm">Confirm Password:</label>
+        <input id="passwordConfirm" type="password" />
+      </div>
+      <div id="forgotField" class="field">
+        <a href="https://browserid.org/" target="browserid">Forgot password?</a>
+      </div>
+      <div>
+        <input id="next" class="button" type="submit" value="Next" />
+        <input id="cancel" class="button" type="reset" value="Cancel" />
+      </div>
+    </form>
+    <div id="success" hidden="true">
+      <div>You are now signed in as:<br /><span id="successEmail" /></div>
+      <ul>
+        <li>Go to some page we will create later to manage your data and your device.</li>
+        <li>Go to some site we will create later to manage your account.</li>
+      </ul>
+      <button id="signOut" class="button">Sign out to disconnect</button>
+      <button id="done" class="button">Done</button>
+    </div>
+  </body>
+</html>

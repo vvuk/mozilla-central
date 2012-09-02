@@ -10,6 +10,8 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS = src
+
 MODULE = xulapp
 XPIDL_MODULE = toolkitprofile
 LIBRARY_NAME = profile_s

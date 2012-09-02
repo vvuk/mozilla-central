@@ -2932,12 +2932,53 @@ MOZ_CHECK_HEADERS(sys/statvfs.h sys/statfs.h sys/vfs.h sys/mount.h)
 
 dnl Quota support
 MOZ_CHECK_HEADERS(sys/quota.h sys/sysmacros.h)
-MOZ_CHECK_HEADERS(linux/quota.h)
+MOZ_CHECK_HEADERS([linux/quota.h],,,[#include <sys/socket.h>])
+
+dnl SCTP support - needs various network include headers
+MOZ_CHECK_HEADERS([linux/if_addr.h linux/rtnetlink.h],,,[#include <sys/socket.h>])
 
 dnl Try for MMX support
 dnl NB - later gcc versions require -mmmx for this header to be successfully
 dnl included (or another option which implies it, such as -march=pentium-mmx)
 MOZ_CHECK_HEADERS(mmintrin.h)
+
+dnl Check for sin_len and sin6_len - used by SCTP; only appears in Mac/*BSD generally
+MOZ_CHECK_HEADERS(sys/types.h)
+AC_MSG_CHECKING(for sockaddr_in.sin_len)
+AC_CACHE_VAL(ac_cv_sockaddr_in_sin_len,
+ [AC_TRY_COMPILE([#ifdef HAVE_SYS_TYPES_H
+                  #include <sys/types.h>
+                  #endif
+                  #include <netinet/in.h>
+                  struct sockaddr_in x;
+                  void *foo = (void*) &x.sin_len;],
+                  [],
+                  [ac_cv_sockaddr_in_sin_len=true],
+                  [ac_cv_sockaddr_in_sin_len=false])])
+if test "$ac_cv_sockaddr_in_sin_len" = true ; then
+  AC_DEFINE(HAVE_SIN_LEN)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_MSG_CHECKING(for sockaddr_in6.sin6_len)
+AC_CACHE_VAL(ac_cv_sockaddr_in6_sin6_len,
+ [AC_TRY_COMPILE([#ifdef HAVE_SYS_TYPES_H
+                  #include <sys/types.h>
+                  #endif
+                  #include <netinet/in.h>
+                  struct sockaddr_in6 x;
+                  void *foo = (void*) &x.sin6_len;],
+                  [],
+                  [ac_cv_sockaddr_in6_sin6_len=true],
+                  [ac_cv_sockaddr_in6_sin6_len=false])])
+if test "$ac_cv_sockaddr_in6_sin6_len" = true ; then
+  AC_DEFINE(HAVE_SIN6_LEN)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
 
 dnl Check whether the compiler supports the new-style C++ standard
 dnl library headers (i.e. <new>) or needs the old "new.h"
@@ -4147,6 +4188,8 @@ MOZ_OPUS=1
 MOZ_WEBM=1
 MOZ_WEBRTC=1
 MOZ_WEBRTC_SIGNALING=
+MOZ_WEBRTC_IN_LIBXUL=
+MOZ_SCTP=
 MOZ_MEDIA_PLUGINS=
 MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
@@ -5143,14 +5186,22 @@ MOZ_ARG_DISABLE_BOOL(webrtc,
 
 if test -n "$MOZ_WEBRTC"; then
     AC_DEFINE(MOZ_WEBRTC)
+    AC_DEFINE(MOZ_SCTP)
     MOZ_MEDIA=1
+    MOZ_WEBM=1
     MOZ_RAW=1
-    MOZ_VP8=1
     MOZ_VP8_ENCODER=1
     MOZ_VP8_ERROR_CONCEALMENT=1
+    MOZ_WEBRTC_SIGNALING=1
+    if test "${OS_TARGET}" = "WINNT"; then
+        MOZ_WEBRTC_IN_LIBXUL=1
+    fi
+    MOZ_SCTP=1
 fi
 
 AC_SUBST(MOZ_WEBRTC)
+AC_SUBST(MOZ_WEBRTC_IN_LIBXUL)
+AC_SUBST(MOZ_SCTP)
 
 case "$target_cpu" in
 arm*)
@@ -8711,10 +8762,21 @@ if test -n "$MOZ_WEBRTC"; then
      AC_MSG_RESULT("generating WebRTC/Signaling Makefiles...")
      $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium \
        $GYP_WEBRTC_OPTIONS \
+       -D build_for_test=0 \
        --generator-output=${_objdir}/media/webrtc/signaling \
        ${srcdir}/media/webrtc/signaling/signaling.gyp
      if test "$?" != 0; then
-        AC_MSG_ERROR([failed to generate WebRTC/Signaling Makefiles])
+       AC_MSG_ERROR([failed to generate WebRTC/Signaling Makefiles])
+     fi
+
+     AC_MSG_RESULT("generating WebRTC/SignalingTest Makefiles...")
+     $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+       $GYP_WEBRTC_OPTIONS \
+       -D build_for_test=1 \
+       --generator-output=${_objdir}/media/webrtc/signalingtest \
+       ${srcdir}/media/webrtc/signaling/signaling.gyp
+     if test "$?" != 0; then
+       AC_MSG_ERROR([failed to generate WebRTC/SignalingTest Makefiles])
      fi
    fi
 
@@ -8727,6 +8789,25 @@ if test -n "$MOZ_WEBRTC"; then
    if test "$?" != 0; then
       AC_MSG_ERROR([failed to generate gtest Makefiles])
    fi
+
+   AC_MSG_RESULT("generating nrappkit Makefiles...")
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+     $GYP_WEBRTC_OPTIONS \
+     --generator-output=${_objdir}/media/mtransport/third_party/nrappkit \
+     ${srcdir}/media/mtransport/third_party/nrappkit/nrappkit.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate nrappkit Makefiles])
+   fi
+
+   AC_MSG_RESULT("generating nICEr Makefiles...")
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+     $GYP_WEBRTC_OPTIONS \
+     --generator-output=${_objdir}/media/mtransport/third_party/nICEr \
+     ${srcdir}/media/mtransport/third_party/nICEr/nicer.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate nICEr Makefiles])
+   fi
+
 fi
 
 # Generate a JSON config file for unittest harnesses etc to read

@@ -265,6 +265,7 @@
 @BINPATH@/components/necko.xpt
 @BINPATH@/components/loginmgr.xpt
 @BINPATH@/components/parentalcontrols.xpt
+@BINPATH@/components/peerconnection.xpt
 @BINPATH@/components/places.xpt
 @BINPATH@/components/plugin.xpt
 @BINPATH@/components/pref.xpt
@@ -487,6 +488,9 @@
 @BINPATH@/components/AlarmsManager.manifest
 @BINPATH@/components/TCPSocket.js
 @BINPATH@/components/TCPSocket.manifest
+
+@BINPATH@/components/PeerConnection.js
+@BINPATH@/components/PeerConnection.manifest
 
 #ifdef ENABLE_MARIONETTE
 @BINPATH@/chrome/marionette@JAREXT@

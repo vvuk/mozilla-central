@@ -133,6 +133,12 @@
           }],
         ],
       }],
+      ['build_with_mozilla==1', {
+        'defines': [
+          # Changes settings for Mozilla build.
+          'WEBRTC_MOZILLA_BUILD',
+        ],
+      }],
       ['OS=="linux"', {
         'defines': [
           'WEBRTC_LINUX',

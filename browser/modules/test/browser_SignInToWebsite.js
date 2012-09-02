@@ -275,7 +275,6 @@ function test() {
   ok(sitw.SignInToWebsiteUX, "SignInToWebsiteUX object exists");
 
   // Replace implementation of ID Service functions for testing
-  window.selectIdentity = sitw.SignInToWebsiteUX.selectIdentity;
   sitw.SignInToWebsiteUX.selectIdentity = function(aRpId, aIdentity) {
     info("Identity selected: " + aIdentity);
     window.gIdentitySelected = {rpId: aRpId, identity: aIdentity};
@@ -295,29 +294,18 @@ function test() {
 function resetState() {
   delete window.gIdentitySelected;
   delete IdentityService.IDP.authenticationFlowSet;
-  IdentityService.reset();
 }
 
 // Cleanup after all tests
 function cleanUp() {
-  info("cleanup");
-  resetState();
-
   for (let topic in gActiveObservers)
     Services.obs.removeObserver(gActiveObservers[topic], topic);
   for (let eventName in gActiveListeners)
     PopupNotifications.panel.removeEventListener(eventName, gActiveListeners[eventName], false);
   delete IdentityService.RP._rpFlows[outerWinId];
-
-  // Put the JSM functions back to how they were
   IdentityService.IDP.setAuthenticationFlow = window.setAuthenticationFlow;
   delete window.setAuthenticationFlow;
-
-  let sitw = {};
-  Components.utils.import("resource:///modules/SignInToWebsite.jsm", sitw);
-  sitw.SignInToWebsiteUX.selectIdentity = window.selectIdentity;
-  delete window.selectIdentity;
-
+  Components.utils.unload("resource:///modules/SignInToWebsite.jsm");
   Services.prefs.clearUserPref("toolkit.identity.debug");
 }
 
@@ -541,8 +529,8 @@ function WindowObserver(aCallback, aObserveTopic = "domwindowopened") {
     info(aObserveTopic);
     Services.ww.unregisterNotification(this);
 
+    let domWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
     SimpleTest.executeSoon(function() {
-      let domWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
       aCallback(domWin);
     });
   };
