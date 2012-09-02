@@ -36,6 +36,22 @@
 #include <pthread.h>
 #if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
+/* define to try to force in.h to define in6_pktinfo on all
+   revisions/distros */
+#define __USE_GNU
+#include <netinet/in.h>
+#undef __USE_GNU
+
+#if defined(__Userspace_os_Linux)
+#include <linux/netlink.h>
+#if defined(HAVE_LINUX_IF_ADDR_H)
+#include <linux/if_addr.h>
+#endif
+#if defined(HAVE_LINUX_RTNETLINK_H)
+#include <linux/rtnetlink.h>
+#endif
+#endif
+
 #else
 #include <user_ip6_var.h>
 #endif
@@ -43,10 +59,6 @@
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_pcb.h>
-#if defined(__Userspace_os_Linux)
-#include <linux/netlink.h>
-#include <linux/if_addr.h>
-#endif
 
 /* local macros and datatypes used to get IP addresses system independently */
 #if defined IP_RECVDSTADDR
@@ -67,6 +79,39 @@ void recv_thread_destroy(void);
 #if !defined(__Userspace_os_Windows)
 #define NEXT_SA(ap) ap = (struct sockaddr *) \
 	((caddr_t) ap + (ap->sa_len ? ROUNDUP(ap->sa_len, sizeof (uint32_t)) : sizeof(uint32_t)))
+#endif
+
+#if defined(__Userspace_os_Windows)
+/* Emulate if_nametoindex() for WinXP */
+int
+winxp_if_nametoindex (const char *ifname)
+{
+  IP_ADAPTER_ADDRESSES *addresses, *addr;
+  ULONG status, size;
+  int index = 0;
+
+  if (!ifname)
+    return 0;
+
+  size = 0;
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, NULL, &size);
+  if (status != ERROR_BUFFER_OVERFLOW)
+    return 0;
+
+  addresses = malloc(size);
+  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &size);
+  if (status == ERROR_SUCCESS) {
+    for (addr = addresses; addr; addr = addr->Next) {
+      if (addr->AdapterName && !strcmp (ifname, addr->AdapterName)) {
+        index = addr->IfIndex;
+        break;
+      }
+    }
+  }
+
+  free(addresses);
+  return index;
+}
 #endif
 
 #if !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Linux)
@@ -576,13 +621,13 @@ recv_function_raw6(void *arg)
 		offset = sizeof(struct sctphdr);
 
 		dst.sin6_family = AF_INET6;
-#ifdef HAVE_SIN_LEN
+#ifdef HAVE_SIN6_LEN
 		dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		dst.sin6_port = sh->dest_port;
 
 		src.sin6_family = AF_INET6;
-#ifdef HAVE_SIN_LEN
+#ifdef HAVE_SIN6_LEN
 		src.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		src.sin6_port = sh->src_port;
@@ -950,7 +995,7 @@ recv_function_udp6(void *arg)
 		for (cmsgptr = CMSG_FIRSTHDR(&msg); cmsgptr != NULL; cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
 			if ((cmsgptr->cmsg_level == IPPROTO_IPV6) && (cmsgptr->cmsg_type == IPV6_PKTINFO)) {
 				dst.sin6_family = AF_INET6;
-#if !defined(__Userspace_os_Linux)
+#ifdef HAVE_SIN6_LEN
 				dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 				/*dst.sin6_port = htons(SCTP_BASE_SYSCTL(sctp_udp_tunneling_port));*/
@@ -1270,7 +1315,7 @@ recv_thread_init(void)
 					SCTP_BASE_VAR(userspace_rawsctp6) = -1;
 				} else {
 					memset((void *)&addr_ipv6, 0, sizeof(struct sockaddr_in6));
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 					addr_ipv6.sin6_len         = sizeof(struct sockaddr_in6);
 #endif
 					addr_ipv6.sin6_family      = AF_INET6;
@@ -1342,7 +1387,7 @@ recv_thread_init(void)
 				SCTP_BASE_VAR(userspace_udpsctp6) = -1;
 			} else {
 				memset((void *)&addr_ipv6, 0, sizeof(struct sockaddr_in6));
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 				addr_ipv6.sin6_len         = sizeof(struct sockaddr_in6);
 #endif
 				addr_ipv6.sin6_family      = AF_INET6;

@@ -362,6 +362,7 @@ int	 rt_check(struct rtentry **, struct rtentry **, struct sockaddr *);
 /* #endif */
 
 #if defined(__Userspace_os_Linux)
+#if !defined __LINUX_RTNETLINK_H
 #undef RTM_NEWADDR
 #define RTM_NEWADDR 20
 #undef RTM_DELADDR
@@ -389,6 +390,7 @@ struct rtattr
 	unsigned short  rta_len;
 	unsigned short  rta_type;
 };
+#endif
 #endif
 
 #endif

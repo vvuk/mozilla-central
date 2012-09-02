@@ -971,7 +971,7 @@ struct mbuf* mbufalloc(size_t size, void* data, unsigned char fill)
 			char *datap = (char*)data + cpsz;
 			memcpy(mtod(m, caddr_t), (void*)datap, willcpy);
 #else
-            memcpy(mtod(m, caddr_t), data+cpsz, willcpy);
+      memcpy(mtod(m, caddr_t), (char *)data+cpsz, willcpy);
 #endif
         }else if (fill != '\0'){
             memset(mtod(m, caddr_t), fill, willcpy);
@@ -1885,7 +1885,7 @@ user_accept(struct socket *aso,  struct sockaddr **name, socklen_t *namelen, str
 	struct sockaddr *sa = NULL;
 	int error;
 	struct socket *head = aso;
-        struct socket *so;
+        struct socket *so = NULL;
 
 
 	if (name) {
@@ -2504,7 +2504,7 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in));
 	dst.sin_family = AF_INET;
 	dst.sin_addr.s_addr = ip->ip_dst.s_addr;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN_LEN
 	dst.sin_len = sizeof(struct sockaddr_in);
 #endif
 	if (use_udp_tunneling) {
@@ -2568,7 +2568,6 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 
 	if ((!use_udp_tunneling) && (SCTP_BASE_VAR(userspace_rawsctp) > -1)) {
 		if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
-
 			*result = WSAGetLastError();
 		} else if (win_sent_len != send_len) {
 			*result = WSAGetLastError();
@@ -2660,7 +2659,7 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in6));
 	dst.sin6_family = AF_INET6;
 	dst.sin6_addr = ip6->ip6_dst;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 	dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 
