@@ -10,8 +10,6 @@
 
 MLOG_INIT("mtransport");
 
-std::string TransportLayerLogging::ID("mt_logging");
-
 void TransportLayerLogging::WasInserted() {
   if (downward_) {
     downward_->SignalStateChange.connect(

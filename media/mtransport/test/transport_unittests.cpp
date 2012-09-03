@@ -72,12 +72,8 @@ class TransportLayerLossy : public TransportLayer {
                       size_t len) {
     SignalPacketReceived(this, data, len);
   }
-
-  // Return the layer id for this layer
-  virtual const std::string& id() { return ID; }
-
-  // A static version of the layer ID
-  static std::string ID;
+    
+  TRANSPORT_LAYER_ID("lossy");
 
  protected:
   virtual void WasInserted() {
@@ -95,9 +91,6 @@ class TransportLayerLossy : public TransportLayer {
   PRUint32 loss_mask_;
   PRUint32 packet_;
 };
-
-std::string TransportLayerLossy::ID = "lossy";
-
 
 namespace {
 class TransportTestPeer : public sigslot::has_slots<> {

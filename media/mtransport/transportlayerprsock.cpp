@@ -21,9 +21,6 @@
 
 MLOG_INIT("mtransport");
 
-std::string TransportLayerPrsock::ID("mt_prsock");
-
-
 nsresult TransportLayerPrsock::InitInternal() {
   // Get the transport service as a transport service
   nsresult rv;

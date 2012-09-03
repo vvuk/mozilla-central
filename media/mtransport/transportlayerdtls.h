@@ -98,11 +98,7 @@ public:
   void PacketReceived(TransportLayer* layer, const unsigned char *data,
       size_t len);
 
-  // Return the layer id for this layer
-  virtual const std::string& id() { return ID; }
-
-  // A static version of the layer ID
-  static std::string ID;
+  TRANSPORT_LAYER_ID("dtls")
 
 private:
   DISALLOW_COPY_ASSIGN(TransportLayerDtls);

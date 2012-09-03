@@ -43,15 +43,11 @@ class TransportLayerIce : public TransportLayer {
   void IcePacketReceived(NrIceMediaStream *stream, int component,
                          const unsigned char *data, int len);
 
-  // Return the layer id for this layer
-  virtual const std::string& id() { return ID; }
-
-  // A static version of the layer ID
-  static std::string ID;
+  TRANSPORT_LAYER_ID("ice")
 
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerIce);
-  
+
   const std::string name_;
   mozilla::RefPtr<NrIceCtx> ctx_;
   mozilla::RefPtr<NrIceMediaStream> stream_;

@@ -80,8 +80,6 @@ extern "C" {
 
 MLOG_INIT("mtransport");
 
-std::string TransportLayerIce::ID("mt_ice");
-
 static bool initialized = false;
 
 TransportLayerIce::TransportLayerIce(const std::string& name,

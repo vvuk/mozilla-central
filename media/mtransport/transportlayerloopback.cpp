@@ -23,8 +23,6 @@
 
 MLOG_INIT("mtransport");
 
-std::string TransportLayerLoopback::ID("mt_loopback");
-
 nsresult TransportLayerLoopback::Init() {
   timer_ = do_CreateInstance(NS_TIMER_CONTRACTID);
   PR_ASSERT(timer_);

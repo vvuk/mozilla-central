@@ -103,7 +103,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
 
   // Now instantiate the SRTP objects
   TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
-      flow->GetLayer(TransportLayerDtls::ID));
+      flow->GetLayer(TransportLayerDtls::ID()));
   PR_ASSERT(dtls);  // DTLS is mandatory
 
   PRUint16 cipher_suite;
@@ -218,7 +218,7 @@ nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
                                    int len) {
   // Note that we bypass the DTLS layer here
   TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
-      flow->GetLayer(TransportLayerDtls::ID));
+      flow->GetLayer(TransportLayerDtls::ID()));
   PR_ASSERT(dtls);
 
   TransportResult res = dtls->downward()->

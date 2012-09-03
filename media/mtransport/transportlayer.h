@@ -27,6 +27,10 @@ enum {
   TE_WOULDBLOCK = -1, TE_ERROR = -2, TE_INTERNAL = -3
 };
 
+#define TRANSPORT_LAYER_ID(name) \
+  virtual const std::string id() { return name; } \
+  static std::string ID() { return name; }
+
 // Abstract base class for network transport layers.
 class TransportLayer : public sigslot::has_slots<> {
  public:
@@ -67,7 +71,7 @@ class TransportLayer : public sigslot::has_slots<> {
                          SignalPacketReceived;
 
   // Return the layer id for this layer
-  virtual const std::string& id() = 0;
+  virtual const std::string id() = 0;
 
   // The id of the flow
   virtual const std::string& flow_id();
@@ -80,7 +84,7 @@ class TransportLayer : public sigslot::has_slots<> {
   State state_;
   TransportFlow *flow_;  // The flow this is part of
   TransportLayer *downward_; // The next layer in the stack
-  
+
  private:
   DISALLOW_COPY_ASSIGN(TransportLayer);
 };

@@ -40,10 +40,11 @@ class TransportLayerLoopback : public TransportLayer {
       packets_.pop();
       delete packet;
     }
-
     if (packets_lock_) {
       PR_DestroyLock(packets_lock_);
     }
+    timer_->Cancel();
+    deliverer_->Detach();
   }
 
   // Init
@@ -68,11 +69,7 @@ class TransportLayerLoopback : public TransportLayer {
   // Deliver queued packets
   void DeliverPackets();
 
-  // Return the layer id for this layer
-  virtual const std::string& id() { return ID; }
-
-  // A static version of the layer ID
-  static std::string ID;
+  TRANSPORT_LAYER_ID("loopback")
 
  private:
   DISALLOW_COPY_ASSIGN(TransportLayerLoopback);
@@ -109,6 +106,9 @@ class TransportLayerLoopback : public TransportLayer {
     Deliverer(TransportLayerLoopback *layer) :
         layer_(layer) {}
     virtual ~Deliverer() {
+    }
+    void Detach() {
+      layer_ = NULL;
     }
 
     NS_DECL_ISUPPORTS
