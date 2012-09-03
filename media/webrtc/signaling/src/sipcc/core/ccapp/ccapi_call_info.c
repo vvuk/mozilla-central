@@ -507,14 +507,14 @@ cc_int32_t  CCAPI_CallInfo_getOnhookReason(cc_callinfo_ref_t handle){
  * @return boolean - is Conference
  */
 cc_boolean  CCAPI_CallInfo_getIsConference(cc_callinfo_ref_t handle){
-  static const char *fname="CCAPI_CallInfo_getIsConference";
   session_data_t *data = (session_data_t *)handle;
-  char isConf_buf[32];
-  char* isConf = &isConf_buf[0];
+  char isConf[32];
 
-  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
+  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, __FUNCTION__));
 
-  if(platGetPhraseText(CONFERENCE_LOCALE_CODE, isConf, 32) == CC_FAILURE){
+  memset(isConf, 0, sizeof(isConf));
+
+  if(platGetPhraseText(CONFERENCE_LOCALE_CODE, isConf, sizeof(isConf)) == CC_FAILURE){
 	  return FALSE;
   }
 

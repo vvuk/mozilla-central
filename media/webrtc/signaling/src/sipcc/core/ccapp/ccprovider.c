@@ -988,9 +988,11 @@ session_data_t * getDeepCopyOfSessionData(session_data_t *data)
    session_data_t *newData = (session_data_t *) cpr_malloc(sizeof(session_data_t));
 
    if ( newData != NULL ) {
+       memset(newData, 0, sizeof(session_data_t));
+       
        if ( data != NULL ) {
            *newData = *data;
-	   newData->ref_count = 1;
+           newData->ref_count = 1;
            newData->clg_name =  strlib_copy(data->clg_name);
            newData->clg_number =  strlib_copy(data->clg_number);
            newData->cld_name =  strlib_copy(data->cld_name);
@@ -1005,8 +1007,7 @@ session_data_t * getDeepCopyOfSessionData(session_data_t *data)
            newData->status =  strlib_copy(data->status);
            calllogger_copy_call_log(&newData->call_log, &data->call_log);
        } else {
-           memset(newData, 0, sizeof(session_data_t));
-	   newData->ref_count = 1;
+           newData->ref_count = 1;
            newData->state = ONHOOK;
            newData->security = CC_SECURITY_NONE;
            newData->policy = CC_POLICY_NONE;
