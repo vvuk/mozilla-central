@@ -58,18 +58,6 @@ EXPORTS_mozilla/net = \
   usrsctp.h \
   $(NULL)
 
-#EXPORTS_mozilla/net/netinet = \
-#  netinet/sctp_os.h \
-#  netinet/sctp.h \
-#  netinet/sctp_constants.h \
-#  netinet/sctp_sysctl.h \
-#  netinet/sctp_structs.h \
-#  netinet/sctp_auth.h \
-#  netinet/sctp_process_lock.h \
-#  netinet/sctp_lock_userspace.h \
-#  $(NULL)
-
-
 LOCAL_INCLUDES = \
   -I$(srcdir)/../../base/src \
   -I$(topsrcdir)/content/base/src \
@@ -88,14 +76,9 @@ DEFINES = \
    -DSCTP_DEBUG=1 \
    $(NULL)
 
-DEFINES_Debug += \
-   $(NULL)
-
 ifeq ($(OS_TARGET),WINNT)
-# CALLBACK_API is mandatory on windows; capture that here
 DEFINES += \
     -D__Userspace_os_Windows=1 \
-    -DCALLBACK_API=1 \
     -D_LIB=1 \
     $(NULL)
 CFLAGS += /I. /W3
@@ -122,11 +105,6 @@ endif
 endif
 endif
 endif
-
-
-DEFINES_debug = \
-   -DSCTP_DEBUG=1 \
-   $(NULL)
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

@@ -67,7 +67,7 @@ private:
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,
-                         bool &aIsBinary, PRUint32 &aOutgoingLength,
+                         bool &aIsBinary, uint32_t &aOutgoingLength,
                          JSContext *aCx);
 
   nsresult CreateResponseBlob(const nsACString& aData, JSContext *aCx,
@@ -165,14 +165,14 @@ nsDOMDataChannel::GetReliable(bool* aReliable)
 }
 
 NS_IMETHODIMP
-nsDOMDataChannel::GetReadyState(PRUint16* aReadyState)
+nsDOMDataChannel::GetReadyState(uint16_t* aReadyState)
 {
   *aReadyState = mDataChannel->GetReadyState();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDataChannel::GetBufferedAmount(PRUint32* aBufferedAmount)
+nsDOMDataChannel::GetBufferedAmount(uint32_t* aBufferedAmount)
 {
   *aBufferedAmount = mDataChannel->GetBufferedAmount();
   return NS_OK;
@@ -219,7 +219,7 @@ NS_IMETHODIMP
 nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
-  PRUint16 state = mDataChannel->GetReadyState();
+  uint16_t state = mDataChannel->GetReadyState();
 
   // In reality, the DataChannel protocol allows this, but we want it to
   // look like WebSockets
@@ -230,7 +230,7 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
   nsCString msgString;
   nsCOMPtr<nsIInputStream> msgStream;
   bool isBinary;
-  PRUint32 msgLen;
+  uint32_t msgLen;
   nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -265,11 +265,11 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
 nsresult
 nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                                 nsCOMPtr<nsIInputStream> &aStreamOut,
-                                bool &aIsBinary, PRUint32 &aOutgoingLength,
+                                bool &aIsBinary, uint32_t &aOutgoingLength,
                                 JSContext *aCx)
 {
   // Get type of data (arraybuffer, blob, or string)
-  PRUint16 dataType;
+  uint16_t dataType;
   nsresult rv = aData->GetDataType(&dataType);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -289,7 +289,7 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
         (JS_IsArrayBufferObject(obj, aCx))) {
-      PRInt32 len = JS_GetArrayBufferByteLength(obj, aCx);
+      int32_t len = JS_GetArrayBufferByteLength(obj, aCx);
       char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
 
       aStringOut.Assign(data, len);
@@ -305,13 +305,13 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
       NS_ENSURE_SUCCESS(rv, rv);
 
       // GetSize() should not perform blocking I/O (unlike Available())
-      PRUint64 blobLen;
+      uint64_t blobLen;
       rv = blob->GetSize(&blobLen);
       NS_ENSURE_SUCCESS(rv, rv);
       if (blobLen > PR_UINT32_MAX) {
         return NS_ERROR_FILE_TOO_BIG;
       }
-      aOutgoingLength = static_cast<PRUint32>(blobLen);
+      aOutgoingLength = static_cast<uint32_t>(blobLen);
 
       aIsBinary = true;
       return NS_OK;
@@ -322,7 +322,7 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
   // TODO: bug 704444: Correctly coerce any JS type to string
   //
   PRUnichar* data = nullptr;
-  PRUint32 len = 0;
+  uint32_t len = 0;
   rv = aData->GetAsWStringWithSize(&len, &data);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -342,7 +342,7 @@ nsresult
 nsDOMDataChannel::CreateResponseBlob(const nsACString& aData, JSContext *aCx,
                                      jsval &jsData)
 {
-  PRUint32 blobLen = aData.Length();
+  uint32_t blobLen = aData.Length();
   void *blobData = PR_Malloc(blobLen);
   nsCOMPtr<nsIDOMBlob> blob;
   if (blobData) {

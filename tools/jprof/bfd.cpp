@@ -100,12 +100,14 @@ static bfd *find_debug_file(bfd *lib, const char *aFileName)
   return debugFile;
 }
 
+// XXX Totally evil code to clear externalSymbols, which is actually an object array
 #define NEXT_SYMBOL \
   sp++; \
   if (sp >= lastSymbol) { \
     long n = numExternalSymbols + 10000; \
     externalSymbols = (Symbol*) \
       realloc(externalSymbols, (size_t) (sizeof(Symbol) * n)); \
+    memset(&externalSymbols[numExternalSymbols],'\0',10000*sizeof(externalSymbols[0])); \
     lastSymbol = externalSymbols + n; \
     sp = externalSymbols + numExternalSymbols; \
     numExternalSymbols = n; \
@@ -115,7 +117,7 @@ void leaky::ReadSymbols(const char *aFileName, u_long aBaseAddress)
 {
   int initialSymbols = usefulSymbols;
   if (NULL == externalSymbols) {
-    externalSymbols = (Symbol*) malloc(sizeof(Symbol) * 10000);
+    externalSymbols = (Symbol*) calloc(sizeof(Symbol) * 10000,1);
     numExternalSymbols = 10000;
   }
   Symbol* sp = externalSymbols + usefulSymbols;

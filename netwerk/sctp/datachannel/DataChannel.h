@@ -38,12 +38,12 @@ class BufferedMsg
 {
 public:
   BufferedMsg(struct sctp_sendv_spa &spa,const char *data,
-              PRUint32 length);
+              uint32_t length);
   ~BufferedMsg();
 
   struct sctp_sendv_spa *mSpa;
   const char *mData;
-  PRUint32 mLength;
+  uint32_t mLength;
 };
 
 // Implemented by consumers of a Channel to receive messages.
@@ -103,7 +103,7 @@ public:
   bool Connect(const char *addr, unsigned short port);
 
   // Connect using a TransportFlow (DTLS) channel
-  bool ConnectDTLS(TransportFlow *aFlow, PRUint16 localport, PRUint16 remoteport);
+  bool ConnectDTLS(TransportFlow *aFlow, uint16_t localport, uint16_t remoteport);
 
   typedef enum {
     RELIABLE=0,
@@ -113,26 +113,26 @@ public:
     
   DataChannel *Open(const nsACString& label,
                     Type type, bool inOrder, 
-                    PRUint32 prValue, DataChannelListener *aListener,
+                    uint32_t prValue, DataChannelListener *aListener,
                     nsISupports *aContext);
 
-  void Close(PRUint16 stream);
+  void Close(uint16_t stream);
   void CloseAll();
 
-  PRInt32 SendMsg(PRUint16 stream, const nsACString &aMsg)
+  int32_t SendMsg(uint16_t stream, const nsACString &aMsg)
     {
       return SendMsgCommon(stream, aMsg, false);
     }
-  PRInt32 SendBinaryMsg(PRUint16 stream, const nsACString &aMsg)
+  int32_t SendBinaryMsg(uint16_t stream, const nsACString &aMsg)
     {
       return SendMsgCommon(stream, aMsg, true);
     }
-  PRInt32 SendBlob(PRUint16 stream, nsIInputStream *aBlob);
+  int32_t SendBlob(uint16_t stream, nsIInputStream *aBlob);
 
   // Called on data reception from the SCTP library
   // must(?) be public so my c->c++ tramploine can call it
   int ReceiveCallback(struct socket* sock, void *data, size_t datalen, 
-                      struct sctp_rcvinfo rcv, PRInt32 flags);
+                      struct sctp_rcvinfo rcv, int32_t flags);
 
   // Find out state
   enum {
@@ -141,7 +141,7 @@ public:
     CLOSING = 2U,
     CLOSED = 3U
   };
-  PRUint16 GetReadyState() { return mState; }
+  uint16_t GetReadyState() { return mState; }
 
   friend class DataChannel;
   Mutex  mLock;
@@ -154,34 +154,34 @@ private:
   int SendPacket(const unsigned char* data, size_t len);
   void PacketReceived(TransportFlow *flow, const unsigned char *data, size_t len);
   static int SctpDtlsOutput(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df);
-  DataChannel* FindChannelByStreamIn(PRUint16 streamIn);
-  DataChannel* FindChannelByStreamOut(PRUint16 streamOut);
-  PRUint16 FindFreeStreamOut();
+  DataChannel* FindChannelByStreamIn(uint16_t streamIn);
+  DataChannel* FindChannelByStreamOut(uint16_t streamOut);
+  uint16_t FindFreeStreamOut();
   bool RequestMoreStreamsOut();
-  PRInt32 SendControlMessage(void *msg, PRUint32 len, PRUint16 streamOut);
-  PRInt32 SendOpenRequestMessage(const nsACString& label,PRUint16 streamOut,
-                                 bool unordered, PRUint16 prPolicy, PRUint32 prValue);
-  PRInt32 SendOpenResponseMessage(PRUint16 streamOut, PRUint16 streamIn);
-  PRInt32 SendOpenAckMessage(PRUint16 streamOut);
-  PRInt32 SendMsgInternal(DataChannel *channel, const char *data,
-                          PRUint32 length, PRUint32 ppid);
-  PRInt32 SendBinary(DataChannel *channel, const char *data,
-                     PRUint32 len);
-  PRInt32 SendMsgCommon(PRUint16 stream, const nsACString &aMsg, bool isBinary);
+  int32_t SendControlMessage(void *msg, uint32_t len, uint16_t streamOut);
+  int32_t SendOpenRequestMessage(const nsACString& label,uint16_t streamOut,
+                                 bool unordered, uint16_t prPolicy, uint32_t prValue);
+  int32_t SendOpenResponseMessage(uint16_t streamOut, uint16_t streamIn);
+  int32_t SendOpenAckMessage(uint16_t streamOut);
+  int32_t SendMsgInternal(DataChannel *channel, const char *data,
+                          uint32_t length, uint32_t ppid);
+  int32_t SendBinary(DataChannel *channel, const char *data,
+                     uint32_t len);
+  int32_t SendMsgCommon(uint16_t stream, const nsACString &aMsg, bool isBinary);
   nsresult StartDefer();
   bool SendDeferredMessages();
   void SendOutgoingStreamReset();
-  void ResetOutgoingStream(PRUint16 streamOut);
+  void ResetOutgoingStream(uint16_t streamOut);
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
                                 size_t length,
-                                PRUint16 streamIn);
+                                uint16_t streamIn);
   void HandleOpenResponseMessage(const struct rtcweb_datachannel_open_response *rsp,
-                                 size_t length, PRUint16 streamIn);
+                                 size_t length, uint16_t streamIn);
   void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
-                            size_t length, PRUint16 streamIn);
-  void HandleUnknownMessage(PRUint32 ppid, size_t length, PRUint16 streamIn);
-  void HandleDataMessage(PRUint32 ppid, const char *buffer, size_t length, PRUint16 streamIn);
-  void HandleMessage(char *buffer, size_t length, PRUint32 ppid, PRUint16 streamIn);
+                            size_t length, uint16_t streamIn);
+  void HandleUnknownMessage(uint32_t ppid, size_t length, uint16_t streamIn);
+  void HandleDataMessage(uint32_t ppid, const char *buffer, size_t length, uint16_t streamIn);
+  void HandleMessage(char *buffer, size_t length, uint32_t ppid, uint16_t streamIn);
   void HandleAssociationChangeEvent(const struct sctp_assoc_change *sac);
   void HandlePeerAddressChangeEvent(const struct sctp_paddr_change *spc);
   void HandleRemoteErrorEvent(const struct sctp_remote_error *sre);
@@ -198,20 +198,20 @@ private:
   nsAutoTArray<DataChannel*,16> mStreamsIn;
 
   // Streams pending reset
-  nsAutoTArray<PRUint16,4> mStreamsResetting;
+  nsAutoTArray<uint16_t,4> mStreamsResetting;
 
   struct socket *mMasterSocket;
   struct socket *mSocket;
-  PRUint16 mNumChannels;
-  PRUint16 mState;
+  uint16_t mNumChannels;
+  uint16_t mState;
 
   nsRefPtr<TransportFlow> mTransportFlow;
-  PRUint16 mLocalPort;
-  PRUint16 mRemotePort;
+  uint16_t mLocalPort;
+  uint16_t mRemotePort;
 
   // Timer to control when we try to resend blocked messages
   nsCOMPtr<nsITimer> mDeferredTimer;
-  PRUint32 mDeferTimeout;
+  uint32_t mDeferTimeout;
   bool mTimerRunning;
 };
 
@@ -225,11 +225,11 @@ public:
   };
 
   DataChannel(DataChannelConnection *connection,
-              PRUint16 streamOut, PRUint16 streamIn, 
-              PRUint16 state,
+              uint16_t streamOut, uint16_t streamIn, 
+              uint16_t state,
               const nsACString& label,
-              PRUint16 policy, PRUint32 value,
-              PRUint32 flags,
+              uint16_t policy, uint32_t value,
+              uint32_t flags,
               DataChannelListener *aListener,
               nsISupports *aContext) : 
     mListener(aListener), mConnection(connection),
@@ -282,7 +282,7 @@ public:
     }
 
   // Send a binary blob
-  bool SendBinaryStream(nsIInputStream *aBlob, PRUint32 msgLen)
+  bool SendBinaryStream(nsIInputStream *aBlob, uint32_t msgLen)
     {
       if (mStreamOut != INVALID_STREAM)
         return (mConnection->SendBlob(mStreamOut, aBlob /* XXX , msgLen */) > 0);
@@ -293,18 +293,18 @@ public:
   // XXX I don't think we need SendBinaryStream()
 
   // Amount of data buffered to send
-  PRUint32 GetBufferedAmount()
+  uint32_t GetBufferedAmount()
     {
-      PRUint32 buffered = 0;
-      for (PRUint32 i = 0; i < mBufferedData.Length(); i++) {
+      uint32_t buffered = 0;
+      for (uint32_t i = 0; i < mBufferedData.Length(); i++) {
         buffered += mBufferedData[i]->mLength;
       }
       return buffered;
     }
 
   // Find out state
-  PRUint16 GetReadyState() { return mState; }
-  void SetReadyState(PRUint16 aState) { mState = aState; }
+  uint16_t GetReadyState() { return mState; }
+  void SetReadyState(uint16_t aState) { mState = aState; }
 
   // XXX I'd like this to be protected or private...
   DataChannelListener *mListener;
@@ -315,17 +315,17 @@ private:
   friend class DataChannelOnMessageAvailable;
   friend class DataChannelConnection;
 
-  nsresult AddDataToBinaryMsg(const char *data, PRUint32 size);
+  nsresult AddDataToBinaryMsg(const char *data, uint32_t size);
 
   DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
   nsCString mLabel;
-  PRUint16 mState;
-  PRUint16 mStreamOut;
-  PRUint16 mStreamIn;
-  PRUint16 mPrPolicy;
-  PRUint32 mPrValue;
-  PRUint32 mFlags;
-  PRUint32 mId;
+  uint16_t mState;
+  uint16_t mStreamOut;
+  uint16_t mStreamIn;
+  uint16_t mPrPolicy;
+  uint32_t mPrValue;
+  uint32_t mFlags;
+  uint32_t mId;
   nsCOMPtr<nsISupports> mContext;
   nsCString mBinaryBuffer;
   nsTArray<nsAutoPtr<BufferedMsg> > mBufferedData;
@@ -345,18 +345,18 @@ public:
     ON_DATA,
   };  /* types */
 
-  DataChannelOnMessageAvailable(PRInt32     aType,
+  DataChannelOnMessageAvailable(int32_t     aType,
                                 DataChannelConnection *aConnection,
                                 DataChannel *aChannel,
                                 nsCString   &aData,  // XXX this causes inefficiency
-                                PRInt32     aLen)
+                                int32_t     aLen)
     : mType(aType),
       mChannel(aChannel),
       mConnection(aConnection), 
       mData(aData),
       mLen(aLen) {}
 
-  DataChannelOnMessageAvailable(PRInt32     aType,
+  DataChannelOnMessageAvailable(int32_t     aType,
                                 DataChannel *aChannel)
     : mType(aType),
       mChannel(aChannel) {}
@@ -364,7 +364,7 @@ public:
   // used for notifications that don't use them, but I'd like more
   // bulletproof compile-time checking.
 
-  DataChannelOnMessageAvailable(PRInt32     aType,
+  DataChannelOnMessageAvailable(int32_t     aType,
                                 DataChannelConnection *aConnection,
                                 DataChannel *aChannel)
     : mType(aType),
@@ -405,13 +405,13 @@ public:
 private:
   ~DataChannelOnMessageAvailable() {}
 
-  PRInt32                           mType;
+  int32_t                           mType;
   // XXX should use union
   // XXX these need to be refptrs so as to hold them open until it's delivered
   DataChannel                       *mChannel;    // XXX careful of ownership! 
   DataChannelConnection             *mConnection; // XXX careful of ownership! - should be nsRefPtr
   nsCString                         mData;
-  PRInt32                           mLen;
+  int32_t                           mLen;
 };
 
 }

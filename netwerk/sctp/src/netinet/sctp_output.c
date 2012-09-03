@@ -4797,7 +4797,9 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 			m_copydata(m, 0, packet_length, buffer);
 			ret = SCTP_BASE_VAR(conn_output)(sconn->sconn_addr, buffer, packet_length, tos_value, nofragment_flag);
 			free(buffer);
-		}
+		} else {
+			ret = ENOMEM;
+    }
 		sctp_m_freem(m);
 		return (ret);
 	}
