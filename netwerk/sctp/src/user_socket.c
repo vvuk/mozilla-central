@@ -311,7 +311,7 @@ sofree(struct socket *so)
 	    (so->so_qstate & SQ_INCOMP) == 0,
 	    ("sofree: so_head == NULL, but still SQ_COMP(%d) or SQ_INCOMP(%d)",
 	    so->so_qstate & SQ_COMP, so->so_qstate & SQ_INCOMP));
-	if (so->so_options & SO_ACCEPTCONN) {
+	if (so->so_options & SCTP_SO_ACCEPTCONN) {
 		KASSERT((TAILQ_EMPTY(&so->so_comp)), ("sofree: so_comp populated"));
 		KASSERT((TAILQ_EMPTY(&so->so_incomp)), ("sofree: so_comp populated"));
 	}
@@ -470,31 +470,16 @@ soisconnected(struct socket *so)
 	so->so_state |= SS_ISCONNECTED;
 	head = so->so_head;
 	if (head != NULL && (so->so_qstate & SQ_INCOMP)) {
-		if ((so->so_options & SO_ACCEPTFILTER) == 0) {
-			SOCK_UNLOCK(so);
-			TAILQ_REMOVE(&head->so_incomp, so, so_list);
-			head->so_incqlen--;
-			so->so_qstate &= ~SQ_INCOMP;
-			TAILQ_INSERT_TAIL(&head->so_comp, so, so_list);
-			head->so_qlen++;
-			so->so_qstate |= SQ_COMP;
-			ACCEPT_UNLOCK();
-			sorwakeup(head);
-			wakeup_one(&head->so_timeo);
-		} else {
-			ACCEPT_UNLOCK();
-			/*
-			so->so_upcall = head->so_accf->so_accept_filter->accf_callback;
-			so->so_upcallarg = head->so_accf->so_accept_filter_arg;
-			*/
-			so->so_rcv.sb_flags |= SB_UPCALL;
-			so->so_options &= ~SO_ACCEPTFILTER;
-			SOCK_UNLOCK(so);
-			/*
-			so->so_upcall(so, so->so_upcallarg, M_DONTWAIT);
-			*/
-		}
-
+		SOCK_UNLOCK(so);
+		TAILQ_REMOVE(&head->so_incomp, so, so_list);
+		head->so_incqlen--;
+		so->so_qstate &= ~SQ_INCOMP;
+		TAILQ_INSERT_TAIL(&head->so_comp, so, so_list);
+		head->so_qlen++;
+		so->so_qstate |= SQ_COMP;
+		ACCEPT_UNLOCK();
+		sorwakeup(head);
+		wakeup_one(&head->so_timeo);
 		return;
 	}
 	SOCK_UNLOCK(so);
@@ -525,11 +510,9 @@ sonewconn(struct socket *head, int connstatus)
 	so = soalloc();
 	if (so == NULL)
 		return (NULL);
-	if ((head->so_options & SO_ACCEPTFILTER) != 0)
-		connstatus = 0;
 	so->so_head = head;
 	so->so_type = head->so_type;
-	so->so_options = head->so_options &~ SO_ACCEPTCONN;
+	so->so_options = head->so_options &~ SCTP_SO_ACCEPTCONN;
 	so->so_linger = head->so_linger;
 	so->so_state = head->so_state | SS_NOFDREF;
 	so->so_dom = head->so_dom;
@@ -1830,7 +1813,7 @@ solisten_proto(struct socket *so, int backlog)
 	if (backlog < 0 || backlog > somaxconn)
 		backlog = somaxconn;
 	so->so_qlimit = backlog;
-	so->so_options |= SO_ACCEPTCONN;
+	so->so_options |= SCTP_SO_ACCEPTCONN;
 }
 
 
@@ -1892,7 +1875,7 @@ user_accept(struct socket *aso,  struct sockaddr **name, socklen_t *namelen, str
 		*name = NULL;
 	}
 
-	if ((head->so_options & SO_ACCEPTCONN) == 0) {
+	if ((head->so_options & SCTP_SO_ACCEPTCONN) == 0) {
 		error = EINVAL;
 		goto done;
 	}
@@ -2112,7 +2095,7 @@ soconnect(struct socket *so, struct sockaddr *nam)
 {
 	int error;
 
-	if (so->so_options & SO_ACCEPTCONN)
+	if (so->so_options & SCTP_SO_ACCEPTCONN)
 		return (EOPNOTSUPP);
 	/*
 	 * If protocol is connection-based, can only connect once.
@@ -2230,7 +2213,7 @@ int userspace_connect(struct socket *so, struct sockaddr *name, int namelen)
 void
 usrsctp_close(struct socket *so) {
 	if (so != NULL) {
-		if (so->so_options & SO_ACCEPTCONN) {
+		if (so->so_options & SCTP_SO_ACCEPTCONN) {
 			struct socket *sp;
 
 			ACCEPT_LOCK();
@@ -2338,9 +2321,9 @@ usrsctp_setsockopt(struct socket *so, int level, int option_name,
 				l = (struct linger *)option_value;
 				so->so_linger = l->l_linger;
 				if (l->l_onoff) {
-					so->so_options |= SO_LINGER;
+					so->so_options |= SCTP_SO_LINGER;
 				} else {
-					so->so_options &= ~SO_LINGER;
+					so->so_options &= ~SCTP_SO_LINGER;
 				}
 				return (0);
 			}
@@ -2398,7 +2381,7 @@ usrsctp_getsockopt(struct socket *so, int level, int option_name,
 
 				l = (struct linger *)option_value;
 				l->l_linger = so->so_linger;
-				if (so->so_options & SO_LINGER) {
+				if (so->so_options & SCTP_SO_LINGER) {
 					l->l_onoff = 1;
 				} else {
 					l->l_onoff = 0;
