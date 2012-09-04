@@ -387,6 +387,7 @@ TEST_F(WebrtcTest, TestSpeakerPlayoutExternalRecording) {
 
 int main(int argc, char **argv)
 {
+  test_utils.InitServices();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
