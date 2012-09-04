@@ -158,9 +158,7 @@ nsDOMDataChannel::GetLabel(nsAString& aLabel)
 NS_IMETHODIMP
 nsDOMDataChannel::GetReliable(bool* aReliable)
 {
-  *aReliable = true; //mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE;
-                      // With the amount of time I implemented this in
-                      // it certainly isn't reliable!
+  *aReliable = (mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE);
   return NS_OK;
 }
 

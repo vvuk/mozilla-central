@@ -290,7 +290,7 @@ public:
         return false;
     }
 
-  // XXX I don't think we need SendBinaryStream()
+  uint16_t GetType() { return mPrPolicy; }
 
   // Amount of data buffered to send
   uint32_t GetBufferedAmount()
