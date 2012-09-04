@@ -21,6 +21,9 @@ using namespace std;
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+#include "mtransport_test_utils.h"
+MtransportTestUtils test_utils;
+
 //Video Frame Color
 const int COLOR = 0x80; //Gray
 

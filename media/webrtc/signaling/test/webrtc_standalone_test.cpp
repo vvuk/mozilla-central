@@ -35,6 +35,9 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+#include "mtransport_test_utils.h"
+MtransportTestUtils test_utils;
+
 const int AUDIO_SAMPLE_LENGTH = 160;
 const int DEFAULT_PORT = 55555;
 
