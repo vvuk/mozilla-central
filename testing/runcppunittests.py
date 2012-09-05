@@ -88,6 +88,7 @@ def run_tests(programs, xre_path, symbols_path=None):
         else:
             env[pathvar] = xre_path
     env["MOZILLA_FIVE_HOME"] = xre_path
+    env["MOZ_XRE_DIR"] = xre_path
     #TODO: switch this to just abort once all C++ unit tests have
     # been fixed to enable crash reporting
     env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
