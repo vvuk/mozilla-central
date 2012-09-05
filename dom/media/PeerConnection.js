@@ -410,7 +410,10 @@ PeerConnectionObserver.prototype = {
     // previously called and that an identity was obtained. If so, add
     // a signed string to the SDP before sending it to content.
     if (!this._dompc._identity) {
-      this._dompc._onCreateOfferSuccess.onCallback({type: "offer", sdp: offer});
+	this._dompc._onCreateOfferSuccess.onCallback({
+	    type: "offer", sdp: offer,
+ 	    __exposedProps__: { type: "rw", sdp: "rw" }
+        });
       this._dompc._executeNext();
       return;
     }
@@ -441,7 +444,8 @@ PeerConnectionObserver.prototype = {
 
       dump("!!! " + self._dompc._uniqId + " : Generated final offer: " + finalOffer + "\n\n");
       self._dompc._onCreateOfferSuccess.onCallback({
-        type: "offer", sdp: finalOffer
+          type: "offer", sdp: finalOffer,
+        __exposedProps__: { type: "rw", sdp: "rw" }
       });
       self._dompc._executeNext();
     });
@@ -459,7 +463,8 @@ PeerConnectionObserver.prototype = {
     dump("!!! " + this._dompc._uniqId + " : onCreateAnswerSuccess called\n");
     if (this._dompc._onCreateAnswerSuccess) {
       this._dompc._onCreateAnswerSuccess.onCallback({
-        type: "answer", sdp: answer
+          type: "answer", sdp: answer, 
+	  __exposedProps__: { type: "rw", sdp: "rw" }
       });
     }
     this._dompc._executeNext();
@@ -533,7 +538,10 @@ PeerConnectionObserver.prototype = {
   onAddStream: function(stream, type) {
     dump("!!! " + this._dompc._uniqId + " : onAddStream called: " + stream + " :: " + type + "\n");
     if (this._dompc.onRemoteStreamAdded) {
-      this._dompc.onRemoteStreamAdded.onCallback({stream: stream, type: type});
+	this._dompc.onRemoteStreamAdded.onCallback({
+	    stream: stream, type: type,
+	    __exposedProps__: { stream: "r", type: "r" }
+	});
     }
     this._dompc._executeNext();
   },
