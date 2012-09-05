@@ -80,9 +80,11 @@ def run_tests(programs, xre_path, symbols_path=None):
         pathvar = "LD_LIBRARY_PATH"
     elif mozinfo.os == "mac":
         pathvar = "DYLD_LIBRARY_PATH"
+    elif mozinfo.os == "win":
+        pathvar = "PATH"
     if pathvar:
         if pathvar in env:
-            env[pathvar] = "%s:%s" % (xre_path, env[pathvar])
+            env[pathvar] = "%s%s%s" % (xre_path, os.pathsep, env[pathvar])
         else:
             env[pathvar] = xre_path
     env["MOZILLA_FIVE_HOME"] = xre_path
