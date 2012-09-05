@@ -202,24 +202,21 @@ typedef char* caddr_t;
 #define random() rand()
 #define srandom(s) srand(s)
 #define	MSG_EOR		0x8		/* data completes record */
-#if defined(CMSG_DATA)
+#define	MSG_DONTWAIT	0x80		/* this message should be nonblocking */
+
+#ifdef CMSG_DATA
 #undef CMSG_DATA
 #endif
 #define CMSG_DATA(x)   WSA_CMSG_DATA(x)
 #define CMSG_ALIGN(x)  WSA_CMSGDATA_ALIGN(x)
+#if (_WIN32_WINNT < 0x0600)
 #define CMSG_SPACE(x)  WSA_CMSG_SPACE(x)
 #define CMSG_LEN(x)    WSA_CMSG_LEN(x)
-#define SCTP_CMSGHDR   WSACMSGHDR
-
-#define	MSG_DONTWAIT	0x80		/* this message should be nonblocking */
+#endif
 
 /****  from sctp_os_windows.h ***************/
 #define SCTP_IFN_IS_IFT_LOOP(ifn)	((ifn)->ifn_type == IFT_LOOP)
 #define SCTP_ROUTE_IS_REAL_LOOP(ro) ((ro)->ro_rt && (ro)->ro_rt->rt_ifa && (ro)->ro_rt->rt_ifa->ifa_ifp && (ro)->ro_rt->rt_ifa->ifa_ifp->if_type == IFT_LOOP)
-
-#if (WINVER < 0x600)
-#define if_nametoindex(x) winxp_if_nametoindex(x)
-#endif
 
 /*
  * Access to IFN's to help with src-addr-selection
@@ -253,10 +250,13 @@ typedef char* caddr_t;
 		}                       \
 	} while (0)
 
-// XXX These need to be determined in configure.in
 #define BIG_ENDIAN 1
 #define LITTLE_ENDIAN 0
+#ifdef WORDS_BIGENDIAN
+#define BYTE_ORDER BIG_ENDIAN
+#else
 #define BYTE_ORDER LITTLE_ENDIAN
+#endif
 
 struct iovec {
 	ULONG len;
@@ -368,8 +368,6 @@ struct udphdr {
 typedef pthread_mutex_t userland_mutex_t;
 typedef pthread_cond_t userland_cond_t;
 typedef pthread_t userland_thread_t;
-
-typedef struct cmsghdr SCTP_CMSGHDR;
 #endif
 
 #define mtx_lock(arg1)
@@ -1055,20 +1053,15 @@ typedef int SHA512_CTX;
 /* end OOTB only stuff */
 
 #define AF_CONN 123
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
 struct sockaddr_conn {
+#ifdef HAVE_SCONN_LEN
 	uint8_t sconn_len;
+#endif
 	uint8_t sconn_family;
 	uint16_t sconn_port;
 	void *sconn_addr;
 };
-#else
-struct sockaddr_conn {
-	uint16_t sconn_family;
-	uint16_t sconn_port;
-	void *sconn_addr;
-};
-#endif
+
 /*
  * IP output routines
  */
@@ -1137,17 +1130,11 @@ sctp_get_mbuf_for_msg(unsigned int space_needed,
 #define __DARWIN_ALIGN32(p)       ((__darwin_size_t)((char *)(uintptr_t)(p) + __DARWIN_ALIGNBYTES32) &~ __DARWIN_ALIGNBYTES32)
 #endif
 #define CMSG_ALIGN(n)   __DARWIN_ALIGN32(n)
-#define I_AM_HERE \
-                do { \
-			SCTP_PRINTF("%s:%d at %s\n", __FILE__, __LINE__ , __FUNCTION__); \
-		} while (0)
-#else
-/* not BSD or Darwin */
-#define I_AM_HERE \
-                do { \
-			SCTP_PRINTF("%s:%d at %s\n", __FILE__, __LINE__ , __FUNCTION__); \
-		} while (0)
 #endif
+#define I_AM_HERE \
+                do { \
+			SCTP_PRINTF("%s:%d at %s\n", __FILE__, __LINE__ , __FUNCTION__); \
+		} while (0)
 
 #ifndef timevalsub
 #define timevalsub(tp1, tp2)                       \

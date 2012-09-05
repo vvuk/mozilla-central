@@ -32,7 +32,7 @@
 
 #ifdef __FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/netinet/sctputil.c 240007 2012-09-02 12:37:30Z tuexen $");
+__FBSDID("$FreeBSD: head/sys/netinet/sctputil.c 240114 2012-09-04 22:40:49Z tuexen $");
 #endif
 
 #include <netinet/sctp_os.h>
@@ -6113,7 +6113,7 @@ sctp_sorecvmsg(struct socket *so,
 			sin = (struct sockaddr_in *)from;
 			bzero(&sin6, sizeof(sin6));
 			sin6.sin6_family = AF_INET6;
-#if HAVE_SIN6_LEN
+#ifdef HAVE_SIN6_LEN
 			sin6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 #if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin) || defined(__Userspace_os_Windows)

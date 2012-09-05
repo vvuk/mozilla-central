@@ -7351,7 +7351,7 @@ sctp_accept(struct socket *so, struct mbuf *nam)
 		bzero((caddr_t)sin6, sizeof(*sin6));
 #endif
 		sin6->sin6_family = AF_INET6;
-#if !defined(__Windows__) && !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SIN6_LEN
 		sin6->sin6_len = sizeof(*sin6);
 #endif
 		sin6->sin6_port = ((struct sockaddr_in6 *)&store)->sin6_port;

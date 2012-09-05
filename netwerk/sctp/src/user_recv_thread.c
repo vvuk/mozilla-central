@@ -32,26 +32,13 @@
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
+#define __USE_GNU
+#include <netinet/in.h>
+#undef __USE_GNU
 #include <unistd.h>
 #include <pthread.h>
 #if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
-/* define to try to force in.h to define in6_pktinfo on all
-   revisions/distros */
-#define __USE_GNU
-#include <netinet/in.h>
-#undef __USE_GNU
-
-#if defined(__Userspace_os_Linux)
-#include <linux/netlink.h>
-#if defined(HAVE_LINUX_IF_ADDR_H)
-#include <linux/if_addr.h>
-#endif
-#if defined(HAVE_LINUX_RTNETLINK_H)
-#include <linux/rtnetlink.h>
-#endif
-#endif
-
 #else
 #include <user_ip6_var.h>
 #endif
@@ -59,7 +46,21 @@
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_pcb.h>
-
+#include <netinet/sctp_input.h>
+#if 0
+#if defined(__Userspace_os_Linux)
+#include <linux/netlink.h>
+#ifdef HAVE_LINUX_IF_ADDR_H
+#include <linux/if_addr.h>
+#endif
+#ifdef HAVE_LINUX_RTNETLINK_H
+#include <linux/rtnetlink.h>
+#endif
+#endif
+#endif
+#if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin)
+#include <net/route.h>
+#endif
 /* local macros and datatypes used to get IP addresses system independently */
 #if defined IP_RECVDSTADDR
 # define DSTADDR_SOCKOPT IP_RECVDSTADDR
@@ -81,40 +82,7 @@ void recv_thread_destroy(void);
 	((caddr_t) ap + (ap->sa_len ? ROUNDUP(ap->sa_len, sizeof (uint32_t)) : sizeof(uint32_t)))
 #endif
 
-#if defined(__Userspace_os_Windows)
-/* Emulate if_nametoindex() for WinXP */
-int
-winxp_if_nametoindex (const char *ifname)
-{
-  IP_ADAPTER_ADDRESSES *addresses, *addr;
-  ULONG status, size;
-  int index = 0;
-
-  if (!ifname)
-    return 0;
-
-  size = 0;
-  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, NULL, &size);
-  if (status != ERROR_BUFFER_OVERFLOW)
-    return 0;
-
-  addresses = malloc(size);
-  status = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, addresses, &size);
-  if (status == ERROR_SUCCESS) {
-    for (addr = addresses; addr; addr = addr->Next) {
-      if (addr->AdapterName && !strcmp (ifname, addr->AdapterName)) {
-        index = addr->IfIndex;
-        break;
-      }
-    }
-  }
-
-  free(addresses);
-  return index;
-}
-#endif
-
-#if !defined(__Userspace_os_Windows) && !defined(__Userspace_os_Linux)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 static void
 sctp_get_rtaddrs(int addrs, struct sockaddr *sa, struct sockaddr **rti_info)
 {
@@ -129,7 +97,6 @@ sctp_get_rtaddrs(int addrs, struct sockaddr *sa, struct sockaddr **rti_info)
 		}
 	}
 }
-#endif
 
 static void
 sctp_handle_ifamsg(unsigned char type, unsigned short index, struct sockaddr *sa)
@@ -189,8 +156,6 @@ sctp_handle_ifamsg(unsigned char type, unsigned short index, struct sockaddr *sa
 	}
 }
 
-#if !defined(__Userspace_os_Windows)
-#if !defined(__Userspace_os_Linux)
 static void *
 recv_function_route(void *arg)
 {
@@ -230,7 +195,10 @@ recv_function_route(void *arg)
 	}
 	pthread_exit(NULL);
 }
-#else /*Userspace_os_Linux*/
+#endif
+
+#if 0
+/* This does not yet work on Linux */
 static void *
 recv_function_route(void *arg)
 {
@@ -310,7 +278,6 @@ recv_function_route(void *arg)
 	}
 	pthread_exit(NULL);
 }
-#endif
 #endif
 
 #ifdef INET
@@ -446,16 +413,13 @@ recv_function_raw(void *arg)
 		port = 0;
 		
 		if ((src.sin_addr.s_addr == dst.sin_addr.s_addr) ||
-	     (SCTP_IS_IT_LOOPBACK(recvmbuf[0]))) {
+		    (SCTP_IS_IT_LOOPBACK(recvmbuf[0]))) {
 			compute_crc = 0;
 		}
 
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
-		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_input with off=%d\n", offset);
+		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_common_input_processing with off=%d\n", offset);
 
-		/* process incoming data */
-		/* sctp_input frees this mbuf. */
-		
 		sctp_common_input_processing(&recvmbuf[0], sizeof(struct ip), offset, n, 
 		                             (struct sockaddr *)&src,
 		                             (struct sockaddr *)&dst,
@@ -463,8 +427,6 @@ recv_function_raw(void *arg)
 		                             compute_crc,
 		                             ecn,
 		                             SCTP_DEFAULT_VRFID, port);
-		                             
-		/*sctp_input_with_port(recvmbuf[0], sizeof(struct ip), 0);*/
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(recvmbuf[i]);
@@ -635,10 +597,8 @@ recv_function_raw6(void *arg)
 			compute_crc = 0;
 		}
 
-		/* process incoming data */
-		/* sctp_input frees this mbuf. */
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
-		SCTPDBG(SCTP_DEBUG_USR, " - calling common_input_processing with off=%d\n", offset);
+		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_common_input_processing with off=%d\n", offset);
 		sctp_common_input_processing(&recvmbuf6[0], 0, offset, n, 
 		                             (struct sockaddr *)&src,
 		                             (struct sockaddr *)&dst,
@@ -646,7 +606,6 @@ recv_function_raw6(void *arg)
 		                             0,
 		                             0,
 		                             SCTP_DEFAULT_VRFID, 0);
-		/*sctp6_input_with_port(&ip6_m, &offset, 0);*/
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(recvmbuf6[i]);
@@ -837,10 +796,7 @@ recv_function_udp(void *arg)
 		src.sin_port = sh->src_port;
 		dst.sin_port = sh->dest_port;
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
-		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_input with off=%d\n", offset);
-
-		/* process incoming data */
-		/* sctp_input frees this mbuf. */
+		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_common_input_processing with off=%d\n", offset);
 		sctp_common_input_processing(&udprecvmbuf[0], 0, offset, n, 
 		                             (struct sockaddr *)&src,
 		                             (struct sockaddr *)&dst,
@@ -850,7 +806,6 @@ recv_function_udp(void *arg)
 #endif
 		                             0,
 		                             SCTP_DEFAULT_VRFID, port);
-		/*sctp_input_with_port(ip_m, sizeof(struct ip), src.sin_port);*/
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(udprecvmbuf[i]);
@@ -1038,14 +993,8 @@ recv_function_udp6(void *arg)
 		dst.sin6_port = sh->dest_port;
 		
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
-		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_input with off=%d\n", (int)sizeof(struct sctphdr));
-
-		/* process incoming data */
-		/* sctp_input frees this mbuf. */
-		/*offset = sizeof(struct ip6_hdr);
-		sctp6_input_with_port(&ip6_m, &offset, src.sin6_port);*/
-		
-				sctp_common_input_processing(&udprecvmbuf6[0], 0, offset, n, 
+		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_common_input_processing with off=%d\n", (int)sizeof(struct sctphdr));
+		sctp_common_input_processing(&udprecvmbuf6[0], 0, offset, n, 
 		                             (struct sockaddr *)&src,
 		                             (struct sockaddr *)&dst,
 		                             sh, ch,
@@ -1121,13 +1070,12 @@ recv_thread_init(void)
 #else
 	unsigned int timeout = SOCKET_TIMEOUT; /* Timeout in milliseconds */
 #endif
-#if !defined(__Userspace_os_Windows)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 	if (SCTP_BASE_VAR(userspace_route) == -1) {
-#if !defined(__Userspace_os_Linux)
 		if ((SCTP_BASE_VAR(userspace_route) = socket(AF_ROUTE, SOCK_RAW, 0)) < 0) {
 			SCTPDBG(SCTP_DEBUG_USR, "Can't create routing socket (errno = %d).\n", errno);
 		}
-#else
+#if 0
 		struct sockaddr_nl sanl;
 
 		if ((SCTP_BASE_VAR(userspace_route) = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0) {
@@ -1411,6 +1359,7 @@ recv_thread_init(void)
 	}
 #endif
 #if !defined(__Userspace_os_Windows)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 #if defined(INET) || defined(INET6)
 	if (SCTP_BASE_VAR(userspace_route) != -1) {
 		int rc;
@@ -1421,6 +1370,7 @@ recv_thread_init(void)
 			SCTP_BASE_VAR(userspace_route) = -1;
 		}
 	}
+#endif
 #endif
 #if defined(INET)
 	if (SCTP_BASE_VAR(userspace_rawsctp) != -1) {
@@ -1501,7 +1451,7 @@ recv_thread_init(void)
 void
 recv_thread_destroy(void)
 {
-#if !defined(__Userspace_os_Windows)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 #if defined(INET) || defined(INET6)
 	if (SCTP_BASE_VAR(userspace_route) != -1) {
 		close(SCTP_BASE_VAR(userspace_route));

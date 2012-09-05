@@ -950,13 +950,8 @@ struct mbuf* mbufalloc(size_t size, void* data, unsigned char fill)
 
         if (data != NULL){
             /* fill in user data */
-#if defined (__Userspace_os_Windows)
-			char *datap = (char*)data + cpsz;
-			memcpy(mtod(m, caddr_t), (void*)datap, willcpy);
-#else
-      memcpy(mtod(m, caddr_t), (char *)data+cpsz, willcpy);
-#endif
-        }else if (fill != '\0'){
+            memcpy(mtod(m, caddr_t), ((char *)data) + cpsz, willcpy);
+        } else if (fill != '\0') {
             memset(mtod(m, caddr_t), fill, willcpy);
         }
 
@@ -1868,7 +1863,7 @@ user_accept(struct socket *aso,  struct sockaddr **name, socklen_t *namelen, str
 	struct sockaddr *sa = NULL;
 	int error;
 	struct socket *head = aso;
-        struct socket *so = NULL;
+        struct socket *so;
 
 
 	if (name) {
@@ -2642,7 +2637,7 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in6));
 	dst.sin6_family = AF_INET6;
 	dst.sin6_addr = ip6->ip6_dst;
-#ifdef HAVE_SIN6_LEN
+#ifdef HAVE_SIN6_LEN 
 	dst.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 
@@ -2727,7 +2722,7 @@ free_mbuf:
 #endif
 
 void
-usrsctp_conninput(void *addr, void *buffer, size_t length, uint8_t ecn_bits)
+usrsctp_conninput(void *addr, const void *buffer, size_t length, uint8_t ecn_bits)
 {
 	struct sockaddr_conn src, dst;
 	struct mbuf *m;
@@ -2736,20 +2731,20 @@ usrsctp_conninput(void *addr, void *buffer, size_t length, uint8_t ecn_bits)
 
 	memset(&src, 0, sizeof(struct sockaddr_conn));
 	src.sconn_family = AF_CONN;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SCONN_LEN
 	src.sconn_len = sizeof(struct sockaddr_conn);
 #endif
 	src.sconn_addr = addr;
 	memset(&dst, 0, sizeof(struct sockaddr_conn));
 	dst.sconn_family = AF_CONN;
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SCONN_LEN
 	dst.sconn_len = sizeof(struct sockaddr_conn);
 #endif
 	dst.sconn_addr = addr;
 	if ((m = sctp_get_mbuf_for_msg(length, 1, M_DONTWAIT, 0, MT_DATA)) == NULL) {
 		return;
 	}
-	m_copyback(m, 0, length, buffer);
+	m_copyback(m, 0, length, (caddr_t)buffer);
 	if (SCTP_BUF_LEN(m) < sizeof(struct sctphdr) + sizeof(struct sctp_chunkhdr)) {
 		if ((m = m_pullup(m, sizeof(struct sctphdr) + sizeof(struct sctp_chunkhdr))) == NULL) {
 			SCTP_STAT_INCR(sctps_hdrops);

@@ -36,29 +36,30 @@ extern "C" {
 #endif
 
 #include <sys/types.h>
-#if !defined(__Userspace_os_Windows)
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <ws2ipdef.h>
+#include <ws2def.h>
+#else
 #include <sys/socket.h>
 /*  to make sure some OSs define in6_pktinfo */
 #define __USE_GNU
 #include <netinet/in.h>
 #undef __USE_GNU
-#else
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <ws2ipdef.h>
-#include <ws2def.h>
 #endif
 
-/* Mac OS/X Snow Leopard seems to not have this */
+#ifndef MSG_NOTIFICATION
+/* This definition MUST be in sync with usrsctplib/user_socketvar.h */
+#define MSG_NOTIFICATION 0x2000
+#endif
+
 #ifndef IPPROTO_SCTP
-#define IPPROTO_SCTP 132	/* the Official IANA number :-) */
-#endif				/* !IPPROTO_SCTP */
-
-#if !defined(MSG_NOTIFICATION)
-#define MSG_NOTIFICATION 0x2000         /* SCTP notification */
+/* This is the IANA assigned protocol number of SCTP. */
+#define IPPROTO_SCTP 132
 #endif
 
-#if defined(__Userspace_os_Windows)
+#ifdef _WIN32
 #if defined(_MSC_VER) && _MSC_VER >= 1600
 #include <stdint.h>
 #elif defined(SCTP_STDINT_INCLUDE)
@@ -84,7 +85,10 @@ extern "C" {
 typedef uint32_t sctp_assoc_t;
 
 #define AF_CONN 123
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+/* The definition of struct sockaddr_conn MUST be in
+ * tune with other sockaddr_* structures.
+ */
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 struct sockaddr_conn {
 	uint8_t sconn_len;
 	uint8_t sconn_family;
@@ -875,19 +879,6 @@ usrsctp_sendv(struct socket *so,
                        unsigned int infotype,
                        int flags);
 
-/*ssize_t
-usrsctp_sendmsg(struct socket *so,
-                        const void *data,
-                        size_t len,
-                        struct sockaddr *to,
-                        socklen_t tolen,
-                        uint32_t ppid,
-                        uint32_t flags,
-                        uint32_t stream_no,
-                        uint32_t timetolive,
-                        uint32_t context);*/
-
-
 ssize_t
 usrsctp_recvv(struct socket *so,
               void *dbuf,
@@ -934,10 +925,6 @@ usrsctp_finish(void);
 
 int
 usrsctp_shutdown(struct socket *so, int how);
-
-#if defined(__Userspace_os_Windows)
-void getwintimeofday(struct timeval *tv);
-#endif
 
 void
 usrsctp_conninput(void *, const void *, size_t, uint8_t);
@@ -1021,8 +1008,13 @@ USRSCTP_SYSCTL_DECL(sctp_buffer_splitting)
 USRSCTP_SYSCTL_DECL(sctp_initial_cwnd)
 #ifdef SCTP_DEBUG
 USRSCTP_SYSCTL_DECL(sctp_debug_on)
-#include <netinet/sctp_constants.h>
+/* More specific values can be found in sctp_constants, but
+ * are not considered to be part of the API.
+ */
+#define SCTP_DEBUG_NONE 0x00000000
+#define SCTP_DEBUG_ALL  0xffffffff
 #endif
+#undef USRSCTP_SYSCTL_DECL
 #ifdef  __cplusplus
 }
 #endif
