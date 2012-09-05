@@ -92,6 +92,7 @@ def run_tests(programs, xre_path, symbols_path=None):
     #TODO: switch this to just abort once all C++ unit tests have
     # been fixed to enable crash reporting
     env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
+    env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
     result = True
     for prog in programs:
         single_result = run_one_test(prog, env, symbols_path)
