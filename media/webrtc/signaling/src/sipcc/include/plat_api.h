@@ -684,14 +684,6 @@ char *platGetIPAddr();
  */
 void platGetMacAddr(char *addr);
 
-/**
- * Provides the default gateway 
- *
- * @param *addr the pointer to the string holding default gw address (dhcp.xxxx.gateway)
- * @return void
- */
-void platGetDefaultGW(char *addr);
-
 
 /**
  *  platGetFeatureAllowed

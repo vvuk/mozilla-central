@@ -292,7 +292,7 @@ static void fcp_init()
    capset_init();
    
    // initialize the version
-   strcpy (g_fp_version_stamp, "");
+   sstrncpy(g_fp_version_stamp, "", sizeof(g_fp_version_stamp));
 }
 
 /*

@@ -341,7 +341,7 @@ parse_other_param (char *inp_str, char **other_param_value)
         if (!cpr_strcasecmp(token_string, "lr")) {
             *other_param_value = (char *) cpr_malloc(4);
             if (*other_param_value != NULL) {
-                strcpy(*other_param_value, token_string);
+                sstrncpy(*other_param_value, token_string, 4);
             }
         }
         *inp_str = temp;
@@ -656,6 +656,8 @@ parseUrlParams (char *url_param, sipUrl_t *sipUrl, genUrl_t *genUrl)
  * sip:user:password@host:port
  * sip:user:password@[ipv6host]:port
  *
+ * e.g.  "1218@[2001:db8:c18:1:211:11ff:feb1:fb65]"
+ *
  * Parse the SIP URL and zero the separators ( @ : ; etc)
  * Point fields of sipUrl to appropriate places in the duplicated string
  * This saves multiple mallocs for different fields of the sipUrl
@@ -681,8 +683,6 @@ parseSipUrl (char *url_start, genUrl_t *genUrl)
     boolean parsing_user_part;
     char *temp_url;
     boolean ipv6_addr = FALSE;
-
-    //strcpy(url_start, "1218@[2001:db8:c18:1:211:11ff:feb1:fb65]");
 
     /* initializing separator */
     separator[0] = '\0';
@@ -4262,6 +4262,7 @@ sippmh_process_via_header (sipMessage_t *sip_message,
     char dotted_ip[MAX_IPADDR_STR_LEN];
     char *hdr_start;
     char *new_buf;
+    int new_buf_len;
     char *offset;
     long old_header_offset;
     sipVia_t *via;
@@ -4287,9 +4288,8 @@ sippmh_process_via_header (sipMessage_t *sip_message,
              * +3 accounts for the ; and the = before and after the received
              * and the terminating NULL
              */
-            new_buf = (char *) cpr_malloc(strlen(hdr_start) +
-                                          sizeof(VIA_RECEIVED) +
-                                          strlen(dotted_ip) + 2);
+            new_buf_len = strlen(hdr_start) + sizeof(VIA_RECEIVED) + strlen(dotted_ip) + 2;
+            new_buf = (char *) cpr_malloc(new_buf_len);
             /*
              * If we cannot allocate memory, we will just leave
              * the VIA alone and hope things work out for the best
@@ -4303,10 +4303,10 @@ sippmh_process_via_header (sipMessage_t *sip_message,
                     old_header_offset;
 
                 if (offset) {
-                    strncpy(new_buf, hdr_start, offset - hdr_start);
+                    sstrncpy(new_buf, hdr_start, offset - hdr_start);
                     new_buf[offset - hdr_start] = '\0';
                 } else {
-                    strcpy(new_buf, hdr_start);
+                    sstrncpy(new_buf, hdr_start, new_buf_len);
                 }
                 strcat(new_buf, ";");
                 strcat(new_buf, VIA_RECEIVED);

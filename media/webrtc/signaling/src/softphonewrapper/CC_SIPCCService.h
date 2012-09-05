@@ -46,9 +46,6 @@ extern "C" {
 	// Callbacks from SIPCC.
     void configCtlFetchReq(int device_handle);
     char* platGetIPAddr();
-#ifndef _WIN32
-    void platGetDefaultGW(char *addr);
-#endif
   
     void CCAPI_DeviceListener_onDeviceEvent(ccapi_device_event_e type, cc_device_handle_t hDevice, cc_deviceinfo_ref_t dev_info);
     void CCAPI_DeviceListener_onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_ref_t /* device_info */, cc_featureinfo_ref_t feature_info);
@@ -77,9 +74,6 @@ namespace CSF
     {
 	    friend void ::configCtlFetchReq(int device_handle);
 	    friend char* ::platGetIPAddr();
-#ifndef _WIN32
-      friend void ::platGetDefaultGW(char *addr);
-#endif
       
 	public:
 	    CC_SIPCCService();

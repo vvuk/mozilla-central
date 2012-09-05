@@ -2501,7 +2501,7 @@ ccsip_handle_idle_ev_sip_invite (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
     /* CallID: header */
     callID = sippmh_get_cached_header_val(request, CALLID);
-    sstrncpy(ccb->sipCallID, callID, MAX_SIP_CALL_ID);
+    sstrncpy(ccb->sipCallID, callID, sizeof(ccb->sipCallID));
 
     /* Require: header */
     require = sippmh_get_cached_header_val(request, REQUIRE);
@@ -8841,10 +8841,9 @@ sip_sm_dequote_string (char *str, int max_size)
     while (((*p == '\"') || (*p == ' ') || (*p == '\t')) && (*p != '\0')) {
         p++;
     }
-    // The following use of strcpy is using over-lapping memory regions
-    // and is undefined by ANSI-C standards.  The appropriate call is to
-    // use memmove(dst, src, size).
-    strncpy(str, p, max_size);
+
+    // The following use of sstrncpy is using over-lapping memory regions
+    sstrncpy(str, p, max_size);
 
     /* Get rid of trailing double quote and white space */
     // should be...
@@ -11612,7 +11611,7 @@ create_dupCCB (ccsipCCB_t *origCCB, int dup_flags)
     dupCCB->mother_ccb = (void *)origCCB;
 
     dupCCB->flags = origCCB->flags;
-    strcpy(dupCCB->sipCallID, origCCB->sipCallID);
+    sstrncpy(dupCCB->sipCallID, origCCB->sipCallID, MAX_SIP_CALL_ID);
     dupCCB->gsm_id = origCCB->gsm_id;
     dupCCB->con_call_id = origCCB->con_call_id;
     dupCCB->blind_xfer_call_id = origCCB->blind_xfer_call_id;

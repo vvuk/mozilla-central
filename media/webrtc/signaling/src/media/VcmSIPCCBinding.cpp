@@ -2149,7 +2149,7 @@ cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level, void 
         if ( (ptr = ccsdpAttrGetFmtpParamSets(sdp_p, level, 0, 1)) != NULL )
         {
             memset(rcap->sprop_parameter_set, 0, csf_countof(rcap->sprop_parameter_set));
-            csf_strcpy(rcap->sprop_parameter_set, csf_countof(rcap->sprop_parameter_set), ptr);                     
+            sstrncpy(rcap->sprop_parameter_set, ptr, csf_countof(rcap->sprop_parameter_set));                     
         }
 
         if ( ccsdpAttrGetFmtpPackMode(sdp_p, level, 0, 1, &temp) == SDP_SUCCESS )

@@ -733,6 +733,7 @@ int publish_handle_ev_sip_response (sipMessage_t *pSipMessage)
     long            expiry_time;
     pub_req_t      *msg_p;
     ccsip_publish_cb_t *pcb_p;
+    int entity_tag_size;
 
     callID_p = sippmh_get_cached_header_val(pSipMessage, CALLID);
     if (!callID_p) {
@@ -855,9 +856,10 @@ int publish_handle_ev_sip_response (sipMessage_t *pSipMessage)
     sip_etag = sippmh_get_header_val(pSipMessage, SIP_HEADER_SIPETAG, NULL);
     if (sip_etag != NULL) {
         cpr_free(pcb_p->entity_tag);
-        pcb_p->entity_tag = cpr_malloc(strlen(sip_etag) + 1);
+        entity_tag_size = strlen(sip_etag) + 1;
+        pcb_p->entity_tag = cpr_malloc(entity_tag_size);
         if (pcb_p->entity_tag != NULL) {
-            strcpy(pcb_p->entity_tag, sip_etag);
+            sstrncpy(pcb_p->entity_tag, sip_etag, entity_tag_size);
         } else {
             free_pcb (pcb_p);
             send_resp_to_app(PUBLISH_FAILED_NORESOURCE, pcb_p->pub_handle, pcb_p->app_handle,

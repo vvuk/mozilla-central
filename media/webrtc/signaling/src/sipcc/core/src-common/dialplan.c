@@ -724,17 +724,18 @@ AddDialTemplate (const char *pattern, const line_t line,
 {
     struct DialTemplate *pnewtemplate;
     int patternlen = strlen(pattern);
+    int rewritelen = strlen(rewrite);
     int counter;
 
     pnewtemplate = (struct DialTemplate *)
-        cpr_malloc(sizeof(struct DialTemplate) + patternlen + strlen(rewrite) +
+        cpr_malloc(sizeof(struct DialTemplate) + patternlen + rewritelen +
                    2);
     if (pnewtemplate != NULL) {
         pnewtemplate->next = NULL;
         pnewtemplate->pattern = (char *) (pnewtemplate + 1);
-        strcpy(pnewtemplate->pattern, (char *) pattern);
+        sstrncpy(pnewtemplate->pattern, (char *) pattern, patternlen + 1);
         pnewtemplate->rewrite = pnewtemplate->pattern + patternlen + 1;
-        strcpy(pnewtemplate->rewrite, (char *) rewrite);
+        sstrncpy(pnewtemplate->rewrite, (char *) rewrite, rewritelen + 1);
         pnewtemplate->line = line;
         pnewtemplate->timeout = timeout;
         pnewtemplate->userMode = userMode;
@@ -790,25 +791,25 @@ show_dialplan_cmd (int32_t argc, const char *argv[])
     while (pTemp != NULL) {
         switch (pTemp->routeMode) {
         case RouteEmergency:
-            strcpy(rmode, "Emergency");
+            sstrncpy(rmode, "Emergency", sizeof(rmode));
             break;
         case RouteFQDN:
-            strcpy(rmode, "FQDN");
+            sstrncpy(rmode, "FQDN", sizeof(rmode));
             break;
         default:
-            strcpy(rmode, "Default");
+            sstrncpy(rmode, "Default", sizeof(rmode));
             break;
         }
 
         switch (pTemp->userMode) {
         case UserPhone:
-            strcpy(umode, "Phone");
+            sstrncpy(umode, "Phone", sizeof(umode));
             break;
         case UserIP:
-            strcpy(umode, "IP");
+            sstrncpy(umode, "IP", sizeof(umode));
             break;
         default:
-            strcpy(umode, "Unspecified");
+            sstrncpy(umode, "Unspecified", sizeof(umode));
             break;
         }
 

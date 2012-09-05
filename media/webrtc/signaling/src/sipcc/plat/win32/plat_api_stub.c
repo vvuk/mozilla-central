@@ -530,17 +530,6 @@ void sipcc_NotifyStateChange(callid_t callid, int32_t state)
 	// Temporary place holder until code added to support this
 }
 
-/**
- * Provides the default gateway
- *
- * @param *addr the pointer to the string holding default gw address (dhcp.xxxx.gateway)
- * @return void
- */
-void platGetDefaultGW (char* addr)
-{
-    return;
-}
-
 /*
  * Returns the default gateway
  * 

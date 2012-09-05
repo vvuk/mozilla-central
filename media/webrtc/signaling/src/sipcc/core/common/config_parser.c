@@ -319,16 +319,6 @@ void config_set_autoreg_properties ()
 }
 
 /*
- * config_get_default_gw
- *
- * Get the default gw
- */
-void config_get_default_gw(char *buf)
-{
-    platGetDefaultGW(buf);
-}
-
-/*
  * update_security_mode_and_ports
  *
  */
@@ -532,19 +522,6 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
     isSecure = FALSE;
     sstrncpy(ip, "", MAX_SIP_URL_LENGTH);
     sstrncpy(option, "User Specific", MAX_SIP_URL_LENGTH);
-
-    if (!strncmp( option, "Use Default Gateway", MAX_SIP_URL_LENGTH)) {
-        config_get_default_gw(buf);
-        if (buf[0] == '\0') {
-        	isValid = FALSE;
-        } else {
-        	sstrncpy(ip, buf, MAX_SIP_URL_LENGTH);
-        }
-    } else if (!strncmp( option, "Disable", MAX_SIP_URL_LENGTH)) {
-        isValid= FALSE;
-        isSecure= FALSE;
-        ip[0] = '\0';
-    }
 
     compare_or_set_string_value(CFGID_CCM1_ADDRESS+0, sipDomain, (const unsigned char *) "ccm1_addr");
     compare_or_set_boolean_value(CFGID_CCM1_IS_VALID + 0, gCcm1_isvalid, (const unsigned char *)"ccm1_isvalid");

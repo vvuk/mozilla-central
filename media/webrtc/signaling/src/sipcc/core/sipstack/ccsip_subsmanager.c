@@ -599,8 +599,8 @@ test_send_subscribe ()
      * }
      *
      * memset(eventData, 0, sizeof(ccsip_event_data_t));
-     * strcpy(eventData->u.kpml_request.pattern.regex.regexData, "012");
-     * strcpy(eventData->u.kpml_request.version, "1.0");
+     * sstrncpy(eventData->u.kpml_request.pattern.regex.regexData, "012", sizeof(eventData->u.kpml_request.pattern.regex.regexData));
+     * sstrncpy(eventData->u.kpml_request.version, "1.0", sizeof(eventData->u.kpml_request.version));
      * eventData->type = EVENT_DATA_KPML_REQUEST;
      * subscribe.msg.subscribe.eventData = eventData;
      */

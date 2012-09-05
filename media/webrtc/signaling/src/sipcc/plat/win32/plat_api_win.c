@@ -79,7 +79,7 @@ char* sipcc_platGetIPAddr (void) {
 	 At the moment, I default to using the first
 	 */
 	memcpy(&SocketAddress.sin_addr, pHost->h_addr_list[0], pHost->h_length);
-	strcpy(ip_address, inet_ntoa(SocketAddress.sin_addr));
+	sstrncpy(ip_address, inet_ntoa(SocketAddress.sin_addr), sizeof(ip_address));
 
 	WSACleanup();
 	return ip_address;

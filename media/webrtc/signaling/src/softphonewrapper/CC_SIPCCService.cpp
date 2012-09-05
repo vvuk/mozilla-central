@@ -233,38 +233,6 @@ char * platGetIPAddr ()
 	return (char*) pPhone->localAddress.c_str();
 }
 
-/**
- * Called by SIPCC to get the default gateway. Determining the default gateway is platform specific.
- * In ECC we rely on the "NetworkMonitor" interface to provide this, ie the job of determining the
- * default gateway is not done in ECC iteself.
- *
- * @param *addr the pointer to the string holding default gw address (dhcp.xxxx.gateway)
- *        addr points to a buffer of size MAX_SIP_URL_LENGTH(512) bytes.
- * @return void
- */
-#ifndef _WIN32
-void platGetDefaultGW(char *addr)
-{
-    CSFLogDebugS( logTag, "In platGetDefaultGW()");
-
-    if (addr == NULL)
-    {
-        CSFLogErrorS( logTag, "In platGetDefaultGW(). Passed NULL value for addr.");
-        return;
-    }
-
-    CSF::CC_SIPCCService * pPhone = CSF::CC_SIPCCService::_self;
-
-    if (pPhone == NULL)
-    {
-        CSFLogErrorS( logTag, "In platGetDefaultGW(). CC_SIPCCService::_self is NULL.");
-        return;
-    }
-
-    csf_strcpy(addr, 512, pPhone->defaultGW.c_str());
-}
-#endif
-
 void ccmedia_flash_once_timer_callback (void)
 {
 }
