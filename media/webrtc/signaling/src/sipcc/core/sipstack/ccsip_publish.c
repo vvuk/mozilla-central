@@ -434,7 +434,7 @@ static boolean sipSPISendPublish (ccsip_publish_cb_t *pcb_p, boolean authen)
      * Populate full RURI if it is not yet. Sometimes, applications may only provide user part.
      */
     if (pcb_p->full_ruri[0] == 0) {
-        strncpy(pcb_p->full_ruri, "sip:", MAX_SIP_URL_LENGTH);
+        sstrncpy(pcb_p->full_ruri, "sip:", MAX_SIP_URL_LENGTH);
         strncat(pcb_p->full_ruri, pcb_p->ruri, MAX_SIP_URL_LENGTH - 5);
         /* check if it has host part */
         domainloc = strchr(pcb_p->full_ruri, '@');

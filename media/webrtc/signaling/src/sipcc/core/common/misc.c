@@ -49,6 +49,8 @@
 //#include "cc_config.h"
 #include "prot_configmgr.h"
 #include "debug.h"
+#include "cpr_string.h"
+ 
 /*--------------------------------------------------------------------------
  * Local definitions
  *--------------------------------------------------------------------------
@@ -211,7 +213,7 @@ set_month_from_str (char *month_str)
         if (strncmp(month_str, last_month_str, 3) != 0) {
             for (i = 0; i < 12; i++) {
                 if (strncmp(month_str, month_ar[i], 3) == 0) {
-                    strncpy(last_month_str, month_str, 3);
+                    sstrncpy(last_month_str, month_str, sizeof(last_month_str));
                     last_month = i;
                     ret_val = TRUE;
                     break;

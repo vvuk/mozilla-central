@@ -1599,7 +1599,7 @@ sipSPISendRefer (ccsipCCB_t *ccb, char *referto, sipRefEnum_e referto_type)
             if ((strncmp(referto, "<sip:", 5) == 0) ||
                 (strncmp(referto, "sip:", 4) == 0) ||
                 (strncmp(referto, "<urn:", 5) == 0)) {
-                strncpy(tempreferto, referto, strlen(referto));
+                sstrncpy(tempreferto, referto, sizeof(tempreferto));
 
                 /* REFER to get the token should be norefersub */
                 if (strncmp(referto, TOKEN_REFER_TO, sizeof(TOKEN_REFER_TO))
@@ -2836,9 +2836,9 @@ sipSPISendFailureResponseAck (ccsipCCB_t *ccb, sipMessage_t *response,
         dn_line     = gCallHistory[previous_call_line].dn_line;
         sstrncpy(local_ReqURI,
                  gCallHistory[previous_call_line].last_route_request_uri,
-                 MAX_SIP_URL_LENGTH);
-        strncpy(via_branch, gCallHistory[previous_call_line].via_branch,
-                SIP_MAX_VIA_LENGTH - 1);
+                 sizeof(local_ReqURI));
+        sstrncpy(via_branch, gCallHistory[previous_call_line].via_branch,
+                sizeof(via_branch));
     } else {
         /*
          * The ACK to a 300-699 response MUST
@@ -2849,9 +2849,9 @@ sipSPISendFailureResponseAck (ccsipCCB_t *ccb, sipMessage_t *response,
         // Get the via_branch from the last request that we sent
         trx_index = get_method_request_trx_index(ccb, sipMethodInvite, TRUE);
         if (trx_index != -1) {
-            strncpy(via_branch,
+            sstrncpy(via_branch,
                     (const char *)(ccb->sent_request[trx_index].u.sip_via_branch),
-                    SIP_MAX_VIA_LENGTH - 1);
+                    sizeof(via_branch));
         }
         // via_branch = (char *) ccb->sip_via_branch;
         /*
@@ -3342,7 +3342,7 @@ sipSPIAddLocalVia (sipMessage_t *msg, ccsipCCB_t *ccb, sipMethod_t method)
                 }
                 sip_via_branch = strlib_open(ccb->sent_request[trx_index].u.sip_via_branch,
                                              VIA_BRANCH_LENGTH);
-                strncpy(sip_via_branch, (char *)(ccb->sent_request[trx_index - 1].u.sip_via_branch), VIA_BRANCH_LENGTH);
+                sstrncpy(sip_via_branch, (char *)(ccb->sent_request[trx_index - 1].u.sip_via_branch), VIA_BRANCH_LENGTH);
                 ccb->sent_request[trx_index].u.sip_via_branch = strlib_close(sip_via_branch);
 
                 snprintf(via, sizeof(via),

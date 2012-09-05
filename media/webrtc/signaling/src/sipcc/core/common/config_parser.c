@@ -45,7 +45,6 @@
 #include "debug.h"
 #include "ccapi.h"
 #include "prot_configmgr.h"
-#include <string.h> /* for strncpy */
 #include "call_logger.h"
 #include "sip_common_transport.h"
 #include "sip_ccm_transport.h"
@@ -549,9 +548,9 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
         i = strlen("1284570837-bbc096ed-7392-427d-9694-5ce49d5c3acb");
         if (i > MAX_CFG_VERSION_STAMP_LEN) {
             CONFIG_ERROR(CFG_F_PREFIX "config version %d, bigger than allocated space %d\n", "config_parser_element", i, MAX_CFG_VERSION_STAMP_LEN);
-            i = MAX_CFG_VERSION_STAMP_LEN;
         }
-        strncpy(g_cfg_version_stamp, "1284570837-bbc096ed-7392-427d-9694-5ce49d5c3acb", i);
+
+        sstrncpy(g_cfg_version_stamp, "1284570837-bbc096ed-7392-427d-9694-5ce49d5c3acb", sizeof(g_cfg_version_stamp));
     }
     else {
         CONFIG_ERROR(CFG_F_PREFIX "got NULL value for %s\n", "config_parser_element", "versionStamp");

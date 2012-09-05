@@ -44,7 +44,6 @@
 #include "cc_config.h"
 #include "phone_debug.h"
 #include "debug.h"
-#include <string.h> /* for strncpy */
 #include "CCProvider.h"
 #include "ccapi_call_info.h"
 #include "conf_roster.h"

@@ -330,7 +330,7 @@ show_config_cmd (cc_int32_t argc, const char *argv[])
             // real password
             if (strstr(table->name, "Password") != 0) {
                 // and add an invisible one
-                strncpy(buf, "**********", MAX_CONFIG_VAL_PRINT_LEN);
+                sstrncpy(buf, "**********", sizeof(buf));
             }
             debugif_printf("%s : %s\n", table->name, buf);
         }

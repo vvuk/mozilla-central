@@ -640,8 +640,9 @@ cprGetMessageQueueStats (cprMsgQueue_t msgQueue, cprMsgQueueStats_t *stats)
     if (msgQueue && stats) {
         msgq = (cpr_msg_queue_t *) msgQueue;
 
-        strncpy(stats->name, msgq->name ? msgq->name : "undefined",
-                sizeof(stats->name) - 1);
+        sstrncpy(stats->name, msgq->name ? msgq->name : "undefined",
+                sizeof(stats->name));
+        
         stats->extendedDepth = msgq->maxExtendedQDepth;
         stats->maxCount = msgq->maxCount;
         stats->currentCount = msgq->currentCount;

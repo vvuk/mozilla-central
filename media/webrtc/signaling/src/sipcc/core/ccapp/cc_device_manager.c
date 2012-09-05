@@ -68,11 +68,6 @@ mgmt_state_t mgmtState = MGMT_STATE_IDLE;
 //int parse_config_properties (int device_handle, const char *device_name, const char *cfg, int from_memory);
 static boolean isStartRequestPending = FALSE;
 static boolean isServiceStopped = TRUE;
-extern int g_dev_hdl;
-extern char g_dev_name[];
-extern char g_cfg_p[];
-extern int g_compl_cfg;
-
 
 extern cc_boolean is_action_to_be_deferred(cc_action_t action);
 

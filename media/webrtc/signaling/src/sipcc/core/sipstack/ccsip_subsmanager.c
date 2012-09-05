@@ -4863,7 +4863,7 @@ sipSPISendSubNotify (ccsip_common_cb_t *cbp, boolean authen)
         char               line_name[MAX_LINE_NAME_SIZE];
         config_get_line_string(CFGID_LINE_NAME, line_name, cbp->dn_line, sizeof(line_name));
         snprintf(ReqURI, MAX_SIP_URL_LENGTH, "sip:%s@%s", line_name, dest_sip_addr_str);
-        strncpy(tcbp->full_ruri, ReqURI, MAX_SIP_URL_LENGTH);
+        sstrncpy(tcbp->full_ruri, ReqURI, MAX_SIP_URL_LENGTH);
     }
     (void) sippmh_add_request_line(request,
                                    sipGetMethodString(sipMethodNotify),

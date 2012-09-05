@@ -569,7 +569,6 @@
         './src/sipcc/include/xml_parser_defines.h',
 
         # PLAT
-        # './src/sipcc/plat/common/plat_sec_api.c',
         './src/sipcc/plat/csf2g/model.c',
         './src/sipcc/plat/csf2g/reset_api.c',
         # 
@@ -603,8 +602,6 @@
 
             # PLAT
             './src/sipcc/plat/common/dns_utils.c',
-            #'./src/sipcc/plat/unix-common/random.c',
-            './src/sipcc/plat/linux/plat_api_stub.c',
 
             # CPR
             './src/sipcc/cpr/linux/cpr_linux_chunk.c',

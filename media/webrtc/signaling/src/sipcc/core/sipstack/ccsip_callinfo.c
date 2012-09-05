@@ -270,10 +270,10 @@ parse_call_info_parm (char *parm_p, cc_call_info_data_t * feature_data_p)
               if (temp_p) {
                 unsigned int length = ((temp_p - parm_p)<CC_GCID_LEN) ? 
                                           (temp_p - parm_p):(CC_GCID_LEN);
-                strncpy(feature_data_p->call_info_feat_data.global_call_id, parm_p, length);
+                sstrncpy(feature_data_p->call_info_feat_data.global_call_id, parm_p, length);
               } else {
                 // No Semicolon found this could be the last parameter
-                strncpy(feature_data_p->call_info_feat_data.global_call_id, parm_p, CC_GCID_LEN);
+                sstrncpy(feature_data_p->call_info_feat_data.global_call_id, parm_p, CC_GCID_LEN);
               }
               feature_data_p->call_info_feat_data.global_call_id[CC_GCID_LEN-1] = 0;
             }
@@ -411,7 +411,7 @@ ccsip_decode_call_info_hdr (const char *call_info_hdr_p,
         // Verify the remotecc string.
         if (!cpr_strncasecmp(ptr, URN_REMOTECC, sizeof(URN_REMOTECC) - 1)) {
             ptr += sizeof(URN_REMOTECC) - 1;
-            strncpy(feat_string, ptr, raq_ptr - ptr);
+            sstrncpy(feat_string, ptr, raq_ptr - ptr + 1);
 
             // Which feature do we have in this header?
             call_info_p->type = which_feature(feat_string);

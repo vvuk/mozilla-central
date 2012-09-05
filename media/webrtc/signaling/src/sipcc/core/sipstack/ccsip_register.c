@@ -2282,7 +2282,7 @@ static void
 build_reg_flags (char *buf, int buf_size, int prox_reg, ccsipCCB_t *ccb,
                  boolean provisioned)
 {
-    strncpy(buf, "...", buf_size);
+    sstrncpy(buf, "...", buf_size);
     if (!provisioned || !prox_reg) {
         return;
     }

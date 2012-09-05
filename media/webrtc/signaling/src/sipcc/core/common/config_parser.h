@@ -53,8 +53,6 @@
 
 #define MAX_CFG_VERSION_STAMP_LEN 80
 
-extern char g_cfg_version_stamp[];
-
 /*
  * This function determine whether the passed config parameter should be used
  * in comparing the new and old config value for apply-config purpose.  Only

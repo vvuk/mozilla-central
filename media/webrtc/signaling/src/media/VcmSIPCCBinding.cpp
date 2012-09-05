@@ -646,7 +646,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
   
   for (size_t i=0; i<candidates.size(); i++) {
     (*candidatesp)[i] = (char *)malloc(candidates[i].size() + 1);
-    strncpy((*candidatesp)[i], candidates[i].c_str(), candidates[i].size() + 1);
+    sstrncpy((*candidatesp)[i], candidates[i].c_str(), candidates[i].size() + 1);
   }
   *candidate_ctp = candidates.size();
 
@@ -654,7 +654,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
   *default_addrp = (char *)malloc(default_addr.size() + 1);
   if (!*default_addrp)
     return;
-  strncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
+  sstrncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
   *default_portp = default_port; /* This is the signal that things are cool */
 }
 
@@ -695,7 +695,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
         ufrag = (char *)malloc(attrs[i].size() + 1);
         if (!ufrag)
           return;
-        strncpy(ufrag, attrs[i].c_str(), attrs[i].size());
+        sstrncpy(ufrag, attrs[i].c_str(), attrs[i].size() + 1);
         ufrag[attrs[i].size()] = 0;
       }
     }
@@ -704,7 +704,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
       pwd = (char *)malloc(attrs[i].size() + 1);
       if (!pwd)
         return;
-      strncpy(pwd, attrs[i].c_str(), attrs[i].size());
+      sstrncpy(pwd, attrs[i].c_str(), attrs[i].size() + 1);
       pwd[attrs[i].size()] = 0;
     }
 

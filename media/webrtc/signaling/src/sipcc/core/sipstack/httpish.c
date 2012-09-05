@@ -972,7 +972,7 @@ httpish_cache_header_val (httpishMsg_t *hmsg,
                         hdr_cache[i].hdr_start = newbuf;
                         hdr_cache[i].val_start = hdr_cache[i].hdr_start + offset;
                         hdr_cache[i].hdr_start[org_len] = ',';
-                        strncpy(hdr_cache[i].hdr_start + org_len + 1, this_line, 
+                        sstrncpy(hdr_cache[i].hdr_start + org_len + 1, this_line, 
                                 size - org_len - 1);
                         cpr_free(hdr_start);
                     } else {

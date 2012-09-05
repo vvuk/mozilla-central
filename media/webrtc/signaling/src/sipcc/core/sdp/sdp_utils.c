@@ -154,7 +154,7 @@ verify_sdescriptions_mki (char *buf, char *mkiVal, u16 *mkiLen)
     
     /* mki len must be between 1..128 */
     if (*mkiLen > 0 && *mkiLen <= 128) {
-	 strncpy(mkiVal, mkiValBuf, MKI_BUF_LEN);
+	    sstrncpy(mkiVal, mkiValBuf, MKI_BUF_LEN);
          return TRUE;
     } else {
          return FALSE;

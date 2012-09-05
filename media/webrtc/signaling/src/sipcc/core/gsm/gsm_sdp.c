@@ -1448,7 +1448,7 @@ gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, cha
         if(!(*ice_attribs)[i])
         	return FALSE;
 
-        strncpy((*ice_attribs)[i], ice_attrib, strlen(ice_attrib) + 1);
+        sstrncpy((*ice_attribs)[i], ice_attrib, strlen(ice_attrib) + 1);
         (*attributes_ctp)++;
     }
 

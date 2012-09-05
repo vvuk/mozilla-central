@@ -51,10 +51,6 @@
 #include "ccapi_service.h"
 #include "util_string.h"
 
-extern int g_dev_hdl;
-extern char g_dev_name[];
-extern char g_cfg_p[];
-extern int g_compl_cfg;
 extern boolean apply_config;
 extern cc_apply_config_result_t apply_config_result;
 cc_boolean parse_setup_properties (int device_handle, const char *device_name, const char *sipUser, const char *sipPassword, const char *sipDomain);
@@ -73,7 +69,7 @@ void CCAPI_Start_response(int device_handle, const char *device_name, const char
     }
 
     g_dev_hdl = device_handle;
-    strncpy(g_dev_name, device_name, 64);
+    sstrncpy(g_dev_name, device_name, sizeof(g_dev_name));
 
     if (is_phone_registered() == FALSE) {
 

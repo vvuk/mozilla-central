@@ -672,8 +672,8 @@ CHUNK_DEBUG("overhead = %u\n", overhead);
     chunk->prev_sibling = NULL;
     chunk->p.tail       = NULL;
     chunk->overhead     = (uint16_t) overhead; //TODO: pass as uint16_t
-    strncpy(chunk->name, name, sizeof(chunk->name) - 1);
-    chunk->name[sizeof(chunk->name) - 1] = '\0';
+
+    sstrncpy(chunk->name, name, sizeof(chunk->name));
 
     /*
      * Separate data for independent pools and contiguous data for others.

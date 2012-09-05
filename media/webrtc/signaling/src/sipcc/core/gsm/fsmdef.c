@@ -2551,7 +2551,7 @@ fsmdef_ev_idle_setup (sm_event_t *event)
          * be set to if an RPID header was received.
          */
         char tmp_str[STATUS_LINE_MAX_LEN];
-        strncpy(tmp_str, platform_get_phrase_index_str(UI_PRIVATE), STATUS_LINE_MAX_LEN);
+        sstrncpy(tmp_str, platform_get_phrase_index_str(UI_PRIVATE), sizeof(tmp_str));
         if (strcasestr(msg->caller_id.calling_name, SIP_HEADER_ANONYMOUS_STR) ||
             strcasestr(msg->caller_id.calling_name, tmp_str)) {
             fsmdef_end_call(dcb, CC_CAUSE_ANONYMOUS);
@@ -2922,7 +2922,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     if (!dcb->ice_ufrag)
     	return SM_RC_END;
 
-    strncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
+    sstrncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
     free(ufrag);
 
 
@@ -2930,7 +2930,7 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     if (!dcb->ice_pwd)
     	return SM_RC_END;
 
-    strncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
+    sstrncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
     free(ice_pwd);
 
     vcm_res = vcmGetDtlsIdentity(dcb->peerconnection,
@@ -3026,7 +3026,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     if (!dcb->ice_ufrag)
     	return SM_RC_END;
 
-    strncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
+    sstrncpy(dcb->ice_ufrag, ufrag, strlen(ufrag) + 1);
     free(ufrag);
 
 
@@ -3034,7 +3034,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
     if (!dcb->ice_pwd)
     	return SM_RC_END;
 
-    strncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
+    sstrncpy(dcb->ice_pwd, ice_pwd, strlen(ice_pwd) + 1);
     free(ice_pwd);
    
     vcm_res = vcmGetDtlsIdentity(dcb->peerconnection,
@@ -3412,7 +3412,7 @@ fsmdef_ev_setpeerconnection(sm_event_t *event) {
     }
 
     /* cpr_assert(strlen(msg->data.pc.pc_handle) < PC_HANDLE_SIZE); */
-    strncpy(dcb->peerconnection, msg->data.pc.pc_handle, PC_HANDLE_SIZE);
+    sstrncpy(dcb->peerconnection, msg->data.pc.pc_handle, sizeof(dcb->peerconnection));
     dcb->peerconnection_set = TRUE;
 
     return (SM_RC_END);

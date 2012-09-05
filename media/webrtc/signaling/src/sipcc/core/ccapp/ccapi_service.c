@@ -57,8 +57,8 @@ int sendResetUpdates  = 0;         // default is not to send updates
 
 // Global Variables
 int g_dev_hdl;
-char g_dev_name[64];
-char g_cfg_p[256];
+char g_dev_name[G_DEV_NAME_SIZE];
+char g_cfg_p[G_CFG_P_SIZE];
 int g_compl_cfg;
 
 // Externs
@@ -175,8 +175,8 @@ cc_return_t CCAPI_Service_reregister(int device_handle, const char *device_name,
     }
 
     g_dev_hdl = device_handle;
-    strncpy(g_dev_name, device_name, 64);
-    strncpy(g_cfg_p, cfg, 256);
+    sstrncpy(g_dev_name, device_name, sizeof(g_dev_name));
+    sstrncpy(g_cfg_p, cfg, sizeof(g_cfg_p));
     CCAPP_DEBUG("CCAPI_Service_reregister - devce name [%s], cfg [%s] \n", g_dev_name, g_cfg_p);
     g_compl_cfg  = complete_config;
 

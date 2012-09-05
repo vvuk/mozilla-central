@@ -2816,8 +2816,8 @@ ccsip_handle_idle_ev_sip_invite (ccsipCCB_t *ccb, sipSMEvent_t *event)
         line_t  previous_call_index = 0;
 
         memset(tempreplace, 0, MAX_SIP_URL_LENGTH);
-        strncpy(tempreplace, "Replaces=", MAX_SIP_URL_LENGTH);
-        strncat(tempreplace, replaceshdr, (MAX_SIP_URL_LENGTH - 10));
+        sstrncpy(tempreplace, "Replaces=", sizeof(tempreplace));
+        strncat(tempreplace, replaceshdr, (sizeof(tempreplace) - 10));
         replaces_t = sippmh_parse_replaces(tempreplace, FALSE);
         if (NULL != replaces_t) {
             //Check if a call exists that matches the callid, to and from tags found in the replaces header
@@ -6036,8 +6036,8 @@ ccsip_handle_refer_sip_message (ccsipCCB_t *ccb, sipSMEvent_t *event)
         char tempreplace[MAX_SIP_URL_LENGTH];
 
         memset(tempreplace, 0, MAX_SIP_URL_LENGTH);
-        strncpy(tempreplace, "Replaces=", MAX_SIP_URL_LENGTH);
-        strncat(tempreplace, referto->sip_replaces_hdr, (MAX_SIP_URL_LENGTH - 10));
+        sstrncpy(tempreplace, "Replaces=", sizeof(tempreplace));
+        strncat(tempreplace, referto->sip_replaces_hdr, (sizeof(tempreplace) - 10));
         replaces_t = sippmh_parse_replaces(tempreplace, FALSE);
         if (NULL != replaces_t) {
             ccb->sipxfercallid = strlib_update(ccb->sipxfercallid, replaces_t->callid);
@@ -11646,8 +11646,8 @@ create_dupCCB (ccsipCCB_t *origCCB, int dup_flags)
         dupCCB->record_route_info = NULL;
         dupCCB->sipCallID[0] = '\0';
         sip_util_get_new_call_id(dupCCB);
-        strncpy(dupCCB->sipCallID, outOfDialogPrefix,
-                strlen(outOfDialogPrefix));
+        sstrncpy(dupCCB->sipCallID, outOfDialogPrefix,
+                sizeof(dupCCB->sipCallID));
         CCSIP_DEBUG_STATE(DEB_F_PREFIX"Using new Call-ID for OutofDialog ccb\n", 
             DEB_F_PREFIX_ARGS(SIP_CALL_STATUS, fname));
     } else {
@@ -11678,7 +11678,7 @@ create_dupCCB (ccsipCCB_t *origCCB, int dup_flags)
     /*
      * Headers
      */
-    strncpy(dupCCB->ReqURI, origCCB->ReqURI, MAX_SIP_URL_LENGTH);
+    sstrncpy(dupCCB->ReqURI, origCCB->ReqURI, sizeof(dupCCB->ReqURI));
     dupCCB->ReqURIOriginal = strlib_update(dupCCB->ReqURIOriginal,
                                            origCCB->ReqURIOriginal);
 

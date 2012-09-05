@@ -5172,7 +5172,7 @@ sippmh_parse_service_control_body (char *msgBody, int msgLength)
                                     len = strlen("reregister_needed")) == 0)) {
                         scp->cucm_result = (char *) cpr_calloc(1,len + 1);
                         if (scp->cucm_result) {
-                            strncpy(scp->cucm_result, value, len);
+                            sstrncpy(scp->cucm_result, value, len);
                             scp->cucm_result[len] = '\0';
                         }
                     }
@@ -5391,7 +5391,7 @@ sippmh_parse_join_header (const char *header)
             sippmh_free_join_info(join);
             return NULL;
         }
-        strncpy(join->call_id, header, semi-header);
+        sstrncpy(join->call_id, header, semi-header);
     } else {
         // call-id is the only parameter
         join->call_id = cpr_strdup(header);
@@ -5434,7 +5434,7 @@ sippmh_parse_join_header (const char *header)
             } else {
                 join->from_tag = (char *) cpr_calloc(1, params-param_value + 1);
                 if (join->from_tag) {
-                    strncpy(join->from_tag, param_value, params-param_value);
+                    sstrncpy(join->from_tag, param_value, params-param_value + 1);
                 }
                 SKIP_LWS(params);
                 if (*params == SEMI_COLON) {
@@ -5458,7 +5458,7 @@ sippmh_parse_join_header (const char *header)
             } else {
                 join->to_tag = (char *) cpr_calloc(1, params-param_value + 1);
                 if (join->to_tag) {
-                    strncpy(join->to_tag, param_value, params-param_value);
+                    sstrncpy(join->to_tag, param_value, params-param_value + 1);
                 }
                 if (*params == SEMI_COLON) {
                     *params++ = '\0';

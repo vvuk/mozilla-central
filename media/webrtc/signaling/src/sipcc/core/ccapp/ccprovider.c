@@ -171,10 +171,6 @@ extern boolean apply_config;
 extern  char g_new_signaling_ip[];
 
 extern int configFileDownloadNeeded;
-extern int g_dev_hdl;
-extern char g_dev_name[];
-extern char g_cfg_p[];
-extern int g_compl_cfg;
 cc_action_t pending_action_type = NO_ACTION;
 
 
@@ -639,7 +635,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
            if (strlen(data) >= PC_HANDLE_SIZE)
              return;
            
-           strncpy(featdata.pc.pc_handle, data, PC_HANDLE_SIZE - 1);
+           sstrncpy(featdata.pc.pc_handle, data, sizeof(featdata.pc.pc_handle));
 
            cc_int_feature2(CC_MSG_SETPEERCONNECTION, CC_SRC_UI, CC_SRC_GSM, 
              call_id, (line_t)instance,
