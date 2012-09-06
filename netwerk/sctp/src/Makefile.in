@@ -110,4 +110,8 @@ include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
+ifdef GNU_CC
+CFLAGS += -std=gnu99
+endif
+
 DEFINES += -DIMPL_NS_NET
