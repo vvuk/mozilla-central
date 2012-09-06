@@ -261,7 +261,11 @@ function start() {
 
       // Since we create the datachannel, don't wait for onDataChannel!
       channel.onmessage = function(evt) {
-        fancy_log('pc2 said: ' + evt.data,"blue");
+        if (evt.data instanceof Blob) {
+          fancy_log("*** pc2 sent Blob: " + evt.data + ", length=" + evt.data.size,"blue");
+        } else {
+          fancy_log('pc2 said: ' + evt.data,"blue");
+        }
       }
 /*
       // This is generally preferred to onxxx =
