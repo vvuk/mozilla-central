@@ -78,9 +78,15 @@ let DOMApplicationRegistry = {
 #endif
     let currentId = 1;
     dirList.forEach((function(dir) {
-      let curFile = FileUtils.getFile(dir, ["webapps", "webapps.json"], true);
-      if (curFile.exists()) {
-        let appDir = FileUtils.getDir(dir, ["webapps"]);
+      let curFile;
+      try {
+        // getFile calls getDir with |shouldCreate = true|, so we have
+        // to wrap in a try..catch in case the file does not exist on a
+        // read-only partition.
+        curFile = FileUtils.getFile(dir, ["webapps", "webapps.json"], false);
+      } catch(e) { }
+      if (curFile && curFile.exists()) {
+        let appDir = FileUtils.getDir(dir, ["webapps"], false);
         this._loadJSONAsync(curFile, (function(aData) {
           if (!aData) {
             return;
@@ -339,6 +345,7 @@ let DOMApplicationRegistry = {
     appNote.id = id;
 
     appObject.localId = localId;
+    appObject.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true).path;
 
     let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
     let manFile = dir.clone();
@@ -369,7 +376,7 @@ let DOMApplicationRegistry = {
         ppmm.broadcastAsyncMessage("Webapps:Install:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-install", appNote);
         this.children.forEach(function(aMsgMgr) {
-          aMsgMgr.broadcastAsyncMessage("Webapps:AddApp", { id: id, app: appObject });
+          aMsgMgr.sendAsyncMessage("Webapps:AddApp", { id: id, app: appObject });
         });
       }).bind(this));
 
@@ -393,16 +400,9 @@ let DOMApplicationRegistry = {
   },
 
   _nextLocalId: function() {
-    // All installed apps have a localId > 1000.
-    let maxLocalId = 1000;
-
-    for (let id in this.webapps) {
-      if (this.webapps[id].localId > maxLocalId) {
-        maxLocalId = this.webapps[id].localId;
-      }
-    }
-
-    return maxLocalId + 1;
+    let id = Services.prefs.getIntPref("dom.mozApps.maxLocalId") + 1;
+    Services.prefs.setIntPref("dom.mozApps.maxLocalId", id);
+    return id;
   },
 
   _appId: function(aURI) {

@@ -658,40 +658,6 @@ nsContentUtils::IsAutocompleteEnabled(nsIDOMHTMLInputElement* aInput)
   return autocomplete.EqualsLiteral("on");
 }
 
-bool
-nsContentUtils::URIIsChromeOrInPref(nsIURI *aURI, const char *aPref)
-{
-  if (!aURI) {
-    return false;
-  }
-
-  nsAutoCString scheme;
-  aURI->GetScheme(scheme);
-  if (scheme.EqualsLiteral("chrome")) {
-    return true;
-  }
-
-  nsAutoCString prePathUTF8;
-  aURI->GetPrePath(prePathUTF8);
-  NS_ConvertUTF8toUTF16 prePath(prePathUTF8);
-
-  const nsAdoptingString& whitelist = Preferences::GetString(aPref);
-
-  // This tokenizer also strips off whitespace around tokens, as desired.
-  nsCharSeparatedTokenizer tokenizer(whitelist, ',',
-    nsCharSeparatedTokenizerTemplate<>::SEPARATOR_OPTIONAL);
-
-  while (tokenizer.hasMoreTokens()) {
-    const nsSubstring& whitelistItem = tokenizer.nextToken();
-
-    if (whitelistItem.Equals(prePath, nsCaseInsensitiveStringComparator())) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 #define SKIP_WHITESPACE(iter, end_iter, end_res)                 \
   while ((iter) != (end_iter) && nsCRT::IsAsciiSpace(*(iter))) { \
     ++(iter);                                                    \
@@ -3632,21 +3598,39 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
     return rv;
 
   nsPromiseFlatCString flatInput(aInput);
-  int32_t srcLen = flatInput.Length();
-  int32_t dstLen;
-  rv = decoder->GetMaxLength(flatInput.get(), srcLen, &dstLen);
+  int32_t length = flatInput.Length();
+  int32_t outLen;
+  rv = decoder->GetMaxLength(flatInput.get(), length, &outLen);
   if (NS_FAILED(rv))
     return rv;
 
-  PRUnichar *ustr = (PRUnichar *)nsMemory::Alloc((dstLen + 1) *
+  PRUnichar *ustr = (PRUnichar *)nsMemory::Alloc((outLen + 1) *
                                                  sizeof(PRUnichar));
   if (!ustr)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  rv = decoder->Convert(flatInput.get(), &srcLen, ustr, &dstLen);
-  if (NS_SUCCEEDED(rv)) {
+  const char* data = flatInput.get();
+  aOutput.Truncate();
+  for (;;) {
+    int32_t srcLen = length;
+    int32_t dstLen = outLen;
+    rv = decoder->Convert(data, &srcLen, ustr, &dstLen);
+    // Convert will convert the input partially even if the status
+    // indicates a failure.
     ustr[dstLen] = 0;
-    aOutput.Assign(ustr, dstLen);
+    aOutput.Append(ustr, dstLen);
+    if (rv != NS_ERROR_ILLEGAL_INPUT) {
+      break;
+    }
+    // Emit a decode error manually because some decoders
+    // do not support kOnError_Recover (bug 638379)
+    if (srcLen == -1) {
+      decoder->Reset();
+    } else {
+      data += srcLen + 1;
+      length -= srcLen + 1;
+      aOutput.Append(static_cast<PRUnichar>(0xFFFD));
+    }
   }
 
   nsMemory::Free(ustr);
@@ -5136,7 +5120,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
   nsresult errorCode;
   float scaleMinFloat = minScaleStr.ToFloat(&errorCode);
 
-  if (errorCode) {
+  if (NS_FAILED(errorCode)) {
     scaleMinFloat = kViewportMinScale;
   }
 
@@ -5151,7 +5135,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
   nsresult scaleMaxErrorCode;
   float scaleMaxFloat = maxScaleStr.ToFloat(&scaleMaxErrorCode);
 
-  if (scaleMaxErrorCode) {
+  if (NS_FAILED(scaleMaxErrorCode)) {
     scaleMaxFloat = kViewportMaxScale;
   }
 
@@ -5210,7 +5194,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
   screen->GetRect(&screenLeft, &screenTop, &screenWidth, &screenHeight);
 
   uint32_t width = widthStr.ToInteger(&errorCode);
-  if (errorCode) {
+  if (NS_FAILED(errorCode)) {
     if (autoSize) {
       width = screenWidth;
     } else {
@@ -5229,7 +5213,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
 
   uint32_t height = heightStr.ToInteger(&errorCode);
 
-  if (errorCode) {
+  if (NS_FAILED(errorCode)) {
     height = width * ((float)screenHeight / screenWidth);
   }
 
@@ -5244,10 +5228,10 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
 
   // We need to perform a conversion, but only if the initial or maximum
   // scale were set explicitly by the user.
-  if (!scaleStr.IsEmpty() && !scaleErrorCode) {
+  if (!scaleStr.IsEmpty() && NS_SUCCEEDED(scaleErrorCode)) {
     width = NS_MAX(width, (uint32_t)(screenWidth / scaleFloat));
     height = NS_MAX(height, (uint32_t)(screenHeight / scaleFloat));
-  } else if (!maxScaleStr.IsEmpty() && !scaleMaxErrorCode) {
+  } else if (!maxScaleStr.IsEmpty() && NS_SUCCEEDED(scaleMaxErrorCode)) {
     width = NS_MAX(width, (uint32_t)(screenWidth / scaleMaxFloat));
     height = NS_MAX(height, (uint32_t)(screenHeight / scaleMaxFloat));
   }
@@ -6958,80 +6942,6 @@ nsContentUtils::JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
     }
     aRetVal.AppendObject(a);
   }
-  return NS_OK;
-}
-
-// static
-nsresult
-nsContentUtils::IsOnPrefWhitelist(nsPIDOMWindow* aWindow,
-                                  const char* aPrefURL, bool* aAllowed)
-{
-  // Make sure we're dealing with an inner window.
-  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
-    aWindow :
-    aWindow->GetCurrentInnerWindow();
-  NS_ENSURE_TRUE(innerWindow, NS_ERROR_FAILURE);
-
-  // Make sure we're being called from a window that we have permission to
-  // access.
-  if (!nsContentUtils::CanCallerAccess(innerWindow)) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  // Need the document in order to make security decisions.
-  nsCOMPtr<nsIDocument> document =
-    do_QueryInterface(innerWindow->GetExtantDocument());
-  NS_ENSURE_TRUE(document, NS_NOINTERFACE);
-
-  // Do security checks. We assume that chrome is always allowed.
-  if (nsContentUtils::IsSystemPrincipal(document->NodePrincipal())) {
-    *aAllowed = true;
-    return NS_OK;    
-  }
-
-  // We also allow a comma seperated list of pages specified by
-  // preferences.  
-  nsCOMPtr<nsIURI> originalURI;
-  nsresult rv =
-    document->NodePrincipal()->GetURI(getter_AddRefs(originalURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIURI> documentURI;
-  rv = originalURI->Clone(getter_AddRefs(documentURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Strip the query string (if there is one) before comparing.
-  nsCOMPtr<nsIURL> documentURL = do_QueryInterface(documentURI);
-  if (documentURL) {
-    rv = documentURL->SetQuery(EmptyCString());
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  bool allowed = false;
-
-  // The pref may not exist but in that case we deny access just as we do if
-  // the url doesn't match.
-  nsCString whitelist;
-  if (NS_SUCCEEDED(Preferences::GetCString(aPrefURL,
-                                           &whitelist))) {
-    nsCOMPtr<nsIIOService> ios = do_GetIOService();
-    NS_ENSURE_TRUE(ios, NS_ERROR_FAILURE);
-
-    nsCCharSeparatedTokenizer tokenizer(whitelist, ',');
-    while (tokenizer.hasMoreTokens()) {
-      nsCOMPtr<nsIURI> uri;
-      if (NS_SUCCEEDED(NS_NewURI(getter_AddRefs(uri), tokenizer.nextToken(),
-                                 nullptr, nullptr, ios))) {
-        rv = documentURI->EqualsExceptRef(uri, &allowed);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (allowed) {
-          break;
-        }
-      }
-    }
-  }
-  *aAllowed = allowed;
   return NS_OK;
 }
 

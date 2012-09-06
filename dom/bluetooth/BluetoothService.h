@@ -197,12 +197,7 @@ public:
                 const nsAString& aDeviceAddress,
                 nsAString& aDevicePath) = 0;
 
-  virtual int
-  GetDeviceServiceChannelInternal(const nsAString& aObjectPath,
-                                  const nsAString& aPattern,
-                                  int aAttributeId) = 0;
-
-  virtual nsTArray<uint32_t>
+  virtual nsTArray<PRUint32>
   AddReservedServicesInternal(const nsAString& aAdapterPath,
                               const nsTArray<uint32_t>& aServices) = 0;
 
@@ -221,10 +216,22 @@ public:
                        const nsAString& aObjectPath,
                        BluetoothReplyRunnable* aRunnable) = 0;
 
+  virtual nsresult
+  GetSocketViaService(const nsAString& aObjectPath,
+                      const nsAString& aService,
+                      int aType,
+                      bool aAuth,
+                      bool aEncrypt,
+                      BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable) = 0;
+
   virtual bool SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode) = 0;
   virtual bool SetPasskeyInternal(const nsAString& aDeviceAddress, uint32_t aPasskey) = 0;
   virtual bool SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm) = 0;
   virtual bool SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow) = 0;
+  virtual int IsEnabledInternal() = 0;
 
   /**
    * Due to the fact that some operations require multiple calls, a

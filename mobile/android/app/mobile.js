@@ -79,7 +79,7 @@ pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
 pref("network.http.max-connections", 20);
 pref("network.http.max-persistent-connections-per-server", 6);
-pref("network.http.max-persistent-connections-per-proxy", 8);
+pref("network.http.max-persistent-connections-per-proxy", 20);
 
 // See bug 545869 for details on why these are set the way they are
 pref("network.buffer.cache.count", 24);
@@ -490,31 +490,11 @@ pref("app.update.timerMinimumDelay", 30); // seconds
 
 #ifdef MOZ_UPDATER
 /* prefs used specifically for updating the app */
-pref("app.update.enabled", true);
-pref("app.update.auto", false);
+pref("app.update.enabled", false);
 pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
-pref("app.update.mode", 1);
-pref("app.update.silent", false);
-#ifdef MOZ_PKG_SPECIAL
-pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%-@MOZ_PKG_SPECIAL@/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
-#else
-pref("app.update.url", "https://aus2.mozilla.org/update/4/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PLATFORM_VERSION%/update.xml");
-#endif
-pref("app.update.promptWaitTime", 43200);
-pref("app.update.idletime", 60);
-pref("app.update.showInstalledUI", false);
-pref("app.update.incompatible.mode", 0);
-pref("app.update.download.backgroundInterval", 0);
 
-#ifdef MOZ_OFFICIAL_BRANDING
-pref("app.update.interval", 86400);
-pref("app.update.url.manual", "http://www.mozilla.com/%LOCALE%/m/");
-pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/mobile/releases/");
-#else
-pref("app.update.interval", 3600);
-pref("app.update.url.manual", "http://www.mozilla.com/%LOCALE%/mobile/");
-pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/mobile/");
-#endif
+// If you are looking for app.update.url, we no longer use it.
+// See mobile/android/base/UpdateServiceHelper.java.in
 #endif
 
 // replace newlines with spaces on paste into single-line text boxes

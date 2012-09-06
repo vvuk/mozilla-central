@@ -28,6 +28,7 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Util.h" // for DebugOnly
 #include "nsContentUtils.h"
+#include "nsBlobProtocolHandler.h"
 
 static const uint32_t HTTP_OK_CODE = 200;
 static const uint32_t HTTP_PARTIAL_RESPONSE_CODE = 206;
@@ -87,7 +88,7 @@ nsresult
 ChannelMediaResource::Listener::OnDataAvailable(nsIRequest* aRequest,
                                                 nsISupports* aContext,
                                                 nsIInputStream* aStream,
-                                                uint32_t aOffset,
+                                                uint64_t aOffset,
                                                 uint32_t aCount)
 {
   if (!mResource)
@@ -704,12 +705,24 @@ ChannelMediaResource::RecreateChannel()
   nsCOMPtr<nsILoadGroup> loadGroup = element->GetDocumentLoadGroup();
   NS_ENSURE_TRUE(loadGroup, NS_ERROR_NULL_POINTER);
 
-  return NS_NewChannel(getter_AddRefs(mChannel),
-                       mURI,
-                       nullptr,
-                       loadGroup,
-                       nullptr,
-                       loadFlags);
+  nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
+                              mURI,
+                              nullptr,
+                              loadGroup,
+                              nullptr,
+                              loadFlags);
+
+  // We have cached the Content-Type, which should not change. Give a hint to
+  // the channel to avoid a sniffing failure, which would be expected because we
+  // are probably seeking in the middle of the bitstream, and sniffing relies
+  // on the presence of a magic number at the beginning of the stream.
+  nsAutoCString contentType;
+  element->GetMimeType(contentType);
+  NS_ASSERTION(!contentType.IsEmpty(),
+      "When recreating a channel, we should know the Content-Type.");
+  mChannel->SetContentType(contentType);
+
+  return rv;
 }
 
 void
@@ -917,7 +930,8 @@ class FileMediaResource : public MediaResource
 {
 public:
   FileMediaResource(nsMediaDecoder* aDecoder, nsIChannel* aChannel, nsIURI* aURI) :
-    MediaResource(aDecoder, aChannel, aURI), mSize(-1),
+    MediaResource(aDecoder, aChannel, aURI),
+    mSize(-1),
     mLock("FileMediaResource.mLock"),
     mSizeInitialized(false)
   {
@@ -958,14 +972,28 @@ public:
   }
   virtual int64_t GetLength() {
     MutexAutoLock lock(mLock);
-    EnsureLengthInitialized();
-    return mSize;
+    if (mInput) {
+      EnsureSizeInitialized();
+    }
+    return mSizeInitialized ? mSize : 0;
   }
   virtual int64_t GetNextCachedData(int64_t aOffset)
   {
+    MutexAutoLock lock(mLock);
+    if (!mInput) {
+      return -1;
+    }
+    EnsureSizeInitialized();
     return (aOffset < mSize) ? aOffset : -1;
   }
-  virtual int64_t GetCachedDataEnd(int64_t aOffset) { return NS_MAX(aOffset, mSize); }
+  virtual int64_t GetCachedDataEnd(int64_t aOffset) {
+    MutexAutoLock lock(mLock);
+    if (!mInput) {
+      return aOffset;
+    }
+    EnsureSizeInitialized();
+    return NS_MAX(aOffset, mSize);
+  }
   virtual bool    IsDataCachedToEndOfResource(int64_t aOffset) { return true; }
   virtual bool    IsSuspendedByCache(MediaResource** aActiveResource)
   {
@@ -980,16 +1008,18 @@ public:
 
 private:
   // Ensures mSize is initialized, if it can be.
-  void EnsureLengthInitialized();
+  // mLock must be held when this is called, and mInput must be non-null.
+  void EnsureSizeInitialized();
 
   // The file size, or -1 if not known. Immutable after Open().
+  // Can be used from any thread.
   int64_t mSize;
 
   // This lock handles synchronisation between calls to Close() and
   // the Read, Seek, etc calls. Close must not be called while a
   // Read or Seek is in progress since it resets various internal
   // values to null.
-  // This lock protects mSeekable and mInput.
+  // This lock protects mSeekable, mInput, mSize, and mSizeInitialized.
   Mutex mLock;
 
   // Seekable stream interface to file. This can be used from any
@@ -997,7 +1027,9 @@ private:
   nsCOMPtr<nsISeekableStream> mSeekable;
 
   // Input stream for the media data. This can be used from any
-  // thread.
+  // thread. This is annulled when the decoder is being shutdown.
+  // The decoder can be shut down while we're calculating buffered
+  // ranges or seeking, so this must be null-checked before it's used.
   nsCOMPtr<nsIInputStream>  mInput;
 
   // Whether we've attempted to initialize mSize. Note that mSize can be -1
@@ -1028,9 +1060,10 @@ private:
   nsRefPtr<nsMediaDecoder> mDecoder;
 };
 
-void FileMediaResource::EnsureLengthInitialized()
+void FileMediaResource::EnsureSizeInitialized()
 {
   mLock.AssertCurrentThreadOwns();
+  NS_ASSERTION(mInput, "Must have file input stream");
   if (mSizeInitialized) {
     return;
   }
@@ -1048,7 +1081,10 @@ void FileMediaResource::EnsureLengthInitialized()
 nsresult FileMediaResource::GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
 {
   MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
+  if (!mInput) {
+    return NS_ERROR_FAILURE;
+  }
+  EnsureSizeInitialized();
   if (mSize == -1) {
     return NS_ERROR_FAILURE;
   }
@@ -1070,14 +1106,15 @@ nsresult FileMediaResource::Open(nsIStreamListener** aStreamListener)
     // implements nsISeekableStream, so we have to find the underlying
     // file and reopen it
     nsCOMPtr<nsIFileChannel> fc(do_QueryInterface(mChannel));
-    if (!fc)
-      return NS_ERROR_UNEXPECTED;
+    if (fc) {
+      nsCOMPtr<nsIFile> file;
+      rv = fc->GetFile(getter_AddRefs(file));
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIFile> file;
-    rv = fc->GetFile(getter_AddRefs(file));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(mInput), file);
+      rv = NS_NewLocalFileInputStream(getter_AddRefs(mInput), file);
+    } else if (IsBlobURI(mURI)) {
+      rv = NS_GetStreamForBlobURI(mURI, getter_AddRefs(mInput));
+    }
   } else {
     // Ensure that we never load a local file from some page on a
     // web server.
@@ -1162,9 +1199,9 @@ MediaResource* FileMediaResource::CloneData(nsMediaDecoder* aDecoder)
 nsresult FileMediaResource::ReadFromCache(char* aBuffer, int64_t aOffset, uint32_t aCount)
 {
   MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
   if (!mInput || !mSeekable)
     return NS_ERROR_FAILURE;
+  EnsureSizeInitialized();
   int64_t offset = 0;
   nsresult res = mSeekable->Tell(&offset);
   NS_ENSURE_SUCCESS(res,res);
@@ -1192,9 +1229,9 @@ nsresult FileMediaResource::ReadFromCache(char* aBuffer, int64_t aOffset, uint32
 nsresult FileMediaResource::Read(char* aBuffer, uint32_t aCount, uint32_t* aBytes)
 {
   MutexAutoLock lock(mLock);
-  EnsureLengthInitialized();
   if (!mInput)
     return NS_ERROR_FAILURE;
+  EnsureSizeInitialized();
   return mInput->Read(aBuffer, aCount, aBytes);
 }
 
@@ -1205,7 +1242,7 @@ nsresult FileMediaResource::Seek(int32_t aWhence, int64_t aOffset)
   MutexAutoLock lock(mLock);
   if (!mSeekable)
     return NS_ERROR_FAILURE;
-  EnsureLengthInitialized();
+  EnsureSizeInitialized();
   return mSeekable->Seek(aWhence, aOffset);
 }
 
@@ -1216,7 +1253,7 @@ int64_t FileMediaResource::Tell()
   MutexAutoLock lock(mLock);
   if (!mSeekable)
     return 0;
-  EnsureLengthInitialized();
+  EnsureSizeInitialized();
 
   int64_t offset = 0;
   mSeekable->Tell(&offset);
@@ -1227,7 +1264,7 @@ MediaResource*
 MediaResource::Create(nsMediaDecoder* aDecoder, nsIChannel* aChannel)
 {
   NS_ASSERTION(NS_IsMainThread(),
-	             "MediaResource::Open called on non-main thread");
+               "MediaResource::Open called on non-main thread");
 
   // If the channel was redirected, we want the post-redirect URI;
   // but if the URI scheme was expanded, say from chrome: to jar:file:,
@@ -1237,7 +1274,7 @@ MediaResource::Create(nsMediaDecoder* aDecoder, nsIChannel* aChannel)
   NS_ENSURE_SUCCESS(rv, nullptr);
 
   nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(aChannel);
-  if (fc) {
+  if (fc || IsBlobURI(uri)) {
     return new FileMediaResource(aDecoder, aChannel, uri);
   }
   return new ChannelMediaResource(aDecoder, aChannel, uri);

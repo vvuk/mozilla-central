@@ -36,6 +36,7 @@ const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
 const kSmsReceivedObserverTopic          = "sms-received";
 const kSmsDeliveredObserverTopic         = "sms-delivered";
 const kMozSettingsChangedObserverTopic   = "mozsettings-changed";
+const kSysMsgListenerReadyObserverTopic  = "system-message-listener-ready";
 const DOM_SMS_DELIVERY_RECEIVED          = "received";
 const DOM_SMS_DELIVERY_SENT              = "sent";
 
@@ -182,16 +183,16 @@ function RadioInterfaceLayer() {
 
   // Read the 'ril.radio.disabled' setting in order to start with a known
   // value at boot time.
-  gSettingsService.getLock().get("ril.radio.disabled", this);
+  gSettingsService.createLock().get("ril.radio.disabled", this);
 
   // Read the APN data form the setting DB.
-  gSettingsService.getLock().get("ril.data.apn", this);
-  gSettingsService.getLock().get("ril.data.user", this);
-  gSettingsService.getLock().get("ril.data.passwd", this);
-  gSettingsService.getLock().get("ril.data.httpProxyHost", this);
-  gSettingsService.getLock().get("ril.data.httpProxyPort", this);
-  gSettingsService.getLock().get("ril.data.roaming_enabled", this);
-  gSettingsService.getLock().get("ril.data.enabled", this);
+  gSettingsService.createLock().get("ril.data.apn", this);
+  gSettingsService.createLock().get("ril.data.user", this);
+  gSettingsService.createLock().get("ril.data.passwd", this);
+  gSettingsService.createLock().get("ril.data.httpProxyHost", this);
+  gSettingsService.createLock().get("ril.data.httpProxyPort", this);
+  gSettingsService.createLock().get("ril.data.roaming_enabled", this);
+  gSettingsService.createLock().get("ril.data.enabled", this);
   this._dataCallSettingsToRead = ["ril.data.enabled",
                                   "ril.data.roaming_enabled",
                                   "ril.data.apn",
@@ -207,6 +208,7 @@ function RadioInterfaceLayer() {
   }
   Services.obs.addObserver(this, "xpcom-shutdown", false);
   Services.obs.addObserver(this, kMozSettingsChangedObserverTopic, false);
+  Services.obs.addObserver(this, kSysMsgListenerReadyObserverTopic, false);
 
   this._sentSmsEnvelopes = {};
 
@@ -422,7 +424,7 @@ RadioInterfaceLayer.prototype = {
               " timestamp=" + message.localTimeStampInMS);
         break;
       case "iccinfochange":
-        this.rilContext.icc = message;
+        this.handleICCInfoChange(message);
         break;
       case "iccGetCardLock":
       case "iccSetCardLock":
@@ -655,6 +657,11 @@ RadioInterfaceLayer.prototype = {
     if (this._radioEnabled == null) {
       // We haven't read the initial value from the settings DB yet.
       // Wait for that.
+      return;
+    }
+    if (!this._sysMsgListenerReady) {
+      // The UI's system app isn't ready yet for us to receive any
+      // events (e.g. incoming SMS, etc.). Wait for that.
       return;
     }
     if (this.rilContext.radioState == RIL.GECKO_RADIOSTATE_UNKNOWN) {
@@ -1017,6 +1024,17 @@ RadioInterfaceLayer.prototype = {
                                   [message.datacalls, message.datacalls.length]);
   },
 
+  handleICCInfoChange: function handleICCInfoChange(message) {
+    let oldIcc = this.rilContext.icc;
+    this.rilContext.icc = message;
+    if (oldIcc && (oldIcc.mcc == message.mcc || oldIcc.mnc == message.mnc)) {
+      return;
+    }
+    // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
+    // when the MCC or MNC codes have changed.
+    ppmm.broadcastAsyncMessage("RIL:IccInfoChanged", message);
+  },
+
   handleICCCardLockResult: function handleICCCardLockResult(message) {
     this._sendRequestResults("RIL:CardLockResult", message);
   },
@@ -1050,6 +1068,11 @@ RadioInterfaceLayer.prototype = {
 
   observe: function observe(subject, topic, data) {
     switch (topic) {
+      case kSysMsgListenerReadyObserverTopic:
+        Services.obs.removeObserver(this, kSysMsgListenerReadyObserverTopic);
+        this._sysMsgListenerReady = true;
+        this._ensureRadioState();
+        break;
       case kMozSettingsChangedObserverTopic:
         let setting = JSON.parse(data);
         this.handle(setting.key, setting.value);
@@ -1066,7 +1089,9 @@ RadioInterfaceLayer.prototype = {
     }
   },
 
-  // nsISettingsServiceCallback
+  // Flag to determine whether the UI's system app is ready to receive
+  // events yet.
+  _sysMsgListenerReady: false,
 
   // Flag to determine the radio state to start with when we boot up. It
   // corresponds to the 'ril.radio.disabled' setting from the UI.
@@ -1076,7 +1101,9 @@ RadioInterfaceLayer.prototype = {
   dataCallSettings: {},
   _dataCallSettingsToRead: [],
   _oldRilDataEnabledState: null,
-  
+
+  // nsISettingsServiceCallback
+
   handle: function handle(aName, aResult) {
     switch(aName) {
       case "ril.radio.disabled":

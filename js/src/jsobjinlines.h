@@ -700,16 +700,6 @@ inline bool JSObject::setIteratedSingleton(JSContext *cx)
     return setFlag(cx, js::BaseShape::ITERATED_SINGLETON);
 }
 
-inline bool JSObject::isSystem() const
-{
-    return lastProperty()->hasObjectFlag(js::BaseShape::SYSTEM);
-}
-
-inline bool JSObject::setSystem(JSContext *cx)
-{
-    return setFlag(cx, js::BaseShape::SYSTEM);
-}
-
 inline bool JSObject::setDelegate(JSContext *cx)
 {
     return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
@@ -933,30 +923,6 @@ JSObject::nativeSetSlotWithType(JSContext *cx, js::Shape *shape, const js::Value
 {
     nativeSetSlot(shape->slot(), value);
     js::types::AddTypePropertyId(cx, this, shape->propid(), value);
-}
-
-inline bool
-JSObject::nativeContains(JSContext *cx, js::HandleId id)
-{
-    return nativeLookup(cx, id) != NULL;
-}
-
-inline bool
-JSObject::nativeContains(JSContext *cx, js::HandleShape shape)
-{
-    return nativeLookup(cx, shape->propid()) == shape;
-}
-
-inline bool
-JSObject::nativeContainsNoAllocation(jsid id)
-{
-    return nativeLookupNoAllocation(id) != NULL;
-}
-
-inline bool
-JSObject::nativeContainsNoAllocation(const js::Shape &shape)
-{
-    return nativeLookupNoAllocation(shape.propid()) == &shape;
 }
 
 inline bool

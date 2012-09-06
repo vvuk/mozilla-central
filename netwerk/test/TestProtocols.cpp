@@ -481,7 +481,7 @@ NS_IMETHODIMP
 InputTestConsumer::OnDataAvailable(nsIRequest *request, 
                                    nsISupports* context,
                                    nsIInputStream *aIStream, 
-                                   uint32_t aSourceOffset,
+                                   uint64_t aSourceOffset,
                                    uint32_t aLength)
 {
   char buf[1025];
@@ -835,7 +835,7 @@ main(int argc, char* argv[])
     */
 
     rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return rv;
+    if (NS_FAILED(rv)) return -1;
 
     {
         int i;
@@ -887,5 +887,5 @@ main(int argc, char* argv[])
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     NS_ShutdownXPCOM(nullptr);
-    return rv;
+    return NS_FAILED(rv) ? -1 : 0;
 }

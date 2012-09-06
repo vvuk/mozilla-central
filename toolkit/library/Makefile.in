@@ -111,7 +111,7 @@ STATIC_LIBS += mozril_s
 endif #}
 
 ifdef MOZ_B2G_BT #{
-STATIC_LIBS += mozdbus_s
+STATIC_LIBS += mozdbus_s mozipcsocket_s
 endif #}
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
@@ -147,6 +147,7 @@ COMPONENT_LIBS += \
   htmlpars \
   identity \
   imglib2 \
+  mediasniffer \
   gkgfx \
   gklayout \
   docshell \
@@ -429,6 +430,12 @@ OS_LIBS += \
   -lsensorservice \
   -ldbus \
   $(NULL)
+
+ifdef MOZ_CUBEB
+OS_LIBS += \
+  -lOpenSLES \
+  $(NULL)
+endif
 endif
 
 EXTRA_DEPS += \

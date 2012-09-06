@@ -322,6 +322,7 @@ DOMCI_CLASS(CanvasGradient)
 DOMCI_CLASS(CanvasPattern)
 DOMCI_CLASS(TextMetrics)
 DOMCI_CLASS(ImageData)
+DOMCI_CLASS(MozCanvasPrintState)
 
 // SmartCard Events
 DOMCI_CLASS(SmartCardEvent)
@@ -428,8 +429,6 @@ DOMCI_CLASS(TimeRanges)
 // Media streams
 DOMCI_CLASS(MediaStream)
 #endif
-
-DOMCI_CLASS(ProgressEvent)
 
 DOMCI_CLASS(XMLHttpRequestUpload)
 
