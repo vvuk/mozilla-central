@@ -264,6 +264,7 @@ DataChannelConnection::Init(unsigned short aPort, bool aUsingDtls)
       LOG(("*** failed setsockopt SCTP_EVENT"));
       usrsctp_close(mMasterSocket);
       mMasterSocket = NULL;
+      return false;
     }
   }
 
