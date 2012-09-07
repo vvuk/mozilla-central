@@ -2316,54 +2316,56 @@ int vcmGetILBCMode()
 #define CLEAR_DYNAMIC_PAYLOAD_TYPE(PTYPE)   (PTYPE & 0x0000FFFF)
 #define CHECK_DYNAMIC_PAYLOAD_TYPE(PTYPE)   (PTYPE & 0xFFFF0000)
 
-// TODO(ekr@rtfm.com): There's a lot of crazy mapping going on
-// here. Is there a reason to go through the VCM mappings?
-
 static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
                                      mozilla::AudioCodecConfig **config) {
   int wire_payload = -1;
-  int payload = map_VCM_Media_Payload_type(payload_in);
-  *config = NULL;
+  // payload_in has the following bit setup
+  // upper 16 bits : Dynamic payload type
+  // lower 16 bits : VCM payload type
+  // Ex: For ISAC Codec: 103:41
+  //     For VP8  Codec: 120:120
 
-  if (CHECK_DYNAMIC_PAYLOAD_TYPE(payload)) {
-    wire_payload = EXTRACT_DYNAMIC_PAYLOAD_TYPE(payload);
-    payload = CLEAR_DYNAMIC_PAYLOAD_TYPE(payload);
+  int payload = -1;
+  *config = NULL;
+  if (CHECK_DYNAMIC_PAYLOAD_TYPE(payload_in)) {
+    wire_payload = EXTRACT_DYNAMIC_PAYLOAD_TYPE(payload_in);
+    payload = CLEAR_DYNAMIC_PAYLOAD_TYPE(payload_in);
   }
   else {
-    wire_payload = payload;
-  }
-
-  if (wire_payload == -1) {
-    PR_ASSERT(PR_FALSE);
+    //static payload type
+    wire_payload = payload_in;
+    payload = payload_in;
   }
 
   switch(payload) {
-    case AudioPayloadType_G711ALAW64K:
+    case VCM_Media_Payload_G711Alaw64k:
       *config = new mozilla::AudioCodecConfig(wire_payload, "PCMA", 8000, 80, 1, 64000);
       break;
-    case AudioPayloadType_G711ULAW64K:
+    case VCM_Media_Payload_G711Ulaw64k:
       *config = new mozilla::AudioCodecConfig(wire_payload, "PCMU", 8000, 80, 1, 64000);
       break;
-
-    case AudioPayloadType_OPUS:
-        *config = new mozilla::AudioCodecConfig(wire_payload, "OPUS", 48000, 80, 1, 64000);
-        break;
-
-    case AudioPayloadType_G711ALAW56K:
-    case AudioPayloadType_G711ULAW56K:
-    case AudioPayloadType_G722_64K:
-    case AudioPayloadType_G722_56K:
-    case AudioPayloadType_G722_48K:
-    case AudioPayloadType_RFC2833:
-    case AudioPayloadType_ILBC20:
-    case AudioPayloadType_ILBC30:
-    case AudioPayloadType_ISAC:
-
-      /* TODO(snandaku@cisco.com): implement these */
-      CSFLogError(logTag, "vcmPayloadType2AudioCodec unimplemented codec");
+    case VCM_Media_Payload_OPUS:
+      *config = new mozilla::AudioCodecConfig(wire_payload, "OPUS", 48000, 480, 1, 64000);
+      break;
+    case VCM_Media_Payload_ISAC:
+      //adaptive rate ISAC,30ms sample
+      *config = new mozilla::AudioCodecConfig(wire_payload, "ISAC", 16000, 480, 1, -1);
+      break;
+    case VCM_Media_Payload_ILBC20:
+      //ilBC 20ms sample
+      *config = new mozilla::AudioCodecConfig(wire_payload, "iLBC", 8000, 160, 1, 15200);
+      break;
+    case VCM_Media_Payload_ILBC30:
+      //ilBC 30ms sample
+      *config = new mozilla::AudioCodecConfig(wire_payload, "iLBC", 8000, 240, 1, 13300);
+      break;
+    case VCM_Media_Payload_G722_64k:
+    case VCM_Media_Payload_G722_56k:
+      //TODO: Check with Ekr, Derf if 64k and 56K are valid frequency rates for G722.1
+      // or G722.2
+      CSFLogError(logTag, "vcmPayloadType2AudioCodec Codec Not Implemented !");
       PR_ASSERT(PR_FALSE);
       return VCM_ERROR;
-
     default:
       CSFLogError(logTag, "vcmPayloadType2AudioCodec unknown codec. Apparent internal error");
       PR_ASSERT(PR_FALSE);
@@ -2374,31 +2376,38 @@ static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
 }
 
 
-// TODO(ekr@rtfm.com): There's a lot of crazy mapping going on
-// here. Is there a reason to go through the VCM mappings?
-
 static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
                               mozilla::VideoCodecConfig **config) {
   int wire_payload = -1;
-  int payload = map_VCM_Media_Payload_type(payload_in);
+  int payload = -1; 
   *config = NULL;
 
-  if (CHECK_DYNAMIC_PAYLOAD_TYPE(payload)) {
-    wire_payload = EXTRACT_DYNAMIC_PAYLOAD_TYPE(payload);
-    payload = CLEAR_DYNAMIC_PAYLOAD_TYPE(payload);
+  if (CHECK_DYNAMIC_PAYLOAD_TYPE(payload_in)) {
+    wire_payload = EXTRACT_DYNAMIC_PAYLOAD_TYPE(payload_in);
+    payload = CLEAR_DYNAMIC_PAYLOAD_TYPE(payload_in);
   }
   else {
-    wire_payload = payload;
+    //static payload type
+    wire_payload = payload_in;
+    payload = payload_in;
   }
 
-  if (wire_payload == -1) {
-    PR_ASSERT(PR_FALSE);
+  switch(payload)
+  {
+    case VCM_Media_Payload_I420:
+      *config = new mozilla::VideoCodecConfig(wire_payload, "I420", 176, 144);
+      break;
+    case VCM_Media_Payload_VP8:
+      *config = new mozilla::VideoCodecConfig(wire_payload, "VP8", 640, 480);
+      break;
+    default:
+      CSFLogError(logTag, "vcmPayloadType2VideoCodec unknown codec. Apparent internal error");
+      PR_ASSERT(PR_FALSE);
+      return VCM_ERROR;
   }
-
-  /* TODO(snandaku@cisco.com): implement this properly */
-  *config = new mozilla::VideoCodecConfig(wire_payload, "VP8", 640, 480);
-
+  
   return 0;
+
 }
 
 static mozilla::RefPtr<TransportFlow>
