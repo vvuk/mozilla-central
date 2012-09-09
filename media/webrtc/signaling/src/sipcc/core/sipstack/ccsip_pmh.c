@@ -4288,7 +4288,7 @@ sippmh_process_via_header (sipMessage_t *sip_message,
              * +3 accounts for the ; and the = before and after the received
              * and the terminating NULL
              */
-            new_buf_len = strlen(hdr_start) + sizeof(VIA_RECEIVED) + strlen(dotted_ip) + 2;
+            new_buf_len = strlen(hdr_start) + sizeof(VIA_RECEIVED) + strlen(dotted_ip) + 3;
             new_buf = (char *) cpr_malloc(new_buf_len);
             /*
              * If we cannot allocate memory, we will just leave
@@ -4303,17 +4303,9 @@ sippmh_process_via_header (sipMessage_t *sip_message,
                     old_header_offset;
 
                 if (offset) {
-                    sstrncpy(new_buf, hdr_start, offset - hdr_start);
-                    new_buf[offset - hdr_start] = '\0';
+                  snprintf(new_buf, new_buf_len, "%.*s;%s=%s%s", (int) (offset - hdr_start), hdr_start, VIA_RECEIVED, dotted_ip, offset);
                 } else {
-                    sstrncpy(new_buf, hdr_start, new_buf_len);
-                }
-                strcat(new_buf, ";");
-                strcat(new_buf, VIA_RECEIVED);
-                strcat(new_buf, "=");
-                strcat(new_buf, dotted_ip);
-                if (offset) {
-                    strcat(new_buf, offset);
+                  snprintf(new_buf, new_buf_len, "%s;%s=%s", hdr_start, VIA_RECEIVED, dotted_ip);
                 }
 
                 cpr_free(hdr_start);
@@ -4686,7 +4678,7 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
     char *temp_header;
     char *token;
     const char *delim = ", \r\n\t";
-    char *unsupported_tokens;
+    int unsupported_tokens_size = 0;
     char *bad_token = NULL;
     int  size;
     char *lasts = NULL;
@@ -4698,7 +4690,6 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
     if (punsupported_tokens != NULL) {
         *punsupported_tokens = NULL; //assume everything  will go right
     }
-    unsupported_tokens = NULL; //no memory allocated yet
 
     //need to keep own buffer since PL_strtok_r is destructive
     size = strlen(header) + 1;
@@ -4773,24 +4764,23 @@ sippmh_parse_supported_require (const char *header, char **punsupported_tokens)
                 DEB_F_PREFIX_ARGS(SIP_TAG, fname), bad_token);
 
             //allocate memory for unsupported options if necessary
-            if (punsupported_tokens != NULL) {
-                if (unsupported_tokens == NULL) {
-                    *punsupported_tokens = (char *)
-                        cpr_malloc(strlen(header) + 1);
-                    unsupported_tokens = *punsupported_tokens;
-                    if (unsupported_tokens) {
-                        unsupported_tokens[0] = '\0';
+            if (punsupported_tokens) {
+                if (!*punsupported_tokens) {
+                    unsupported_tokens_size = strlen(header) + 1;
+                    *punsupported_tokens = (char *) cpr_malloc(unsupported_tokens_size);
+                    if (*punsupported_tokens) {
+                        memset(*punsupported_tokens, 0, unsupported_tokens_size);
                     }
                 }
             }
 
             //caller wants to know what came in Require and we dont support
-            if (unsupported_tokens != NULL) {
+            if (punsupported_tokens && *punsupported_tokens) {
                 //include token into illegal_tokens
-                if (unsupported_tokens[0] != '\0') {
-                    strcat(unsupported_tokens, ","); //add a ","
+                if (strlen(*punsupported_tokens) > 0) {
+                    sstrncat(*punsupported_tokens, ",", unsupported_tokens_size - strlen(*punsupported_tokens)); //add a ","
                 }
-                strcat(unsupported_tokens, bad_token);
+                sstrncat(*punsupported_tokens, bad_token, unsupported_tokens_size - strlen(*punsupported_tokens));
             }
             bad_token = NULL;
         }
