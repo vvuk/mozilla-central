@@ -286,7 +286,7 @@ public:
   bool SendBinaryStream(nsIInputStream *aBlob, uint32_t msgLen)
     {
       if (mStreamOut != INVALID_STREAM)
-        return (mConnection->SendBlob(mStreamOut, aBlob /* XXX , msgLen */) > 0);
+        return (mConnection->SendBlob(mStreamOut, aBlob) > 0);
       else
         return false;
     }
@@ -318,7 +318,7 @@ private:
 
   nsresult AddDataToBinaryMsg(const char *data, uint32_t size);
 
-  DataChannelConnection *mConnection; // XXX nsRefPtr<DataChannelConnection> mConnection;
+  nsRefPtr<DataChannelConnection> mConnection;
   nsCString mLabel;
   uint16_t mState;
   uint16_t mStreamOut;
