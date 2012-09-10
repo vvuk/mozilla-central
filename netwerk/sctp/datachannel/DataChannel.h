@@ -146,7 +146,8 @@ public:
   friend class DataChannel;
   Mutex  mLock;
 
-  // XXX I'd like this to be protected or private...
+protected:
+  friend class DataChannelOnMessageAvailable;
   DataConnectionListener *mListener;
 
 private:
@@ -306,10 +307,10 @@ public:
   uint16_t GetReadyState() { return mState; }
   void SetReadyState(uint16_t aState) { mState = aState; }
 
-  // XXX I'd like this to be protected or private...
-  DataChannelListener *mListener;
-
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
+
+protected:
+  DataChannelListener *mListener;
 
 private:
   friend class DataChannelOnMessageAvailable;
@@ -373,7 +374,23 @@ public:
 
   NS_IMETHOD Run()
   {
-    printf("OnMessage: mChannel %p mConnection %p\n",mChannel,mConnection);
+    printf("OnMessage: mChannel %p mConnection %p\n",mChannel,(void *)mConnection.get());
+    // XXX Is there any point in verifying mListener is set?  Can't hurt that much, but
+    // may be unnecessary.
+    switch (mType) {
+      case ON_DATA:
+      case ON_CHANNEL_OPEN:
+      case ON_CHANNEL_CLOSED:
+        if (!mChannel->mListener)
+          return NS_OK;
+        break;
+      case ON_CHANNEL_CREATED:
+      case ON_CONNECTION:
+      case ON_DISCONNECTED:
+        if (!mConnection->mListener)
+          return NS_OK;
+        break;
+    }
     switch (mType) {
       case ON_DATA:
         printf("OnMessage: ON_DATA:  mListener %p context %p, mLen %d\n",(void *)mChannel->mListener,(void*) mChannel->mContext,mLen);
@@ -407,9 +424,8 @@ private:
 
   int32_t                           mType;
   // XXX should use union
-  // XXX these need to be refptrs so as to hold them open until it's delivered
   DataChannel                       *mChannel;    // XXX careful of ownership! 
-  DataChannelConnection             *mConnection; // XXX careful of ownership! - should be nsRefPtr
+  nsRefPtr<DataChannelConnection>   mConnection;
   nsCString                         mData;
   int32_t                           mLen;
 };

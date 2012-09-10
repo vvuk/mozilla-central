@@ -35,12 +35,6 @@
 PRLogModuleInfo* dataChannelLog = PR_NewLogModule("DataChannel");
 #endif
 
-// XXX Notes
-// Use static casts
-// check/fix ownerships
-// add assertions
-// clean up logging
-
 #if 1
 #define ARRAY_LEN(x) (x).Length()
 #else
@@ -276,7 +270,8 @@ nsresult
 DataChannelConnection::StartDefer()
 {
   nsresult rv;
-  // XXX Is this lock needed?  Timers can only be inited from the main thread...
+  // XXX Is locking needed?  Timers can only be inited from the main thread...
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
   //MutexAutoLock lock(mLock);
   if (!mDeferredTimer) {
     mDeferredTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
@@ -305,11 +300,12 @@ DataChannelConnection::StartDefer()
 NS_IMETHODIMP
 DataChannelConnection::Notify(nsITimer *timer)
 {
+  NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
   LOG(("%s: %p [%p] (%dms), sending deferred messages", __FUNCTION__, this, timer, mDeferTimeout));
 
   if (timer == mDeferredTimer) {
     if (SendDeferredMessages() != 0) {
-      // XXX I don't think i need the lock, since this must be main thread...
+      // XXX I don't think i need a lock, since this must be main thread...
       nsresult rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
                                                      nsITimer::TYPE_ONE_SHOT);
       if (NS_FAILED(rv)) {
@@ -383,9 +379,7 @@ DataChannelConnection::DTLSConnectThread(void *data)
   }
 
   // Notify Connection open
-  // XXX We need to make sure connection sticks around until the message is delivered
   LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,_this));
-  // XXX any locking needed?
   _this->mNumChannels = 0;
   _this->mSocket = _this->mMasterSocket;  // XXX Be careful!  
   _this->mState = OPEN;
@@ -395,7 +389,6 @@ DataChannelConnection::DTLSConnectThread(void *data)
                             DataChannelOnMessageAvailable::ON_CONNECTION,
                             _this, NULL));
 
-  // XXX post return?
   return;
 }
 
@@ -607,7 +600,7 @@ DataChannelConnection::RequestMoreStreamsOut()
   memset(&sas, 0, sizeof(struct sctp_add_streams));
   sas.sas_instrms = 0;
   sas.sas_outstrms = (uint16_t)outStreamsNeeded; /* XXX error handling */
-  // XXX any chance this blocks?
+  // XXX any chance this blocks?  Likely not; we get an event when it succeeds or fails
   if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_ADD_STREAMS, &sas,
                          (socklen_t) sizeof(struct sctp_add_streams)) < 0) {
     LOG(("***failed: setsockopt"));
