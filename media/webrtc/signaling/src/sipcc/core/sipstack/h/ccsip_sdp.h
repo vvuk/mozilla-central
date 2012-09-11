@@ -154,6 +154,7 @@ PMH_EXTERN cc_sdp_t *sipsdp_create_from_buf(char *buf, uint32_t nbytes,
 #define FMTP_MAX_AVERAGE_BIT_RATE  40000
 #define ATTR_PTIME                 20
 #define ATTR_MAXPTIME              120
+#define WEBRTC_DATA_CHANNEL_PROT   "webrtc-datachannel"
 
 #define SIPSDP_CONTENT_TYPE         "application/sdp"
 

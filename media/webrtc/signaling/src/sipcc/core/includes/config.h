@@ -225,6 +225,7 @@ static boolean gSTEREO = FALSE;
 static boolean gUSEINBANDFEC = FALSE;
 static boolean gCBR = FALSE;
 static boolean gMAXPTIME = FALSE;
-
+static int gSCTPPort = 5000;
+static int gNumDataStreams = 16;
 
 #endif /* _CONFIG_H_ */

@@ -461,6 +461,7 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
     u16          stereo = 0;
     u16          useinbandfec = 0;
     u16          cbr = 0;
+    int          streams = 0;
     char*        strtok_state;
 
     /* Find the payload type number. */
@@ -1815,34 +1816,77 @@ sdp_result_e sdp_parse_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p,
                                    sdp_fmtp_codec_param[48].strlen) == 0) {
     	    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
     	    if (result1 != SDP_SUCCESS) {
-                    fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+                fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
     	        if (result1 != SDP_SUCCESS) {
-                        if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
-                            SDP_WARN("%s Warning: No cbr value specified for "
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: No cbr value specified for "
                                      "fmtp attribute.", sdp_p->debug_str);
-                        }
-                        sdp_p->conf_p->num_invalid_param++;
-    		    SDP_FREE(temp_ptr);
-                        return (SDP_INVALID_PARAMETER);
                     }
+                    sdp_p->conf_p->num_invalid_param++;
+    		        SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
                 }
-                tok = tmp;
+            }
+            tok = tmp;
     	    tok++;
     	    cbr = atoi(tok);
     	    if (cbr > 1) {
-                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
-                        SDP_WARN("%s Warning: Invalid cbr specified for "
+                if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                    SDP_WARN("%s Warning: Invalid cbr specified for "
                                  "fmtp attribute.", sdp_p->debug_str);
-                    }
-                    sdp_p->conf_p->num_invalid_param++;
-    		SDP_FREE(temp_ptr);
+                }
+                sdp_p->conf_p->num_invalid_param++;
+    		    SDP_FREE(temp_ptr);
                     return (SDP_INVALID_PARAMETER);
     	    }
     	    fmtp_p->fmtp_format = SDP_FMTP_CODEC_INFO;
     	    fmtp_p->cbr = cbr;
     	    codec_info_found = TRUE;
 
-        } else if (fmtp_ptr != NULL && *fmtp_ptr == '\n') { 
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[49].name,
+                        sdp_fmtp_codec_param[49].strlen) == 0) {
+            fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+            if (result1 != SDP_SUCCESS) {
+                fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+                if (result1 != SDP_SUCCESS) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                       SDP_WARN("%s Warning: No stereo value specified for "
+                          "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+                    SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+                }
+            }
+            tok = tmp;
+            tok++;
+            streams = atoi(tok);
+            fmtp_p->fmtp_format = SDP_FMTP_DATACHANNEL;
+            fmtp_p->streams = streams;
+			codec_info_found = TRUE;
+
+        } else if (cpr_strncasecmp(tmp,sdp_fmtp_codec_param[50].name,
+                sdp_fmtp_codec_param[50].strlen) == 0) {
+            fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, "; \t", &result1);
+            if (result1 != SDP_SUCCESS) {
+                fmtp_ptr = sdp_getnextstrtok(fmtp_ptr, tmp, " \t", &result1);
+                if (result1 != SDP_SUCCESS) {
+                    if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                        SDP_WARN("%s Warning: No protocol value specified for "
+                         "fmtp attribute.", sdp_p->debug_str);
+                    }
+                    sdp_p->conf_p->num_invalid_param++;
+                    SDP_FREE(temp_ptr);
+                    return (SDP_INVALID_PARAMETER);
+                 }
+             }
+             tok = tmp;
+             tok++;
+             fmtp_p->fmtp_format = SDP_FMTP_DATACHANNEL;
+             sstrncpy(fmtp_p->protocol , tok, sizeof(fmtp_p->protocol));
+			 codec_info_found = TRUE;
+
+        } else if (fmtp_ptr != NULL && *fmtp_ptr == '\n') {
             temp=PL_strtok_r(tmp, ";", &strtok_state);
             if (temp) {
                 if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
@@ -2576,6 +2620,30 @@ sdp_result_e sdp_build_attr_fmtp (sdp_t *sdp_p, sdp_attr_t *attr_p, char **ptr,
                  semicolon = TRUE;
 	    }
 	 }
+
+         break;
+
+      case SDP_FMTP_DATACHANNEL:
+
+          if (fmtp_p->protocol[0] != '\0') {
+              if (semicolon) {
+                  *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";protocol=%s",
+                                   attr_p->attr.fmtp.protocol);
+              } else {
+                  *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "protocol=%s",
+                                   attr_p->attr.fmtp.protocol);
+                  semicolon = TRUE;
+              }
+          }
+
+          if (fmtp_p->streams > 0) {
+    	      if (semicolon) {
+                  *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), ";streams=%u",attr_p->attr.fmtp.streams);
+    	      } else {
+                  *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "streams=%u",attr_p->attr.fmtp.streams);
+                  semicolon = TRUE;
+    	      }
+          }
 
          break;
 	 

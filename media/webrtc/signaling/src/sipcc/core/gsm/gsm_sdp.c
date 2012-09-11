@@ -58,6 +58,7 @@
 #include "vcm.h"
 #include "prlog.h"
 #include "plstr.h"
+#include "sdp_private.h"
 
 //TODO Need to place this in a portable location
 #define MULTICAST_START_ADDRESS 0xe1000000
@@ -191,6 +192,9 @@ static const cc_media_cap_table_t *gsmsdp_get_media_capability (fsmdef_dcb_t *dc
     if (sdpmode) {
     	dcb_p->media_cap_tbl->cap[CC_VIDEO_1].enabled = FALSE;
     	dcb_p->media_cap_tbl->cap[CC_AUDIO_1].enabled = FALSE;
+    	dcb_p->media_cap_tbl->cap[CC_DATACHANNEL_1].enabled = TRUE;
+    } else {
+        dcb_p->media_cap_tbl->cap[CC_DATACHANNEL_1].enabled = FALSE;
     }
 
     return (dcb_p->media_cap_tbl);
@@ -408,6 +412,7 @@ gsmsdp_init_media (fsmdef_media_t *media)
     media->video = NULL;
     media->candidate_ct = 0;
     media->rtcp_mux = FALSE;
+    media->protocol = NULL;
 }
 
 /**
@@ -1302,6 +1307,39 @@ gsmsdp_set_media_attributes (uint32_t media_type, void *sdp_p, uint16_t level,
 
         break;
     }
+}
+
+/*
+ * gsmsdp_set_sctp_attributes
+ *
+ * Description:
+ *
+ * Add the specified SCTP media format to the SDP.
+ *
+ * Parameters:
+ *
+ * sdp_p - Pointer to the SDP the media attribute is to be added to.
+ * level - The media level of the SDP where the media attribute is to be added.
+ */
+static void
+gsmsdp_set_sctp_attributes (void *sdp_p, uint16_t level)
+{
+    uint16_t a_inst;
+    int      sctp_port = 0;
+
+    config_get_value(CFGID_SCTP_PORT, &sctp_port, sizeof(sctp_port));
+
+    if (sdp_add_new_attr(sdp_p, level, 0, SDP_ATTR_FMTP, &a_inst)
+        != SDP_SUCCESS) {
+         return;
+    }
+
+    /* Use SCTP port in place of fmtp payload type */
+    (void) sdp_attr_set_fmtp_payload_type(sdp_p, level, 0, a_inst, sctp_port);
+
+    sdp_attr_set_fmtp_data_channel_protocol (sdp_p, level, 0, a_inst, WEBRTC_DATA_CHANNEL_PROT);
+
+    sdp_attr_set_fmtp_streams (sdp_p, level, 0, a_inst, 16);
 }
 
 /*
@@ -2225,7 +2263,9 @@ gsmsdp_update_local_sdp_media (fsmdef_dcb_t *dcb_p, cc_sdp_t *cc_sdp_p,
 
     gsmsdp_set_connection_address(sdp_p, media->level, dcb_p->ice_default_candidate_addr);
     (void) sdp_set_media_type(sdp_p, level, media->type);
-    (void) sdp_set_media_portnum(sdp_p, level, port);
+
+
+    (void) sdp_set_media_portnum(sdp_p, level, port, media->sctp_port);
 
     /* Set media transport and crypto attributes if it is for SRTP */
     gsmsdp_update_local_sdp_media_transport(dcb_p, sdp_p, media, transport,
@@ -2243,6 +2283,9 @@ gsmsdp_update_local_sdp_media (fsmdef_dcb_t *dcb_p, cc_sdp_t *cc_sdp_p,
         case SDP_MEDIA_VIDEO:
             gsmsdp_add_default_video_formats_to_local_sdp(dcb_p, cc_sdp_p,
                                                           media);
+            break;
+        case SDP_MEDIA_APPLICATION:
+            gsmsdp_set_sctp_attributes (sdp_p, level);
             break;
         default:
             GSM_ERR_MSG(GSM_L_C_F_PREFIX"SDP ERROR media %d for level %d is not"
@@ -2278,6 +2321,9 @@ gsmsdp_update_local_sdp_media (fsmdef_dcb_t *dcb_p, cc_sdp_t *cc_sdp_p,
             gsmsdp_set_video_media_attributes(media->payload, cc_sdp_p, level,
                             (uint16_t)dynamic_payload_type);
             break;
+        case SDP_MEDIA_APPLICATION:
+        	gsmsdp_set_sctp_attributes (sdp_p, level);
+        	break;
         default:
             GSM_ERR_MSG(GSM_L_C_F_PREFIX"SDP ERROR media %d for level %d is not"
                         " supported\n",
@@ -2481,7 +2527,7 @@ gsmsdp_update_local_sdp_for_multicast (fsmdef_dcb_t *dcb_p,
     /*
      * Set the local SDP port number to match far ends port number.
      */
-    (void) sdp_set_media_portnum(dcb_p->sdp->src_sdp, level, portnum);
+    (void) sdp_set_media_portnum(dcb_p->sdp->src_sdp, level, portnum, 0);
 
     /*
      * c= line <network type><address type><connection address>
@@ -2864,6 +2910,26 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
     return (RTP_NONE);
 }
 
+static void
+gsmsdp_negotiate_datachannel_attribs(fsmdef_dcb_t* dcb_p, cc_sdp_t* sdp_p, uint16_t level, fsmdef_media_t* media)
+{
+    uint32          num_streams;
+	char           *protocol;
+
+    sdp_attr_get_fmtp_streams (sdp_p->dest_sdp, level, 0, 1, &num_streams);
+
+    media->streams = num_streams;
+
+    if(media->protocol == NULL) {
+        media->protocol = cpr_malloc(SDP_MAX_STRING_LEN+1);
+        if (media->protocol == NULL)
+        	return;
+    }
+    sdp_attr_get_fmtp_data_channel_protocol(sdp_p->dest_sdp, level, 0, 1, media->protocol);
+
+    media->sctp_port = sdp_attr_get_fmtp_payload_type (sdp_p->dest_sdp, level, 0, 1);
+}
+
 /*
  * gsmsdp_add_unsupported_stream_to_local_sdp
  *
@@ -2917,7 +2983,7 @@ gsmsdp_add_unsupported_stream_to_local_sdp (cc_sdp_t *sdp_p,
      */
     (void) sdp_set_media_type(sdp_p->src_sdp, level,
                               sdp_get_media_type(sdp_p->dest_sdp, level));
-    (void) sdp_set_media_portnum(sdp_p->src_sdp, level, 0);
+    (void) sdp_set_media_portnum(sdp_p->src_sdp, level, 0, 0);
     (void) sdp_set_media_transport(sdp_p->src_sdp, level,
                     sdp_get_media_transport(sdp_p->dest_sdp, level));
 
@@ -3857,6 +3923,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         switch (media_type) {
         case SDP_MEDIA_AUDIO:
         case SDP_MEDIA_VIDEO:
+        case SDP_MEDIA_APPLICATION:
             /*
              * Get remote address before other negotiations process in case
              * the address 0.0.0.0 (old style hold) to be used 
@@ -3985,18 +4052,24 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                 break;
             }
 
-            /*
-             * Negotiate to a single codec
-             */
-            if (gsmsdp_negotiate_codec(dcb_p, sdp_p, media, offer, initial_offer) == 
-                RTP_NONE) {
-                /* unable to negotiate codec */
-                unsupported_line = TRUE;
-                /* Failed codec negotiation */
-                cause = CC_CAUSE_PAYLOAD_MISMATCH;
-                GSM_DEBUG(DEB_L_C_F_PREFIX"codec mismatch at %d\n", 
-                          DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), i);
-                break;
+            /* Don't need to negotiate a codec for an m= applicaton line */
+            if (SDP_MEDIA_APPLICATION != media_type) {
+
+                /*
+                 * Negotiate to a single codec
+                 */
+                if (gsmsdp_negotiate_codec(dcb_p, sdp_p, media, offer, initial_offer) ==
+                    RTP_NONE) {
+                    /* unable to negotiate codec */
+                    unsupported_line = TRUE;
+                    /* Failed codec negotiation */
+                    cause = CC_CAUSE_PAYLOAD_MISMATCH;
+                    GSM_DEBUG(DEB_L_C_F_PREFIX"codec mismatch at %d\n",
+                              DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), i);
+                    break;
+                }
+            } else {
+                gsmsdp_negotiate_datachannel_attribs(dcb_p, sdp_p, i, media);
             }
 
             /*
@@ -4089,8 +4162,15 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
 
                      lsm_add_remote_stream (dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
 
-                     gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
-                   }
+                     if (SDP_MEDIA_APPLICATION != media_type) {
+                         gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
+                     } else {
+                    	 /*
+                    	  * Inform VCM that a Data Channel has been negotiated
+                    	  */
+                         lsm_data_channel_negotiated(dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
+                     }
+                  }
               }
             }
 
@@ -4151,7 +4231,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         num_local_m_lines = sdp_get_num_media_lines(sdp_p->src_sdp);
         if (num_local_m_lines > num_m_lines) {
             for (i = num_m_lines + 1; i <= num_local_m_lines; i++) {
-                (void) sdp_set_media_portnum(sdp_p->src_sdp, i, 0);
+                (void) sdp_set_media_portnum(sdp_p->src_sdp, i, 0, 0);
             }
         }
 
@@ -4371,10 +4451,12 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
     fsmdef_media_t   *media = NULL;
     int               i=0;
     int               rtcpmux = 0;
+    int               sctp_port = 0;
 
     switch (media_cap->type) {
     case SDP_MEDIA_AUDIO:
     case SDP_MEDIA_VIDEO:
+    case SDP_MEDIA_APPLICATION:
         media = gsmsdp_get_new_media(dcb_p, media_cap->type, level);
         if (media == NULL) {
             /* should not happen */
@@ -4427,6 +4509,11 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
         /* allocate port successful, save the port */
 
     	media->src_port = data.open_rcv.port;
+
+    	if(media_cap->type == SDP_MEDIA_APPLICATION) {
+            config_get_value(CFGID_SCTP_PORT, &sctp_port, sizeof(sctp_port));
+            media->sctp_port = sctp_port;
+    	}
 
         /*
          * Setup the local soruce address.
@@ -4647,7 +4734,7 @@ gsmsdp_create_options_sdp (cc_sdp_t ** sdp_pp)
     }
 
     (void) sdp_set_media_type(sdp_p->src_sdp, 1, SDP_MEDIA_AUDIO);
-    (void) sdp_set_media_portnum(sdp_p->src_sdp, 1, 0);
+    (void) sdp_set_media_portnum(sdp_p->src_sdp, 1, 0, 0);
     gsmsdp_set_media_transport_for_option(sdp_p->src_sdp, 1);
 
     /*
@@ -4663,7 +4750,7 @@ gsmsdp_create_options_sdp (cc_sdp_t ** sdp_pp)
         }
 
         (void) sdp_set_media_type(sdp_p->src_sdp, 2, SDP_MEDIA_VIDEO);
-        (void) sdp_set_media_portnum(sdp_p->src_sdp, 2, 0);
+        (void) sdp_set_media_portnum(sdp_p->src_sdp, 2, 0, 0);
         gsmsdp_set_media_transport_for_option(sdp_p->src_sdp, 2);
 
         gsmsdp_add_default_video_formats_to_local_sdp(NULL, sdp_p, NULL);

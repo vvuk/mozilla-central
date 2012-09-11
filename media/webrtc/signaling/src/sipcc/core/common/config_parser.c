@@ -585,6 +585,10 @@ void config_setup_elements (const char *sipUser, const char *sipPassword, const 
 
     compare_or_set_boolean_value(CFGID_MAXPTIME, gMAXPTIME, (const unsigned char *) "maxptime");
 
+    compare_or_set_int_value(CFGID_SCTP_PORT, gSCTPPort, (const unsigned char *) "sctp_port");
+
+    compare_or_set_int_value(CFGID_NUM_DATA_STREAMS, gNumDataStreams, (const unsigned char *) "num_data_streams");
+
     (void) isSecure; // XXX set but not used
     (void) isValid; // XXX set but not used
 }

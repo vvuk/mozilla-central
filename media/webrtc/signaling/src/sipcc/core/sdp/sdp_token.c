@@ -1161,6 +1161,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     char                  tmp[SDP_MAX_STRING_LEN];
     char                  port[SDP_MAX_STRING_LEN];
     char                 *port_ptr;
+    int32                 sctp_port;
 
     /* Allocate resource for new media stream. */
     mca_p = sdp_alloc_mca();
@@ -1265,7 +1266,8 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
             (mca_p->transport == SDP_TRANSPORT_TCP) || 
             (mca_p->transport == SDP_TRANSPORT_UDPTL) ||
             (mca_p->transport == SDP_TRANSPORT_UDPSPRT) ||
-            (mca_p->transport == SDP_TRANSPORT_LOCAL)) {
+            (mca_p->transport == SDP_TRANSPORT_LOCAL) ||
+            (mca_p->transport == SDP_TRANSPORT_SCTPDTLS)) {
             /* Port format is simply <port>.  Make sure that either
              * the choose param is allowed or that the choose value
              * wasn't specified.
@@ -1418,6 +1420,32 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
         sdp_parse_payload_types(sdp_p, mca_p, ptr);
     }
     
+    /* Parse SCTP/DTLS port */
+    if (mca_p->transport == SDP_TRANSPORT_SCTPDTLS) {
+        ptr = sdp_getnextstrtok(ptr, port, " \t", &result);
+        if (result != SDP_SUCCESS) {
+            if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                SDP_ERROR("%s No sctp port specified in m= media line, "
+                          "parse failed.", sdp_p->debug_str);
+            }
+            SDP_FREE(mca_p);
+            sdp_p->conf_p->num_invalid_param++;
+            return (SDP_INVALID_PARAMETER);
+        }
+        port_ptr = port;
+
+        if (sdp_getchoosetok(port_ptr, &port_ptr, "/ \t", &result)) {
+        	sctp_port = SDP_CHOOSE_PARAM;
+        } else {
+        	sctp_port = sdp_getnextnumtok(port_ptr, (const char **)&port_ptr,
+                                           "/ \t", &result);
+            if (result != SDP_SUCCESS) {
+            	return (SDP_INVALID_PARAMETER);
+            }
+            mca_p->sctpport = sctp_port;
+        }
+    }
+
     /* Media line params are valid.  Add it into the SDP. */
     sdp_p->mca_count++;
     if (sdp_p->mca_p == NULL) {
@@ -1583,15 +1611,22 @@ sdp_result_e sdp_build_media (sdp_t *sdp_p, u16 level, char **ptr, u16 len)
     *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "%s", 
                      sdp_get_transport_name(mca_p->transport));
 
-    /* Build the format lists */
-    for (i=0; i < mca_p->num_payloads; i++) {
-        if (mca_p->payload_indicator[i] == SDP_PAYLOAD_ENUM) {
-            *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), " %s",
-                             sdp_get_payload_name((sdp_payload_e)mca_p->payload_type[i]));
-        } else {
-            *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), " %u", mca_p->payload_type[i]);
+    if(mca_p->transport != SDP_TRANSPORT_SCTPDTLS) {
+
+        /* Build the format lists */
+        for (i=0; i < mca_p->num_payloads; i++) {
+            if (mca_p->payload_indicator[i] == SDP_PAYLOAD_ENUM) {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), " %s",
+                                 sdp_get_payload_name((sdp_payload_e)mca_p->payload_type[i]));
+            } else {
+                *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), " %u", mca_p->payload_type[i]);
+            }
         }
+    } else {
+        /* Add port to SDP if transport is SCTP/DTLS */
+    	*ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), " %u ", (u32)mca_p->sctpport);
     }
+
     *ptr += snprintf(*ptr, MAX((endbuf_p - *ptr), 0), "\r\n");
 
     if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {

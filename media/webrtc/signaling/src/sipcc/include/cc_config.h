@@ -186,6 +186,8 @@
 #define CFGID_USEINBANDFEC_BOOL                CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 114
 #define CFGID_CBR_BOOL                         CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 115
 #define CFGID_MAXPTIME_BOOL                    CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 116
+#define CFGID_SCTP_PORT_INT                    CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 117
+#define CFGID_NUM_DATA_STREAMS_INT             CFGID_BEGIN_INDEX + ROUNDTABLE_INDEX_OFFSET + 118
 
 /* All non Line specific params should be added above */
 /* All Line specific params should be added below */
@@ -211,7 +213,7 @@
   Keep in mind the following config ids are defined for the first line.
  */
 
-#define CFGID_LINE_FEATURE_INT                 CFGID_MAXPTIME_BOOL + 1                                     //tag:featureID
+#define CFGID_LINE_FEATURE_INT                 CFGID_NUM_DATA_STREAMS_INT + 1                              //tag:featureID
 #define CFGID_LINE_INDEX_INT                   CFGID_LINE_FEATURE_INT + CC_MAX_CONFIG_LINES                //tag:lineIndex
 #define CFGID_LINE_MAXNUMCALLS_INT             CFGID_LINE_INDEX_INT + CC_MAX_CONFIG_LINES                  //tag:maxNumCalls
 #define CFGID_LINE_NAME_STRING                 CFGID_LINE_MAXNUMCALLS_INT + CC_MAX_CONFIG_LINES            //tag:name

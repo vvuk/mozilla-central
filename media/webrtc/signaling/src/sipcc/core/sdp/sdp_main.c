@@ -258,7 +258,8 @@ const sdp_namearray_t sdp_transport[SDP_MAX_TRANSPORT_TYPES] =
     {"udpsprt",      sizeof("udpsprt")},
     {"RTP/SAVP",     sizeof("RTP/SAVP")},
     {"tcp",          sizeof("tcp")},
-    {"RTP/SAVPF",    sizeof("RTP/SAVPF")}
+    {"RTP/SAVPF",    sizeof("RTP/SAVPF")},
+    {"SCTP/DTLS",    sizeof("SCTP/DTLS")}
 };
 
 /* Note: These *must* be in the same order as the enum type. */
@@ -423,7 +424,9 @@ const sdp_namearray_t sdp_fmtp_codec_param[SDP_MAX_FMTP_PARAM] =
     {"stereo",                          sizeof("stereo")}, /* 45 */
     {"useinbandfec",                    sizeof("useinbandfec")}, /* 46 */
     {"maxcodedaudiobandwidth",          sizeof("maxcodedaudiobandwidth")}, /* 47 */
-    {"cbr",                             sizeof("cbr")} /* 48 */
+    {"cbr",                             sizeof("cbr")}, /* 48 */
+    {"streams",                         sizeof("streams")}, /* 49 */
+    {"protocol",                        sizeof("protocol")} /* 50 */
    
 } ;
 

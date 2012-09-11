@@ -215,6 +215,7 @@ typedef enum {
     SDP_TRANSPORT_RTPSAVP,
     SDP_TRANSPORT_TCP,
     SDP_TRANSPORT_RTPSAVPF,
+    SDP_TRANSPORT_SCTPDTLS,
     SDP_MAX_TRANSPORT_TYPES,
     SDP_TRANSPORT_UNSUPPORTED,
     SDP_TRANSPORT_INVALID
@@ -270,6 +271,7 @@ typedef enum {
     SDP_FMTP_NTE,       
     SDP_FMTP_CODEC_INFO, 
     SDP_FMTP_MODE,
+    SDP_FMTP_DATACHANNEL,
     SDP_FMTP_UNKNOWN_TYPE,
     SDP_FMTP_MAX_TYPE
 } sdp_fmtp_format_type_e;
@@ -434,6 +436,8 @@ typedef enum {
     SDP_USE_IN_BAND_FEC,
     SDP_MAX_CODED_AUDIO_BW,
     SDP_CBR,
+    SDP_STREAMS,
+    SDP_PROTOCOL,
     SDP_MAX_FMTP_PARAM,
     SDP_FMTP_PARAM_UNKNOWN
 } sdp_fmtp_codec_param_e;
@@ -665,7 +669,7 @@ extern sdp_result_e sdp_set_media_type(void *sdp_ptr, u16 level,
 extern sdp_result_e sdp_set_media_port_format(void *sdp_ptr, u16 level, 
                                        sdp_port_format_e port_format);
 extern sdp_result_e sdp_set_media_portnum(void *sdp_ptr, u16 level, 
-                                          int32 portnum);
+                                          int32 portnum, int32 sctpport);
 extern sdp_result_e sdp_set_media_portcount(void *sdp_ptr, u16 level, 
                                             int32 num_ports);
 extern sdp_result_e sdp_set_media_vpi(void *sdp_ptr, u16 level, int32 vpi);
@@ -1067,6 +1071,15 @@ extern char* sdp_attr_get_fmtp_maxcodedaudiobandwidth (void *sdp_ptr, u16 level,
                                                              u8 cap_num, u16 inst_num);
 extern sdp_result_e sdp_attr_get_fmtp_cbr (void *sdp_ptr, u16 level,
                              u8 cap_num, u16 inst_num, tinybool* val);
+extern sdp_result_e sdp_attr_set_fmtp_streams (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num, u32 streams);
+extern sdp_result_e sdp_attr_get_fmtp_streams (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num, u32* val);
+extern sdp_result_e sdp_attr_get_fmtp_data_channel_protocol (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num, char* protocol);
+extern sdp_result_e sdp_attr_set_fmtp_data_channel_protocol (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num,
+                             const char *protocol);
 extern int32 sdp_attr_get_fmtp_custom_x (void *sdp_ptr, u16 level,
                                          u8 cap_num, u16 inst_num);
 extern int32 sdp_attr_get_fmtp_custom_y (void *sdp_ptr, u16 level,

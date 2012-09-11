@@ -5329,6 +5329,43 @@ void lsm_add_remote_stream (line_t line, callid_t call_id, fsmdef_media_t *media
     }
 }
 
+/*
+ * lsm_data_channel_negotiated
+ *
+ * Description:
+ *    The function informs the API of a negotiated data channel m= line
+ *
+ * Parameters:
+ *   [in]  line - line
+ *   [in]  call_id - GSM call ID
+ *   [in]  media - media line to add as remote stream
+ *   [out] pc_stream_id
+ * Returns: None
+ */
+void lsm_data_channel_negotiated (line_t line, callid_t call_id, fsmdef_media_t *media, int *pc_stream_id)
+{
+    static const char fname[] = "lsm_data_channel_negotiated";
+    fsmdef_dcb_t   *dcb;
+    lsm_lcb_t *lcb;
+
+    lcb = lsm_get_lcb_by_call_id(call_id);
+    if (lcb) {
+        dcb = lcb->dcb;
+        if (dcb == NULL) {
+            LSM_ERR_MSG(get_debug_string(DEBUG_INPUT_NULL), fname);
+            return;
+        }
+
+        /*
+         * have access to media->streams, media->protocol, media->sctp_port
+         * vcmSetDataChannelParameters may need renaming TODO: jesup
+         */
+
+        vcmSetDataChannelParameters(dcb->peerconnection, media->streams, media->sctp_port, media->protocol);
+
+    }
+}
+
 /**
  *
  * Peform non call related action

@@ -321,7 +321,8 @@ typedef enum {
 /* media name with media capability table */
 typedef enum {
     CC_AUDIO_1,
-    CC_VIDEO_1
+    CC_VIDEO_1,
+    CC_DATACHANNEL_1,
 } cc_media_cap_name;
 
 typedef struct cc_sdp_addr_t_ {

@@ -279,6 +279,8 @@
 #define CFGID_USEINBANDFEC                           CFGID_USEINBANDFEC_BOOL
 #define CFGID_CBR                                    CFGID_CBR_BOOL
 #define CFGID_MAXPTIME                               CFGID_MAXPTIME_BOOL
+#define CFGID_SCTP_PORT                              CFGID_SCTP_PORT_INT
+#define CFGID_NUM_DATA_STREAMS                       CFGID_NUM_DATA_STREAMS_INT
 
 /*********************************************************
  *

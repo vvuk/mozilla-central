@@ -698,6 +698,11 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         size_t max_digest_len);
 
 
+  short vcmSetDataChannelParameters(const char *peerconnection,
+        cc_uint16_t streams,
+        int sctp_port,
+        const char* protocol);
+
 /*!
  *  Close the receive stream.
  *

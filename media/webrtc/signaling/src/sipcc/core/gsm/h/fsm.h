@@ -261,6 +261,17 @@ typedef struct fsmdef_media_t_ {
      */
     boolean        rtcp_mux;
 
+    /*
+     * port number used in m= data channel line
+     */
+    uint16_t       sctp_port;
+
+    /*
+     * Data Channel properties
+     */
+    uint32         streams;
+    char          *protocol;
+
 } fsmdef_media_t;
 
 struct fsm_fcb_t_;

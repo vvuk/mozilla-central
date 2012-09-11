@@ -6674,6 +6674,121 @@ sdp_result_e sdp_attr_get_fmtp_cbr (void *sdp_ptr, u16 level,
     }
 }
 
+sdp_result_e sdp_attr_get_fmtp_streams (void *sdp_ptr, u16 level,
+                             u8 cap_num, u16 inst_num, u32* val)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_SDP_PTR);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, SDP_ATTR_FMTP, inst_num);
+    if (!attr_p) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s fmtp attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    } else {
+        *val = attr_p->attr.fmtp.streams;
+        return (SDP_SUCCESS);
+    }
+}
+
+sdp_result_e sdp_attr_set_fmtp_streams (void *sdp_ptr, u16 level,
+                                       u8 cap_num, u16 inst_num,
+                                       u32 streams)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+    sdp_fmtp_t  *fmtp_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, SDP_ATTR_FMTP, inst_num);
+    if (!attr_p) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s fmtp attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    fmtp_p = &(attr_p->attr.fmtp);
+    fmtp_p->fmtp_format = SDP_FMTP_DATACHANNEL;
+
+    if (streams > 0) {
+        fmtp_p->streams = streams;
+        return (SDP_SUCCESS);
+    } else {
+        return (SDP_FAILURE);
+    }
+}
+
+sdp_result_e sdp_attr_set_fmtp_data_channel_protocol (void *sdp_ptr, u16 level,
+                                                u8 cap_num, u16 inst_num,
+                                                const char *protocol)
+{
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+    sdp_fmtp_t  *fmtp_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, SDP_ATTR_FMTP, inst_num);
+    if (!attr_p) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s fmtp attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    }
+
+    fmtp_p = &(attr_p->attr.fmtp);
+    fmtp_p->fmtp_format = SDP_FMTP_DATACHANNEL;
+    if (protocol) {
+        sstrncpy(fmtp_p->protocol, protocol,
+	   SDP_MAX_STRING_LEN+1);
+    }
+
+    return (SDP_SUCCESS);
+}
+
+sdp_result_e sdp_attr_get_fmtp_data_channel_protocol (void *sdp_ptr, u16 level,
+                                          u8 cap_num, u16 inst_num, char* protocol)
+{
+
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+    sdp_attr_t  *attr_p;
+
+    if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
+    	return (SDP_INVALID_PARAMETER);
+    }
+
+    attr_p = sdp_find_attr(sdp_p, level, cap_num, SDP_ATTR_FMTP,
+                           inst_num);
+    if (!attr_p) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s fmtp attribute, level %u instance %u "
+                      "not found.", sdp_p->debug_str, level, inst_num);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return (SDP_INVALID_PARAMETER);
+    } else {
+    	sstrncpy(protocol, attr_p->attr.fmtp.protocol, SDP_MAX_STRING_LEN+1);
+    }
+    return (SDP_SUCCESS);
+}
+
 sdp_result_e sdp_attr_set_fmtp_max_cpb (void *sdp_ptr, u16 level, 
                                         u8 cap_num, u16 inst_num, 
                                         u32 max_cpb)

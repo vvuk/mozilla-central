@@ -236,6 +236,9 @@ typedef struct
     int         stereo;
     int         useinbandfec;
     int         cbr;
+    int         maxptime;
+    int         sctp_port;
+    int         num_data_streams;
 } prot_cfg_t;
 
 static prot_cfg_t prot_cfg_block;
@@ -454,6 +457,9 @@ var_t prot_cfg_table[CFGID_PROTOCOL_MAX+1] = {
         {"stereo", CFGVAR(stereo),       PA_INT, PR_INT, 0},
         {"useinbandfec", CFGVAR(useinbandfec),       PA_INT, PR_INT, 0},
         {"cbr", CFGVAR(cbr),       PA_INT, PR_INT, 0},
+        {"maxptime", CFGVAR(maxptime),       PA_INT, PR_INT, 0},
+        {"sctp_port", CFGVAR(sctp_port),       PA_INT, PR_INT, 0},
+        {"num_data_streams", CFGVAR(num_data_streams),       PA_INT, PR_INT, 0},
         {0,                              0,      0,      0, 0, 0}
   };
 

@@ -422,9 +422,11 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   mIceCtx->SignalCompleted.connect(this, &PeerConnectionImpl::IceCompleted);
 
   // Create two streams to start with, assume one for audio and
-  // one for video
+  // one for video, a third stream for a Data Channel is created
+  // this will be re-visited
   mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
   mIceStreams.push_back(mIceCtx->CreateStream("stream2", 2));
+  mIceStreams.push_back(mIceCtx->CreateStream("stream3", 2));
 
   for (std::size_t i=0; i<mIceStreams.size(); i++) {
     mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);

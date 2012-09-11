@@ -2025,9 +2025,10 @@ sdp_result_e sdp_set_media_port_format (void *sdp_ptr, u16 level,
  * Parameters:  sdp_ptr     The SDP handle returned by sdp_init_description.
  *              level       The media level to set the param.  Will be 1-n.
  *              portnum     Port number to set.
+ *              sctpport    sctp port for application m= line
  * Returns:     SDP_SUCCESS or SDP_INVALID_PARAMETER
  */
-sdp_result_e sdp_set_media_portnum (void *sdp_ptr, u16 level, int32 portnum)
+sdp_result_e sdp_set_media_portnum (void *sdp_ptr, u16 level, int32 portnum, int32 sctp_port)
 {
     sdp_t      *sdp_p = (sdp_t *)sdp_ptr;
     sdp_mca_t  *mca_p;
@@ -2043,6 +2044,7 @@ sdp_result_e sdp_set_media_portnum (void *sdp_ptr, u16 level, int32 portnum)
     }
 
     mca_p->port = portnum;
+    mca_p->sctpport = sctp_port;
     return (SDP_SUCCESS);
 }
 

@@ -161,6 +161,9 @@ typedef struct sdp_fmtp {
     char                      maxcodedaudiobandwidth[SDP_MAX_STRING_LEN+1];
     u16                       cbr;
 
+    /* some Data Channel specific fmtp params */
+    u16                       streams;   /* Num streams per Data Channel */
+    char                      protocol[SDP_MAX_STRING_LEN+1];
 
     /* BEGIN - All Video related FMTP parameters */
     u16                       qcif;
@@ -422,6 +425,7 @@ typedef struct sdp_mca {
     sdp_transport_e           transport;
     sdp_port_format_e         port_format;
     int32                     port;
+    int32                     sctpport;
     int32                     num_ports;
     int32                     vpi;
     u32                       vci;  /* VCI needs to be 32-bit */

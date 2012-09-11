@@ -991,6 +991,32 @@ short vcmGetDtlsIdentity(const char *peerconnection,
   return 0;
 }
 
+/* Set negotiated DataChannel parameters.
+ *
+ *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]  streams - the number of streams for this data channel
+ *  @param[in]  sctp_port - the negotiated sctp port
+ *  @param[in]  protocol - the protocol as a string
+ *
+ *  @return 0 success, error failure
+ */
+short vcmSetDataChannelParameters(const char *peerconnection, cc_uint16_t streams, int sctp_port, const char* protocol)
+{
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
+
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
+  mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
+      sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
+  PR_ASSERT(pc);
+  if (!pc) {
+    return VCM_ERROR;
+  }
+
+
+  return 0;
+}
+
+
 
 /**
  *   Should we remove this from external API
