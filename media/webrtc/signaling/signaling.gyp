@@ -227,6 +227,8 @@
           ],
           
           'cflags_mozilla': [
+            '-Werror',
+            '-Wno-error=conversion'
           ],
         }],
       ],
@@ -784,6 +786,8 @@
           ],
           
           'cflags_mozilla': [
+            '-Werror',
+            '-Wno-error=conversion'
           ],
         }],
       ],

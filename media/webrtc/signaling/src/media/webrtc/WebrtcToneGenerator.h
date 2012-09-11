@@ -97,11 +97,11 @@ namespace CSF {
 		unsigned long		m_SinewaveIdx;
 		unsigned short		m_Cadence[TG_MAX_CADENCES];
 		unsigned long		m_CadenceIdx;
-		short				m_rCount[TG_MAX_REPEATCNTS];
+		//short				m_rCount[TG_MAX_REPEATCNTS];
 		unsigned long		m_Sample;
 		int					m_RepeatCount;
 		unsigned short		m_Descriptor;
-		short				m_CadenceRepeatCount;
+		//short				m_CadenceRepeatCount;
 
 		bool	TGNGenerateTone( short *dst, unsigned long length );
 		void	ToneGen( PSINEWAVE param, short *dst, unsigned long length, unsigned long numTones );

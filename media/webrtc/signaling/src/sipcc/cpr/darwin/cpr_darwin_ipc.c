@@ -44,6 +44,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <plat_api.h>
+#include "cpr_string.h"
 
 /*
  * If building with debug test interface,

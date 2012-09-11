@@ -83,7 +83,7 @@ WebrtcVideoProvider::WebrtcVideoProvider( WebrtcMediaProvider* provider )
   videoMode(true), 
   startPort(1024), 
   endPort(65535), 
-  localRenderId(0),
+  //localRenderId(0),
   webCaptureId(0),
   vp8Idx(0),
   previewWindow(NULL), 

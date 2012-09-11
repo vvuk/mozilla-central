@@ -45,6 +45,7 @@
 #include "cpr_locks.h"
 #include "cpr_stdlib.h"
 #include "cpr_darwin_memory_api.h"
+#include "cpr_string.h"
 
 #ifndef MALLOC
 #error "Need MALLOC to be defined"

@@ -195,7 +195,7 @@ namespace CSF
         bool videoMode;
         int startPort;
         int endPort;
-	int localRenderId;
+	//int localRenderId;
 	int webCaptureId;
 	int vp8Idx;
         RenderWindow* previewWindow;
