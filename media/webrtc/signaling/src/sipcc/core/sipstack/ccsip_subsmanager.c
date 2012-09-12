@@ -1705,8 +1705,7 @@ subsmanager_handle_ev_app_subscribe (cprBuffer_t buf)
         // If this is a presence request - check if sufficient SCBs will still
         // be available for other "more important" functions
         if (sub_datap->eventPackage == CC_SUBSCRIPTIONS_PRESENCE) {
-            if ((currentScbsAllocated >= LIMIT_SCBS_USAGE) ||
-                CPR_REACH_MEMORY_HIGH_WATER_MARK) {
+            if (currentScbsAllocated >= LIMIT_SCBS_USAGE) {
                 CCSIP_DEBUG_ERROR(SIP_F_PREFIX"reached Presence SCBs threshold\n", fname);
                 subs_result_data.u.subs_result_data.status_code =
                     SUBSCRIBE_FAILED_NORESOURCE;

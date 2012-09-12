@@ -489,6 +489,8 @@ cpr_memory_mgmt_destroy (void)
     (void) cprDestroyMutex(mem_tracking_mutex);
 }
 
+#if 0
+
 /**
  * @brief Allocate memory
  *
@@ -851,7 +853,7 @@ cpr_free (void *mem)
 
     return;
 }
-
+#endif
 
 /**
  * @addtogroup MemoryPrivRoutines Linux memory routines (private)

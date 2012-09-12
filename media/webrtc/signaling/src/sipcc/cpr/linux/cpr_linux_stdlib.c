@@ -447,6 +447,7 @@ cpr_memory_mgmt_pre_init (size_t size)
     return TRUE;
 }
 
+#if 0
 /**
  * @brief Allocate memory
  *
@@ -809,7 +810,7 @@ cpr_free (void *mem)
 
     return;
 }
-
+#endif
 
 /**
  * Force a crash dump which will allow a stack trace to be generated

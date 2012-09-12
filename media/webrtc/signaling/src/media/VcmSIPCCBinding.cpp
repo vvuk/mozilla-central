@@ -640,18 +640,18 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
     default_addr.c_str(), default_port);
   
   // Note: this leaks memory if we are out of memory. Oh well.
-  *candidatesp = (char **)malloc(candidates.size() * sizeof(char *));
+  *candidatesp = (char **) cpr_malloc(candidates.size() * sizeof(char *));
   if (!(*candidatesp))
     return;
   
   for (size_t i=0; i<candidates.size(); i++) {
-    (*candidatesp)[i] = (char *)malloc(candidates[i].size() + 1);
+    (*candidatesp)[i] = (char *) cpr_malloc(candidates[i].size() + 1);
     sstrncpy((*candidatesp)[i], candidates[i].c_str(), candidates[i].size() + 1);
   }
   *candidate_ctp = candidates.size();
 
   // Copy the default address
-  *default_addrp = (char *)malloc(default_addr.size() + 1);
+  *default_addrp = (char *) cpr_malloc(default_addr.size() + 1);
   if (!*default_addrp)
     return;
   sstrncpy(*default_addrp, default_addr.c_str(), default_addr.size() + 1);
@@ -692,7 +692,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
   for (size_t i=0; i<attrs.size(); i++) {
     if (attrs[i].compare(0, 9, "ice-ufrag") == 0) {
       if (!ufrag) {
-        ufrag = (char *)malloc(attrs[i].size() + 1);
+        ufrag = (char *) cpr_malloc(attrs[i].size() + 1);
         if (!ufrag)
           return;
         sstrncpy(ufrag, attrs[i].c_str(), attrs[i].size() + 1);
@@ -701,7 +701,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
     }
 
     if (attrs[i].compare(0, 7, "ice-pwd") == 0) {
-      pwd = (char *)malloc(attrs[i].size() + 1);
+      pwd = (char *) cpr_malloc(attrs[i].size() + 1);
       if (!pwd)
         return;
       sstrncpy(pwd, attrs[i].c_str(), attrs[i].size() + 1);
@@ -2164,7 +2164,7 @@ cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level, void 
     case RTP_H264_P0:
     case RTP_H264_P1:
 
-        rcap = (struct h264_video *) malloc( sizeof(struct h264_video) );
+        rcap = (struct h264_video *) cpr_malloc( sizeof(struct h264_video) );
         if ( rcap == NULL )
         {
             CSFLogDebugS( logTag, "vcmCheckAttribs(): Malloc Failed for rcap");

@@ -40,7 +40,20 @@
 #ifndef _CPR_STDLIB_H_
 #define _CPR_STDLIB_H_
 
-#include "cpr_types.h"
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef SIP_OS_WINDOWS
+#include "../win32/cpr_win_stdlib.h"
+#define cpr_strdup _strdup
+#endif
+
+#define cpr_malloc(a) malloc(a)
+#define cpr_calloc(a, b) calloc(a, b)
+#define cpr_realloc(a, b) realloc(a, b)
+#define cpr_free(a) free(a)
+
+#if 0
 
 __BEGIN_DECLS
 
@@ -142,6 +155,8 @@ void  cpr_free(void *mem);
 #endif
 
 __END_DECLS
+
+#endif
 
 #endif
 

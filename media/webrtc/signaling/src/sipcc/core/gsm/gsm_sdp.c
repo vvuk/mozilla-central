@@ -1479,7 +1479,7 @@ gsmsdp_get_ice_attributes (sdp_attr_e sdp_attr, uint16_t level, void *sdp_p, cha
           &ice_attrib);
         if (result != SDP_SUCCESS) {
     		GSM_ERR_MSG("Failed to retrieve ICE attribute\n");
-    		cpr_free(ice_attribs);
+    		cpr_free(*ice_attribs);
     		return FALSE;
     	}
         (*ice_attribs)[i] = (char *) cpr_calloc(1, strlen(ice_attrib) + 1);

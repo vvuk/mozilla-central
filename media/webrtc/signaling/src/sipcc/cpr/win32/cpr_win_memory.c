@@ -114,6 +114,8 @@ typedef struct
 char *strdup(const char *strSource);
 
 #ifndef CPR_USE_DIRECT_OS_CALL
+
+#if 0
 void *
 cpr_malloc (size_t size)
 {
@@ -146,6 +148,7 @@ cpr_realloc (void *object, size_t size)
 {
     return realloc(object, size);
 }
+#endif
 
 char *
 cpr_strdup (const char *string)
@@ -153,6 +156,7 @@ cpr_strdup (const char *string)
     return strdup(string);
 }
 
+#if 0
 void
 cpr_free (void *mem)
 {
@@ -169,6 +173,8 @@ cpr_free (void *mem)
 
     free(mem);
 }
+#endif
+
 #endif
 
 
