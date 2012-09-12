@@ -180,6 +180,9 @@ pref("media.navigator.enabled", true);
 #endif
 #endif
 
+// Whether to enable Web Audio support
+pref("media.webaudio.enabled", false);
+
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
 
@@ -234,6 +237,8 @@ pref("gfx.font_rendering.harfbuzz.scripts", 7);
 pref("gfx.font_rendering.directwrite.enabled", false);
 pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
+
+pref("gfx.font_rendering.opentype_svg.enabled", false);
 
 pref("gfx.canvas.azure.enabled", true);
 #ifdef XP_WIN
@@ -701,6 +706,7 @@ pref("javascript.options.strict.debug",     true);
 pref("javascript.options.relimit",          true);
 pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
+pref("javascript.options.ion.content",      true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
@@ -3541,8 +3547,6 @@ pref("image.mem.max_decoded_image_kb", 51200);
 pref("webgl.force-enabled", false);
 pref("webgl.disabled", false);
 pref("webgl.shader_validator", true);
-pref("webgl.force_osmesa", false);
-pref("webgl.osmesalib", "");
 pref("webgl.prefer-native-gl", false);
 pref("webgl.min_capability_mode", false);
 pref("webgl.disable-extensions", false);

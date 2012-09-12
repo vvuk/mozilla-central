@@ -223,6 +223,7 @@
 #include "nsIAppsService.h"
 #include "prrng.h"
 #include "nsSandboxFlags.h"
+#include "TimeChangeObserver.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -1052,6 +1053,7 @@ nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
     mIdleTimer = nullptr;
   }
 
+  DisableTimeChangeNotifications();
 #ifdef DEBUG
   nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
 #endif
@@ -1546,11 +1548,11 @@ nsGlobalWindow::SetInitialPrincipalToSubject()
   nsCOMPtr<nsIPresShell> shell;
   GetDocShell()->GetPresShell(getter_AddRefs(shell));
 
-  if (shell && !shell->DidInitialReflow()) {
+  if (shell && !shell->DidInitialize()) {
     // Ensure that if someone plays with this document they will get
     // layout happening.
     nsRect r = shell->GetPresContext()->GetVisibleArea();
-    shell->InitialReflow(r.width, r.height);
+    shell->Initialize(r.width, r.height);
   }
 }
 
@@ -3863,6 +3865,26 @@ nsGlobalWindow::GetMozInnerScreenY(float* aScreenY)
 
   nsRect r = GetInnerScreenRect();
   *aScreenY = nsPresContext::AppUnitsToFloatCSSPixels(r.y);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::GetDevicePixelRatio(float* aRatio)
+{
+  FORWARD_TO_OUTER(GetDevicePixelRatio, (aRatio), NS_ERROR_NOT_INITIALIZED);
+
+  *aRatio = 1.0;
+
+  if (!mDocShell)
+    return NS_OK;
+
+  nsCOMPtr<nsPresContext> presContext;
+  mDocShell->GetPresContext(getter_AddRefs(presContext));
+  if (!presContext)
+    return NS_OK;
+
+  *aRatio = float(nsPresContext::AppUnitsPerCSSPixel())/
+      presContext->AppUnitsPerDevPixel();
   return NS_OK;
 }
 
@@ -10627,6 +10649,18 @@ nsGlobalWindow::GetURL(nsIDOMMozURLProperty** aURL)
   NS_ADDREF(*aURL = mURLProperty);
 
   return NS_OK;
+}
+
+void
+nsGlobalWindow::EnableTimeChangeNotifications()
+{
+  nsSystemTimeChangeObserver::AddWindowListener(this);
+}
+
+void
+nsGlobalWindow::DisableTimeChangeNotifications()
+{
+  nsSystemTimeChangeObserver::RemoveWindowListener(this);
 }
 
 // static

@@ -84,7 +84,6 @@ XPIDLSRCS	= \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
 		nsIMessageManager.idl \
-		nsIWebSocket.idl \
 		nsIEventSource.idl \
 		$(NULL)
 

@@ -730,7 +730,7 @@ class CGClassConstructHook(CGAbstractStaticMethod):
 class CGClassHasInstanceHook(CGAbstractStaticMethod):
     def __init__(self, descriptor):
         args = [Argument('JSContext*', 'cx'), Argument('JSHandleObject', 'obj'),
-                Argument('const jsval*', 'v'), Argument('JSBool*', 'bp')]
+                Argument('JSMutableHandleValue', 'vp'), Argument('JSBool*', 'bp')]
         CGAbstractStaticMethod.__init__(self, descriptor, HASINSTANCE_HOOK_NAME,
                                         'JSBool', args)
 
@@ -743,7 +743,7 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
         return self.generate_code()
 
     def generate_code(self):
-        return """  if (!v->isObject()) {
+        return """  if (!vp.isObject()) {
     *bp = false;
     return true;
   }
@@ -758,7 +758,7 @@ class CGClassHasInstanceHook(CGAbstractStaticMethod):
   }
   JSObject *objProto = &protov.toObject();
 
-  JSObject* instance = &v->toObject();
+  JSObject* instance = &vp.toObject();
   JSObject* proto = JS_GetPrototype(instance);
   while (proto) {
     if (proto == objProto) {
@@ -964,11 +964,6 @@ class MethodDefiner(PropertyDefiner):
                                 "length": 1,
                                 "flags": "0",
                                 "pref": None })
-            self.regular.append({"name": 'QueryInterface',
-                                 "methodInfo": False,
-                                 "length": 1,
-                                 "flags": "0",
-                                 "pref": None })
 
         if static:
             if not descriptor.interface.hasInterfaceObject():
@@ -3486,7 +3481,16 @@ class CGSpecializedGetter(CGAbstractStaticMethod):
 
     def definition_body(self):
         name = self.attr.identifier.name
-        nativeName = "Get" + MakeNativeName(self.descriptor.binaryNames.get(name, name))
+        nativeName = MakeNativeName(self.descriptor.binaryNames.get(name, name))
+        # resultOutParam does not depend on whether resultAlreadyAddRefed is set
+        (_, resultOutParam) = getRetvalDeclarationForType(self.attr.type,
+                                                          self.descriptor,
+                                                          False)
+        infallible = ('infallible' in
+                      self.descriptor.getExtendedAttributes(self.attr,
+                                                            getter=True))
+        if resultOutParam or self.attr.type.nullable() or not infallible:
+            nativeName = "Get" + nativeName
         return CGIndenter(CGGetterCall(self.attr.type, nativeName,
                                        self.descriptor, self.attr)).define()
 
@@ -4727,7 +4731,7 @@ class CGDOMJSProxyHandler_getOwnPropertyNames(ClassMethod):
     def getBody(self):
         indexedGetter = self.descriptor.operations['IndexedGetter']
         if indexedGetter:
-            addIndices = """uint32_t length = UnwrapProxy(proxy)->GetLength();
+            addIndices = """uint32_t length = UnwrapProxy(proxy)->Length();
 MOZ_ASSERT(int32_t(length) >= 0);
 for (int32_t i = 0; i < int32_t(length); ++i) {
   if (!props.append(INT_TO_JSID(i))) {
@@ -4987,10 +4991,11 @@ class CGDOMJSProxyHandler(CGClass):
                          methods=methods)
 
 def stripTrailingWhitespace(text):
+    tail = '\n' if text.endswith('\n') else ''
     lines = text.splitlines()
     for i in range(len(lines)):
         lines[i] = lines[i].rstrip()
-    return '\n'.join(lines)
+    return '\n'.join(lines) + tail
 
 class CGDescriptor(CGThing):
     def __init__(self, descriptor):

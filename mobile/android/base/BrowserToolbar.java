@@ -55,6 +55,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private TextView mTitle;
     private int mTitlePadding;
     private boolean mSiteSecurityVisible;
+    private boolean mAnimateSiteSecurity;
     private ImageButton mTabs;
     private ImageView mBack;
     private ImageView mForward;
@@ -102,6 +103,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         sActionItems = new ArrayList<View>();
         Tabs.registerOnTabsChangedListener(this);
+        mAnimateSiteSecurity = true;
     }
 
     public void from(LinearLayout layout) {
@@ -344,11 +346,16 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 break;
             case RESTORED:
             case SELECTED:
+                // We should not animate the lock icon when switching or
+                // restoring tabs.
+                mAnimateSiteSecurity = false;
+                // fall through
             case LOCATION_CHANGE:
             case LOAD_ERROR:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     refresh();
                 }
+                mAnimateSiteSecurity = true;
                 break;
             case CLOSED:
             case ADDED:
@@ -507,6 +514,11 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mSiteSecurityVisible = visible;
 
+        if (!mAnimateSiteSecurity) {
+            mSiteSecurity.setVisibility(visible ? View.VISIBLE : View.GONE);
+            return;
+        }
+
         mTitle.clearAnimation();
         mSiteSecurity.clearAnimation();
 
@@ -550,6 +562,10 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         // We use about:empty as a placeholder for an external page load and
         // we don't want to change the title
         if (tab != null && "about:empty".equals(tab.getURL()))
+            return;
+
+        // Keep the title unchanged if the tab is entering reader mode
+        if (tab != null && tab.isEnteringReaderMode())
             return;
 
         // Setting a null title for about:home will ensure we just see

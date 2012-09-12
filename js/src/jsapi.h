@@ -1044,7 +1044,6 @@ class JS_PUBLIC_API(AutoGCRooter) {
         VALARRAY =     -2, /* js::AutoValueArrayRooter */
         PARSER =       -3, /* js::frontend::Parser */
         SHAPEVECTOR =  -4, /* js::AutoShapeVector */
-        ENUMERATOR =   -5, /* js::AutoEnumStateRooter */
         IDARRAY =      -6, /* js::AutoIdArray */
         DESCRIPTORS =  -7, /* js::AutoPropDescArrayRooter */
         NAMESPACES =   -8, /* js::AutoNamespaceArray */
@@ -1062,11 +1061,12 @@ class JS_PUBLIC_API(AutoGCRooter) {
         SHAPERANGE =  -20, /* js::Shape::Range::AutoRooter */
         STACKSHAPE =  -21, /* js::StackShape::AutoRooter */
         STACKBASESHAPE=-22,/* js::StackBaseShape::AutoRooter */
-        BINDINGS =    -23, /* js::Bindings::AutoRooter */
         GETTERSETTER =-24, /* js::AutoRooterGetterSetter */
         REGEXPSTATICS=-25, /* js::RegExpStatics::AutoRooter */
         NAMEVECTOR =  -26, /* js::AutoNameVector */
-        HASHABLEVALUE=-27
+        HASHABLEVALUE=-27,
+        IONMASM =     -28, /* js::ion::MacroAssembler */
+        IONALLOC =    -29  /* js::ion::AutoTempAllocatorRooter */
     };
 
   private:
@@ -1216,36 +1216,6 @@ class AutoArrayRooter : private AutoGCRooter {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     SkipRoot skip;
-};
-
-/* The auto-root for enumeration object and its state. */
-class AutoEnumStateRooter : private AutoGCRooter
-{
-  public:
-    AutoEnumStateRooter(JSContext *cx, JSObject *obj
-                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, ENUMERATOR), obj(cx, obj), stateValue(), context(cx)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        JS_ASSERT(obj);
-    }
-
-    ~AutoEnumStateRooter();
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-
-    const Value &state() const { return stateValue; }
-    Value *addr() { return &stateValue; }
-
-  protected:
-    void trace(JSTracer *trc);
-
-    RootedObject obj;
-
-  private:
-    Value stateValue;
-    JSContext *context;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 template<class T>
@@ -1642,10 +1612,11 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
 
 typedef JS::Handle<JSObject*> JSHandleObject;
 typedef JS::Handle<JSString*> JSHandleString;
-typedef JS::Handle<jsid> JSHandleId;
 typedef JS::Handle<JS::Value> JSHandleValue;
+typedef JS::Handle<jsid> JSHandleId;
 typedef JS::MutableHandle<JSObject*> JSMutableHandleObject;
 typedef JS::MutableHandle<JS::Value> JSMutableHandleValue;
+typedef JS::MutableHandle<jsid> JSMutableHandleId;
 typedef JS::RawObject JSRawObject;
 
 #else
@@ -1656,11 +1627,12 @@ typedef JS::RawObject JSRawObject;
  */
 
 typedef struct { JSObject **_; } JSHandleObject;
-typedef struct { jsval _; } JSHandleValue;
 typedef struct { JSString **_; } JSHandleString;
-typedef struct { JSObject **_; } JSMutableHandleObject;
+typedef struct { jsval *_; } JSHandleValue;
 typedef struct { jsid *_; } JSHandleId;
+typedef struct { JSObject **_; } JSMutableHandleObject;
 typedef struct { jsval *_; } JSMutableHandleValue;
+typedef struct { jsid *_; } JSMutableHandleId;
 typedef JSObject *JSRawObject;
 
 JSBool JS_CreateHandleObject(JSContext *cx, JSObject *obj, JSHandleObject *phandle);
@@ -1730,7 +1702,7 @@ typedef JSBool
  */
 typedef JSBool
 (* JSNewEnumerateOp)(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
-                     jsval *statep, jsid *idp);
+                     JSMutableHandleValue statep, JSMutableHandleId idp);
 
 /*
  * The old-style JSClass.enumerate op should define all lazy properties not
@@ -1830,7 +1802,7 @@ struct JSStringFinalizer {
  */
 typedef JSBool
 (* JSCheckAccessOp)(JSContext *cx, JSHandleObject obj, JSHandleId id, JSAccessMode mode,
-                    jsval *vp);
+                    JSMutableHandleValue vp);
 
 /*
  * Check whether v is an instance of obj.  Return false on error or exception,
@@ -1838,7 +1810,7 @@ typedef JSBool
  * *bp otherwise.
  */
 typedef JSBool
-(* JSHasInstanceOp)(JSContext *cx, JSHandleObject obj, const jsval *v, JSBool *bp);
+(* JSHasInstanceOp)(JSContext *cx, JSHandleObject obj, JSMutableHandleValue vp, JSBool *bp);
 
 /*
  * Function type for trace operation of the class called to enumerate all
@@ -1868,7 +1840,7 @@ typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
 
 typedef JSBool
-(* JSEqualityOp)(JSContext *cx, JSHandleObject obj, const jsval *v, JSBool *bp);
+(* JSEqualityOp)(JSContext *cx, JSHandleObject obj, JSHandleValue v, JSBool *bp);
 
 /*
  * Typedef for native functions called by the JS VM.
@@ -2498,14 +2470,6 @@ class AutoIdRooter : private AutoGCRooter
 #endif /* __cplusplus */
 
 /************************************************************************/
-
-/* Lock and unlock the GC thing held by a jsval. */
-#define JSVAL_LOCK(cx,v)        (JSVAL_IS_GCTHING(v)                          \
-                                 ? JS_LockGCThing(cx, JSVAL_TO_GCTHING(v))    \
-                                 : JS_TRUE)
-#define JSVAL_UNLOCK(cx,v)      (JSVAL_IS_GCTHING(v)                          \
-                                 ? JS_UnlockGCThing(cx, JSVAL_TO_GCTHING(v))  \
-                                 : JS_TRUE)
 
 /* Property attributes, set in JSPropertySpec and passed to API functions. */
 #define JSPROP_ENUMERATE        0x01    /* property is visible to for/in loop */
@@ -3256,10 +3220,12 @@ JS_StringToVersion(const char *string);
                                                    without requiring
                                                    "use strict" annotations. */
 
+#define JSOPTION_ION            JS_BIT(20)      /* IonMonkey */
+
 /* Options which reflect compile-time properties of scripts. */
 #define JSCOMPILEOPTION_MASK    (JSOPTION_ALLOW_XML | JSOPTION_MOAR_XML)
 
-#define JSRUNOPTION_MASK        (JS_BITMASK(20) & ~JSCOMPILEOPTION_MASK)
+#define JSRUNOPTION_MASK        (JS_BITMASK(21) & ~JSCOMPILEOPTION_MASK)
 #define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
 
 extern JS_PUBLIC_API(uint32_t)
@@ -3905,8 +3871,15 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind);
         if (!(trc)->realLocation || !(location))                              \
             (trc)->realLocation = (location);                                 \
     JS_END_MACRO
+# define JS_UNSET_TRACING_LOCATION(trc)                                       \
+    JS_BEGIN_MACRO                                                            \
+        (trc)->realLocation = NULL;                                           \
+    JS_END_MACRO
 #else
 # define JS_SET_TRACING_LOCATION(trc, location)                               \
+    JS_BEGIN_MACRO                                                            \
+    JS_END_MACRO
+# define JS_UNSET_TRACING_LOCATION(trc)                                       \
     JS_BEGIN_MACRO                                                            \
     JS_END_MACRO
 #endif

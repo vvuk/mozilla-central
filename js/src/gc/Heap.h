@@ -66,7 +66,8 @@ enum AllocKind {
     FINALIZE_SHORT_STRING,
     FINALIZE_STRING,
     FINALIZE_EXTERNAL_STRING,
-    FINALIZE_LAST = FINALIZE_EXTERNAL_STRING
+    FINALIZE_IONCODE,
+    FINALIZE_LAST = FINALIZE_IONCODE
 };
 
 static const unsigned FINALIZE_LIMIT = FINALIZE_LAST + 1;
@@ -108,7 +109,8 @@ struct Cell
  * Bug 692267: Move page size definition to gc/Memory.h and include it
  *             directly once jsgc.h is no longer an installed header.
  */
-#if defined(SOLARIS) && (defined(__sparc) || defined(__sparcv9))
+#if (defined(SOLARIS) || defined(__FreeBSD__)) && \
+    (defined(__sparc) || defined(__sparcv9) || defined(__ia64))
 const size_t PageShift = 13;
 #else
 const size_t PageShift = 12;

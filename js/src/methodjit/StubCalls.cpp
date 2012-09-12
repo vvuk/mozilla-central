@@ -40,6 +40,10 @@
 #include "vm/RegExpObject-inl.h"
 #include "vm/String-inl.h"
 
+#ifdef JS_ION
+#include "ion/Ion.h"
+#endif
+
 #ifdef XP_WIN
 # include "jswin.h"
 #endif
@@ -83,8 +87,8 @@ stubs::SetName(VMFrame &f, PropertyName *name)
 void JS_FASTCALL
 stubs::Name(VMFrame &f)
 {
-    Value rval;
-    if (!NameOperation(f.cx, f.script(), f.pc(), &rval))
+    RootedValue rval(f.cx);
+    if (!NameOperation(f.cx, f.pc(), &rval))
         THROW();
     f.regs.sp[0] = rval;
 }
@@ -493,8 +497,9 @@ StubEqualityOp(VMFrame &f)
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
             if (JSEqualityOp eq = l->getClass()->ext.equality) {
                 JSBool equal;
-                Rooted<JSObject*> lobj(cx, l);
-                if (!eq(cx, lobj, &rval, &equal))
+                RootedObject lobj(cx, l);
+                RootedValue r(cx, rval);
+                if (!eq(cx, lobj, r, &equal))
                     return false;
                 cond = !!equal == EQ;
             } else {
@@ -766,6 +771,46 @@ stubs::Interrupt(VMFrame &f, jsbytecode *pc)
         THROW();
 }
 
+#ifdef JS_ION
+void JS_FASTCALL
+stubs::TriggerIonCompile(VMFrame &f)
+{
+    JSScript *script = f.script();
+
+    if (ion::js_IonOptions.parallelCompilation) {
+        JS_ASSERT(!script->ion);
+
+        jsbytecode *osrPC = f.regs.pc;
+        if (*osrPC != JSOP_LOOPENTRY)
+            osrPC = NULL;
+
+        if (!ion::TestIonCompile(f.cx, script, script->function(), osrPC, f.fp()->isConstructing())) {
+            if (f.cx->isExceptionPending())
+                THROW();
+        }
+
+        return;
+    }
+
+    ExpandInlineFrames(f.cx->compartment);
+    Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), script);
+
+    if (ion::IsEnabled(f.cx) && f.jit()->nchunks == 1 &&
+        script->canIonCompile() && !script->hasIonScript())
+    {
+        // After returning to the interpreter, IonMonkey will try to compile
+        // this script. Don't destroy the JITChunk immediately so that Ion
+        // still has access to its ICs.
+        JS_ASSERT(!f.jit()->mustDestroyEntryChunk);
+        f.jit()->mustDestroyEntryChunk = true;
+        f.jit()->disableScriptEntry();
+        return;
+    }
+
+    f.jit()->destroyChunk(f.cx->runtime->defaultFreeOp(), f.chunkIndex(), /* resetUses = */ false);
+}
+#endif
+
 void JS_FASTCALL
 stubs::RecompileForInline(VMFrame &f)
 {
@@ -972,7 +1017,7 @@ stubs::GetProp(VMFrame &f, PropertyName *name)
     MutableHandleValue objval = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]);
 
     RootedValue rval(cx);
-    if (!GetPropertyOperation(cx, f.pc(), objval, &rval))
+    if (!GetPropertyOperation(cx, f.script(), f.pc(), objval, &rval))
         THROW();
 
     regs.sp[-1] = rval;
@@ -1149,9 +1194,9 @@ stubs::InstanceOf(VMFrame &f)
         THROWV(JS_FALSE);
     }
     RootedObject obj(cx, &rref.toObject());
-    const Value &lref = regs.sp[-2];
+    MutableHandleValue lref = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
     JSBool cond = JS_FALSE;
-    if (!HasInstance(cx, obj, &lref, &cond))
+    if (!HasInstance(cx, obj, lref, &cond))
         THROWV(JS_FALSE);
     f.regs.sp[-2].setBoolean(cond);
     return cond;

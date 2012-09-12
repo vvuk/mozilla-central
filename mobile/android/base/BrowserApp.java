@@ -544,14 +544,10 @@ abstract public class BrowserApp extends GeckoApp
                 if (favicon == null)
                     return;
 
-                Log.i(LOGTAG, "Favicon successfully loaded for URL = " + pageUrl);
-
                 // The tab might be pointing to another URL by the time the
                 // favicon is finally loaded, in which case we simply ignore it.
                 if (!tab.getURL().equals(pageUrl))
                     return;
-
-                Log.i(LOGTAG, "Favicon is for current URL = " + pageUrl);
 
                 tab.updateFavicon(favicon);
                 tab.setFaviconLoadId(Favicons.NOT_LOADING);
@@ -790,8 +786,12 @@ abstract public class BrowserApp extends GeckoApp
         forward.setEnabled(tab.canDoForward());
         desktopMode.setChecked(tab.getDesktopMode());
 
+        String url = tab.getURL();
+        if (ReaderModeUtils.isAboutReader(url))
+            url = ReaderModeUtils.getUrlFromAboutReader(url);
+
         // Disable share menuitem for about:, chrome:, file:, and resource: URIs
-        String scheme = Uri.parse(tab.getURL()).getScheme();
+        String scheme = Uri.parse(url).getScheme();
         share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
                            scheme.equals("file") || scheme.equals("resource")));
 

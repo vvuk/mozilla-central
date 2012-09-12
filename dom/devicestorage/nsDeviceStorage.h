@@ -26,6 +26,7 @@ class nsPIDOMWindow;
 #include "nsIDOMEventTarget.h"
 #include "nsIObserver.h"
 #include "mozilla/Mutex.h"
+#include "prtime.h"
 #include "DeviceStorage.h"
 
 
@@ -33,6 +34,7 @@ class nsPIDOMWindow;
 #define POST_ERROR_EVENT_FILE_NOT_ENUMERABLE         "File location is not enumerable"
 #define POST_ERROR_EVENT_PERMISSION_DENIED           "Permission Denied"
 #define POST_ERROR_EVENT_ILLEGAL_FILE_NAME           "Illegal file name"
+#define POST_ERROR_EVENT_ILLEGAL_TYPE                "Illegal content type"
 #define POST_ERROR_EVENT_UNKNOWN                     "Unknown"
 #define POST_ERROR_EVENT_NON_STRING_TYPE_UNSUPPORTED "Non-string type unsupported"
 #define POST_ERROR_EVENT_NOT_IMPLEMENTED             "Not implemented"
@@ -62,8 +64,8 @@ public:
   nsresult Remove();
   nsresult Write(nsIInputStream* aInputStream);
   nsresult Write(InfallibleTArray<uint8_t>& bits);
-  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince = 0);
-  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, uint64_t aSince, nsAString& aRootPath);
+  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRTime aSince = 0);
+  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRTime aSince, nsAString& aRootPath);
 
   static void DirectoryDiskUsage(nsIFile* aFile, uint64_t* aSoFar);
 
@@ -97,12 +99,12 @@ public:
   nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                            nsIPrincipal* aPrincipal,
                            DeviceStorageFile* aFile,
-                           uint64_t aSince);
+                           PRTime aSince);
 
 
   nsTArray<nsRefPtr<DeviceStorageFile> > mFiles;
   bool mOkToCallContinue;
-  uint64_t mSince;
+  PRTime mSince;
 
   virtual bool Recv__delete__(const bool& allow);
   virtual void IPDLRelease();

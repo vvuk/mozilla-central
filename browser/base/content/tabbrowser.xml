@@ -795,7 +795,7 @@
             // add the scheme and host to the title to prevent spoofing.
             // XXX https://bugzilla.mozilla.org/show_bug.cgi?id=22183#c239
             try {
-              if (docElement.getAttribute("chromehidden").indexOf("location") != -1) {
+              if (docElement.getAttribute("chromehidden").contains("location")) {
                 var uri = this.mURIFixup.createExposableURI(
                             aBrowser.currentURI);
                 if (uri.scheme == "about")
@@ -3647,22 +3647,22 @@
           }
         }
 
-        var newIndex = this._getDropIndex(event);
-        var scrollRect = tabStrip.scrollClientRect;
         var rect = tabStrip.getBoundingClientRect();
-        var minMargin = scrollRect.left - rect.left;
-        var maxMargin = Math.min(minMargin + scrollRect.width,
-                                 scrollRect.right);
-        if (!ltr)
-          [minMargin, maxMargin] = [this.clientWidth - maxMargin,
-                                    this.clientWidth - minMargin];
         var newMargin;
         if (pixelsToScroll) {
           // if we are scrolling, put the drop indicator at the edge
           // so that it doesn't jump while scrolling
+          let scrollRect = tabStrip.scrollClientRect;
+          let minMargin = scrollRect.left - rect.left;
+          let maxMargin = Math.min(minMargin + scrollRect.width,
+                                   scrollRect.right);
+          if (!ltr)
+            [minMargin, maxMargin] = [this.clientWidth - maxMargin,
+                                      this.clientWidth - minMargin];
           newMargin = (pixelsToScroll > 0) ? maxMargin : minMargin;
         }
         else {
+          let newIndex = this._getDropIndex(event);
           if (newIndex == this.childNodes.length) {
             let tabRect = this.childNodes[newIndex-1].getBoundingClientRect();
             if (ltr)
@@ -3750,7 +3750,7 @@
           } catch (ex) {}
 
           // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
-          if (!url || url.indexOf(" ") != -1)
+          if (!url || url.contains(" "))
             return;
 
           let bgLoad = Services.prefs.getBoolPref("browser.tabs.loadInBackground");

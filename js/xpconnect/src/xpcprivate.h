@@ -1451,7 +1451,7 @@ XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp);
 
 extern JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
-                      jsval *statep, jsid *idp);
+                      JSMutableHandleValue statep, JSMutableHandleId idp);
 
 extern JSType
 XPC_WN_JSOp_TypeOf_Object(JSContext *cx, JSHandleObject obj);
@@ -3856,7 +3856,7 @@ public:
      */
     AutoScriptEvaluate(JSContext * cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
          : mJSContext(cx), mState(0), mErrorReporterSet(false),
-           mEvaluated(false), mContextHasThread(0) {
+           mEvaluated(false) {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
@@ -3878,7 +3878,6 @@ private:
     JSExceptionState* mState;
     bool mErrorReporterSet;
     bool mEvaluated;
-    intptr_t mContextHasThread;
     mozilla::Maybe<JSAutoCompartment> mAutoCompartment;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
@@ -4381,11 +4380,8 @@ GetCompartmentPrivate(JSObject *object)
     return GetCompartmentPrivate(compartment);
 }
 
-inline bool IsUniversalXPConnectEnabled(JSContext *cx)
+inline bool IsUniversalXPConnectEnabled(JSCompartment *compartment)
 {
-    JSCompartment *compartment = js::GetContextCompartment(cx);
-    if (!compartment)
-        return false;
     CompartmentPrivate *priv =
       static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
     if (!priv)
@@ -4393,16 +4389,29 @@ inline bool IsUniversalXPConnectEnabled(JSContext *cx)
     return priv->universalXPConnectEnabled;
 }
 
-inline void EnableUniversalXPConnect(JSContext *cx)
+inline bool IsUniversalXPConnectEnabled(JSContext *cx)
 {
     JSCompartment *compartment = js::GetContextCompartment(cx);
     if (!compartment)
-        return;
+        return false;
+    return IsUniversalXPConnectEnabled(compartment);
+}
+
+inline bool EnableUniversalXPConnect(JSContext *cx)
+{
+    JSCompartment *compartment = js::GetContextCompartment(cx);
+    if (!compartment)
+        return true;
     CompartmentPrivate *priv =
       static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
     if (!priv)
-        return;
+        return true;
     priv->universalXPConnectEnabled = true;
+
+    // Recompute all the cross-compartment wrappers leaving the newly-privileged
+    // compartment.
+    return js::RecomputeWrappers(cx, js::SingleCompartment(compartment),
+                                 js::AllCompartments());
 }
 
 }

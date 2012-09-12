@@ -1,5 +1,5 @@
-/* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
-/* vim: set ts=40 sw=4 et tw=99: */
+/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
+/* vim: set ts=4 sw=4 et tw=99: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -813,17 +813,11 @@ ArrayBufferObject::obj_deleteSpecial(JSContext *cx, HandleObject obj,
 }
 
 JSBool
-ArrayBufferObject::obj_enumerate(JSContext *cx, HandleObject obj,
-                                 JSIterateOp enum_op, Value *statep, jsid *idp)
+ArrayBufferObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
+                                 MutableHandleValue statep, MutableHandleId idp)
 {
-    statep->setNull();
+    statep.setNull();
     return true;
-}
-
-JSType
-ArrayBufferObject::obj_typeOf(JSContext *cx, HandleObject obj)
-{
-    return JSTYPE_OBJECT;
 }
 
 /*
@@ -1371,7 +1365,7 @@ class TypedArrayTemplate
 
     static JSBool
     obj_enumerate(JSContext *cx, HandleObject tarray, JSIterateOp enum_op,
-                  Value *statep, jsid *idp)
+                  MutableHandleValue statep, MutableHandleId idp)
     {
         JS_ASSERT(tarray->isTypedArray());
 
@@ -1379,34 +1373,27 @@ class TypedArrayTemplate
         switch (enum_op) {
           case JSENUMERATE_INIT_ALL:
           case JSENUMERATE_INIT:
-            statep->setInt32(0);
-            if (idp)
-                *idp = ::INT_TO_JSID(length(tarray));
+            statep.setInt32(0);
+            idp.set(::INT_TO_JSID(length(tarray)));
             break;
 
           case JSENUMERATE_NEXT:
-            index = static_cast<uint32_t>(statep->toInt32());
+            index = static_cast<uint32_t>(statep.toInt32());
             if (index < length(tarray)) {
-                *idp = ::INT_TO_JSID(index);
-                statep->setInt32(index + 1);
+                idp.set(::INT_TO_JSID(index));
+                statep.setInt32(index + 1);
             } else {
                 JS_ASSERT(index == length(tarray));
-                statep->setNull();
+                statep.setNull();
             }
             break;
 
           case JSENUMERATE_DESTROY:
-            statep->setNull();
+            statep.setNull();
             break;
         }
 
         return true;
-    }
-
-    static JSType
-    obj_typeOf(JSContext *cx, HandleObject obj)
-    {
-        return JSTYPE_OBJECT;
     }
 
     static JSObject *
@@ -3019,7 +3006,7 @@ Class js::ArrayBufferClass = {
         ArrayBufferObject::obj_deleteElement,
         ArrayBufferObject::obj_deleteSpecial,
         ArrayBufferObject::obj_enumerate,
-        ArrayBufferObject::obj_typeOf,
+        NULL,       /* typeOf          */
         NULL,       /* thisObject      */
     }
 };
@@ -3190,7 +3177,7 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
         _typedArray::obj_deleteElement,                                        \
         _typedArray::obj_deleteSpecial,                                        \
         _typedArray::obj_enumerate,                                            \
-        _typedArray::obj_typeOf,                                               \
+        NULL,                /* typeOf      */                                 \
         NULL,                /* thisObject  */                                 \
     }                                                                          \
 }

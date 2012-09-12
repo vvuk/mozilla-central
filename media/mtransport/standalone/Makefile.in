@@ -77,6 +77,12 @@ CPPSRCS = \
 export:: $(MTRANSPORT_CPPSRCS)
 	$(INSTALL) $^ .
 
+# for stun.h
+ifeq (WINNT,$(OS_TARGET))
+DEFINES += -DWIN32
+else ifeq (Linux,$(OS_TARGET))
+DEFINES += -DLINUX
+endif
 
 include $(srcdir)/../objs.mk
 

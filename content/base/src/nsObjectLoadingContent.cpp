@@ -691,33 +691,33 @@ nsObjectLoadingContent::InstantiatePluginInstance()
     return NS_OK;
   }
   
+  mInstantiating = true;
+  AutoSetInstantiatingToFalse autoInstantiating(this);
+
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent *>(this));
 
-  // Flush layout so that the frame is created if possible and the plugin is
-  // initialized with the latest information.
   nsIDocument* doc = thisContent->GetCurrentDoc();
-  
   if (!doc || !InActiveDocument(thisContent)) {
     NS_ERROR("Shouldn't be calling "
              "InstantiatePluginInstance without an active document");
     return NS_ERROR_FAILURE;
   }
-  doc->FlushPendingNotifications(Flush_Layout);
-  
-  if (!thisContent->GetPrimaryFrame()) {
-    LOG(("OBJLC [%p]: Not instantiating plugin with no frame", this));
-    return NS_OK;
-  }
-
-  mInstantiating = true;
-  AutoSetInstantiatingToFalse autoInstantiating(this);
 
   // Instantiating an instance can result in script execution, which
   // can destroy this DOM object. Don't allow that for the scope
   // of this method.
   nsCOMPtr<nsIObjectLoadingContent> kungFuDeathGrip = this;
 
+  // Flush layout so that the frame is created if possible and the plugin is
+  // initialized with the latest information.
+  doc->FlushPendingNotifications(Flush_Layout);
+  
+  if (!thisContent->GetPrimaryFrame()) {
+    LOG(("OBJLC [%p]: Not instantiating plugin with no frame", this));
+    return NS_OK;
+  }
+  
   nsresult rv = NS_ERROR_FAILURE;
   nsRefPtr<nsPluginHost> pluginHost =
     already_AddRefed<nsPluginHost>(nsPluginHost::GetInst());

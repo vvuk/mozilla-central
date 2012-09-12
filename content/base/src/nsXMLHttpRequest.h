@@ -41,6 +41,12 @@
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 
+#ifdef Status
+/* Xlib headers insist on this for some reason... Nuke it because
+   it'll override our member name */
+#undef Status
+#endif
+
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
 class nsIUnicodeDecoder;
@@ -114,6 +120,10 @@ public:
   }
 };
 
+class nsXMLHttpRequestXPCOMifier;
+
+// Make sure that any non-DOM interfaces added here are also added to
+// nsXMLHttpRequestXPCOMifier.
 class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIXMLHttpRequest,
                          public nsIJSXMLHttpRequest,
@@ -126,6 +136,8 @@ class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsITimerCallback
 {
   friend class nsXHRParseEndListener;
+  friend class nsXMLHttpRequestXPCOMifier;
+
 public:
   nsXMLHttpRequest();
   virtual ~nsXMLHttpRequest();
@@ -140,7 +152,7 @@ public:
     return GetOwner();
   }
 
-  // The WebIDL constructor.
+  // The WebIDL constructors.
   static already_AddRefed<nsXMLHttpRequest>
   Constructor(JSContext* aCx,
               nsISupports* aGlobal,
@@ -158,6 +170,22 @@ public:
     req->Construct(principal->GetPrincipal(), window);
     req->InitParameters(aParams.mozAnon, aParams.mozSystem);
     return req.forget();
+  }
+
+  static already_AddRefed<nsXMLHttpRequest>
+  Constructor(JSContext* aCx,
+              nsISupports* aGlobal,
+              const nsAString& ignored,
+              ErrorResult& aRv)
+  {
+    // Pretend like someone passed null, so we can pick up the default values
+    mozilla::dom::MozXMLHttpRequestParameters params;
+    if (!params.Init(aCx, JS::NullValue())) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
+
+    return Constructor(aCx, aGlobal, params, aRv);
   }
 
   void Construct(nsIPrincipal* aPrincipal,
@@ -214,7 +242,7 @@ public:
   IMPL_EVENT_HANDLER(readystatechange)
 
   // states
-  uint16_t GetReadyState();
+  uint16_t ReadyState();
 
   // request
   void Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
@@ -231,14 +259,14 @@ public:
     aRv = SetRequestHeader(NS_ConvertUTF16toUTF8(aHeader),
                            NS_ConvertUTF16toUTF8(aValue));
   }
-  uint32_t GetTimeout()
+  uint32_t Timeout()
   {
     return mTimeoutMilliseconds;
   }
   void SetTimeout(uint32_t aTimeout, ErrorResult& aRv);
-  bool GetWithCredentials();
+  bool WithCredentials();
   void SetWithCredentials(bool aWithCredentials, nsresult& aRv);
-  nsXMLHttpRequestUpload* GetUpload();
+  nsXMLHttpRequestUpload* Upload();
 
 private:
   class RequestBody
@@ -365,7 +393,7 @@ public:
   void Abort();
 
   // response
-  uint32_t GetStatus();
+  uint32_t Status();
   void GetStatusText(nsString& aStatusText);
   void GetResponseHeader(const nsACString& aHeader, nsACString& aResult,
                          ErrorResult& aRv);
@@ -391,7 +419,7 @@ public:
     // XXX Should we do some validation here?
     mOverrideMimeType = aMimeType;
   }
-  XMLHttpRequestResponseType GetResponseType()
+  XMLHttpRequestResponseType ResponseType()
   {
     return XMLHttpRequestResponseType(mResponseType);
   }
@@ -400,13 +428,13 @@ public:
   void GetResponseText(nsString& aResponseText, ErrorResult& aRv);
   nsIDocument* GetResponseXML(ErrorResult& aRv);
 
-  bool GetMozBackgroundRequest();
+  bool MozBackgroundRequest();
   void SetMozBackgroundRequest(bool aMozBackgroundRequest, nsresult& aRv);
-  bool GetMultipart();
+  bool Multipart();
   void SetMultipart(bool aMultipart, nsresult& aRv);
 
-  bool GetMozAnon();
-  bool GetMozSystem();
+  bool MozAnon();
+  bool MozSystem();
 
   nsIChannel* GetChannel()
   {
@@ -502,6 +530,8 @@ protected:
                 const mozilla::dom::Optional<nsAString>& user,
                 const mozilla::dom::Optional<nsAString>& password);
 
+  already_AddRefed<nsXMLHttpRequestXPCOMifier> EnsureXPCOMifier();
+
   nsCOMPtr<nsISupports> mContext;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIChannel> mChannel;
@@ -550,7 +580,7 @@ protected:
 
   nsCString mResponseCharset;
 
-  enum ResponseType {
+  enum ResponseTypeEnum {
     XML_HTTP_RESPONSE_TYPE_DEFAULT,
     XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER,
     XML_HTTP_RESPONSE_TYPE_BLOB,
@@ -562,9 +592,9 @@ protected:
     XML_HTTP_RESPONSE_TYPE_MOZ_BLOB
   };
 
-  void SetResponseType(nsXMLHttpRequest::ResponseType aType, ErrorResult& aRv);
+  void SetResponseType(nsXMLHttpRequest::ResponseTypeEnum aType, ErrorResult& aRv);
 
-  ResponseType mResponseType;
+  ResponseTypeEnum mResponseType;
 
   // It is either a cached blob-response from the last call to GetResponse,
   // but is also explicitly set in OnStopRequest.
@@ -657,9 +687,48 @@ protected:
     nsCString value;
   };
   nsTArray<RequestHeader> mModifiedRequestHeaders;
+
+  // Helper object to manage our XPCOM scriptability bits
+  nsXMLHttpRequestXPCOMifier* mXPCOMifier;
 };
 
 #undef IMPL_EVENT_HANDLER
+
+// A shim class designed to expose the non-DOM interfaces of
+// XMLHttpRequest via XPCOM stuff.
+class nsXMLHttpRequestXPCOMifier MOZ_FINAL : public nsIStreamListener,
+                                             public nsIChannelEventSink,
+                                             public nsIProgressEventSink,
+                                             public nsIInterfaceRequestor,
+                                             public nsITimerCallback,
+                                             public nsCycleCollectionParticipant
+{
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXMLHttpRequestXPCOMifier,
+                                           nsIStreamListener)
+
+  nsXMLHttpRequestXPCOMifier(nsXMLHttpRequest* aXHR) :
+    mXHR(aXHR)
+  {
+  }
+
+  ~nsXMLHttpRequestXPCOMifier() {
+    if (mXHR) {
+      mXHR->mXPCOMifier = nullptr;
+    }
+  }
+
+  NS_FORWARD_NSISTREAMLISTENER(mXHR->)
+  NS_FORWARD_NSIREQUESTOBSERVER(mXHR->)
+  NS_FORWARD_NSICHANNELEVENTSINK(mXHR->)
+  NS_FORWARD_NSIPROGRESSEVENTSINK(mXHR->)
+  NS_FORWARD_NSITIMERCALLBACK(mXHR->)
+
+  NS_DECL_NSIINTERFACEREQUESTOR
+
+private:
+  nsRefPtr<nsXMLHttpRequest> mXHR;
+};
 
 // helper class to expose a progress DOM Event
 

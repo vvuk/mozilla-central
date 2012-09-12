@@ -1081,8 +1081,10 @@ NPP_SetWindow(NPP instance, NPWindow* window)
 
   if (instanceData->asyncDrawing == AD_BITMAP) {
     if (instanceData->frontBuffer &&
-        instanceData->frontBuffer->size.width == window->width &&
-        instanceData->frontBuffer->size.height == window->height) {
+	instanceData->frontBuffer->size.width >= 0 &&
+       (uint32_t)instanceData->frontBuffer->size.width == window->width &&
+       instanceData ->frontBuffer->size.height >= 0 &&
+       (uint32_t)instanceData->frontBuffer->size.height == window->height) {
           return NPERR_NO_ERROR;
     }
     if (instanceData->frontBuffer) {
@@ -3592,10 +3594,10 @@ bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
     // Parse out the three tokens into a siteData struct.
     const char* siteEnd = strchr(iterator, ':');
-    *((char*) siteEnd) = NULL;
+    *((char*) siteEnd) = '\0';
     const char* flagsEnd = strchr(siteEnd + 1, ':');
-    *((char*) flagsEnd) = NULL;
-    *((char*) next) = NULL;
+    *((char*) flagsEnd) = '\0';
+    *((char*) next) = '\0';
     
     siteData data;
     data.site = string(iterator);

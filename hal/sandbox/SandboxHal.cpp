@@ -304,6 +304,21 @@ class HalParent : public PHalParent
                 , public SwitchObserver
 {
 public:
+  virtual void
+  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE
+  {
+    // NB: you *must* unconditionally unregister your observer here,
+    // if it *may* be registered below.
+    hal::UnregisterBatteryObserver(this);
+    hal::UnregisterNetworkObserver(this);
+    hal::UnregisterScreenConfigurationObserver(this);
+    for (int32_t sensor = SENSOR_UNKNOWN + 1;
+         sensor < NUM_SENSOR_TYPE; ++sensor) {
+      hal::UnregisterSensorObserver(SensorType(sensor), this);
+    }
+    hal::UnregisterWakeLockObserver(this);
+  }
+
   virtual bool
   RecvVibrate(const InfallibleTArray<unsigned int>& pattern,
               const InfallibleTArray<uint64_t> &id,
@@ -661,6 +676,11 @@ public:
     hal::SetProcessPriority(aPid, aPriority);
     return true;
   }
+
+  void Notify(const SystemTimeChange& aReason)
+  {
+    unused << SendNotifySystemTimeChange(aReason);
+  }
 };
 
 class HalChild : public PHalChild {
@@ -695,6 +715,12 @@ public:
   virtual bool
   RecvNotifySwitchChange(const mozilla::hal::SwitchEvent& aEvent) MOZ_OVERRIDE {
     hal::NotifySwitchChange(aEvent);
+    return true;
+  }
+
+  virtual bool
+  RecvNotifySystemTimeChange(const SystemTimeChange& aReason) {
+    hal::NotifySystemTimeChange(aReason);
     return true;
   }
 };

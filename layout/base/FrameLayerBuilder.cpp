@@ -493,6 +493,7 @@ class ThebesDisplayItemLayerUserData : public LayerUserData
 {
 public:
   ThebesDisplayItemLayerUserData() :
+    mMaskClipCount(0),
     mForcedBackgroundColor(NS_RGBA(0,0,0,0)),
     mXScale(1.f), mYScale(1.f),
     mActiveScrolledRootPosition(0, 0) {}
@@ -2000,7 +2001,9 @@ FrameLayerBuilder::AddThebesDisplayItem(ThebesLayer* aLayer,
   ThebesLayerItemsEntry* entry = mThebesLayerItems.PutEntry(aLayer);
   if (entry) {
     entry->mContainerLayerFrame = aContainerLayerFrame;
-    entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    if (entry->mContainerLayerGeneration == 0) {
+      entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    }
     NS_ASSERTION(aItem->GetUnderlyingFrame(), "Must have frame");
     ClippedDisplayItem* cdi =
       entry->mItems.AppendElement(ClippedDisplayItem(aItem, aClip,
@@ -2046,7 +2049,9 @@ FrameLayerBuilder::GetLastPaintOffset(ThebesLayer* aLayer)
 {
   ThebesLayerItemsEntry* entry = mThebesLayerItems.PutEntry(aLayer);
   if (entry) {
-    entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    if (entry->mContainerLayerGeneration == 0) {
+      entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    }
     if (entry->mHasExplicitLastPaintOffset)
       return entry->mLastPaintOffset;
   }
@@ -2058,7 +2063,9 @@ FrameLayerBuilder::SaveLastPaintOffset(ThebesLayer* aLayer)
 {
   ThebesLayerItemsEntry* entry = mThebesLayerItems.PutEntry(aLayer);
   if (entry) {
-    entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    if (entry->mContainerLayerGeneration == 0) {
+      entry->mContainerLayerGeneration = mContainerLayerGeneration;
+    }
     entry->mLastPaintOffset = GetTranslationForThebesLayer(aLayer);
     entry->mHasExplicitLastPaintOffset = true;
   }

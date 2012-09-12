@@ -273,6 +273,10 @@ class JSString : public js::gc::Cell
     inline JSFlatString *ensureFlat(JSContext *cx);
     inline JSFixedString *ensureFixed(JSContext *cx);
 
+    static bool ensureLinear(JSContext *cx, JSString *str) {
+        return str->ensureLinear(cx) != NULL;
+    }
+
     /* Type query and debug-checked casts */
 
     JS_ALWAYS_INLINE
@@ -410,6 +414,7 @@ class JSString : public js::gc::Cell
 #ifdef DEBUG
     bool isShort() const;
     void dump();
+    static void dumpChars(const jschar *s, size_t len);
     bool equals(const char *s);
 #endif
 

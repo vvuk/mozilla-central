@@ -65,7 +65,6 @@
 #include "nsDOMSerializer.h"
 #include "nsXMLHttpRequest.h"
 #include "nsChannelPolicy.h"
-#include "nsWebSocket.h"
 #include "nsEventSource.h"
 
 // view stuff
@@ -108,6 +107,15 @@ using mozilla::dom::gonk::SystemWorkerManager;
   {0xd53b6524, 0x6ac3, 0x42b0, {0xae, 0xca, 0x62, 0xb3, 0xc4, 0xe5, 0x2b, 0x04}}
 #define SYSTEMWORKERMANAGER_CONTRACTID \
   "@mozilla.org/telephony/system-worker-manager;1"
+#endif
+
+#ifdef MOZ_B2G_BT
+#include "BluetoothService.h"
+using mozilla::dom::bluetooth::BluetoothService;
+#define BLUETOOTHSERVICE_CID \
+  {0xa753b487, 0x3344, 0x4de4, {0xad, 0x5f, 0x06, 0x36, 0x76, 0xa7, 0xc1, 0x04}}
+#define BLUETOOTHSERVICE_CONTRACTID \
+  "@mozilla.org/bluetooth/service;1"
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -254,7 +262,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsEventSource)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWebSocket)
 NS_GENERIC_FACTORY_CONSTRUCTOR(Activity)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileReader, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(ArchiveReader)
@@ -272,6 +279,10 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(DOMRequestService,
 #ifdef MOZ_B2G_RIL
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(SystemWorkerManager,
                                          SystemWorkerManager::FactoryCreate)
+#endif
+#ifdef MOZ_B2G_BT
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(BluetoothService,
+                                         BluetoothService::FactoryCreate)
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMMutationObserver)
 
@@ -740,7 +751,6 @@ NS_DEFINE_NAMED_CID(NS_BLOBPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_BLOBURI_CID);
 NS_DEFINE_NAMED_CID(NS_XMLHTTPREQUEST_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTSOURCE_CID);
-NS_DEFINE_NAMED_CID(NS_WEBSOCKET_CID);
 NS_DEFINE_NAMED_CID(NS_DOMACTIVITY_CID);
 NS_DEFINE_NAMED_CID(NS_DOMPARSER_CID);
 NS_DEFINE_NAMED_CID(NS_DOMSTORAGE2_CID);
@@ -751,6 +761,9 @@ NS_DEFINE_NAMED_CID(INDEXEDDB_MANAGER_CID);
 NS_DEFINE_NAMED_CID(DOMREQUEST_SERVICE_CID);
 #ifdef MOZ_B2G_RIL
 NS_DEFINE_NAMED_CID(SYSTEMWORKERMANAGER_CID);
+#endif
+#ifdef MOZ_B2G_BT
+NS_DEFINE_NAMED_CID(BLUETOOTHSERVICE_CID);
 #endif
 #ifdef MOZ_WIDGET_GONK
 NS_DEFINE_NAMED_CID(NS_AUDIOMANAGER_CID);
@@ -1013,7 +1026,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_BLOBURI_CID, false, NULL, nsBlobURIConstructor },
   { &kNS_XMLHTTPREQUEST_CID, false, NULL, nsXMLHttpRequestConstructor },
   { &kNS_EVENTSOURCE_CID, false, NULL, nsEventSourceConstructor },
-  { &kNS_WEBSOCKET_CID, false, NULL, nsWebSocketConstructor },
   { &kNS_DOMACTIVITY_CID, false, NULL, ActivityConstructor },
   { &kNS_DOMPARSER_CID, false, NULL, nsDOMParserConstructor },
   { &kNS_DOMSTORAGE2_CID, false, NULL, NS_NewDOMStorage2 },
@@ -1024,6 +1036,9 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kDOMREQUEST_SERVICE_CID, false, NULL, DOMRequestServiceConstructor },
 #ifdef MOZ_B2G_RIL
   { &kSYSTEMWORKERMANAGER_CID, true, NULL, SystemWorkerManagerConstructor },
+#endif
+#ifdef MOZ_B2G_BT
+  { &kBLUETOOTHSERVICE_CID, true, NULL, BluetoothServiceConstructor },
 #endif
 #ifdef MOZ_WIDGET_GONK
   { &kNS_AUDIOMANAGER_CID, true, NULL, AudioManagerConstructor },
@@ -1151,7 +1166,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX BLOBURI_SCHEME, &kNS_BLOBPROTOCOLHANDLER_CID },
   { NS_XMLHTTPREQUEST_CONTRACTID, &kNS_XMLHTTPREQUEST_CID },
   { NS_EVENTSOURCE_CONTRACTID, &kNS_EVENTSOURCE_CID },
-  { NS_WEBSOCKET_CONTRACTID, &kNS_WEBSOCKET_CID },
   { NS_DOMACTIVITY_CONTRACTID, &kNS_DOMACTIVITY_CID },
   { NS_DOMPARSER_CONTRACTID, &kNS_DOMPARSER_CID },
   { "@mozilla.org/dom/storage;2", &kNS_DOMSTORAGE2_CID },
@@ -1160,8 +1174,11 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/editor/texteditor;1", &kNS_TEXTEDITOR_CID },
   { INDEXEDDB_MANAGER_CONTRACTID, &kINDEXEDDB_MANAGER_CID },
   { DOMREQUEST_SERVICE_CONTRACTID, &kDOMREQUEST_SERVICE_CID },
-#ifdef MOZ_B2G_RIL  
+#ifdef MOZ_B2G_RIL
   { SYSTEMWORKERMANAGER_CONTRACTID, &kSYSTEMWORKERMANAGER_CID },
+#endif
+#ifdef MOZ_B2G_BT
+  { BLUETOOTHSERVICE_CONTRACTID, &kBLUETOOTHSERVICE_CID },
 #endif
 #ifdef MOZ_WIDGET_GONK
   { NS_AUDIOMANAGER_CONTRACTID, &kNS_AUDIOMANAGER_CID },
@@ -1230,6 +1247,9 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   CONTENTDLF_CATEGORIES
 #ifdef MOZ_B2G_RIL
   { "profile-after-change", "Telephony System Worker Manager", SYSTEMWORKERMANAGER_CONTRACTID },
+#endif
+#ifdef MOZ_B2G_BT
+  { "profile-after-change", "Bluetooth Service", BLUETOOTHSERVICE_CONTRACTID },
 #endif
   { NULL }
 };

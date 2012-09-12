@@ -12,17 +12,23 @@ class TestContext(object):
     """ Stores context data about the test """
 
     attrs = ['hostname', 'arch', 'env', 'os', 'os_version', 'tree', 'revision',
-             'product']
+             'product', 'logfile', 'testgroup', 'harness', 'buildtype']
 
-    def __init__(self, hostname='localhost', tree='', revision='', product=''):
+    def __init__(self, hostname='localhost', tree='', revision='', product='',
+                 logfile=None, arch='', operating_system='', testgroup='',
+                 harness='moztest', buildtype=''):
         self.hostname = hostname
-        self.arch = mozinfo.processor
+        self.arch = arch or mozinfo.processor
         self.env = os.environ.copy()
-        self.os = mozinfo.os
+        self.os = operating_system or mozinfo.os
         self.os_version = mozinfo.version
         self.tree = tree
         self.revision = revision
         self.product = product
+        self.logfile = logfile
+        self.testgroup = testgroup
+        self.harness = harness
+        self.buildtype = buildtype
 
     def __str__(self):
         return '%s (%s, %s)' % (self.hostname, self.os, self.arch)
@@ -72,6 +78,7 @@ class TestResult(object):
         test_class = the class that the test belongs to
         time_start = timestamp (seconds since UNIX epoch) of when the test started
                      running; if not provided, defaults to the current time
+                     ! Provide 0 if you only have the duration
         context = TestContext instance; can be None
         result_expected = string representing the expected outcome of the test"""
 
@@ -122,11 +129,39 @@ class TestResult(object):
         # here it is definitely some kind of error
         return 'ERROR'
 
+    def infer_results(self, computed_result):
+        assert computed_result in self.COMPUTED_RESULTS
+        if computed_result == 'UNEXPECTED-PASS':
+            expected = 'FAIL'
+            actual = 'PASS'
+        elif computed_result == 'UNEXPECTED-FAIL':
+            expected = 'PASS'
+            actual = 'FAIL'
+        elif computed_result == 'KNOWN-FAIL':
+            expected = actual = 'FAIL'
+        elif computed_result == 'SKIPPED':
+            expected = actual = 'SKIP'
+        else:
+            return
+        self._result_expected = expected
+        self._result_actual = actual
+
     def finish(self, result, time_end=None, output=None, reason=None):
-        """ Marks the test as finished, storing its end time and status """
-        msg = "Result '%s' not in possible results: %s" %\
-                    (result, ', '.join(self.POSSIBLE_RESULTS))
-        assert result in self.POSSIBLE_RESULTS, msg
+        """ Marks the test as finished, storing its end time and status
+        ! Provide the duration as time_end if you only have that. """
+
+        if result in self.POSSIBLE_RESULTS:
+            self._result_actual = result
+            self.result = self.calculate_result(self._result_expected,
+                                            self._result_actual)
+        elif result in self.COMPUTED_RESULTS:
+            self.infer_results(result)
+            self.result = result
+        else:
+            valid = self.POSSIBLE_RESULTS + self.COMPUTED_RESULTS
+            msg = "Result '%s' not valid. Need one of: %s" %\
+                    (result, ', '.join(valid))
+            raise ValueError(msg)
 
         # use lists instead of multiline strings
         if isinstance(output, basestring):
@@ -134,9 +169,6 @@ class TestResult(object):
 
         self.time_end = time_end if time_end is not None else time.time()
         self.output = output or self.output
-        self._result_actual = result
-        self.result = self.calculate_result(self._result_expected,
-                                            self._result_actual)
         self.reason = reason
 
     @property
@@ -253,7 +285,7 @@ class TestResultCollection(list):
                 add_test_result(test)
 
     @classmethod
-    def from_unittest_results(cls, *results):
+    def from_unittest_results(cls, context, *results):
         """ Creates a TestResultCollection containing the given python
         unittest results """
 
@@ -261,7 +293,7 @@ class TestResultCollection(list):
             return cls('from unittest')
 
         # all the TestResult instances share the same context
-        context = TestContext()
+        context = context or TestContext()
 
         collection = cls('from %s' % results[0].__class__.__name__)
 

@@ -1288,7 +1288,10 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
             if (number > 0.0 &&
                 number < (double)0xffffffff &&
                 0.0 == fmod(number,1)) {
-                rv = (nsresult) number;
+                // Visual Studio 9 doesn't allow casting directly from a
+                // double to an enumeration type, contrary to 5.2.9(10) of
+                // C++11, so add an intermediate cast.
+                rv = (nsresult)(uint32_t) number;
                 if (NS_FAILED(rv))
                     isResult = true;
             }
@@ -1347,24 +1350,25 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
     if (report) {
         nsAutoString bestMessage;
         if (report && report->ucmessage) {
-            bestMessage = (const PRUnichar *)report->ucmessage;
+            bestMessage = static_cast<const PRUnichar*>(report->ucmessage);
         } else if (message) {
             CopyASCIItoUTF16(message, bestMessage);
         } else {
             bestMessage.AssignLiteral("JavaScript Error");
         }
 
+        const PRUnichar* uclinebuf =
+            static_cast<const PRUnichar*>(report->uclinebuf);
+
         data = new nsScriptError();
-        if (!data)
-            return NS_ERROR_OUT_OF_MEMORY;
-
-
-        data->InitWithWindowID(bestMessage.get(),
-                               NS_ConvertASCIItoUTF16(report->filename).get(),
-                               (const PRUnichar *)report->uclinebuf, report->lineno,
-                               report->uctokenptr - report->uclinebuf, report->flags,
-                               "XPConnect JavaScript",
-                               nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(ccx.GetJSContext()));
+        data->InitWithWindowID(
+            bestMessage,
+            NS_ConvertASCIItoUTF16(report->filename),
+            uclinebuf ? nsDependentString(uclinebuf) : EmptyString(),
+            report->lineno,
+            report->uctokenptr - report->uclinebuf, report->flags,
+            "XPConnect JavaScript",
+            nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(ccx.GetJSContext()));
     }
 
     if (data) {
