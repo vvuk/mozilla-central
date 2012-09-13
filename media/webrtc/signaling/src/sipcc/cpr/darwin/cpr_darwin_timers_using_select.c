@@ -97,6 +97,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include "cpr_darwin_timers.h"
+#include "platform_api.h"
 
 /*--------------------------------------------------------------------------
  * Local definitions
@@ -1292,7 +1293,7 @@ void process_expired_timers() {
              */
             if (timerListHead->duration <= 0) {
                 timerMsg = (cprCallBackTimerMsg_t *)
-                    cprGetBuffer(sizeof(cprCallBackTimerMsg_t));
+                    cpr_malloc(sizeof(cprCallBackTimerMsg_t));
                 if (timerMsg) {
                     timerMsg->expiredTimerName =
                         timerListHead->cprTimerPtr->name;
@@ -1311,19 +1312,19 @@ void process_expired_timers() {
                         if (cprSendMessage(timerListHead->cprTimerPtr->callBackMsgQueue,
                                            timerMsg, (void **) &syshdr) == CPR_FAILURE) {
                             cprReleaseSysHeader(syshdr);
-                            cprReleaseBuffer(timerMsg);
+                            cpr_free(timerMsg);
                             CPR_ERROR("%s - Call to cprSendMessage failed\n", fname);
                             CPR_ERROR("%s - Unable to send timer %s expiration msg\n",
                                       fname, timerListHead->cprTimerPtr->name);
                         }
                     } else {
-                        cprReleaseBuffer(timerMsg);
+                        cpr_free(timerMsg);
                         CPR_ERROR("%s - Call to cprGetSysHeader failed\n", fname);
                         CPR_ERROR("%s - Unable to send timer %s expiration msg\n",
                                   fname, timerListHead->cprTimerPtr->name);
                     }
                 } else {
-                    CPR_ERROR("%s - Call to cprGetBuffer failed\n", fname);
+                    CPR_ERROR("%s - Call to cpr_malloc failed\n", fname);
                     CPR_ERROR("%s - Unable to send timer %s expiration msg\n",
                               fname, timerListHead->cprTimerPtr->name);
                 }

@@ -158,14 +158,14 @@ cc_send_cmd_msg (uint32_t cmd, cprBuffer_t buf, uint16_t len, cc_srcs_t dst_id)
         rc = gsm_send_msg(cmd, buf, len);
         if (rc == CPR_FAILURE) {
             cc_free_msg_data((cc_msg_t *) buf);
-            cprReleaseBuffer(buf);
+            cpr_free(buf);
         }
         break;
     case CC_SRC_SIP:
         rc = SIPTaskSendMsg(cmd, buf, len, NULL);
         if (rc == CPR_FAILURE) {
             cc_free_msg_data((cc_msg_t *) buf);
-            cprReleaseBuffer(buf);
+            cpr_free(buf);
         }
         break;
     default:
@@ -188,14 +188,14 @@ cc_send_msg (cprBuffer_t buf, uint16_t len, cc_srcs_t dst_id)
         rc = gsm_send_msg(GSM_SIP, buf, len);
         if (rc == CPR_FAILURE) {
             cc_free_msg_data((cc_msg_t *) buf);
-            cprReleaseBuffer(buf);
+            cpr_free(buf);
         }
         break;
     case CC_SRC_SIP:
         rc = SIPTaskSendMsg(SIP_GSM, buf, len, NULL);
         if (rc == CPR_FAILURE) {
             cc_free_msg_data((cc_msg_t *) buf);
-            cprReleaseBuffer(buf);
+            cpr_free(buf);
         }
         break;
     default:

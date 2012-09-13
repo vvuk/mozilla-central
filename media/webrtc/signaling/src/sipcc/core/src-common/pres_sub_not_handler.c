@@ -1395,7 +1395,7 @@ void pres_unsolicited_notify_ind (ccsip_sub_not_data_t *msg_data)
 
     rc = MiscAppTaskSendMsg(SUB_MSG_PRESENCE_UNSOLICITED_NOTIFY, pmsg, sizeof(*pmsg));
     if (rc == CPR_FAILURE) {
-        cprReleaseBuffer(pmsg);
+        cpr_free(pmsg);
     }
 
 }

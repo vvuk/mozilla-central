@@ -74,22 +74,9 @@
 #define MEM_PER_CALL_BLK 20 //20 block, ~20k
 #define PRIVATE_SYS_MEM_SIZE ((MEM_BASE_BLK + MEM_MISC_BLK + (MEM_PER_CALL_BLK) * MAX_CALLS) * BLK_SZ)
 
-extern boolean cpr_memory_mgmt_pre_init(size_t size);
-extern boolean cpr_memory_mgmt_post_init(void);
-extern void cpr_memory_mgmt_destroy(void);
-
 // used in early init code where config has not been setup
 const boolean gHardCodeSDPMode = TRUE;
 boolean gStopTickTask = FALSE;
-
-/**
- * Force a crash dump which will allow a stack trace to be generated
- *
- * @return none
- *
- * @note crash dump is created by an illegal write to memory
- */
-extern void cpr_crashdump(void);
 
 
 /*--------------------------------------------------------------------------
@@ -222,16 +209,6 @@ void send_protocol_config_msg(void);
  */
 extern 
 int ccMemInit(size_t size) {
-    /*
-     * Do not move memory pre init below.
-     * This initializes the memory sandbox
-     * and must be first thing done here to make sure
-     * allocations succeed.
-     */
-    if (cpr_memory_mgmt_pre_init(size) != TRUE) 
-    {
-        return CPR_FAILURE;
-    }
     return CPR_SUCCESS;
 }
 
@@ -477,7 +454,7 @@ send_protocol_config_msg (void)
     /* send a config done message to the SIP Task */
     if (SIPTaskSendMsg(TCP_PHN_CFG_TCP_DONE, msg, 0, NULL) == CPR_FAILURE) {
         err_msg("%s: notify SIP stack ready failed", fname);
-        cprReleaseBuffer(msg);
+        cpr_free(msg);
     }
     gsm_set_initialized();
     PHNChangeState(STATE_CONNECTED);
@@ -539,7 +516,7 @@ send_task_unload_msg(cc_srcs_t dest_id)
 
             if (SIPTaskSendMsg(THREAD_UNLOAD, (cprBuffer_t)msg, len, NULL) == CPR_FAILURE)
             {
-                cprReleaseBuffer(msg);
+                cpr_free(msg);
                 err_msg("%s: Unable to send THREAD_UNLOAD msg to sip thread", fname);
             }
         }
@@ -558,7 +535,7 @@ send_task_unload_msg(cc_srcs_t dest_id)
         break;
         case CC_SRC_MISC_APP:
         {
-            msg = cprGetBuffer(len);
+            msg = cpr_malloc(len);
             if (msg == NULL) {
                 err_msg("%s: failed to allocate  misc msg cprBuffer_t\n", fname);
                 return;
@@ -570,7 +547,7 @@ send_task_unload_msg(cc_srcs_t dest_id)
         break;
         case CC_SRC_CCAPP:
         {
-            msg = cprGetBuffer(len);
+            msg = cpr_malloc(len);
             if (msg == NULL) {
                 err_msg("%s: failed to allocate  ccapp msg cprBuffer_t\n", fname);
                 return;

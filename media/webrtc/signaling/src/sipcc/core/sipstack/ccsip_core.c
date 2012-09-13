@@ -6361,7 +6361,7 @@ sip_sm_process_cc_event (cprBuffer_t buf)
             CCSIP_DEBUG_TASK(DEB_F_PREFIX"No free lines available\n", 
                 DEB_F_PREFIX_ARGS(SIP_CALL_STATUS, fname));
             cc_free_msg_data(sip_sm_event.u.cc_msg);
-            cprReleaseBuffer(pCCMsg);
+            cpr_free(pCCMsg);
             return SIP_OK;
         }
     } else if (pCCMsg->msg.setup.msg_id == CC_MSG_OPTIONS_ACK) {
@@ -6372,28 +6372,28 @@ sip_sm_process_cc_event (cprBuffer_t buf)
         sip_sm_event.ccb = sip_sm_get_ccb_by_gsm_id(pCCMsg->msg.setup.call_id);
         ccsip_handle_ev_cc_answer_options_request(sip_sm_event.ccb, &sip_sm_event);
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return (SIP_OK);
     } else if (ccsip_handle_cc_select_event(&sip_sm_event)) {
         /*
          * The select feature has been handled.
          */
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return SIP_OK;
     } else if (ccsip_handle_cc_b2bjoin_event(&sip_sm_event)) {
         /*
          * The b2bjoin feature has been handled.
          */
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return SIP_OK;
     } else if (ccsip_handle_cc_hook_event(&sip_sm_event) == TRUE) {
         /*
          * The hook event has been handled.
          */
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return SIP_OK;
     } else {
         sip_sm_event.ccb = sip_sm_get_ccb_by_gsm_id(pCCMsg->msg.setup.call_id);
@@ -6417,7 +6417,7 @@ sip_sm_process_cc_event (cprBuffer_t buf)
                 DEB_F_PREFIX_ARGS(SIP_CALL_STATUS, fname),
                              pCCMsg->msg.setup.call_id);
             cc_free_msg_data(sip_sm_event.u.cc_msg);
-            cprReleaseBuffer(pCCMsg);
+            cpr_free(pCCMsg);
             return SIP_OK;
         }
     }
@@ -6429,7 +6429,7 @@ sip_sm_process_cc_event (cprBuffer_t buf)
          */
         ccsip_handle_ev_cc_answer_audit_request(sip_sm_event.ccb, &sip_sm_event);
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return (SIP_OK);
     }
 
@@ -6450,7 +6450,7 @@ sip_sm_process_cc_event (cprBuffer_t buf)
             CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sip_sm_get_ccb_next_available()"
                               " returned null.\n", fname);
             cc_free_msg_data(sip_sm_event.u.cc_msg);
-            cprReleaseBuffer(pCCMsg);
+            cpr_free(pCCMsg);
             return SIP_OK;
         }
         /* Set this ccb to always be on the first DN. */
@@ -6474,12 +6474,12 @@ sip_sm_process_cc_event (cprBuffer_t buf)
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"illegal state/event pair: (%d <-- %d)\n",
                           fname, sip_sm_event.ccb->state, sip_sm_event.type);
         cc_free_msg_data(sip_sm_event.u.cc_msg);
-        cprReleaseBuffer(pCCMsg);
+        cpr_free(pCCMsg);
         return SIP_ERROR;
     }
     sip_sm_event.ccb->kfactor_ptr = NULL;
     cc_free_msg_data(sip_sm_event.u.cc_msg);
-    cprReleaseBuffer(pCCMsg);
+    cpr_free(pCCMsg);
     return SIP_OK;
 }
 

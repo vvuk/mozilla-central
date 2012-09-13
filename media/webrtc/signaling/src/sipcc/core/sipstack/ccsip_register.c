@@ -2057,7 +2057,7 @@ ccsip_register_send_msg (uint32_t cmd, line_t ndx)
 
     if (SIPTaskSendMsg(cmd, register_msg, sizeof(ccsip_registration_msg_t), NULL)
             == CPR_FAILURE) {
-        cprReleaseBuffer(register_msg);
+        cpr_free(register_msg);
         CCSIP_DEBUG_ERROR("%s: Error: send buffer failed.\n", fname);
         return SIP_ERROR;
     }

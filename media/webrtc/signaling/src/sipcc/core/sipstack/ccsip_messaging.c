@@ -1424,7 +1424,7 @@ sip_platform_icmp_unreachable_callback (void *ccb, uint32_t ipaddr)
     if (SIPTaskSendMsg(SIP_ICMP_UNREACHABLE, (cprBuffer_t)icmp_msg,
                        sizeof(uint32_t), (void *)(long)ipaddr) == CPR_FAILURE) {
         CCSIP_DEBUG_ERROR("%s: Error: send msg failed.\n", fname);
-        cprReleaseBuffer((cprBuffer_t)icmp_msg);
+        cpr_free((cprBuffer_t)icmp_msg);
     }
     return;
 }

@@ -269,7 +269,7 @@ cprDestroyMessageQueue (cprMsgQueue_t msgQueue)
     /* Drain message queue */
     msg = cprGetMessage(msgQueue, FALSE, NULL);
     while (msg != NULL) {
-        cprReleaseBuffer(msg);
+        cpr_free(msg);
         msg = cprGetMessage(msgQueue, FALSE, NULL);
     }
 

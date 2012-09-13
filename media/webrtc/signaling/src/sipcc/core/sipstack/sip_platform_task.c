@@ -56,6 +56,7 @@
 #include "ccsip_platform_tcp.h"
 #include "ccsip_task.h"
 #include "sip_socket_api.h"
+#include "platform_api.h"
 
 /*---------------------------------------------------------
  *
