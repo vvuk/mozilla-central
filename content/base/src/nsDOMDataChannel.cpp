@@ -4,6 +4,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+
+#include "base/basictypes.h"
+#include "prlog.h"
+
+#ifdef PR_LOGGING
+extern PRLogModuleInfo* dataChannelLog;
+#endif
+#undef LOG
+#define LOG(args) PR_LOG(dataChannelLog, PR_LOG_DEBUG, args)
+
+
 #include "nsDOMDataChannel.h"
 #include "nsIDOMFile.h"
 #include "nsIJSNativeInitializer.h"
@@ -25,9 +39,6 @@
 
 #include "DataChannel.h"
 
-//#define LOG(x)   do { printf x; putc('\n',stdout); fflush(stdout);} while (0)
-#define LOG(x)   
-
 class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
@@ -40,8 +51,8 @@ public:
   nsresult Init(nsPIDOMWindow* aDOMWindow);
 
   NS_DECL_ISUPPORTS_INHERITED
-
   NS_DECL_NSIDOMDATACHANNEL
+  NS_DECL_NSIEVENTTARGET
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
@@ -56,6 +67,8 @@ public:
 
   virtual nsresult
   OnBinaryMessageAvailable(nsISupports* aContext, const nsACString& message);
+
+  virtual nsresult OnSimpleEvent(nsISupports* aContext, const nsAString& aName);
 
   virtual nsresult
   OnChannelConnected(nsISupports* aContext);
@@ -75,7 +88,7 @@ private:
 
   // Owning reference
   nsAutoPtr<mozilla::DataChannel> mDataChannel;
-  nsString  mUTF16Origin;
+  nsString  mOrigin;
   enum
   {
     DC_BINARY_TYPE_ARRAYBUFFER,
@@ -132,13 +145,16 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
     BindToOwner(aDOMWindow);
   }
 
-  // XXX any need to CheckInnerWindowCorrectness() like WebSockets?
-  // It's only an issue if the PeerConnection can likewise leak, which I think it can't.
-  // See bug 696085
-  // Do we need to observe for window destroyed or frozen?  (same bug)
+  // Attempt to kill "ghost" DataChannel (if one can happen): but usually too early for check to fail
+  rv = CheckInnerWindowCorrectness();
+  NS_ENSURE_SUCCESS(rv,rv);
 
-  rv = nsContentUtils::GetUTFOrigin(principal,mUTF16Origin);
-  LOG(("%s: origin = %s\n",__FUNCTION__,NS_LossyConvertUTF16toASCII(mUTF16Origin).get()));
+  // See bug 696085
+  // We don't need to observe for window destroyed or frozen; but PeerConnection needs
+  // to not allow itself to be bfcached (and get destroyed on navigation).
+
+  rv = nsContentUtils::GetUTFOrigin(principal,mOrigin);
+  LOG(("%s: origin = %s\n",__FUNCTION__,NS_LossyConvertUTF16toASCII(mOrigin).get()));
   return rv;
 }
 
@@ -154,11 +170,18 @@ nsDOMDataChannel::GetLabel(nsAString& aLabel)
   return NS_OK;
 }
 
-// XXX should be GetType()
+// XXX should be GetType()?  Open question for the spec
 NS_IMETHODIMP
 nsDOMDataChannel::GetReliable(bool* aReliable)
 {
   *aReliable = (mDataChannel->GetType() == mozilla::DataChannelConnection::RELIABLE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMDataChannel::GetOrdered(bool* aOrdered)
+{
+  *aOrdered = mDataChannel->GetOrdered();
   return NS_OK;
 }
 
@@ -254,12 +277,10 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  //UpdateMustKeepAlive();
-
   return NS_OK;
 }
 
-// XXX Exact clone of nsWebSocketChannel::GetSendParams() - share!
+// XXX Exact clone of nsWebSocketChannel::GetSendParams() - find a way to share!
 nsresult
 nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                                 nsCOMPtr<nsIInputStream> &aStreamOut,
@@ -334,6 +355,7 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
   return NS_OK;
 }
 
+// Copied from WebSockets including comment:
 // Initial implementation: only stores to RAM, not file
 // TODO: bug 704447: large file support
 nsresult
@@ -360,8 +382,12 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   nsresult rv;
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
-  LOG(("DoOnMessageAvailable%s\n",isBinary ? ((mBinaryType == DC_BINARY_TYPE_BLOB) ? " (blob)" : " (binary)" : "")));
+  LOG(("DoOnMessageAvailable%s\n",isBinary ? ((mBinaryType == DC_BINARY_TYPE_BLOB) ? " (blob)" : " (binary)") : ""));
 
+  rv = CheckInnerWindowCorrectness();
+  if (NS_FAILED(rv)) {
+    return NS_OK;
+  }
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
   NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
 
@@ -403,7 +429,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
   rv = messageEvent->InitMessageEvent(NS_LITERAL_STRING("message"),
                                       false, false,
-                                      jsData, mUTF16Origin, EmptyString(),
+                                      jsData, mOrigin, EmptyString(),
                                       nullptr);
   NS_ENSURE_SUCCESS(rv,rv);
   event->SetTrusted(true);
@@ -433,55 +459,75 @@ nsDOMDataChannel::OnBinaryMessageAvailable(nsISupports* aContext,
 }
 
 nsresult
-nsDOMDataChannel::OnChannelConnected(nsISupports* aContext)
+nsDOMDataChannel::OnSimpleEvent(nsISupports* aContext, const nsAString& aName)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  nsresult rv = CheckInnerWindowCorrectness();
+  if (NS_FAILED(rv)) {
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
+  rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  rv = event->InitEvent(NS_LITERAL_STRING("open"), false, false);
+  rv = event->InitEvent(aName, false, false);
   NS_ENSURE_SUCCESS(rv,rv);
 
   event->SetTrusted(true);
 
+  return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+}
+
+nsresult
+nsDOMDataChannel::OnChannelConnected(nsISupports* aContext)
+{
   LOG(("%p(%p): %s - Dispatching\n",this,(void*)mDataChannel,__FUNCTION__));
 
-  return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+  return OnSimpleEvent(aContext, NS_LITERAL_STRING("open"));
 }
 
 nsresult
 nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  rv = event->InitEvent(NS_LITERAL_STRING("close"), false, false);
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  event->SetTrusted(true);
-
   LOG(("%p(%p): %s - Dispatching\n",this,(void*)mDataChannel,__FUNCTION__));
 
-  return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
+
+  return OnSimpleEvent(aContext, NS_LITERAL_STRING("close"));
+}
+
+//-----------------------------------------------------------------------------
+// nsIEventTarget
+
+NS_IMETHODIMP
+nsDOMDataChannel::Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
+{
+  NS_ASSERTION(aRunnable, "Null pointer!");
+
+  nsCOMPtr<nsIRunnable> runnable = aRunnable;
+  return NS_DispatchToMainThread(aRunnable, aFlags);
+}
+
+NS_IMETHODIMP
+nsDOMDataChannel::IsOnCurrentThread(bool* aIsOnCurrentThread)
+{
+  *aIsOnCurrentThread = NS_IsMainThread();
+  return NS_OK;
 }
 
 /* static */
 nsresult
-NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
+NS_NewDOMDataChannel(mozilla::DataChannel* aDataChannel,
                      nsPIDOMWindow* aWindow,
-                     nsIDOMDataChannel** domDataChannel)
+                     nsIDOMDataChannel** aDomDataChannel)
 {
   nsresult rv;
 
-  nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(dataChannel);
+  nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(aDataChannel);
 
   rv = domdc->Init(aWindow);
   NS_ENSURE_SUCCESS(rv,rv);
 
-  return CallQueryInterface(domdc, domDataChannel);
+  return CallQueryInterface(domdc, aDomDataChannel);
 }
