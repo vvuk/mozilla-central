@@ -42,6 +42,10 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_var.h 235828 2012-05-23 11:26:28Z tuex
 
 #if defined(_KERNEL) || defined(__Userspace__)
 
+#ifndef RTFREE
+#define RTFREE rtfree
+#endif
+
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__Windows__)
 extern struct pr_usrreqs sctp_usrreqs;
 #endif
