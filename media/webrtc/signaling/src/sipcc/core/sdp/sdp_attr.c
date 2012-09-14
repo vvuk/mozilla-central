@@ -203,7 +203,11 @@ sdp_result_e sdp_build_attribute (sdp_t *sdp_p, u16 level, char **ptr, u16 len)
         } else {
             result = sdp_attr[attr_p->type].build_func(sdp_p, attr_p, 
                                                        ptr, (u16)(endbuf_p - *ptr));
-            if ((result == SDP_SUCCESS) && (endbuf_p - *ptr > 0)) {
+            /* If we ran out of buffer space, though, we must error out */
+            if (endbuf_p - *ptr <= 0)
+                return (SDP_POTENTIAL_SDP_OVERFLOW);
+
+            if (result == SDP_SUCCESS) {
                 if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
                     SDP_PRINT("%s Built a=%s attribute line", sdp_p->debug_str,
                               sdp_get_attr_name(attr_p->type));
@@ -4017,7 +4021,11 @@ sdp_result_e sdp_build_attr_cpar (sdp_t *sdp_p, sdp_attr_t *attr_p,
 
             result = sdp_attr[attr_p->type].build_func(sdp_p, attr_p, 
                                                        ptr, (u16)(endbuf_p - *ptr));
-            if ((result == SDP_SUCCESS) && (endbuf_p - *ptr > 0)) {
+            /* If we ran out of buffer space, though, we must error out */
+            if (endbuf_p - *ptr <= 0)
+                return (SDP_POTENTIAL_SDP_OVERFLOW);
+
+            if (result == SDP_SUCCESS) {
                 if (sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
                     SDP_PRINT("%s Built %s a=%s attribute line",
                               sdp_p->debug_str, cpar_name,

@@ -1177,6 +1177,7 @@ sdp_result_e sdp_build (void *sdp_ptr, char **bufp, u16 len)
     for (i=0; ((i < SDP_TOKEN_M) &&
                (result == SDP_SUCCESS) && (endbuf_p - ptr > 0)); i++) {
         result = sdp_token[i].build_func(sdp_p, SDP_SESSION_LEVEL, &ptr, (u16)(endbuf_p - ptr));
+        /* ok not to check buffer space (yet) as the if() checks it */
     }
     /* If the session level was ok, build the media lines. */
     if ((result == SDP_SUCCESS) && (endbuf_p - ptr > 0)) {
@@ -1184,6 +1185,7 @@ sdp_result_e sdp_build (void *sdp_ptr, char **bufp, u16 len)
                    (result == SDP_SUCCESS) && (endbuf_p - ptr > 0)); i++) {
             result = sdp_token[SDP_TOKEN_M].build_func(sdp_p, (u16)i, &ptr, (u16)(endbuf_p - ptr));
 
+            /* ok not to check buffer space (yet) as the for() checks it */
             for (j=SDP_TOKEN_I;
                  ((j < SDP_TOKEN_M) && (result == SDP_SUCCESS) && (endbuf_p - ptr > 0));
                  j++) {
@@ -1194,6 +1196,7 @@ sdp_result_e sdp_build (void *sdp_ptr, char **bufp, u16 len)
                     continue;
                 }
                 result = sdp_token[j].build_func(sdp_p, (u16)i, &ptr, (u16)(endbuf_p - ptr));
+                /* ok not to check buffer space (yet) as the for() checks it */
             }
         }
     }
