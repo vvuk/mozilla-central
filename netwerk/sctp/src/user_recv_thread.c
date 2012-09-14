@@ -37,7 +37,11 @@
 #undef __USE_GNU
 #include <unistd.h>
 #include <pthread.h>
+#if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
+#else
+#include <user_ip6_var.h>
+#endif
 #endif
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
@@ -53,6 +57,9 @@
 #include <linux/rtnetlink.h>
 #endif
 #endif
+#endif
+#if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin)
+#include <net/route.h>
 #endif
 /* local macros and datatypes used to get IP addresses system independently */
 #if defined IP_RECVDSTADDR

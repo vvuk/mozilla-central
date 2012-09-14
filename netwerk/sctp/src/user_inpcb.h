@@ -33,11 +33,7 @@
 #ifndef _USER_INPCB_H_
 #define _USER_INPCB_H_
 
-#if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin)
-#include <net/route.h>
-#else
 #include <user_route.h> /* was <net/route.h> */
-#endif
 
 #define	in6pcb		inpcb	/* for KAME src sync over BSD*'s */
 #define	in6p_sp		inp_sp	/* for KAME src sync over BSD*'s */

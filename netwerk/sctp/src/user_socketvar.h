@@ -42,7 +42,7 @@
 /* #include <sys/_lock.h>  was 0 byte file */
 /* #include <sys/_mutex.h> was 0 byte file */
 /* #include <sys/_sx.h> */ /*__Userspace__ alternative?*/
-#if !defined(__Userspace_os_Windows)
+#if !defined(__Userspace_os_Windows) && !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
 #endif
 #define SOCK_MAXADDRLEN 255
@@ -59,18 +59,16 @@
 #define ERESTART (-1)
 #endif
 
-#if !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_Darwin)
+#if !defined(__Userspace_os_Darwin)
 enum	uio_rw { UIO_READ, UIO_WRITE };
 #endif
 
-#if !defined(__Userspace_os_FreeBSD)
 /* Segment flag values. */
 enum uio_seg {
 	UIO_USERSPACE,		/* from user data space */
 	UIO_SYSSPACE,		/* from system space */
 	UIO_NOCOPY		/* don't copy, already in object */
 };
-#endif
 
 struct proc {
     int stub; /* struct proc is a dummy for __Userspace__ */
