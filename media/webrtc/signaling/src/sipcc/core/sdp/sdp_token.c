@@ -109,7 +109,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the owner name. */
-    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_name, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_name, sizeof(sdp_p->owner_name), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No owner name specified for o=.",
@@ -122,7 +122,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     /* Find the owner session id.  This is a numeric field but is  
      * stored as a string since it may be 64 bit.
      */
-    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_sessid, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_sessid, sizeof(sdp_p->owner_sessid), " \t", &result);
     if (result == SDP_SUCCESS) {
         /* Make sure the sessid is numeric, even though we store it as
          * a string.
@@ -140,7 +140,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the owner version. */
-    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_version, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_version, sizeof(sdp_p->owner_version), " \t", &result);
     if (result == SDP_SUCCESS) {
         /* Make sure the version is numeric, even though we store it as
          * a string.
@@ -158,7 +158,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the owner network type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No owner network type specified for o=.",
@@ -186,7 +186,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the owner address type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No owner address type specified for o=.",
@@ -215,7 +215,7 @@ sdp_result_e sdp_parse_owner (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the owner address. */
-    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_addr, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, sdp_p->owner_addr, sizeof(sdp_p->owner_addr), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No owner address specified.", sdp_p->debug_str);
@@ -471,7 +471,7 @@ sdp_result_e sdp_build_phonenum (sdp_t *sdp_p, u16 level, char **ptr, u16 len)
 sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
 {
     int           i;
-    char         *slash_ptr;
+    const char   *slash_ptr;
     sdp_result_e  result;
     sdp_conn_t   *conn_p;
     sdp_mca_t    *mca_p;
@@ -503,7 +503,7 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the connection network type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No connection network type specified for c=.",
@@ -529,7 +529,7 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the connection address type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (conn_p->nettype == SDP_NT_ATM) {
             /* If the nettype is ATM, addr type and addr are not reqd */
@@ -564,7 +564,7 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the connection address. */
-    ptr = sdp_getnextstrtok(ptr, conn_p->conn_addr, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, conn_p->conn_addr, sizeof(conn_p->conn_addr), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No connection address specified for c=.",
@@ -596,7 +596,7 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
                 SDP_PRINT("%s A multicast address with slash %s", 
                           sdp_p->debug_str, conn_p->conn_addr);
                 slash_ptr++;
-                slash_ptr = sdp_getnextstrtok(slash_ptr, tmp,  "/", &result);
+                slash_ptr = sdp_getnextstrtok(slash_ptr, tmp, sizeof(tmp), "/", &result);
                 if (result != SDP_SUCCESS) {
                     if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
                         SDP_ERROR("%s No ttl value specified for this multicast addr with a slash", 
@@ -760,7 +760,7 @@ sdp_result_e sdp_parse_bandwidth (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the bw type (AS, CT or TIAS) */
-    ptr = sdp_getnextstrtok(ptr, tmp, ":", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), ":", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No bandwidth type specified for b= ",
@@ -899,7 +899,7 @@ sdp_result_e sdp_parse_timespec (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Validate start and stop times. */
-    ptr = sdp_getnextstrtok(ptr, timespec_p->start_time, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, timespec_p->start_time, sizeof(timespec_p->start_time), " \t", &result);
     if (result == SDP_SUCCESS) {
         /* Make sure the start_time is numeric, even though we store it as
          * a string.
@@ -917,7 +917,7 @@ sdp_result_e sdp_parse_timespec (sdp_t *sdp_p, u16 level, const char *ptr)
         return (SDP_INVALID_PARAMETER);
     }
 
-    ptr = sdp_getnextstrtok(ptr, timespec_p->stop_time, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, timespec_p->stop_time, sizeof(timespec_p->stop_time), " \t", &result);
     if (result == SDP_SUCCESS) {
         /* Make sure the start_time is numeric, even though we store it as
          * a string.
@@ -1051,7 +1051,7 @@ sdp_result_e sdp_parse_encryption (sdp_t *sdp_p, u16 level, const char *ptr)
     encrypt_p->encrypt_key[0] = '\0';
 
     /* Find the encryption type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, ":", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), ":", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No encryption type specified for k=.",
@@ -1083,7 +1083,7 @@ sdp_result_e sdp_parse_encryption (sdp_t *sdp_p, u16 level, const char *ptr)
     if (*ptr == ':')
         ptr++;
     if (encrypt_p->encrypt_type != SDP_ENCRYPT_PROMPT) {
-        ptr = sdp_getnextstrtok(ptr, encrypt_p->encrypt_key, " \t", &result);
+        ptr = sdp_getnextstrtok(ptr, encrypt_p->encrypt_key, sizeof(encrypt_p->encrypt_key), " \t", &result);
         if ((result != SDP_SUCCESS) &&
             ((encrypt_p->encrypt_type == SDP_ENCRYPT_CLEAR) ||
              (encrypt_p->encrypt_type == SDP_ENCRYPT_BASE64) ||
@@ -1160,7 +1160,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     sdp_mca_t            *next_mca_p;
     char                  tmp[SDP_MAX_STRING_LEN];
     char                  port[SDP_MAX_STRING_LEN];
-    char                 *port_ptr;
+    const char           *port_ptr;
     int32                 sctp_port;
 
     /* Allocate resource for new media stream. */
@@ -1171,7 +1171,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     }
     
     /* Find the media type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No media type specified, parse failed.", 
@@ -1199,7 +1199,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
      * we determine the transport protocol as that determines what 
      * port number formats are valid. 
      */
-    ptr = sdp_getnextstrtok(ptr, port, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, port, sizeof(port), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No port specified in m= media line, "
@@ -1224,7 +1224,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     }
 
     /* Find the transport protocol type. */
-    ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+    ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
     if (result != SDP_SUCCESS) {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
             SDP_ERROR("%s No transport protocol type specified, "
@@ -1422,7 +1422,7 @@ sdp_result_e sdp_parse_media (sdp_t *sdp_p, u16 level, const char *ptr)
     
     /* Parse SCTP/DTLS port */
     if (mca_p->transport == SDP_TRANSPORT_SCTPDTLS) {
-        ptr = sdp_getnextstrtok(ptr, port, " \t", &result);
+        ptr = sdp_getnextstrtok(ptr, port, sizeof(port), " \t", &result);
         if (result != SDP_SUCCESS) {
             if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
                 SDP_ERROR("%s No sctp port specified in m= media line, "
@@ -1655,7 +1655,7 @@ void sdp_parse_payload_types (sdp_t *sdp_p, sdp_mca_t *mca_p, const char *ptr)
     char         *tmp2;
 
     for (num_payloads = 0; (num_payloads < SDP_MAX_PAYLOAD_TYPES); ) {
-        ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+        ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
         if (result != SDP_SUCCESS) {
             /* If there are no more payload types, we're finished */
             break;
@@ -1780,7 +1780,7 @@ sdp_result_e sdp_parse_multiple_profile_payload_types (sdp_t *sdp_p,
 
     /* Now find the payload type lists and any other profile types */
     while (TRUE) {
-        ptr = sdp_getnextstrtok(ptr, tmp, " \t", &result);
+        ptr = sdp_getnextstrtok(ptr, tmp, sizeof(tmp), " \t", &result);
         if (result != SDP_SUCCESS) {
             /* If there are no more payload types, we're finished */
             break;
