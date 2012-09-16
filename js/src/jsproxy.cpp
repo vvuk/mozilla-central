@@ -2509,7 +2509,6 @@ Proxy::fun_toString(JSContext *cx, JSObject *proxy_, unsigned indent)
 {
     JS_CHECK_RECURSION(cx, return NULL);
     RootedObject proxy(cx, proxy_);
-    return GetProxyHandler(proxy)->obj_toString(cx, proxy);
     return GetProxyHandler(proxy)->fun_toString(cx, proxy, indent);
 }
 
@@ -3060,6 +3059,7 @@ js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_,
     JS_ASSERT_IF(proto, cx->compartment == proto->compartment());
     JS_ASSERT_IF(parent, cx->compartment == parent->compartment());
     JS_ASSERT_IF(construct, cx->compartment == construct->compartment());
+    JS_ASSERT_IF(call && cx->compartment != call->compartment(), priv.get() == ObjectValue(*call));
     bool fun = call || construct;
     Class *clasp;
     if (fun)

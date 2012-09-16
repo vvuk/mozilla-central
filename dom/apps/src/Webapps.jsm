@@ -77,6 +77,8 @@ let DOMApplicationRegistry = {
     dirList.push("coreAppsDir");
 #endif
     let currentId = 1;
+    this.dirsToLoad = dirList.length;
+    this.dirsLoaded = 0;
     dirList.forEach((function(dir) {
       let curFile;
       try {
@@ -91,13 +93,16 @@ let DOMApplicationRegistry = {
           if (!aData) {
             return;
           }
+#ifdef MOZ_SYS_MSG
+          let ids = [];
+#endif
           // Add new apps to the merged list.
           for (let id in aData) {
             this.webapps[id] = aData[id];
             this.webapps[id].basePath = appDir.path;
             this.webapps[id].removable = (dir == DIRECTORY_NAME);
 #ifdef MOZ_SYS_MSG
-            this._processManifestForId(id);
+            ids.push({ id: id });
 #endif
             // local ids must be stable between restarts.
             // We partition the ids in two buckets:
@@ -114,32 +119,75 @@ let DOMApplicationRegistry = {
               this.webapps[id].appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
             }
           };
+#ifdef MOZ_SYS_MSG
+          this._processManifestForIds(ids);
+#endif
         }).bind(this));
+      } else {
+        // The directory we're trying to load from doesn't exist.
+        this.dirsToLoad--;
       }
     }).bind(this));
   },
 
 #ifdef MOZ_SYS_MSG
-  _registerSystemMessages: function(aManifest, aApp) {
-    if (aManifest.messages && Array.isArray(aManifest.messages) &&
-        aManifest.messages.length > 0) {
-      let manifest = new DOMApplicationManifest(aManifest, aApp.origin);
-      let launchPath = Services.io.newURI(manifest.fullLaunchPath(), null, null);
-      let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
-      aManifest.messages.forEach(function registerPages(aMessage) {
-        msgmgr.registerPage(aMessage, launchPath, manifestURL);
-      });
-    }
-  },
 
-  _registerActivities: function(aManifest, aApp) {
-    if (!aManifest.activities) {
+  // aEntryPoint is either the entry_point name or the null, in which case we
+  // use the root of the manifest.
+  _registerSystemMessagesForEntryPoint: function(aManifest, aApp, aEntryPoint) {
+    let root = aManifest;
+    if (aEntryPoint && aManifest.entry_points[aEntryPoint]) {
+      root = aManifest.entry_points[aEntryPoint];
+    }
+
+    if (!root.messages || !Array.isArray(root.messages) ||
+        root.messages.length == 0) {
       return;
     }
 
     let manifest = new DOMApplicationManifest(aManifest, aApp.origin);
-    for (let activity in aManifest.activities) {
-      let description = aManifest.activities[activity];
+    let launchPath = Services.io.newURI(manifest.fullLaunchPath(aEntryPoint), null, null);
+    let manifestURL = Services.io.newURI(aApp.manifestURL, null, null);
+    root.messages.forEach(function registerPages(aMessage) {
+      let href = launchPath;
+      let messageName;
+      if (typeof(aMessage) === "object" && Object.keys(aMessage).length === 1) {
+        messageName = Object.keys(aMessage)[0];
+        href = Services.io.newURI(manifest.resolveFromOrigin(aMessage[messageName]), null, null);
+      } else {
+        messageName = aMessage;
+      }
+      msgmgr.registerPage(messageName, href, manifestURL);
+    });
+  },
+
+  _registerSystemMessages: function(aManifest, aApp) {
+    this._registerSystemMessagesForEntryPoint(aManifest, aApp, null);
+
+    if (!aManifest.entry_points) {
+      return;
+    }
+
+    for (let entryPoint in aManifest.entry_points) {
+      this._registerSystemMessagesForEntryPoint(aManifest, aApp, entryPoint);
+    }
+  },
+
+  // aEntryPoint is either the entry_point name or the null, in which case we
+  // use the root of the manifest.
+  _registerActivitiesForEntryPoint: function(aManifest, aApp, aEntryPoint) {
+    let root = aManifest;
+    if (aEntryPoint && aManifest.entry_points[aEntryPoint]) {
+      root = aManifest.entry_points[aEntryPoint];
+    }
+
+    if (!root.activities) {
+      return;
+    }
+
+    let manifest = new DOMApplicationManifest(aManifest, aApp.origin);
+    for (let activity in root.activities) {
+      let description = root.activities[activity];
       if (!description.href) {
         description.href = manifest.launch_path;
       }
@@ -160,13 +208,30 @@ let DOMApplicationRegistry = {
     }
   },
 
-  _unregisterActivities: function(aManifest, aApp) {
-    if (!aManifest.activities) {
+  _registerActivities: function(aManifest, aApp) {
+    this._registerActivitiesForEntryPoint(aManifest, aApp, null);
+
+    if (!aManifest.entry_points) {
       return;
     }
 
-    for (let activity in aManifest.activities) {
-      let description = aManifest.activities[activity];
+    for (let entryPoint in aManifest.entry_points) {
+      this._registerActivitiesForEntryPoint(aManifest, aApp, entryPoint);
+    }
+  },
+
+  _unregisterActivitiesForEntryPoint: function(aManifest, aApp, aEntryPoint) {
+    let root = aManifest;
+    if (aEntryPoint && aManifest.entry_points[aEntryPoint]) {
+      root = aManifest.entry_points[aEntryPoint];
+    }
+
+    if (!root.activities) {
+      return;
+    }
+
+    for (let activity in root.activities) {
+      let description = root.activities[activity];
       let json = {
         "manifest": aApp.manifestURL,
         "name": activity
@@ -175,13 +240,31 @@ let DOMApplicationRegistry = {
     }
   },
 
-  _processManifestForId: function(aId) {
-    let app = this.webapps[aId];
-    this._readManifests([{ id: aId }], (function registerManifest(aResult) {
-      let manifest = aResult[0].manifest;
-      app.name = manifest.name;
-      this._registerSystemMessages(manifest, app);
-      this._registerActivities(manifest, app);
+  _unregisterActivities: function(aManifest, aApp) {
+    this._unregisterActivitiesForEntryPoint(aManifest, aApp, null);
+
+    if (!aManifest.entry_points) {
+      return;
+    }
+
+    for (let entryPoint in aManifest.entry_points) {
+      this._unregisterActivitiesForEntryPoint(aManifest, aApp, entryPoint);
+    }
+  },
+
+  _processManifestForIds: function(aIds) {
+    this._readManifests(aIds, (function registerManifests(aResults) {
+      aResults.forEach(function registerManifest(aResult) {
+        let app = this.webapps[aResult.id];
+        let manifest = aResult.manifest;
+        app.name = manifest.name;
+        this._registerSystemMessages(manifest, app);
+        this._registerActivities(manifest, app);
+      }, this);
+      this.dirsLoaded++;
+      if (this.dirsLoaded == this.dirsToLoad) {
+        Services.obs.notifyObservers(this, "webapps-registry-ready", null);
+      }
     }).bind(this));
   },
 #endif
@@ -383,7 +466,8 @@ let DOMApplicationRegistry = {
       }).bind(this));
 
 #ifdef MOZ_SYS_MSG
-    this._registerSystemMessages(id, app);
+    this._registerSystemMessages(app.manifest, app);
+    this._registerActivities(app.manifest, app);
 #endif
 
     // if the manifest has an appcache_path property, use it to populate the appcache
@@ -570,7 +654,7 @@ let DOMApplicationRegistry = {
         let msg = {
           from: aData.from,
           oid: aData.oid,
-          requestId: aData.requestId,
+          requestID: aData.requestID,
           app: {
             packageId: id,
             installOrigin: aData.installOrigin,
@@ -599,7 +683,7 @@ let DOMApplicationRegistry = {
             throw "INVALID_SECURITY_LEVEL";
           }
 
-          msg.appStatus = getAppStatus(msg.app.manifest);
+          msg.app.appStatus = getAppStatus(msg.app.manifest);
           Services.obs.notifyObservers(this, "webapps-ask-install",
                                              JSON.stringify(msg));
         } catch (e) {

@@ -3437,8 +3437,24 @@ var BrowserEventHandler = {
     if (!closest)
       closest = aEvent.target;
 
-    if (closest)
+    if (closest) {
+      let uri = this._getLinkURI(closest);
+      if (uri) {
+        Services.io.QueryInterface(Ci.nsISpeculativeConnect).speculativeConnect(uri, null, null);
+      }
       this._doTapHighlight(closest);
+    }
+  },
+
+  _getLinkURI: function(aElement) {
+    if (aElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE &&
+        ((aElement instanceof Ci.nsIDOMHTMLAnchorElement && aElement.href) ||
+        (aElement instanceof Ci.nsIDOMHTMLAreaElement && aElement.href))) {
+      try {
+        return Services.io.newURI(aElement.href, null, null);
+      } catch (e) {}
+    }
+    return null;
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -6358,18 +6374,32 @@ var WebappsUI = {
     });
   },
 
+  get iconSize() {
+    let iconSize = 64;
+    try {
+      Cu.import("resource://gre/modules/JNI.jsm");
+      let jni = new JNI();
+      let cls = jni.findClass("org.mozilla.gecko.GeckoAppShell");
+      let method = jni.getStaticMethodID(cls, "getPreferredIconSize", "()I");
+      iconSize = jni.callStaticIntMethod(cls, method);
+      jni.close();
+    } catch(ex) {
+      console.log(ex);
+    }
+
+    delete this.iconSize;
+    return this.iconSize = iconSize;
+  },
+
   makeBase64Icon: function loadAndMakeBase64Icon(aIconURL, aCallbackFunction) {
-    // The images are 64px, but Android will resize as needed.
-    // Bigger is better than too small.
-    const kIconSize = 64;
+    let size = this.iconSize;
 
     let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-
-    canvas.width = canvas.height = kIconSize;
+    canvas.width = canvas.height = size;
     let ctx = canvas.getContext("2d");
     let favicon = new Image();
     favicon.onload = function() {
-      ctx.drawImage(favicon, 0, 0, kIconSize, kIconSize);
+      ctx.drawImage(favicon, 0, 0, size, size);
       let base64icon = canvas.toDataURL("image/png", "");
       canvas = null;
       aCallbackFunction.call(null, base64icon);
