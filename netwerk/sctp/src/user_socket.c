@@ -50,8 +50,8 @@ userland_mutex_t accept_mtx = PTHREAD_MUTEX_INITIALIZER;
 userland_cond_t accept_cond = PTHREAD_COND_INITIALIZER;
 #else
 #include <user_socketvar.h>
-CRITICAL_SECTION accept_mtx;
-CONDITION_VARIABLE accept_cond;
+userland_mutex_t accept_mtx;
+userland_cond_t accept_cond;
 #endif
 
 MALLOC_DEFINE(M_PCB, "sctp_pcb", "sctp pcb");
@@ -622,15 +622,15 @@ struct sctp_generic_recvmsg_args {
  /*
    Source: /src/sys/gnu/fs/xfs/FreeBSD/xfs_ioctl.c
  */
- static __inline__ int
+static __inline__ int
 copy_to_user(void *dst, void *src, int len) {
-	memcpy(dst,src,len);
+	memcpy(dst, src, len);
 	return 0;
 }
 
- static __inline__ int
+static __inline__ int
 copy_from_user(void *dst, void *src, int len) {
-	memcpy(dst,src,len);
+	memcpy(dst, src, len);
 	return 0;
 }
 
@@ -736,14 +736,14 @@ getsockaddr(namp, uaddr, len)
 
 	if (len > SOCK_MAXADDRLEN)
 		return (ENAMETOOLONG);
-	if (len < offsetof(struct sockaddr, sa_data[0]))
+	if (len < offsetof(struct sockaddr, sa_data))
 		return (EINVAL);
 	MALLOC(sa, struct sockaddr *, len, M_SONAME, M_WAITOK);
 	error = copyin(uaddr, sa, len);
 	if (error) {
 		FREE(sa, M_SONAME);
 	} else {
-#if !defined(__Userspace_os_Linux) && !defined (__Userspace_os_Windows)
+#ifdef HAVE_SA_LEN
 		sa->sa_len = len;
 #endif
 		*namp = sa;
@@ -792,7 +792,7 @@ userspace_sctp_sendmsg(struct socket *so,
 	}
 	/* Adding the following as part of defensive programming, in case the application
 	   does not do it when preparing the destination address.*/
-#if !defined(__Userspace_os_Linux) && !defined (__Userspace_os_Windows)
+#ifdef HAVE_SA_LEN
 	if (to != NULL) {
 		to->sa_len = tolen;
 	}
@@ -919,7 +919,7 @@ usrsctp_sendv(struct socket *so,
 	if (errno == 0) {
 		return (len - auio.uio_resid);
 	} else {
-		return(-1);
+		return (-1);
 	}
 }
 
@@ -984,103 +984,6 @@ struct mbuf* mbufalloc(size_t size, void* data, unsigned char fill)
     return (head);
 }
 
-
-
-struct mbuf* mbufallocfromiov(int iovlen, struct iovec *srciov)
-{
-    size_t left = 0,total;
-    int resv_upfront = sizeof(struct sctp_data_chunk);
-    int cancpy, willcpy;
-    struct mbuf *m, *head;
-    int cpsz=0,i, cur=-1, currdsz=0, mbuffillsz;
-    char *data;
-
-    /* Get the total length */
-    for(i=0; i < iovlen; i++) {
-        left += srciov[i].iov_len;
-        if(cur == -1 && srciov[i].iov_len > 0) {
-            /* set the first field where there's data */
-            cur = i;
-            data = srciov[cur].iov_base;
-        }
-    }
-    total = left;
-
-    /* First one gets a header equal to sizeof(struct sctp_data_chunk) */
-    head = m = sctp_get_mbuf_for_msg((left + resv_upfront), 1, M_WAIT, 0, MT_DATA);
-    if (m == NULL) {
-        SCTP_PRINTF("%s: ENOMEN: Memory allocation failure\n", __func__);
-        return (NULL);
-    }
-    /*-
-     * Skipping space for chunk header. __Userspace__ Is this required?
-     */
-    SCTP_BUF_RESV_UF(m, resv_upfront);
-    cancpy = (int)M_TRAILINGSPACE(m);
-    willcpy = min(cancpy, left);
-
-    while (left > 0) {
-        /* fill in user data */
-        mbuffillsz = 0;
-        while (mbuffillsz < willcpy) {
-
-            if(cancpy < (int)srciov[cur].iov_len - currdsz) {
-                /* will fill mbuf before srciov[cur] is completely read */
-                memcpy(SCTP_BUF_AT(m,mbuffillsz), data, cancpy);
-                data += cancpy;
-                currdsz += cancpy;
-                break;
-            } else {
-                /* will completely read srciov[cur] */
-                if(srciov[cur].iov_len != currdsz) {
-                    memcpy(SCTP_BUF_AT(m,mbuffillsz), data, srciov[cur].iov_len - currdsz);
-                    mbuffillsz += (srciov[cur].iov_len - currdsz);
-                    cancpy -= (srciov[cur].iov_len - currdsz);
-                }
-                currdsz = 0;
-                /* find next field with data */
-                data = NULL;
-                while(++cur < iovlen) {
-                    if(srciov[cur].iov_len > 0) {
-                        data = srciov[cur].iov_base;
-                        break;
-                    }
-                }
-            }
-        }
-
-        SCTP_BUF_LEN(m) = willcpy;
-        left -= willcpy;
-        cpsz += willcpy;
-        if (left > 0) {
-            SCTP_BUF_NEXT(m) = sctp_get_mbuf_for_msg(left, 0, M_WAIT, 0, MT_DATA);
-            if (SCTP_BUF_NEXT(m) == NULL) {
-                /*
-                 * the head goes back to caller, he can free
-                 * the rest
-                 */
-                sctp_m_freem(head);
-                SCTP_LTRACE_ERR_RET(NULL, NULL, NULL, SCTP_FROM_SCTP_OUTPUT, ENOMEM);
-                SCTP_PRINTF("%s: ENOMEN: Memory allocation failure\n", __func__);
-                return (NULL);
-            }
-            m = SCTP_BUF_NEXT(m);
-            cancpy = M_TRAILINGSPACE(m);
-            willcpy = min(cancpy, left);
-        } else {
-            SCTP_BUF_NEXT(m) = NULL;
-        }
-    }
-
-    /* The following overwrites data in head->m_hdr.mh_data , if M_PKTHDR isn't set */
-    SCTP_HEADER_LEN(head) = total;
-
-    return (head);
-}
-
-
-
-
 ssize_t
 userspace_sctp_sendmbuf(struct socket *so,
     struct mbuf* mbufdata,
@@ -1113,13 +1016,13 @@ userspace_sctp_sendmbuf(struct socket *so,
         error = (ENAMETOOLONG);
         goto sendmsg_return;
     }
-    if (tolen < offsetof(struct sockaddr, sa_data[0])){
+    if (tolen < offsetof(struct sockaddr, sa_data)){
         error = (EINVAL);
         goto sendmsg_return;
     }
     /* Adding the following as part of defensive programming, in case the application
        does not do it when preparing the destination address.*/
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SA_LEN
     to->sa_len = tolen;
 #endif
 
@@ -1307,7 +1210,7 @@ usrsctp_recvv(struct socket *so,
 	}
 	if (errno == 0) {
 		/* ready return value */
-		return((int)ulen - auio.uio_resid);
+		return ((int)ulen - auio.uio_resid);
 	} else {
 		return (-1);
 	}
@@ -1726,19 +1629,6 @@ sobind(struct socket *so, struct sockaddr *nam)
 	}
 }
 
-
-/* Taken from  /src/sys/kern/uipc_syscalls.c
- * kern_bind modified for __Userspace__
- */
-
-int
-user_bind(struct socket *so, struct sockaddr *sa)
-{
-	int error;
-	error = sobind(so, sa);
-	return (error);
-}
-
 /* Taken from  /src/sys/kern/uipc_syscalls.c
  * and modified for __Userspace__
  */
@@ -1755,7 +1645,7 @@ usrsctp_bind(struct socket *so, struct sockaddr *name, int namelen)
 	if ((errno = getsockaddr(&sa, (caddr_t)name, namelen)) != 0)
 		return (-1);
 
-	errno = user_bind(so, sa);
+	errno = sobind(so, sa);
 	FREE(sa, M_SONAME);
 	if (errno) {
 		return (-1);
@@ -1767,7 +1657,7 @@ usrsctp_bind(struct socket *so, struct sockaddr *name, int namelen)
 int
 userspace_bind(struct socket *so, struct sockaddr *name, int namelen)
 {
-	return(usrsctp_bind(so, name, namelen));
+	return (usrsctp_bind(so, name, namelen));
 }
 
 /* Taken from  /src/sys/kern/uipc_socket.c
@@ -1832,7 +1722,7 @@ usrsctp_listen(struct socket *so, int backlog)
 int
 userspace_listen(struct socket *so, int backlog)
 {
-	return(usrsctp_listen(so, backlog));
+	return (usrsctp_listen(so, backlog));
 }
 
 /* Taken from  /src/sys/kern/uipc_socket.c
@@ -1948,7 +1838,7 @@ user_accept(struct socket *aso,  struct sockaddr **name, socklen_t *namelen, str
 		goto done;
 	}
 	if (name) {
-#if !defined(__Userspace_os_Linux) && !defined(__Userspace_os_Windows)
+#ifdef HAVE_SA_LEN
 		/* check sa_len before it is destroyed */
 		if (*namelen > sa->sa_len)
 			*namelen = sa->sa_len;
@@ -2202,7 +2092,7 @@ int usrsctp_connect(struct socket *so, struct sockaddr *name, int namelen)
 
 int userspace_connect(struct socket *so, struct sockaddr *name, int namelen)
 {
-	return(usrsctp_connect(so, name, namelen));
+	return (usrsctp_connect(so, name, namelen));
 }
 
 void
@@ -2411,7 +2301,7 @@ userspace_getsockopt(struct socket *so, int level, int option_name,
 #ifdef INET
 void
 sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
-                         struct route *ro, void *stcb,
+                         sctp_route_t *ro, void *stcb,
                          uint32_t vrf_id)
 {
 	struct mbuf *m;

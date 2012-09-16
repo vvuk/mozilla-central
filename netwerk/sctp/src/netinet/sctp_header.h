@@ -32,7 +32,7 @@
 
 #ifdef __FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/netinet/sctp_header.h 235828 2012-05-23 11:26:28Z tuexen $");
+__FBSDID("$FreeBSD: head/sys/netinet/sctp_header.h 240198 2012-09-07 13:36:42Z tuexen $");
 #endif
 
 #ifndef _NETINET_SCTP_HEADER_H_
@@ -520,16 +520,6 @@ struct sctp_stream_reset_add_strm {
  * convience structures, note that if you are making a request for specific
  * streams then the request will need to be an overlay structure.
  */
-
-struct sctp_stream_reset_out_req {
-	struct sctp_chunkhdr ch;
-	struct sctp_stream_reset_out_request sr_req;
-} SCTP_PACKED;
-
-struct sctp_stream_reset_in_req {
-	struct sctp_chunkhdr ch;
-	struct sctp_stream_reset_in_request sr_req;
-} SCTP_PACKED;
 
 struct sctp_stream_reset_tsn_req {
 	struct sctp_chunkhdr ch;

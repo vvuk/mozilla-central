@@ -237,8 +237,8 @@ struct socket {
  * until such time as it proves to be a good idea.
  */
 #if defined(__Userspace_os_Windows)
-extern CRITICAL_SECTION accept_mtx;
-extern CONDITION_VARIABLE accept_cond;
+extern userland_mutex_t accept_mtx;
+extern userland_cond_t accept_cond;
 #define ACCEPT_LOCK_ASSERT()
 #define	ACCEPT_LOCK() do { \
 	EnterCriticalSection(&accept_mtx); \
@@ -789,7 +789,6 @@ extern int sctp6_connect(struct socket *so, struct sockaddr *addr);
 extern int sctpconn_connect(struct socket *so, struct sockaddr *addr);
 #endif
 extern struct mbuf* mbufalloc(size_t size, void* data, unsigned char fill);
-extern struct mbuf* mbufallocfromiov(int iovlen, struct iovec *srciov);
 extern void sctp_finish(void);
 
 /* ------------------------------------------------ */

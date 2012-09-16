@@ -32,7 +32,7 @@
 
 #ifdef __FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/netinet/sctp_input.c 240148 2012-09-05 18:52:01Z tuexen $");
+__FBSDID("$FreeBSD: head/sys/netinet/sctp_input.c 240198 2012-09-07 13:36:42Z tuexen $");
 #endif
 
 #include <netinet/sctp_os.h>
@@ -3585,9 +3585,9 @@ process_chunk_drop(struct sctp_tcb *stcb, struct sctp_chunk_desc *desc,
 }
 
 void
-sctp_reset_in_stream(struct sctp_tcb *stcb, int number_entries, uint16_t * list)
+sctp_reset_in_stream(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t * list)
 {
-	int i;
+	uint32_t i;
 	uint16_t temp;
 
 	/*
@@ -3641,7 +3641,7 @@ struct sctp_stream_reset_out_request *
 sctp_find_stream_reset(struct sctp_tcb *stcb, uint32_t seq, struct sctp_tmit_chunk **bchk)
 {
 	struct sctp_association *asoc;
-	struct sctp_stream_reset_out_req *req;
+	struct sctp_chunkhdr *ch;
 	struct sctp_stream_reset_out_request *r;
 	struct sctp_tmit_chunk *chk;
 	int len, clen;
@@ -3664,8 +3664,8 @@ sctp_find_stream_reset(struct sctp_tcb *stcb, uint32_t seq, struct sctp_tmit_chu
 		*bchk = chk;
 	}
 	clen = chk->send_size;
-	req = mtod(chk->data, struct sctp_stream_reset_out_req *);
-	r = &req->sr_req;
+	ch = mtod(chk->data, struct sctp_chunkhdr *);
+	r = (struct sctp_stream_reset_out_request *)(ch + 1);
 	if (ntohl(r->request_seq) == seq) {
 		/* found it */
 		return (r);
@@ -4018,8 +4018,7 @@ sctp_handle_str_reset_request_out(struct sctp_tcb *stcb,
 			}
 			liste->tsn = tsn;
 			liste->number_entries = number_entries;
-			memcpy(&liste->req, req,
-			    (sizeof(struct sctp_stream_reset_out_request) + (number_entries * sizeof(uint16_t))));
+			memcpy(&liste->list_of_streams, req->list_of_streams, number_entries * sizeof(uint16_t));
 			TAILQ_INSERT_TAIL(&asoc->resetHead, liste, next_resp);
 			asoc->last_reset_action[0] = SCTP_STREAM_RESET_RESULT_PERFORMED;
 		}
@@ -4192,7 +4191,7 @@ __attribute__ ((noinline))
 #endif
 static int
 sctp_handle_stream_reset(struct sctp_tcb *stcb, struct mbuf *m, int offset,
-			 struct sctp_stream_reset_out_req *sr_req)
+			 struct sctp_chunkhdr *ch_req)
 {
 	int chk_length, param_len, ptype;
 	struct sctp_paramhdr pstore;
@@ -4207,7 +4206,7 @@ sctp_handle_stream_reset(struct sctp_tcb *stcb, struct mbuf *m, int offset,
 	int num_param = 0;
 
 	/* now it may be a reset or a reset-response */
-	chk_length = ntohs(sr_req->ch.chunk_length);
+	chk_length = ntohs(ch_req->chunk_length);
 
 	/* setup for adding the response */
 	sctp_alloc_a_chunk(stcb, chk);
@@ -5553,7 +5552,7 @@ sctp_process_control(struct mbuf *m, int iphlen, int *offset, int length,
 				 */
 				stcb->asoc.peer_supports_strreset = 1;
 			}
-			if (sctp_handle_stream_reset(stcb, m, *offset, (struct sctp_stream_reset_out_req *)ch)) {
+			if (sctp_handle_stream_reset(stcb, m, *offset, ch)) {
 				/* stop processing */
 				*offset = length;
 				return (NULL);
