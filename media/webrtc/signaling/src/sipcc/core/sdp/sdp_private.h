@@ -863,17 +863,15 @@ sdp_build_attr_sdescriptions(sdp_t *sdp_p, sdp_attr_t *attr_p,
 extern sdp_mca_t *sdp_alloc_mca(void);
 extern tinybool sdp_validate_maxprate(const char *string_parm);
 extern char *sdp_findchar(const char *ptr, char *char_list);
-extern char *sdp_getnextstrtok(const char *str, char *tokenstr, 
-                               char *delim, sdp_result_e *result);
-extern char *sdp_getnextstrtok_noskip (const char *str, char *tokenstr, 
-                         char *delim, sdp_result_e *result);
+extern const char *sdp_getnextstrtok(const char *str, char *tokenstr, unsigned tokenstr_len, 
+                               const char *delim, sdp_result_e *result);
 extern u32 sdp_getnextnumtok(const char *str, const char **str_end, 
-                             char *delim, sdp_result_e *result);
+                             const char *delim, sdp_result_e *result);
 extern u32 sdp_getnextnumtok_or_null(const char *str, const char **str_end, 
-                                     char *delim, tinybool *null_ind,
+                                     const char *delim, tinybool *null_ind,
                                      sdp_result_e *result);
-extern tinybool sdp_getchoosetok(const char *str, char **str_end, 
-                                 char *delim, sdp_result_e *result);
+extern tinybool sdp_getchoosetok(const char *str, const char **str_end, 
+                                 const char *delim, sdp_result_e *result);
 
 extern 
 tinybool verify_sdescriptions_mki(char *buf, char *mkiVal, u16 *mkiLen);
