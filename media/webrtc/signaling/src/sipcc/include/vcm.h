@@ -590,7 +590,8 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[i]n   pc_track_id  - the track within the media stream
  *  @param[in]   call_handle  - call handle
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]   payload      - payload type
+ *  @param[in]   num_payloads  - number of codecs negotiated
+ *  @param[in]   payloads      - list of negotiated codec details 
  *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
  *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
@@ -607,7 +608,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         int pc_track_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
-        vcm_media_payload_type_t payload,
+        int num_payloads,
+        const vcm_media_payload_type_t* payloads,        
         const char *fingerprint_alg,
         const char *fingerprint,
         vcm_mediaAttrs_t *attrs);

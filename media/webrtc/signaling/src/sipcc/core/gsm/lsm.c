@@ -917,7 +917,6 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
     int              sdpmode = 0;
     int pc_stream_id = 0;
     int pc_track_id = 0;
-
     attrs.video.opaque = NULL;
 
     dcb = lcb->dcb;
@@ -1041,15 +1040,14 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                         if (dcb->peerconnection) {
                           // TODO(emannion): make negotiation fail when the other side
                           // has not offered DTLS-SRTP
-                          ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
+                           ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
                             media->level,
                             pc_stream_id,
                             pc_track_id,
                             lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
                             dcb->peerconnection,
-                            vcmRtpToMediaPayload(media->payload,
-                            media->remote_dynamic_payload_type_value,
-                            media->mode),
+                            media->num_payloads,
+                            media->payloads,                            
                             FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
                             FSM_NEGOTIATED_CRYPTO_DIGEST(media),
                             &attrs);
@@ -1060,11 +1058,11 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                             vcmRtpToMediaPayload(media->payload,
                               media->local_dynamic_payload_type_value,
                               media->mode),
-                            media->is_multicast ? &media->dest_addr:&media->src_addr,
-                            port,
-                            FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                            FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
-                            &attrs);
+                              media->is_multicast ? &media->dest_addr:&media->src_addr,
+                              port,
+                              FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                              FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
+                              &attrs);
                           if (ret_val == -1) {
                             dcb->dsp_out_of_resources = TRUE;
                             return;

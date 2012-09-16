@@ -107,7 +107,6 @@ typedef enum {
     MEDIA_TABLE_SESSION
 } media_table_e;
 
-
 /* Forward references */
 static cc_causes_t
 gsmsdp_init_local_sdp (cc_sdp_t **sdp_pp);
@@ -122,7 +121,9 @@ gsmsdp_add_media_line(fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
 
 
 extern cc_media_cap_table_t g_media_table;
-
+extern vcm_media_payload_type_t vcmRtpToMediaPayload (int32_t ptype,
+                                            int32_t dynamic_ptype_value,
+                                            uint16_t mode);
 extern boolean g_disable_mass_reg_debug_print; 
 /**
  * A wraper function to return the media capability supported by
@@ -337,6 +338,11 @@ gsmsdp_free_media (fsmdef_media_t *media)
     if (media-> video != NULL ) {
       vcmFreeMediaPtr(media->video);
     }
+
+    if(media->payloads != NULL) {
+        cpr_free(media->payloads);
+        media->num_payloads = 0;
+    }
     /*
      * Check to see if the element is part of the
      * free chunk space.
@@ -413,6 +419,8 @@ gsmsdp_init_media (fsmdef_media_t *media)
     media->candidate_ct = 0;
     media->rtcp_mux = FALSE;
     media->protocol = NULL;
+    media->payloads = NULL;
+    media->num_payloads = 0;
 }
 
 /**
@@ -2639,6 +2647,13 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
     boolean         stereo;
     boolean         useinbandfec;
     boolean         cbr;
+    boolean         found_codec = FALSE; 
+    int32_t         num_match_payloads = 0; 
+    int             payload = RTP_NONE; 
+    int             remote_dynamic_payload_type_value = RTP_NONE;
+    int             local_dynamic_payload_type_value = RTP_NONE;
+    int32_t         payload_types_count = 0; // count for allocating right amout
+                                             // of memory for media->paylaods
     
     if (!dcb_p || !sdp_p || !media) {
         return (RTP_NONE);
@@ -2780,34 +2795,52 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
     media->previous_sdp.payload_type = media->payload;
     media->previous_sdp.local_payload_type = media->local_dynamic_payload_type_value;
 
+    /*
+     * Setup payload info structure list to store matched payload details in the SDP. 
+     */
+    media->num_payloads = 0;
+    if(num_master_types <= num_slave_types ) {
+      payload_types_count = num_master_types;  
+    } else {
+      payload_types_count = num_slave_types;
+    }
+
+    media->payloads = (vcm_media_payload_type_t*) cpr_malloc(payload_types_count * sizeof(vcm_media_payload_type_t));
+    if (!(media->payloads))
+    {
+      GSM_ERR_MSG(GSM_L_C_F_PREFIX"Memory Allocation failed for payloads\n", 
+                    DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname));
+      return RTP_NONE;  
+    }
+
     for (i = 0; i < num_master_types; i++) {
         for (j = 0; j < num_slave_types; j++) {
             if (GET_CODEC_TYPE(master_list_p[i]) == GET_CODEC_TYPE(slave_list_p[j])) {
-                media->payload = GET_CODEC_TYPE(slave_list_p[j]);
+                payload = GET_CODEC_TYPE(slave_list_p[j]);
                 if (offer == TRUE) { // if remote SDP is an offer
                     /* we answer with same dynamic payload type value for a given dynamic payload type */   
                     if (master_list_p == remote_media_types) {
-                        media->remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
-                        media->local_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
+                        remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
+                        local_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
                     } else {
-                        media->remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
-                        media->local_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
+                        remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
+                        local_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
                     }
                 } else { //if remote SDP is an answer
                       if (media->local_dynamic_payload_type_value == RTP_NONE ||
                           media->payload !=  media->previous_sdp.payload_type) {
                         /* If the the negotiated payload type is different from previous,
                            set it the local dynamic to payload type  as this is what we offered*/
-                        media->local_dynamic_payload_type_value =  media->payload;
+                        local_dynamic_payload_type_value =  media->payload;
                     }
                     /* remote answer may not use the value that we offered for a given dynamic payload type */
                     if (master_list_p == remote_media_types) {
-                        media->remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
+                        remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(master_list_p[i]);
                     } else {
-                        media->remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
+                        remote_dynamic_payload_type_value = GET_DYN_PAYLOAD_TYPE_VALUE(slave_list_p[j]);
                     }
                 }
-
+                
                 if (media->type == SDP_MEDIA_AUDIO) {
                     ptime = sdp_attr_get_simple_u32(sdp_p->dest_sdp,
                                                 SDP_ATTR_PTIME, level, 0, 1);
@@ -2826,7 +2859,6 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
                         if (maxptime != 0) {
                             media->max_packetization_period = (uint16_t) maxptime;
                         }
-
                         /* fmtp options */
                         sdp_attr_get_fmtp_max_average_bitrate (sdp_p->dest_sdp, level,
                                                      0, 1, &max_average_bitrate);
@@ -2845,9 +2877,8 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
 
                     GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d\n",
                           DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname),
-                          media->payload);
-
-                    return (media->payload);
+                          payload);
+                    
                 } else if (media->type == SDP_MEDIA_VIDEO) {
                     if ( media-> video != NULL ) {
                        vcmFreeMediaPtr(media->video);
@@ -2859,8 +2890,8 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
                         GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d ignored - attribs not accepted\n", 
                              DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, 
                              dcb_p->call_id, fname), media->payload);
-			explicit_reject = TRUE;
-                       continue; // keep looking
+			        explicit_reject = TRUE;
+                        continue; // keep looking
                     }
 
                     // cache the negotiated profile_level and bandwidth 
@@ -2875,12 +2906,30 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
                     GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d\n",
                          DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, 
                          dcb_p->call_id, fname), media->payload);
-                    return (media->payload);
+                    
+                }
+                found_codec = TRUE;
+                if(media->num_payloads >= payload_types_count) {
+                  //we maxed our allocated memory. ignore and return;
+                  return payload;
+                }
+                media->payloads[media->num_payloads] = vcmRtpToMediaPayload(payload,
+                                                                  remote_dynamic_payload_type_value,
+                                                                  media->mode);
+                media->num_payloads++;
+                if(offer) {
+                 //return on the first match
+                 return payload;   
                 }
             }
         }
     }
 
+    // we should be ok to return a valid payload here. The calling function doesn't care 
+     //unless it is RTP_NONE   
+    if(found_codec) {
+      return (payload);
+    }
     /*
      * CSCsv84705 - we could not negotiate a common codec because the local list is empty. This condition could happen 
      * when using g729 in locally mixed conference in which another call to vcm_get_codec_list() would return 0 or no codec.

@@ -1198,13 +1198,13 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[i]n   pc_track_id  - the track within the media stream
  *  @param[in]   call_handle  - call handle
  *  @param[in]  peerconnection - the peerconnection in use
- *  @param[in]   payload      - payload type
+ *  @param[in]  num_payloads   - number of negotiated payloads
+ *  @param[in]  payloads       - negotiated codec details list 
  *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
  *  @param[in]   fingerprint  - the DTLS fingerprint
  *  @param[in]   attrs        - media attributes
  *
  *  Returns: zero(0) for success; otherwise, ERROR for failure
- *
  */
 
 int vcmRxStartICE(cc_mcapid_t mcap_id,
@@ -1215,7 +1215,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         int pc_track_id,
         cc_call_handle_t  call_handle,
         const char *peerconnection,
-        vcm_media_payload_type_t payload,
+        int num_payloads,
+        const vcm_media_payload_type_t* payloads,    
         const char *fingerprint_alg,
         const char *fingerprint,
         vcm_mediaAttrs_t *attrs)
@@ -1230,6 +1231,11 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
     return VCM_ERROR;
   }
 
+  if(!payloads) {
+      CSFLogError( logTag, "Unitialized payload list");
+      return VCM_ERROR;
+  }
+    
   // Find the stream we need
   nsRefPtr<sipcc::RemoteSourceStreamInfo> stream =
     pc->impl()->GetRemoteStream(pc_stream_id);
@@ -1247,22 +1253,24 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
                              fingerprint_alg, fingerprint);
 
   if (CC_IS_AUDIO(mcap_id)) {
-    // Find the appropriate media conduit config
-    mozilla::AudioCodecConfig *config_raw;
-    int ret = vcmPayloadType2AudioCodec(payload, &config_raw);
-    if (ret) {
-      return VCM_ERROR;
-    }
-
-    // Take possession of this pointer
-    mozilla::ScopedDeletePtr<mozilla::AudioCodecConfig> config(config_raw);
-
+    std::vector<mozilla::AudioCodecConfig *> configs;
     // Instantiate an appropriate conduit
     mozilla::RefPtr<mozilla::AudioSessionConduit> conduit =
-      mozilla::AudioSessionConduit::Create();
+                    mozilla::AudioSessionConduit::Create();
+    if(!conduit)
+      return VCM_ERROR;
 
-    std::vector<mozilla::AudioCodecConfig *> configs;
-    configs.push_back(config_raw);
+    mozilla::AudioCodecConfig *config_raw;
+    
+    for(int i=0; i <num_payloads ; i++)
+    {
+      int ret = vcmPayloadType2AudioCodec(payloads[i], &config_raw);
+      if (ret) {
+       PR_ASSERT(PR_FALSE);
+       return VCM_ERROR;
+      }
+      configs.push_back(config_raw);      
+    }
 
     if (conduit->ConfigureRecvMediaCodecs(configs))
       return VCM_ERROR;
@@ -1274,23 +1282,27 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         pc->impl()->GetSTSThread(),
         stream->GetMediaStream(),
         conduit, rtp_flow, rtcp_flow));
+
   } else if (CC_IS_VIDEO(mcap_id)) {
-    // Find the appropriate media conduit config
-    mozilla::VideoCodecConfig *config_raw;
-    int ret = vcmPayloadType2VideoCodec(payload, &config_raw);
-    if (ret) {
-      return VCM_ERROR;
-    }
-
-    // Take possession of this pointer
-    mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
-
-    // Instantiate an appropriate conduit
-    mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
-      mozilla::VideoSessionConduit::Create();
 
     std::vector<mozilla::VideoCodecConfig *> configs;
-    configs.push_back(config_raw);
+    // Instantiate an appropriate conduit
+    mozilla::RefPtr<mozilla::VideoSessionConduit> conduit =
+             mozilla::VideoSessionConduit::Create();
+    if(!conduit)
+      return VCM_ERROR;
+
+    mozilla::VideoCodecConfig *config_raw;
+
+    for(int i=0; i <num_payloads; i++)
+    {
+      int ret = vcmPayloadType2VideoCodec(payloads[i], &config_raw);
+      if (ret) {
+       PR_ASSERT(PR_FALSE);
+       return VCM_ERROR;
+      }
+      configs.push_back(config_raw);      
+    }   
 
     if (conduit->ConfigureRecvMediaCodecs(configs))
       return VCM_ERROR;
@@ -2401,7 +2413,6 @@ static int vcmPayloadType2AudioCodec(vcm_media_payload_type_t payload_in,
   return 0;
 }
 
-
 static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
                               mozilla::VideoCodecConfig **config) {
   int wire_payload = -1;
@@ -2431,10 +2442,10 @@ static int vcmPayloadType2VideoCodec(vcm_media_payload_type_t payload_in,
       PR_ASSERT(PR_FALSE);
       return VCM_ERROR;
   }
-  
   return 0;
-
 }
+
+
 
 static mozilla::RefPtr<TransportFlow>
 vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,

@@ -272,6 +272,11 @@ typedef struct fsmdef_media_t_ {
     uint32         streams;
     char          *protocol;
 
+    /*
+     * List of active lists of payloads negotiated
+     */
+    vcm_media_payload_type_t* payloads;
+    int32_t num_payloads;
 } fsmdef_media_t;
 
 struct fsm_fcb_t_;

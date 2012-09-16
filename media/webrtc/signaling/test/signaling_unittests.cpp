@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <map>
+#include <algorithm>
 #include <string>
 
 using namespace std;
@@ -292,53 +293,134 @@ TestObserver::FoundIceCandidate(const char* strCandidate)
 
 class ParsedSDP {
  public:
-  ParsedSDP(std::string sdp) :
-      sdp_(),
-      sdp_without_ice_(),
-      sdp_lines_(),
-      ice_candidates_(),
-      levels_(0)
+  //Line number with the corresponding SDP line.
+  typedef pair<int, string> SdpLine;
+
+  ParsedSDP(std::string sdp):
+    sdp_(),
+    sdp_without_ice_(),
+    ice_candidates_(),
+    levels_(0),
+    num_lines(0)
   {
     sdp_ = sdp;
+    Parse();
+  }
 
+  
+  void ReplaceLine(std::string objType, std::string content)
+  {
+    std::multimap<std::string, SdpLine>::iterator it;
+    it = sdp_map_.find(objType);
+    if(it != sdp_map_.end()) {
+      SdpLine sdp_line_pair = (*it).second;
+      int line_no = sdp_line_pair.first;
+      sdp_map_.erase(it);
+      std::string value = content.substr(objType.length());
+      sdp_map_.insert(std::pair<std::string, SdpLine>(objType, make_pair(line_no,value)));
+    }
+  }
+  
+  void AddLine(std::string content) 
+  {
+    size_t whiteSpace = content.find(' ');
+    std::string key;
+    std::string value;
+    if(whiteSpace == string::npos) {
+      key = content.substr(0,  content.size() - 2);
+      value = "";
+    } else {
+      key = content.substr(0, whiteSpace);
+      value = content.substr(whiteSpace+1);
+    }
+    sdp_map_.insert(std::pair<std::string, SdpLine>(key, make_pair(num_lines,value)));
+    num_lines++;
+  }
+
+  //Parse SDP as string into map that looks like:
+  // key: sdp content till first space
+  // value : <line_number, sdp content after the first space>
+  void Parse()
+  {
     size_t prev = 0;
     size_t found = 0;
-
+    num_lines = 0;
     for(;;) {
-      
-      found = sdp.find('\n', found + 1);
-      
+      found = sdp_.find('\n', found + 1);
       if (found == string::npos)
         break;
-
-      std::string line = sdp.substr(prev, (found - prev) + 1);
-      sdp_lines_.push_back(line);
-
+      std::string line = sdp_.substr(prev, (found - prev) + 1);
+      size_t whiteSpace = line.find(' ');
+      std::string key;
+      std::string value;
+      if(whiteSpace == string::npos) {
+        //this is the line with no extra contents
+        //example, v=0, a=sendrecv
+        key = line.substr(0, line.size() - 2);
+        //<line_no>:<valeu>
+        value = "";
+      } else {
+        key = line.substr(0, whiteSpace);
+        //<line_no>:<value>
+        value = line.substr(whiteSpace+1);
+      }
+      SdpLine sdp_line_pair = make_pair(num_lines,value);
+      sdp_map_.insert(std::pair<std::string, SdpLine>(key, sdp_line_pair));
+      num_lines++;
+      //storing ice candidates separately for quick acesss as needed
+      //for the trickle unit tests
       if (line.find("a=candidate") == 0) {
         // This is a candidate, strip of a= and \r\n
         std::string cand = line.substr(2, line.size() - 4);
         ice_candidates_.insert(std::pair<int, std::string>(levels_, cand));
-      }
-      else {
+       } else {
         sdp_without_ice_ += line;
-      }
-
+      }    
       if (line.find("m=") == 0) {
         // This is an m-line
         ++levels_;
       }
-      
       prev = found + 1;
     }
   }
 
+  //Convert Internal SDP representation into String representation
+  std::string getSdp()
+  {
+     std::vector<std::string> sdp_lines(num_lines);
+     for (std::multimap<std::string, SdpLine>::iterator it = sdp_map_.begin();
+         it != sdp_map_.end(); ++it) {
+
+      SdpLine sdp_line_pair = (*it).second;
+      std::string value;
+      if(sdp_line_pair.second.length() == 0) {
+        value = (*it).first + "\r\n";
+        sdp_lines[sdp_line_pair.first] = value;
+      } else {
+        value = (*it).first + ' ' + sdp_line_pair.second;
+        sdp_lines[sdp_line_pair.first] = value;
+      }
+   }
+
+    //generate our final sdp in string format
+    std::string sdp;
+    for(int i=0; i < sdp_lines.size(); i++)
+    {
+      sdp += sdp_lines[i];
+    }
+
+    return sdp;
+  }
+
+  
+
   std::string sdp_;
   std::string sdp_without_ice_;
-  std::vector<std::string> sdp_lines_;
   std::multimap<int, std::string> ice_candidates_;
+  std::multimap<std::string, SdpLine> sdp_map_;
   int levels_;
+  int num_lines;
 };
-
 
 class SignalingAgent {
  public:
@@ -619,6 +701,21 @@ public:
     ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
   }
 
+  void OfferModifiedAnswer(const char* ahints, const char* bhints) {
+    a1_.CreateOffer(ahints, true, true);
+    a1_.SetLocal(TestObserver::OFFER, a1_.offer());
+    a2_.SetRemote(TestObserver::OFFER, a1_.offer());
+    a2_.CreateAnswer(bhints, a1_.offer());
+    a2_.SetLocal(TestObserver::ANSWER, a2_.answer());
+    ParsedSDP sdpWrapper(a2_.answer());
+    sdpWrapper.ReplaceLine("m=audio", "m=audio 65375 RTP/SAVPF 109 8 101\r\n");
+    sdpWrapper.AddLine("a=rtpmap:8 PCMA/8000\r\n");
+    cout << "Modified SDP " << sdpWrapper.getSdp() << endl;
+    a1_.SetRemote(TestObserver::ANSWER, sdpWrapper.getSdp());
+    ASSERT_TRUE_WAIT(a1_.IceCompleted() == true, kDefaultTimeout);
+    ASSERT_TRUE_WAIT(a2_.IceCompleted() == true, kDefaultTimeout);
+  }
+
   void OfferAnswerTrickle(const char* ahints, const char* bhints) {
     a1_.CreateOffer(ahints, true, true);
     a1_.SetLocal(TestObserver::OFFER, a1_.offer());
@@ -696,6 +793,12 @@ TEST_F(SignalingTest, CreateOfferAddCandidate)
 TEST_F(SignalingTest, OfferAnswer)
 {
   OfferAnswer("", "");
+  PR_Sleep(kDefaultTimeout * 2); // Wait for completion
+}
+
+TEST_F(SignalingTest, OfferModifiedAnswer)
+{
+  OfferModifiedAnswer("", "");
   PR_Sleep(kDefaultTimeout * 2); // Wait for completion
 }
 
