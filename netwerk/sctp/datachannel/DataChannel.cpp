@@ -262,7 +262,7 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
     mStreamsOut[i] = nullptr;
     mStreamsIn[i]  = nullptr;
   }
-  bzero((void *)&initmsg, sizeof(initmsg));
+  memset(&initmsg, 0, sizeof(initmsg));
   len = sizeof(initmsg);
   if (usrsctp_getsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, &len) < 0) {
     LOG(("*** failed getsockopt SCTP_INITMSG"));
@@ -569,9 +569,9 @@ DataChannel *
 DataChannelConnection::FindChannelByStreamIn(uint16_t streamIn)
 {
   // Auto-extend mStreamsIn as needed
-  if (streamIn+1 > mStreamsIn.Length()) {
+  if (((int32_t) streamIn) + 1 > mStreamsIn.Length()) {
     uint32_t old_len = mStreamsIn.Length();
-    LOG(("Extending mStreamsIn[] to %d elements",streamIn+1));
+    LOG(("Extending mStreamsIn[] to %d elements",((int32_t) streamIn)+1));
     mStreamsIn.AppendElements((streamIn+1) - mStreamsIn.Length());
     for (uint32_t i = old_len; i < mStreamsIn.Length(); i++)
       mStreamsIn[i] = nullptr;
