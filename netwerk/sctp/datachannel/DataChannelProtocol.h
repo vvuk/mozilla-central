@@ -28,9 +28,12 @@
 #define DATA_CHANNEL_FLAGS_SEND_ACK             0x00000004
 #define DATA_CHANNEL_FLAGS_OUT_OF_ORDER_ALLOWED 0x00000008
 #define DATA_CHANNEL_FLAGS_SEND_DATA            0x00000010
+#define DATA_CHANNEL_FLAGS_FINISH_OPEN          0x00000020
+#define DATA_CHANNEL_FLAGS_FINISH_RSP           0x00000040
 
 #define INVALID_STREAM (0xFFFF)
-#define MAX_NUM_STREAMS (0xFFFF) // Streams 0 to 0xFFFE = 0xFFFF streams
+// max is 0xFFFF: Streams 0 to 0xFFFE = 0xFFFF streams
+#define MAX_NUM_STREAMS (2048)
 
 struct rtcweb_datachannel_open_request {
   uint8_t  msg_type; // DATA_CHANNEL_OPEN

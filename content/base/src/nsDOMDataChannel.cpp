@@ -157,10 +157,29 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   return rv;
 }
 
-NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, open)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, error)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, close)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, message)
+
+// Can't use NS_IMPL_EVENT_HANDLER for onopen
+NS_IMETHODIMP nsDOMDataChannel::GetOnopen(JSContext* aCx, JS::Value* aValue)
+{
+  GetEventHandler(nsGkAtoms::onopen, aCx, aValue);
+  return NS_OK;
+}
+NS_IMETHODIMP nsDOMDataChannel::SetOnopen(JSContext* aCx,
+                                                const JS::Value& aValue)
+{
+  nsresult rv = SetEventHandler(nsGkAtoms::onopen, aCx, aValue);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // If the channel is already open, fire onopen to avoid a frequent race condition
+  if (mDataChannel->GetReadyState() == mozilla::DataChannel::OPEN) {
+    LOG(("Avoiding onopen race!"));
+    rv = mDataChannel->ResendOpen();
+  }
+  return rv;
+}
 
 NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)

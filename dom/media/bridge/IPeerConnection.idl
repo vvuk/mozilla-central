@@ -103,7 +103,7 @@ interface IPeerConnection : nsISupports
   nsIDOMMediaStream createFakeMediaStream(in unsigned long hint);
 
   /* Bring up SCTP/DTLS/UDP connection*/
-  void connectDataConnection(in unsigned short localport, in unsigned short remoteport);
+  void connectDataConnection(in unsigned short localport, in unsigned short remoteport, in unsigned short numstreams);
   nsIDOMDataChannel createDataChannel(in ACString label,
                                       in unsigned short type,
                                       in boolean outOfOrderAllowed,
@@ -111,8 +111,8 @@ interface IPeerConnection : nsISupports
                                       in unsigned short maxNum);
 
   /* XXX remove these */
-  void listen(in unsigned short port);
-  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport);
+  void listen(in unsigned short port, in unsigned short numstreams);
+  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport, in unsigned short numstreams);
 
   /* For identity */
   readonly attribute string fingerprint;

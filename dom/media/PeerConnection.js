@@ -351,22 +351,28 @@ PeerConnection.prototype = {
     return channel;
   },
 
-  connectDataConnection: function(localport, remoteport) {
+  connectDataConnection: function(localport, remoteport, numstreams) {
     dump("!!! " + this._uniqId + " : ConnectDataConnection() called\n");
-    this._pc.connectDataConnection(localport, remoteport);
+    if (numstreams == undefined || numstreams <= 0)
+      numstreams = 16;
+    this._pc.connectDataConnection(localport, remoteport, numstreams);
     dump("!!! " + this._uniqId + " : ConnectDataConnection() returned\n");
   },
 
   // FIX - remove connect() and listen()
-  listen: function(port) {
+  listen: function(port, numstreams) {
     dump("!!! " + this._uniqId + " : listen() called\n");
-    this._pc.listen(port)
+    if (numstreams == undefined || numstreams <= 0)
+      numstreams = 16;
+    this._pc.listen(port, numstreams)
     dump("!!! " + this._uniqId + " : listen() returned\n");
   },
 
-  connect: function(addr, localport, remoteport) {
+  connect: function(addr, localport, remoteport, numstreams) {
     dump("!!! " + this._uniqId + " : connect() called\n");
-    this._pc.connect(addr, localport, remoteport);
+    if (numstreams == undefined || numstreams <= 0)
+      numstreams = 16;
+    this._pc.connect(addr, localport, remoteport, numstreams);
     dump("!!! " + this._uniqId + " : connect() returned\n");
   },
 
