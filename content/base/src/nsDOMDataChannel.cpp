@@ -52,7 +52,6 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDATACHANNEL
-  NS_DECL_NSIEVENTTARGET
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
@@ -495,25 +494,6 @@ nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
 
 
   return OnSimpleEvent(aContext, NS_LITERAL_STRING("close"));
-}
-
-//-----------------------------------------------------------------------------
-// nsIEventTarget
-
-NS_IMETHODIMP
-nsDOMDataChannel::Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
-{
-  NS_ASSERTION(aRunnable, "Null pointer!");
-
-  nsCOMPtr<nsIRunnable> runnable = aRunnable;
-  return NS_DispatchToMainThread(aRunnable, aFlags);
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::IsOnCurrentThread(bool* aIsOnCurrentThread)
-{
-  *aIsOnCurrentThread = NS_IsMainThread();
-  return NS_OK;
 }
 
 /* static */

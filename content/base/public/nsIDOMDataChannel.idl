@@ -1,11 +1,11 @@
 #include "domstubs.idl"
 
-#include "nsIEventTarget.idl"
+#include "nsIDOMEventTarget.idl"
 
 interface nsIVariant;
 
 [scriptable, builtinclass, uuid(fb7a8ec4-c1eb-4d9f-b927-fbb8b4493e6d)]
-interface nsIDOMDataChannel : nsIEventTarget
+interface nsIDOMDataChannel : nsIDOMEventTarget
 {
   readonly attribute DOMString label;
   readonly attribute boolean reliable;
