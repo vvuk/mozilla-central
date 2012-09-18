@@ -201,7 +201,7 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
         usrsctp_init(aPort,NULL);
       }
 
-      usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
+      usrsctp_sysctl_set_sctp_debug_on(0 /*SCTP_DEBUG_ALL*/);
       usrsctp_sysctl_set_sctp_blackhole(2);
       sctp_initialized = true;
 
