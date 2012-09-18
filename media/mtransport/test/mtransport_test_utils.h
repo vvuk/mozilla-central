@@ -7,6 +7,7 @@
 #ifndef mtransport_test_utils_h__
 #define mtransport_test_utils_h__
 
+#include "nspr.h"
 #include "nsCOMPtr.h"
 #include "nsNetCID.h"
 #include "nsXPCOMGlue.h"
@@ -44,20 +45,25 @@ class MtransportTestUtils {
       return false;
 
 #ifdef MOZ_CRASHREPORTER
-    //TODO: move this to an even-more-common location to use in all
-    // C++ unittests
-    crashreporter_ = do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-    if (crashreporter_) {
-      nsCOMPtr<nsIProperties> dirsvc =
-	do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
-      nsCOMPtr<nsIFile> cwd;
-      rv = dirsvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-		       NS_GET_IID(nsIFile),
-		       getter_AddRefs(cwd));
-      if (!NS_SUCCEEDED(rv))
-	return false;
-      crashreporter_->SetEnabled(true);
-      crashreporter_->SetMinidumpPath(cwd);
+    char *crashreporter = PR_GetEnv("MOZ_CRASHREPORTER");
+    if (crashreporter && !strcmp(crashreporter, "1")) {
+      //TODO: move this to an even-more-common location to use in all
+      // C++ unittests
+      crashreporter_ = do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+      if (crashreporter_) {
+        std::cerr << "Setting up crash reporting" << std::endl;
+
+        nsCOMPtr<nsIProperties> dirsvc =
+            do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
+        nsCOMPtr<nsIFile> cwd;
+        rv = dirsvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
+                         NS_GET_IID(nsIFile),
+                         getter_AddRefs(cwd));
+        if (!NS_SUCCEEDED(rv))
+          return false;
+        crashreporter_->SetEnabled(true);
+        crashreporter_->SetMinidumpPath(cwd);
+      }
     }
 #endif
     return true;
