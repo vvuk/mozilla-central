@@ -46,7 +46,10 @@
  * and these are parsed using wrapper functions to those in
  * httpish.c
  */
- 
+
+#include <errno.h>
+#include <limits.h>
+
 #include "plstr.h"
 #include "cpr_types.h"
 #include "cpr_stdio.h"
@@ -451,6 +454,8 @@ parseUrlParams (char *url_param, sipUrl_t *sipUrl, genUrl_t *genUrl)
     char *url_other_param = NULL;
     uint16_t i;
     uint32_t ttl_val;
+    unsigned long strtoul_result;
+    char *strtoul_end;
 
 
     /*
@@ -548,13 +553,16 @@ parseUrlParams (char *url_param, sipUrl_t *sipUrl, genUrl_t *genUrl)
                 return PARSE_ERR_UNEXPECTED_EOS;
             }
             save_ch = *url_param;
-            *url_param = 0;  /* Terminate the string for atoi */
-            ttl_val = (uint32_t) atoi(param_val);
-            if (ttl_val > MAX_TTL_VAL) {
+            *url_param = 0;  /* Terminate the string for strtoul */
+
+            errno = 0;
+            strtoul_result = strtoul(param_val, &strtoul_end, 10);
+
+            if (errno || param_val == strtoul_end || strtoul_result > MAX_TTL_VAL) {
                 CCSIP_DEBUG_ERROR(ERROR_7, fname, sipUrl->ttl_val);
                 return PARSE_ERR_INVALID_TTL_VAL;
             }
-            sipUrl->ttl_val = (unsigned char) ttl_val;
+            sipUrl->ttl_val = (unsigned char) strtoul_result;
             *url_param = save_ch;  /* Restore string state */
         } else if (cpr_strncasecmp(url_param, "maddr=", 6) == 0) {
             url_param += 6;
@@ -3334,20 +3342,21 @@ sippmh_parse_replaces (char *input_repl, boolean dup_flag)
 static int
 sippmh_htoi (const char inputChar)
 {
-    int value = 0;
     char inputValue[2];
+    long strtol_result;
+    char *strtol_end;
 
-    if (isdigit((int) inputChar)) {
-        inputValue[0] = inputChar;
-        inputValue[1] = '\0';
-        value = atoi(inputValue);
-    } else if (isupper((int) inputChar)) {
-        value = 9 + (inputChar - 'A' + 1);
-    } else if (islower((int) inputChar)) {
-        value = 9 + (inputChar - 'a' + 1);
+    inputValue[0] = inputChar;
+    inputValue[1] = '\0';
+
+    errno = 0;
+    strtol_result = strtol(inputValue, &strtol_end, 16);
+
+    if (errno || inputValue == strtol_end) {
+      return 0;
+    } else {
+      return (int) strtol_result;
     }
-
-    return (value);
 }
 
 /*
@@ -4399,7 +4408,9 @@ sippmh_parse_message_summary(sipMessage_t *pSipMessage, sipMessageSummary_t *mes
     char    temp[MAX_SIP_URL_LENGTH];
     boolean  token_found = FALSE;
     boolean  hp_found = FALSE;
-    
+    long strtol_result;
+    char *strtol_end;
+
     p = strstr(pSipMessage->mesg_body[0].msgBody, "Messages-Waiting");
 
     if (!p) {
@@ -4494,7 +4505,15 @@ sippmh_parse_message_summary(sipMessage_t *pSipMessage, sipMessageSummary_t *mes
                 if (!isdigit(val[j])) {
                     if (val[j] == '/') {
                         temp[i] = '\0';
-                        mesgSummary->newCount = atoi(temp);
+
+                        errno = 0;
+                        strtol_result = strtol(temp, &strtol_end, 10);
+
+                        if (errno || temp == strtol_end || strtol_result > INT_MAX) {
+                            return SIP_ERROR;
+                        }
+
+                        mesgSummary->newCount = (int) strtol_result;
                         token_found = TRUE;
                         i = 0;
                     } else {
@@ -4511,7 +4530,14 @@ sippmh_parse_message_summary(sipMessage_t *pSipMessage, sipMessageSummary_t *mes
             temp[i] = '\0';
 
             if (token_found) {
-                mesgSummary->oldCount = atoi(temp);              
+                errno = 0;
+                strtol_result = (temp, &strtol_end, 10);
+
+                if (errno || temp == strtol_end || strtol_result > INT_MAX) {
+                    return SIP_ERROR;
+                }
+
+                mesgSummary->oldCount = (int) strtol_result;
             }
 
             temp[i = 0] = '\0';
@@ -4529,7 +4555,15 @@ sippmh_parse_message_summary(sipMessage_t *pSipMessage, sipMessageSummary_t *mes
                     if (!isdigit(val[j])) {
                         if (val[j] == '/') {
                             temp[i] = '\0';
-                            mesgSummary->hpNewCount = atoi(temp);
+
+                            errno = 0;
+                            strtol_result = strtol(temp, &strtol_end, 10);
+
+                            if (errno || temp == strtol_end || strtol_result > INT_MAX) {
+                                return SIP_ERROR;
+                            }
+
+                            mesgSummary->hpNewCount = (int) strtol_result;
                             hp_found = TRUE;
                             i = 0;
                         } else {
@@ -4545,7 +4579,14 @@ sippmh_parse_message_summary(sipMessage_t *pSipMessage, sipMessageSummary_t *mes
                 }
                 temp[i] = '\0';
                 if (hp_found) {
-                    mesgSummary->hpOldCount = atoi(temp);
+                    errno = 0;
+                    strtol_result = strtol(temp, &strtol_end, 10);
+
+                    if (errno || temp == strtol_end || strtol_result > INT_MAX) {
+                        return SIP_ERROR;
+                    }
+
+                    mesgSummary->hpOldCount = (int) strtol_result;
                 }
             }
             if (!hp_found) {

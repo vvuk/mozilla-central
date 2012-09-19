@@ -1132,6 +1132,8 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
     fsmdef_dcb_t   *dcb;
     vcm_mediaAttrs_t attrs;
     int              sdpmode;
+    long strtol_result;
+    char *strtol_end;
 
     attrs.video.opaque = NULL;
 
@@ -1219,7 +1221,18 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                 media->vad = VCM_VAD_OFF;
             } else {
                 config_get_string(CFGID_ENABLE_VAD, tmp, sizeof(tmp));
-                media->vad = (vcm_vad_t) atoi(tmp);
+
+                errno = 0;
+
+                strtol_result = strtol(tmp, &strtol_end, 10);
+
+                if (errno || tmp == strtol_end ||
+                    strtol_result < VCM_VAD_OFF || strtol_result > VCM_VAD_ON) {
+                    LSM_ERR_MSG("%s parse error of vad: %s", __FUNCTION__, tmp);
+                    return;
+                }
+
+                media->vad = (vcm_vad_t) strtol_result;
             }
 
             /*

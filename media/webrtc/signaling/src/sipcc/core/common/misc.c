@@ -41,6 +41,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <errno.h>
+
 #include "cpr.h"
 #include "phone_debug.h"
 #include "cc_debug.h"
@@ -286,6 +288,8 @@ IPNameCk (char *name, char *addr_error)
     int i = 0;
     uint32_t temp, ip_addr = 0;
     char ip_addr_out[MAX_IPADDR_STR_LEN];
+    unsigned long strtoul_result;
+    char *strtoul_end;
 
     /* Check if valid IPv6 address */
     if (cpr_inet_pton(AF_INET6, name, ip_addr_out)) {
@@ -304,8 +308,16 @@ IPNameCk (char *name, char *addr_error)
                     return (0);
                 namePtr++;
                 x = 0;
-                if ((temp = atoi(string)) > 255)
-                    return (0);
+
+                errno = 0;
+                strtoul_result = strtoul(string, &strtoul_end, 10);
+
+                if (errno || string == strtoul_end || strtoul_result > 255) {
+                    return 0;
+                }
+
+                temp = (uint32_t) strtoul_result;
+
                 ip_addr |= temp << (24 - (i * 8));
                 string[0] = 0;
                 string[1] = 0;
@@ -317,8 +329,15 @@ IPNameCk (char *name, char *addr_error)
     }
 
     if (i == 3) {
-        if ((temp = atoi(string)) > 255)
-            return (0);
+        errno = 0;
+        strtoul_result = strtoul(string, &strtoul_end, 10);
+
+        if (errno || string == strtoul_end || strtoul_result > 255) {
+            return 0;
+        }
+
+        temp = (uint32_t) strtoul_result;
+
         ip_addr |= temp;
         *addr_error = FALSE;
         return (ntohl(ip_addr));

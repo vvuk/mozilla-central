@@ -42,6 +42,10 @@
  *  code that converts from network(ie text) form to a usable structure
  *  and vice-versa.
  */
+
+#include <errno.h>
+#include <limits.h>
+
 #include "plstr.h"
 #include "cpr_types.h"
 #include "cpr_stdio.h"
@@ -349,6 +353,8 @@ httpish_msg_get_respline (httpishMsg_t *msg)
     char *msgline;
     httpishRespLine_t *hrsp = NULL;
     char *strtok_state;
+    unsigned long strtoul_result;
+    char *strtoul_end;
 
     if (!msg || !msg->mesg_line) {
         return NULL;
@@ -385,7 +391,17 @@ httpish_msg_get_respline (httpishMsg_t *msg)
         return NULL;
     }
 
-    hrsp->status_code = (uint16_t) atoi(this_token);
+    errno = 0;
+    strtoul_result = strtoul(this_token, &strtoul_end, 10);
+
+    if (errno || this_token == strtoul_end || strtoul_result > USHRT_MAX) {
+        cpr_free(hrsp->version);
+        cpr_free(hrsp);
+        cpr_free(msgline);
+        return NULL;
+    }
+
+    hrsp->status_code = (uint16_t) strtoul_result;
 
     this_token = PL_strtok_r(NULL, " ", &strtok_state);
 
@@ -1000,6 +1016,8 @@ get_content_length (httpishMsg_t *hmsg)
 {
     int i;
     const char *hdr_val;
+    long strtol_result;
+    char *strtol_end;
 
     hdr_val = httpish_msg_get_cached_header_val(hmsg, CONTENT_LENGTH);
     if (hdr_val == NULL) {
@@ -1011,8 +1029,20 @@ get_content_length (httpishMsg_t *hmsg)
             return -1;
         }
     }
+
     /* If the string was empty then the content length is still invalid */
-    return i ? atoi(hdr_val) : -1;
+    if (!i) {
+        return -1;
+    }
+
+    errno = 0;
+    strtol_result = strtol(hdr_val, &strtol_end, 10);
+
+    if (errno || hdr_val == strtol_end || strtol_result > INT_MAX) {
+        return -1;
+    } else {
+        return (int) strtol_result;
+    }
 }
 
 uint8_t

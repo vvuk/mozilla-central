@@ -37,6 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <limits.h>
+#include <errno.h>
+
 #include "ccsip_callinfo.h"
 #include "ccsip_protocol.h"
 #include "ccsip_core.h"
@@ -92,6 +95,8 @@ parse_call_info_parm (char *parm_p, cc_call_info_data_t * feature_data_p)
     static const char fname[] = "parse_call_info_parm";
     char *temp_p;
     uint16_t instance_id;
+    unsigned long strtoul_result;
+    char *strtoul_end;
 
     if (!parm_p)
         return;
@@ -224,9 +229,17 @@ parse_call_info_parm (char *parm_p, cc_call_info_data_t * feature_data_p)
                              ~(CC_CALL_INSTANCE);
                     break;
                 } else {
-                    /* Terminate the string for atoi */
+                    errno = 0;
+                    strtoul_result = strtoul(tempbuf, &strtoul_end, 10);
+
+                    if (errno || tempbuf == strtoul_end || strtoul_result > USHRT_MAX) {
+                      CCSIP_DEBUG_ERROR(SIP_F_PREFIX  "parse error for call_instance_id: %s",
+                                        __FUNCTION__, tempbuf);
+                      strtoul_result = 0;
+                    }
+
                     feature_data_p->call_info_feat_data.caller_id.call_instance_id =
-                        (uint16_t) atoi(tempbuf);
+                        (uint16_t) strtoul_result;
                 }
             } else {
                 break;
@@ -245,17 +258,20 @@ parse_call_info_parm (char *parm_p, cc_call_info_data_t * feature_data_p)
                     feature_data_p->call_info_feat_data.priority = CC_CALL_PRIORITY_URGENT;
                 } // otherwise, it will be defaulted to normal priority
                 else {
-                    instance_id = (uint16_t) atoi(temp_p);
-                    if (instance_id > MAX_INSTANCES) {
+                    errno = 0;
+                    strtoul_result = strtoul(temp_p, &strtoul_end, 10);
+
+                    if (errno || temp_p == strtoul_end || strtoul_result > MAX_INSTANCES) {
                         /* 
                          * Call instance ID should not exceed max instances
                          * or calls.
                          */
                         CCSIP_DEBUG_ERROR(SIP_F_PREFIX  "invalid call_instance"
-                                          " value %d\n", fname, instance_id);
+                                          " value %u\n", fname, (unsigned) strtoul_result);
                         feature_data_p->call_info_feat_data.feature_flag &= 
                                  ~(CC_CALL_INSTANCE);
                     } else {
+                        instance_id = (uint16_t) strtoul_result;
                         feature_data_p->call_info_feat_data.caller_id.call_instance_id = instance_id;
                     }
                 }

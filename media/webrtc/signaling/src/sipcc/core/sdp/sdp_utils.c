@@ -175,6 +175,8 @@ verify_sdescriptions_mki (char *buf, char *mkiVal, u16 *mkiLen)
                mkiValBuf[SDP_SRTP_MAX_MKI_SIZE_BYTES],
 	       mkiLenBuf[MKI_BUF_LEN];
     int        idx = 0;
+    unsigned long strtoul_result;
+    char *strtoul_end;
     
     ptr = buf;
     /* MKI must begin with a digit */
@@ -217,16 +219,20 @@ verify_sdescriptions_mki (char *buf, char *mkiVal, u16 *mkiLen)
     }
     
     mkiLenBuf[idx] = 0;
-    *mkiLen = atoi(mkiLenBuf);
-    
+
+    errno = 0;
+    strtoul_result = strtoul(mkiLenBuf, &strtoul_end, 10);
+
     /* mki len must be between 1..128 */
-    if (*mkiLen > 0 && *mkiLen <= 128) {
-	    sstrncpy(mkiVal, mkiValBuf, MKI_BUF_LEN);
-         return TRUE;
-    } else {
-         return FALSE;
+    if (errno || mkiLenBuf == strtoul_end || strtoul_result < 1 || strtoul_result > 128) {
+      *mkiLen = 0;
+      return FALSE;
     }
-    
+
+    *mkiLen = (u16) strtoul_result;
+    sstrncpy(mkiVal, mkiValBuf, MKI_BUF_LEN);
+
+    return TRUE;
 }
 
 /*

@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+
 #include "CC_SIPCCDevice.h"
 #include "CC_SIPCCDeviceInfo.h"
 #include "CC_SIPCCFeatureInfo.h"
@@ -340,20 +342,37 @@ AudioControlPtr CallControlManagerImpl::getAudioControl()
 
 bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyKeys key, std::string& value)
 {
-	CSFLogInfoS(logTag, "setProperty(" << value << " )");
+  unsigned long strtoul_result;
+  char *strtoul_end;
 
-	if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
-		CCAPI_Config_set_local_voip_port(atoi(value.c_str()));
-	} else if (key == ConfigPropertyKeysEnum::eRemoteVoipPort) {
-		CCAPI_Config_set_remote_voip_port(atoi(value.c_str()));
-	} else if (key == ConfigPropertyKeysEnum::eTransport) {
-		if (value == "tcp")
-			CCAPI_Config_set_transport_udp(false);
-		else
-			CCAPI_Config_set_transport_udp(true);
-	}
+  CSFLogInfoS(logTag, "setProperty(" << value << " )");
 
-	return true;
+  if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
+    errno = 0;
+    strtoul_result = strtoul(value.c_str(), &strtoul_end, 10);
+
+    if (errno || value.c_str() == strtoul_end || strtoul_result > USHRT_MAX) {
+      return false;
+    }
+
+    CCAPI_Config_set_local_voip_port((int) strtoul_result);
+  } else if (key == ConfigPropertyKeysEnum::eRemoteVoipPort) {
+    errno = 0;
+    strtoul_result = strtoul(value.c_str(), &strtoul_end, 10);
+
+    if (errno || value.c_str() == strtoul_end || strtoul_result > USHRT_MAX) {
+      return false;
+    }
+
+    CCAPI_Config_set_remote_voip_port((int) strtoul_result);
+  } else if (key == ConfigPropertyKeysEnum::eTransport) {
+    if (value == "tcp")
+      CCAPI_Config_set_transport_udp(false);
+    else
+      CCAPI_Config_set_transport_udp(true);
+  }
+
+  return true;
 }
 
 std::string CallControlManagerImpl::getProperty(ConfigPropertyKeysEnum::ConfigPropertyKeys key)

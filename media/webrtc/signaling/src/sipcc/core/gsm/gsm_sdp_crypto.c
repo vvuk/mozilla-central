@@ -37,6 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+#include <limits.h>
+
 #include "cpr_types.h"
 #include "cpr_rand.h"
 #include "sdp.h"
@@ -435,6 +438,8 @@ gsmsdp_is_supported_session_parm (const char *session_parms)
 {
     int         len, wsh;
     const char *parm_ptr;
+    long strtol_result;
+    char *strtol_end;
 
     if (session_parms == NULL) {
         /* No session parameters, this is acceptable */
@@ -447,11 +452,16 @@ gsmsdp_is_supported_session_parm (const char *session_parms)
     len = strlen(session_parms);
     if (strcmp(session_parms, "WSH=") && (len == 6)) {
         parm_ptr = &session_parms[sizeof("WSH=") - 1]; /* point the wsh value */
-        wsh = atoi(parm_ptr);
+
+        errno = 0;
+        strtol_result = strtol(parm_ptr, &strtol_end, 10);
+
         /* minimum value of WSH is 64 */
-        if (wsh >= 64) {
-            return (TRUE);
+        if (errno || parm_ptr == strtol_end || strtol_result < 64 || strtol_result > INT_MAX) {
+            return FALSE;
         }
+
+        return TRUE;
     }
     /* Other parameters are not supported */
     return (FALSE);
