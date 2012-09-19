@@ -70,7 +70,8 @@ PeerConnection.prototype = {
     // Nothing starts until ICE gathering completes.
     this._queueOrRun({
       func: this._pc.initialize,
-      args: [this._observer, win, Services.tm.currentThread]
+      args: [this._observer, win, Services.tm.currentThread],
+      wait: true
     });
     this._printQueue();
 
@@ -93,11 +94,17 @@ PeerConnection.prototype = {
     dump(q);
   },
 
+  // Add a function to the queue or run it immediately if the queue is empty.
+  // Argument is an object with the func, args and wait properties; wait should
+  // be set to true if the function has a success/error callback that will
+  // call _executeNext, false if it doesn't have a callback.
   _queueOrRun: function(obj) {
     if (!this._pending) {
       dump("!!! " + this._uniqId + " : calling " + obj.func.name + "\n");
       obj.func.apply(this, obj.args);
-      this._pending = true;
+      if (obj.wait) {
+        this._pending = true;
+      }
     } else {
       dump("!!! " + this._uniqId + " : queued " + obj.func.name + "\n");
       this._queue.push(obj);
@@ -112,6 +119,9 @@ PeerConnection.prototype = {
     if (this._queue.length) {
       let obj = this._queue.shift();
       obj.func.apply(this, obj.args);
+      if (!obj.wait) {
+        this._executeNext();
+      }
     } else {
       this._pending = false;
     }
@@ -192,7 +202,7 @@ PeerConnection.prototype = {
     this._onSelectIdentitySuccess = onSuccess;
     this._onSelectIdentityFailure = onError;
 
-    this._queueOrRun({func: this._selectIdentity, args: null});
+    this._queueOrRun({func: this._selectIdentity, args: null, wait: true});
     dump("!!! "+ this._uniqId + " :  selectIdentity returned\n");
   },
 
@@ -208,7 +218,7 @@ PeerConnection.prototype = {
       return;
     }
 
-    this._queueOrRun({func: this._verifyIdentity, args: [offer]});
+    this._queueOrRun({func: this._verifyIdentity, args: [offer], wait: true});
     dump("!!! " + this._uniqId + " : verifyIdentity returned\n");
   },
 
@@ -222,7 +232,7 @@ PeerConnection.prototype = {
       constraints = "";
     }
 
-    this._queueOrRun({func: this._pc.createOffer, args: [constraints]});
+    this._queueOrRun({func: this._pc.createOffer, args: [constraints], wait: true});
     dump("!!! " + this._uniqId + " : createOffer returned\n");
   },
 
@@ -253,7 +263,7 @@ PeerConnection.prototype = {
     }
 
     // TODO: Implement provisional answer & constraints.
-    this._queueOrRun({func: this._pc.createAnswer, args: ["", offer.sdp]});
+    this._queueOrRun({func: this._pc.createAnswer, args: ["", offer.sdp], wait: true});
     dump("!!! " + this._uniqId + " : createAnswer returned\n");
   },
 
@@ -278,7 +288,7 @@ PeerConnection.prototype = {
     }
 
     dump("!!! " + this._uniqId + " : setLocalDescription called\n");
-    this._queueOrRun({func: this._pc.setLocalDescription, args: [type, desc.sdp]});
+    this._queueOrRun({func: this._pc.setLocalDescription, args: [type, desc.sdp], wait: true});
     dump("!!! " + this._uniqId + " : setLocalDescription returned\n");
   },
 
@@ -303,7 +313,7 @@ PeerConnection.prototype = {
     }
 
     dump("!!! " + this._uniqId + " : setRemoteDescription called\n");
-    this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, desc.sdp]});
+    this._queueOrRun({func: this._pc.setRemoteDescription, args: [type, desc.sdp], wait: true});
     dump("!!! " + this._uniqId + " : setRemoteDescription returned\n");
   },
 
@@ -318,61 +328,67 @@ PeerConnection.prototype = {
   addStream: function(stream, constraints) {
     dump("!!! " + this._uniqId + " : addStream " + stream + " called\n");
     // TODO: Implement constraints.
-    this._pc.addStream(stream);
+    this._queueOrRun({func: this._pc.addStream, args: [stream], wait: false});
     dump("!!! " + this._uniqId + " : addStream returned\n");
   },
 
   removeStream: function(stream) {
     dump("!!! " + this._uniqId + " : removeStream called\n");
-    this._pc.removeStream(stream);
+    this._queueOrRun({func: this._pc.removeStream, args: [stream], wait: false});
     dump("!!! " + this._uniqId + " : removeStream returned\n");
   },
 
   createDataChannel: function(label, dict) {
     dump("!!! " + this._uniqId + " : createDataChannel called\n");
     if (dict.maxRetransmitTime != undefined &&
-	dict.maxRetransmitNum != undefined) {
-	// throw error
+        dict.maxRetransmitNum != undefined) {
+      // throw error
     }
+
     // must determine the type where we still know if entries are undefined
     let type;
-    if (dict.maxRetransmitTime != undefined)
-	type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_TIMED;
-    else if  (dict.maxRetransmitNum != undefined)
-	type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_REXMIT;
-    else
-        type = Ci.IPeerConnection.DATACHANNEL_RELIABLE;
+    if (dict.maxRetransmitTime != undefined) {
+      type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_TIMED;
+    } else if (dict.maxRetransmitNum != undefined) {
+      type = Ci.IPeerConnection.DATACHANNEL_PARTIAL_RELIABLE_REXMIT;
+    } else {
+      type = Ci.IPeerConnection.DATACHANNEL_RELIABLE;
+    }
 
-    let channel = this._pc.createDataChannel(label,type,
-					     dict.outOfOrderAllowed,
-					     dict.maxRetransmitTime,
-					     dict.maxRetransmitNum);
+    // FIXME: _queueOrRun this, why is this synchronous?
+    let channel = this._pc.createDataChannel(
+      label, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
+      dict.maxRetransmitNum
+    );
     dump("!!! " + this._uniqId + " : createDataChannel returned\n");
     return channel;
   },
 
   connectDataConnection: function(localport, remoteport, numstreams) {
     dump("!!! " + this._uniqId + " : ConnectDataConnection() called\n");
-    if (numstreams == undefined || numstreams <= 0)
+    if (numstreams == undefined || numstreams <= 0) {
       numstreams = 16;
-    this._pc.connectDataConnection(localport, remoteport, numstreams);
+    }
+    this._queueOrRun({func: this._pc.connectDataConnection, args: [localport, remoteport, numstreams], wait: false});
     dump("!!! " + this._uniqId + " : ConnectDataConnection() returned\n");
   },
 
   // FIX - remove connect() and listen()
   listen: function(port, numstreams) {
     dump("!!! " + this._uniqId + " : listen() called\n");
-    if (numstreams == undefined || numstreams <= 0)
+    if (numstreams == undefined || numstreams <= 0) {
       numstreams = 16;
-    this._pc.listen(port, numstreams)
+    }
+    this._queueOrRun({func: this._pc.listen, args: [port, numstreams], wait: false});
     dump("!!! " + this._uniqId + " : listen() returned\n");
   },
 
   connect: function(addr, localport, remoteport, numstreams) {
     dump("!!! " + this._uniqId + " : connect() called\n");
-    if (numstreams == undefined || numstreams <= 0)
+    if (numstreams == undefined || numstreams <= 0) {
       numstreams = 16;
-    this._pc.connect(addr, localport, remoteport, numstreams);
+    }
+    this._queueOrRun({func: this._pc.connect, args: [addr, localport, remoteport, numstreams], wait: false});
     dump("!!! " + this._uniqId + " : connect() returned\n");
   },
 
@@ -381,6 +397,9 @@ PeerConnection.prototype = {
     // Don't queue this one, since we just want to shutdown.
     this._pc.closeStreams();
     this._pc.close();
+
+    this._queue = [];
+    this._pending = true;
     dump("!!! " + this._uniqId + " : close returned");
   },
 
@@ -392,7 +411,6 @@ PeerConnection.prototype = {
   // For testing only.
   createFakeMediaStream: function(type, muted) {
     var hint_mute = muted ? 0x80 : 0;
-
     if (type == "video") {
       return this._pc.createFakeMediaStream(Ci.IPeerConnection.kHintVideo |
                                             hint_mute);
@@ -416,10 +434,10 @@ PeerConnectionObserver.prototype = {
     // previously called and that an identity was obtained. If so, add
     // a signed string to the SDP before sending it to content.
     if (!this._dompc._identity) {
-	this._dompc._onCreateOfferSuccess.onCallback({
-	    type: "offer", sdp: offer,
- 	    __exposedProps__: { type: "rw", sdp: "rw" }
-        });
+      this._dompc._onCreateOfferSuccess.onCallback({
+        type: "offer", sdp: offer,
+         __exposedProps__: { type: "rw", sdp: "rw" }
+      });
       this._dompc._executeNext();
       return;
     }
@@ -450,7 +468,7 @@ PeerConnectionObserver.prototype = {
 
       dump("!!! " + self._dompc._uniqId + " : Generated final offer: " + finalOffer + "\n\n");
       self._dompc._onCreateOfferSuccess.onCallback({
-          type: "offer", sdp: finalOffer,
+        type: "offer", sdp: finalOffer,
         __exposedProps__: { type: "rw", sdp: "rw" }
       });
       self._dompc._executeNext();
@@ -469,8 +487,8 @@ PeerConnectionObserver.prototype = {
     dump("!!! " + this._dompc._uniqId + " : onCreateAnswerSuccess called\n");
     if (this._dompc._onCreateAnswerSuccess) {
       this._dompc._onCreateAnswerSuccess.onCallback({
-          type: "answer", sdp: answer, 
-	  __exposedProps__: { type: "rw", sdp: "rw" }
+        type: "answer", sdp: answer,
+        __exposedProps__: { type: "rw", sdp: "rw" }
       });
     }
     this._dompc._executeNext();
@@ -520,34 +538,36 @@ PeerConnectionObserver.prototype = {
   onStateChange: function(state) {
     dump("!!! " + this._dompc._uniqId + " : onStateChange called: " + state + "\n");
 
-    if (state == Ci.IPeerConnectionObserver.kIceState) {
-      switch (this._dompc._pc.iceState) {
-        case Ci.IPeerConnection.kIceWaiting:
-          dump("!!! ICE waiting...\n");
-          this._dompc._executeNext();
-	  break
-        case Ci.IPeerConnection.kIceChecking:
-          dump("!!! ICE checking...\n");
-          this._dompc._executeNext();
-	  break
-        case Ci.IPeerConnection.kIceConnected:
-          dump("!!! " + this._dompc._uniqId + " : ICE gathering is complete, calling _executeNext! \n");
-          this._dompc._executeNext();
-          break;
-        default:
-          dump("!!! " + this._dompc._uniqId + " : ICE invalid state, " + this._dompc._pc.iceState + "\n");
-          break;
-      }
+    if (state != Ci.IPeerConnectionObserver.kIceState) {
+      return;
+    }
+
+    switch (this._dompc._pc.iceState) {
+      case Ci.IPeerConnection.kIceWaiting:
+        dump("!!! ICE waiting...\n");
+        this._dompc._executeNext();
+        break;
+      case Ci.IPeerConnection.kIceChecking:
+        dump("!!! ICE checking...\n");
+        this._dompc._executeNext();
+        break;
+      case Ci.IPeerConnection.kIceConnected:
+        dump("!!! " + this._dompc._uniqId + " : ICE gathering is complete, calling _executeNext! \n");
+        this._dompc._executeNext();
+        break;
+      default:
+        dump("!!! " + this._dompc._uniqId + " : ICE invalid state, " + this._dompc._pc.iceState + "\n");
+        break;
     }
   },
 
   onAddStream: function(stream, type) {
     dump("!!! " + this._dompc._uniqId + " : onAddStream called: " + stream + " :: " + type + "\n");
     if (this._dompc.onRemoteStreamAdded) {
-	this._dompc.onRemoteStreamAdded.onCallback({
-	    stream: stream, type: type,
-	    __exposedProps__: { stream: "r", type: "r" }
-	});
+      this._dompc.onRemoteStreamAdded.onCallback({
+        stream: stream, type: type,
+        __exposedProps__: { stream: "r", type: "r" }
+      });
     }
     this._dompc._executeNext();
   },
