@@ -52,7 +52,6 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDATACHANNEL
-  NS_DECL_NSIEVENTTARGET
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
@@ -158,10 +157,29 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   return rv;
 }
 
-NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, open)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, error)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, close)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, message)
+
+// Can't use NS_IMPL_EVENT_HANDLER for onopen
+NS_IMETHODIMP nsDOMDataChannel::GetOnopen(JSContext* aCx, JS::Value* aValue)
+{
+  GetEventHandler(nsGkAtoms::onopen, aCx, aValue);
+  return NS_OK;
+}
+NS_IMETHODIMP nsDOMDataChannel::SetOnopen(JSContext* aCx,
+                                                const JS::Value& aValue)
+{
+  nsresult rv = SetEventHandler(nsGkAtoms::onopen, aCx, aValue);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // If the channel is already open, fire onopen to avoid a frequent race condition
+  if (mDataChannel->GetReadyState() == mozilla::DataChannel::OPEN) {
+    LOG(("Avoiding onopen race!"));
+    rv = mDataChannel->ResendOpen();
+  }
+  return rv;
+}
 
 NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)
@@ -495,25 +513,6 @@ nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
 
 
   return OnSimpleEvent(aContext, NS_LITERAL_STRING("close"));
-}
-
-//-----------------------------------------------------------------------------
-// nsIEventTarget
-
-NS_IMETHODIMP
-nsDOMDataChannel::Dispatch(nsIRunnable* aRunnable, uint32_t aFlags)
-{
-  NS_ASSERTION(aRunnable, "Null pointer!");
-
-  nsCOMPtr<nsIRunnable> runnable = aRunnable;
-  return NS_DispatchToMainThread(aRunnable, aFlags);
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::IsOnCurrentThread(bool* aIsOnCurrentThread)
-{
-  *aIsOnCurrentThread = NS_IsMainThread();
-  return NS_OK;
 }
 
 /* static */

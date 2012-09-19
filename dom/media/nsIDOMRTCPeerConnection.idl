@@ -106,7 +106,9 @@ interface nsIDOMRTCPeerConnection : nsISupports
 
   /* Bring up SCTP/DTLS/UDP connection */
   /* XXX remove */
-  void connectDataConnection(in unsigned short localport, in unsigned short remoteport);
-  void listen(in unsigned short port);
-  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport);
+  void connectDataConnection(in unsigned short localport, in unsigned short remoteport, 
+                             [optional] in unsigned short numstreams);
+  void listen(in unsigned short port, [optional] in unsigned short numstreams);
+  void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport,
+               [optional] in unsigned short numstreams);
 };

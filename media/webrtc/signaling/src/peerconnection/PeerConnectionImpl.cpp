@@ -509,12 +509,12 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remoteport)
+PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remoteport, PRUint16 numstreams)
 {
 #ifdef MOZILLA_INTERNAL_API
     mDataConnection = new mozilla::DataChannelConnection(this);
     NS_ENSURE_TRUE(mDataConnection,NS_ERROR_FAILURE);
-    mDataConnection->Init(localport, true);
+    mDataConnection->Init(localport, numstreams, true);
     // XXX errors?
 
     // XXX Fix!  get the correct flow for DataChannel
@@ -564,13 +564,13 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& label,
 
 
 NS_IMETHODIMP
-PeerConnectionImpl::Listen(unsigned short port)
+PeerConnectionImpl::Listen(unsigned short port, PRUint16 numstreams)
 {
   std::cerr << "PeerConnectionImpl::Listen()" << std::endl;
 #ifdef MOZILLA_INTERNAL_API
   if (!mDataConnection) {
     mDataConnection = new mozilla::DataChannelConnection(this);
-    mDataConnection->Init(port, false);
+    mDataConnection->Init(port, numstreams, false);
   }
 
   listenPort = port;
@@ -601,14 +601,14 @@ PeerConnectionImpl::ListenThread(void *data)
 
 // XXX Temporary - remove
 NS_IMETHODIMP
-PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 remoteport)
+PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 remoteport, PRUint16 numstreams)
 {
   std::cerr << "PeerConnectionImpl::Connect()" << std::endl;
 #ifdef MOZILLA_INTERNAL_API
   char *s = ToNewCString(addr);
   if (!mDataConnection) {
     mDataConnection = new mozilla::DataChannelConnection(this);
-    mDataConnection->Init(localport, false);
+    mDataConnection->Init(localport, numstreams, false);
   }
 
   connectStr = s;

@@ -13,6 +13,7 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
+#include "nsDeque.h"
 #include "nsIInputStream.h"
 #include "nsITimer.h"
 #include "mozilla/Mutex.h"
@@ -94,7 +95,7 @@ public:
   DataChannelConnection(DataConnectionListener *listener);
   virtual ~DataChannelConnection();
 
-  bool Init(unsigned short aPort, bool aUsingDtls);
+  bool Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls);
 
   // These block; they require something to decide on listener/connector
   // (though you can do simultaneous Connect()).  Do not call these from
@@ -158,7 +159,7 @@ private:
   DataChannel* FindChannelByStreamIn(uint16_t streamIn);
   DataChannel* FindChannelByStreamOut(uint16_t streamOut);
   uint16_t FindFreeStreamOut();
-  bool RequestMoreStreamsOut();
+  bool RequestMoreStreamsOut(int32_t aNeeded = 16);
   int32_t SendControlMessage(void *msg, uint32_t len, uint16_t streamOut);
   int32_t SendOpenRequestMessage(const nsACString& label,uint16_t streamOut,
                                  bool unordered, uint16_t prPolicy, uint32_t prValue);
@@ -169,13 +170,17 @@ private:
   int32_t SendBinary(DataChannel *channel, const char *data,
                      uint32_t len);
   int32_t SendMsgCommon(uint16_t stream, const nsACString &aMsg, bool isBinary);
-  nsresult StartDefer();
+
+  DataChannel *OpenFinish(DataChannel *channel);
+
+  void StartDefer();
   bool SendDeferredMessages();
   void SendOutgoingStreamReset();
   void ResetOutgoingStream(uint16_t streamOut);
   void HandleOpenRequestMessage(const struct rtcweb_datachannel_open_request *req,
                                 size_t length,
                                 uint16_t streamIn);
+  void OpenResponseFinish(DataChannel *channel);
   void HandleOpenResponseMessage(const struct rtcweb_datachannel_open_response *rsp,
                                  size_t length, uint16_t streamIn);
   void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
@@ -197,6 +202,7 @@ private:
   // channels available from the stack must be negotiated!
   nsAutoTArray<DataChannel*,16> mStreamsOut;
   nsAutoTArray<DataChannel*,16> mStreamsIn;
+  nsDeque mPending; // Holds DataChannels
 
   // Streams pending reset
   nsAutoTArray<uint16_t,4> mStreamsResetting;
@@ -311,6 +317,8 @@ public:
 
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
 
+  nsresult ResendOpen();
+
 protected:
   DataChannelListener *mListener;
 
@@ -336,6 +344,7 @@ private:
 
 // used to dispatch notifications of incoming data to the main thread
 // Patterned on CallOnMessageAvailable in WebSockets
+// Also used to proxy other items to MainThread
 class DataChannelOnMessageAvailable : public nsRunnable
 {
 public:
@@ -346,6 +355,7 @@ public:
     ON_CHANNEL_OPEN,
     ON_CHANNEL_CLOSED,
     ON_DATA,
+    START_DEFER,
   };  /* types */
 
   DataChannelOnMessageAvailable(int32_t     aType,
@@ -392,6 +402,8 @@ public:
         if (!mConnection->mListener)
           return NS_OK;
         break;
+      case START_DEFER:
+        break;
     }
     switch (mType) {
       case ON_DATA:
@@ -416,6 +428,9 @@ public:
         break;
       case ON_DISCONNECTED:
         mConnection->mListener->NotifyClosedConnection();
+        break;
+      case START_DEFER:
+        mConnection->StartDefer();
         break;
     }
     return NS_OK;
