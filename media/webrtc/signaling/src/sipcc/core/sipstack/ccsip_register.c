@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+
 #include "cpr_types.h"
 #include "cpr_stdio.h"
 #include "cpr_stdlib.h"
@@ -2163,9 +2165,8 @@ ccsip_register_cmd (cc_int32_t argc, const char *argv[])
     line_t ndx = 0;
     line_t temp_line = 0;
     char str_val[MAX_LINE_NAME_SIZE];
-    //line_t available = 0;
-    //line_t present = 0;
-    //line_t configured = 0;
+    const char *line_string;
+    char *strtol_end;
 
     /*
      * check if need help
@@ -2201,11 +2202,13 @@ ccsip_register_cmd (cc_int32_t argc, const char *argv[])
             return (0);
         }
 
-        if (cpr_strcasecmp(argv[2 + OFFSET], "backup") == 0) {
+        line_string = argv[2 + OFFSET];
+        if (cpr_strcasecmp(line_string, "backup") == 0) {
             temp_line = REG_BACKUP_LINE;
         } else {
-            temp_line = (line_t) atoi(argv[2 + OFFSET]);
-            if (!sip_config_check_line(temp_line)) {
+            errno = 0;
+            temp_line = (line_t) strtol(line_string, &strtol_end, 10);
+            if (errno || line_string == strtol_end || !sip_config_check_line(temp_line)) {
                 debugif_printf("Error:Invalid Line\n");
                 return (0);
             }

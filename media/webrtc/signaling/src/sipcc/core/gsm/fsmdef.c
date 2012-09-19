@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <limits.h>
+
 #include "cpr_types.h"
 #include "cpr_stdlib.h"
 #include "cpr_stdio.h"
@@ -7195,6 +7197,8 @@ fsmdef_show_cmd (cc_int32_t argc, const char *argv[])
     fsm_fcb_t    *fcb;
     int           i = 0;
     callid_t      call_id;
+    unsigned long strtoul_result;
+    char *strtoul_end;
 
     /*
      * Check if need help.
@@ -7214,7 +7218,16 @@ fsmdef_show_cmd (cc_int32_t argc, const char *argv[])
                            i++, dcb->call_id, dcb, dcb->line);
         }
     } else if (strcmp(argv[1], "rel") == 0) {
-        call_id = (callid_t) atoi(argv[2]);
+        errno = 0;
+        strtoul_result = strtoul(argv[2], &strtoul_end, 10);
+
+        if (errno || argv[2] == strtoul_end || strtoul_result > USHRT_MAX) {
+            debugif_printf("%s parse error of call_id %s", __FUNCTION__, argv[2]);
+            return 0;
+        }
+
+        call_id = (callid_t) strtoul_result;
+
         debugif_printf("\nDEF %-4d/%d: releasing\n", call_id, 0);
 
         fcb = fsm_get_fcb_by_call_id_and_type(call_id, FSM_TYPE_DEF);

@@ -551,7 +551,7 @@ void gsmsdp_clean_media_list (fsmdef_dcb_t *dcb_p)
 
 /**
  *
- * The function is used for per call media list initializatoin. It is
+ * The function is used for per call media list initialization. It is
  * an interface function to other module for initializing the media list
  * used during a call.
  *

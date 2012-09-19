@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+
 #include "sdp_os_defs.h"
 #include "sdp.h"
 #include "sdp_private.h"
@@ -478,7 +480,9 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
     char          tmp[SDP_MAX_STRING_LEN];
     char mcast_str[MCAST_STRING_LEN];
     int  mcast_bits;
-    
+    unsigned long strtoul_result;
+    char *strtoul_end;
+
     if (level == SDP_SESSION_LEVEL) {
         conn_p = &(sdp_p->default_conn);
     } else {
@@ -581,7 +585,21 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
      */ 
     /* multicast addr check */
     sstrncpy (mcast_str, conn_p->conn_addr, MCAST_STRING_LEN);
-    mcast_bits = atoi(mcast_str);
+
+    errno = 0;
+    strtoul_result = strtoul(mcast_str, &strtoul_end, 10);
+
+    if (errno || mcast_str == strtoul_end || strtoul_result > 255) {
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s Error parsing address %s for mcast.",
+                      sdp_p->debug_str, mcast_str);
+        }
+        sdp_p->conf_p->num_invalid_param++;
+        return SDP_INVALID_PARAMETER;
+    }
+
+
+    mcast_bits = (int) strtoul_result;
     if ((mcast_bits >= SDP_MIN_MCAST_ADDR_HI_BIT_VAL ) && 
         (mcast_bits <= SDP_MAX_MCAST_ADDR_HI_BIT_VAL)) {
         SDP_PRINT("%s Parsed to be a multicast address with mcast bits %d", 
@@ -605,8 +623,11 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
                     sdp_p->conf_p->num_invalid_param++;
                     return (SDP_INVALID_PARAMETER);
                 }
-                conn_p->ttl = atoi(tmp);
-                if (conn_p->ttl > SDP_MAX_TTL_VALUE) {
+
+                errno = 0;
+                strtoul_result = strtoul(tmp, &strtoul_end, 10);
+
+                if (errno || tmp == strtoul_end || conn_p->ttl > SDP_MAX_TTL_VALUE) {
                     if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
                         SDP_ERROR("%s Invalid TTL: Value must be in the range 0-255 ",
                                   sdp_p->debug_str);
@@ -614,6 +635,9 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
                     sdp_p->conf_p->num_invalid_param++;
                     return (SDP_INVALID_PARAMETER);
                 } 
+
+                conn_p->ttl = (int) strtoul_result;
+
                 /* search for num of addresses */
                 /*sa_ignore NO_NULL_CHK
                   {ptr is valid since the pointer was checked earlier and the
@@ -624,14 +648,20 @@ sdp_result_e sdp_parse_connection (sdp_t *sdp_p, u16 level, const char *ptr)
                     SDP_PRINT("%s Found a num addr field for multicast addr %s ", 
                               sdp_p->debug_str,slash_ptr);
                     slash_ptr++;
-                    conn_p->num_of_addresses = atoi(slash_ptr);
-                    if ((conn_p->num_of_addresses == 0) &&
-		                (sdp_p->debug_flag[SDP_DEBUG_ERRORS])) {
+
+                    errno = 0;
+                    strtoul_result = strtoul(slash_ptr, &strtoul_end, 10);
+
+                    if (errno || slash_ptr == strtoul_end || strtoul_result == 0) {
+		                if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
                         SDP_ERROR("%s Invalid Num of addresses: Value must be > 0 ",
                                   sdp_p->debug_str);
+                        }
+                        sdp_p->conf_p->num_invalid_param++;
+                        return SDP_INVALID_PARAMETER;
                     }
-                    sdp_p->conf_p->num_invalid_param++;
-                    return (SDP_INVALID_PARAMETER);
+
+                    conn_p->num_of_addresses = (int) strtoul_result;
                 }
 	        } else {
                 sdp_p->conf_p->num_invalid_param++;

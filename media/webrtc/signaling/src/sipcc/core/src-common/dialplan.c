@@ -37,6 +37,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <errno.h>
+#include <limits.h>
+
 #include "cpr_stdio.h"
 #include "cpr_stdlib.h"
 #include "cpr_string.h"
@@ -867,6 +870,8 @@ ParseDialEntry (char **parseptr)
     RouteMode routeMode = RouteDefault;
     vcm_tones_t tone[MAX_TONES];
     ParseDialState state = STATE_ANY;
+    long strtol_result;
+    char *strtol_end;
 
     dialtemplate[0] = '\0';
     rewrite[0] = '\0';
@@ -944,15 +949,26 @@ ParseDialEntry (char **parseptr)
                 break;
 
             case STATE_GOT_LINE_EQ:
-                line = (unsigned char) atoi(buffer);
+                errno = 0;
+                strtol_result = strtol(buffer, &strtol_end, 10);
+
+                if (errno || buffer == strtol_end || strtol_result < 0 || strtol_result > UCHAR_MAX) {
+                    return 1;
+                }
+
+                line = (unsigned char) strtol_result;
                 break;
 
             case STATE_GOT_TIMEOUT_EQ:
-                timeout = atoi(buffer);
+                errno = 0;
+                strtol_result = strtol(buffer, &strtol_end, 10);
 
-                if (timeout < 0) {
+                if (errno || buffer == strtol_end || strtol_result < 0 || strtol_result > INT_MAX) {
                     return 1;
                 }
+
+                timeout = (int) strtol_result;
+
                 break;
 
             case STATE_GOT_USER_EQ:

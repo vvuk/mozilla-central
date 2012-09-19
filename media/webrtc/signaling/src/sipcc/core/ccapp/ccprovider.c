@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <limits.h>
+
 #include "CCProvider.h"
 #include "ccSession.h"
 #include "ccsip_task.h"
@@ -597,6 +599,8 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
     char digits[CC_MAX_DIALSTRING_LEN];
     char* data = (char*)ccData.info;
     char* data1 =(char*)ccData.info1;
+    long strtol_result;
+    char *strtol_end;
 
     CCAPP_DEBUG(DEB_L_C_F_PREFIX"event=%d data=%s",
                 DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, call_id, line_id, fname), event,
@@ -874,7 +878,15 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
                             //Legacy local conference.
 			    ftr_data.cnf.target_call_id = call_id;
 			}
-			cc_feature(CC_SRC_UI, GET_CALLID(atoi(digits)), line_id, event, &ftr_data);
+
+			errno = 0;
+			strtol_result = strtol(digits, &strtol_end, 10);
+
+			if (errno || digits == strtol_end || strtol_result < INT_MIN || strtol_result > INT_MAX) {
+				CCAPP_ERROR(DEB_F_PREFIX"digits parse error %s.\n",DEB_F_PREFIX_ARGS(SIP_CC_PROV, __FUNCTION__), digits);
+			} else {
+				cc_feature(CC_SRC_UI, GET_CALLID((int) strtol_result), line_id, event, &ftr_data);
+			}
 			break;
 		     } else {
 			CCAPP_DEBUG(DEB_F_PREFIX"conf: no sid.\n",DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
