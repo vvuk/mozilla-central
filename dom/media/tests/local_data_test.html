@@ -1,4 +1,4 @@
-<html>
+ <html>
 <head>
   <title>Simple WebRTC Data Channel Test</title>
 </head>
@@ -34,7 +34,7 @@
 
   // pc1.setLocal finished, call pc2.setRemote
   function step2() {
-    pc2 = new mozPeerConnection();
+    pc2 = new mozRTCPeerConnection();
     pc2.addStream(pc2.createFakeMediaStream("audio"));
     pc2.onRemoteStreamAdded = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
@@ -67,7 +67,7 @@
     button.innerHTML = "Stop!";
     button.onclick = stop;
 
-    pc1 = new mozPeerConnection();
+    pc1 = new mozRTCPeerConnection();
     pc1.onRemoteStreamAdded = function(obj) {
       log("pc1 got remote stream from pc2 " + obj.type);
     }
