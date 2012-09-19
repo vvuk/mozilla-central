@@ -45,6 +45,14 @@
     'build_libjpeg%': 0,
     'build_libyuv%': 1,
 
+    # defaults for audio codecs
+    'codec_g711_enable%': 1,
+    'codec_g722_enable%': 1,
+    'codec_ilbc_enable%': 1,
+    'codec_isac_enable%': 1,
+    'codec_opus_enable%': 1,
+    'codec_pcm16b_enable%': 1,
+
     'conditions': [
       ['build_with_chromium==1', {
         # Exclude pulse audio on Chromium since its prerequisites don't require
@@ -65,19 +73,6 @@
 
         'webrtc_root%': '<(DEPTH)/third_party/webrtc',
       }, {
-        'conditions': [
-          ['build_with_mozilla==1', {
-            # Settings for the Mozilla build.
-            'include_pulse_audio%': 0,
-            # we use the internal capture code for getUserMedia()
-            'include_internal_audio_device%': 1,
-            'include_internal_video_capture%': 1,
-            'include_internal_video_render%': 0,
-            'enable_protobuf%': 0,
-            'webrtc_root%': '<(DEPTH)/src',
-            'clang_use_chrome_plugins%': 0,
-          }, {
-	
         # Settings for the standalone (not-in-Chromium) build.
 
         'include_pulse_audio%': 1,
@@ -99,8 +94,6 @@
             # Investigate enabling the plugins:
             # http://code.google.com/p/webrtc/issues/detail?id=163
             'clang_use_chrome_plugins%': 0,
-          }],
-        ],
           }],
         ],
       }],
@@ -186,6 +179,39 @@
           'WEBRTC_ARM_INLINE_CALLS',
           'WEBRTC_ANDROID_OPENSLES',
          ],
+      }],
+      # codecs
+      ['codec_g711_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_G711',
+        ],
+      }],
+      ['codec_g722_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_G722',
+        ],
+      }],
+      ['codec_ilbc_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_ILBC',
+        ],
+      }],
+      ['codec_isac_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_ISAC',
+# enable this instead for fixed-point iSAC
+#          'WEBRTC_CODEC_ISACFX',
+        ],
+      }],
+      ['codec_opus_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_OPUS',
+        ],
+      }],
+      ['codec_pcm16b_enable!=0', {
+        'defines': [
+          'WEBRTC_CODEC_PCM16',
+        ],
       }],
     ], # conditions
   }, # target_defaults

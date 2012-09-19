@@ -10,13 +10,6 @@
   'includes': [
     '../build/common.gypi',
     'audio_coding/codecs/cng/cng.gypi',
-    'audio_coding/codecs/g711/g711.gypi',
-    'audio_coding/codecs/g722/g722.gypi',
-    'audio_coding/codecs/ilbc/ilbc.gypi',
-    'audio_coding/codecs/iSAC/main/source/isac.gypi',
-    'audio_coding/codecs/iSAC/fix/source/isacfix.gypi',
-    'audio_coding/codecs/opus/opus.gypi',
-    'audio_coding/codecs/pcm16b/pcm16b.gypi',
     'audio_coding/main/source/audio_coding_module.gypi',
     'audio_coding/neteq/neteq.gypi',
     'audio_conference_mixer/source/audio_conference_mixer.gypi',
@@ -39,9 +32,39 @@
     'video_render/main/source/video_render.gypi',
     'rtp_rtcp/source/rtp_rtcp.gypi',
   ],
-
   # Test targets, excluded when building with Chromium.
   'conditions': [
+    ['codec_g711_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/g711/g711.gypi',
+      ],
+    }],
+    ['codec_g722_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/g722/g722.gypi',
+      ],
+    }],
+    ['codec_ilbc_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/ilbc/ilbc.gypi',
+      ],
+    }],
+    ['codec_isac_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/iSAC/main/source/isac.gypi',
+        'audio_coding/codecs/iSAC/fix/source/isacfix.gypi',
+      ],
+    }],
+    ['codec_opus_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/opus/opus.gypi',
+      ],
+    }],
+    ['codec_pcm16b_enable!=0', {
+      'includes': [
+        'audio_coding/codecs/pcm16b/pcm16b.gypi',
+      ],
+    }],
     ['build_with_chromium==0 and build_with_mozilla==0', {
       'includes': [
         'audio_coding/codecs/iSAC/isac_test.gypi',

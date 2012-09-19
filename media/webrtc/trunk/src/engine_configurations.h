@@ -27,20 +27,7 @@
 //  [Voice] Codec settings
 // ----------------------------------------------------------------------------
 
-#define WEBRTC_CODEC_OPUS
-
-#ifndef WEBRTC_MOZILLA_BUILD
-#define WEBRTC_CODEC_ISAC       // floating-point iSAC implementation (default)
-// #define WEBRTC_CODEC_ISACFX  // fix-point iSAC implementation
-#endif
-#define WEBRTC_CODEC_AVT
-
-#ifndef WEBRTC_CHROMIUM_BUILD
-#define WEBRTC_CODEC_ILBC
-#define WEBRTC_CODEC_G722
-#define WEBRTC_CODEC_PCM16
-#define WEBRTC_CODEC_RED
-#endif
+// common.gypi now defines WEBRTC_CODEC_FOO if FOO is a configured audio codec
 
 // ----------------------------------------------------------------------------
 //  [Video] Codec settings
