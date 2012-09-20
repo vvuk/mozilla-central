@@ -186,73 +186,7 @@ typedef enum {
 
 /* Other provider specific cmds can be defined beginning with STATE_PRO_BASE */
 
-/* Session FEATURES */
-/* please update cc_feature_names whenever this enum list is changed */
 
-#define skNewCall CC_FEATURE_NEW_CALL
-#define skConfrn CC_FEATURE_CONF
-
-/* please update the following cc_feature_names whenever this feature list is changed */
-
-#ifdef __CC_FEATURE_STRINGS__
-static const char *cc_feature_names[] = {
-    "NONE",
-    "HOLD",
-    "RESUME",
-    "OFFHOOK",
-    "NEW_CALL",
-    "REDIAL",
-    "ONHOOK",
-    "KEYPRESS",
-    "DIAL",
-    "XFER",
-    "CFWD_ALL",  //10
-    "END_CALL",
-    "ANSWER",
-    "INFO",
-    "CONF",
-    "JOIN",
-    "DIR_XFER",
-    "SELECT",
-    "SPEEDDIAL",
-    "SWAP",
-    "SDBLF",  //45
-    "BLIND_XFER_WITH_DIALSTRING",
-    "BSPACE",
-    "CANCEL",
-    "DIALSTR",
-    "UPD_SESSION_MEDIA_CAP",
-    "NEW_MEDIA",
-    "UPDATE",
-    "CALLINFO",
-    "BLIND_XFER",
-    "NOTIFY",
-    "SUBSCRIBE",
-    "B2BCONF",
-    "B2BJOIN",
-    "HOLD_REVERSION", //jni_max + 10
-    "BLF_ALERT_TONE",
-    "REQPENDTMREXP",
-    "NUMBER",
-    "URL",
-    "REDIRECT", //jni_max + 20
-    "RINGBACKDELAYTMREXP",
-    "CALL_PRESERVATION",
-    "UPD_MEDIA_CAP",
-    "CAC PASSED",
-    "CAC FAILED",
-    "FAST_PIC_UPD",
-    "UNDEFINED",
-    "CREATEOFFER",
-    "CREATEANSWER",
-    "SETLOCALDESC",
-    "SETREMOTEDESC",
-    "LOCALDESC",
-    "REMOTEDESC",
-    "SETPEERCONNECTION",
-    "MAX"
-};
-#endif
 
 /* Device specific feature update IDs */
 typedef enum {

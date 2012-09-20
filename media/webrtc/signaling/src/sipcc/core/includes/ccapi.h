@@ -40,6 +40,7 @@
 #ifndef _CCAPI_H_
 #define _CCAPI_H_
 
+#include "prtypes.h"
 #include "cpr_types.h"
 #include "cpr_memory.h"
 #include "phone_types.h"
@@ -69,6 +70,8 @@ typedef unsigned int softkey_events;
 typedef unsigned int cc_call_priority_e;
 extern cc_reg_state_t ccapp_get_state();
 
+/* Session FEATURES */
+/* please update cc_feature_names whenever this enum list is changed */
 
 typedef enum {
     CC_FEATURE_MIN = -1L,
@@ -132,6 +135,80 @@ typedef enum {
     CC_FEATURE_ADDICECANDIDATE,
     CC_FEATURE_MAX
 } group_cc_feature_t;
+
+#define skNewCall CC_FEATURE_NEW_CALL
+#define skConfrn CC_FEATURE_CONF
+
+/* please update the following cc_feature_names whenever this feature list is changed */
+
+#ifdef __CC_FEATURE_STRINGS__
+static const char *cc_feature_names[] = {
+    "NONE",
+    "HOLD",
+    "RESUME",
+    "OFFHOOK",
+    "NEW_CALL",
+    "REDIAL",
+    "ONHOOK",
+    "KEYPRESS",
+    "DIAL",
+    "XFER",
+    "CFWD_ALL",  //10
+    "END_CALL",
+    "ANSWER",
+    "INFO",
+    "CONF",
+    "JOIN",
+    "DIR_XFER",
+    "SELECT",
+    "SPEEDDIAL",
+    "SWAP",
+    "SDBLF",  //45
+    "BLIND_XFER_WITH_DIALSTRING",
+    "BSPACE",
+    "CANCEL",
+    "DIALSTR",
+    "UPD_SESSION_MEDIA_CAP",
+    "NEW_MEDIA",
+    "UPDATE",
+    "CALLINFO",
+    "BLIND_XFER",
+    "NOTIFY",
+    "SUBSCRIBE",
+    "B2BCONF",
+    "B2BJOIN",
+    "HOLD_REVERSION", //jni_max + 10
+    "BLF_ALERT_TONE",
+    "REQPENDTMREXP",
+    "NUMBER",
+    "URL",
+    "REDIRECT", //jni_max + 20
+    "RINGBACKDELAYTMREXP",
+    "CALL_PRESERVATION",
+    "UPD_MEDIA_CAP",
+    "CAC PASSED",
+    "CAC FAILED",
+    "FAST_PIC_UPD",
+    "UNDEFINED",
+    "CREATEOFFER",
+    "CREATEANSWER",
+    "SETLOCALDESC",
+    "SETREMOTEDESC",
+    "LOCALDESC",
+    "REMOTEDESC",
+    "SETPEERCONNECTION",
+    "ADDSTREAM",
+    "REMOVESTREAM",
+    "ADDICECANDIDATE",
+    "MAX"
+};
+
+/* This checks at compile-time that the cc_feature_names list
+ * is the same size as the cc_group_feature_t enum
+ */
+PR_STATIC_ASSERT(PR_ARRAY_SIZE(cc_feature_names) == CC_FEATURE_MAX + 1);
+
+#endif
 
 /*
  * Constants
@@ -237,6 +314,7 @@ static const char *cc_msg_names[] = {
     "SETPEERCONNECTION",
     "ADDSTREAM",
     "REMOVESTREAM",    
+    "ADDCANDIDATE",
     "AUDIT_ACK",
     "OPTIONS",
     "OPTIONS_ACK",
@@ -246,6 +324,12 @@ static const char *cc_msg_names[] = {
     "INFO",
     "INVALID",
 };
+
+/* This checks at compile-time that the cc_msg_names list
+ * is the same size as the cc_msgs_t enum
+ */
+PR_STATIC_ASSERT(PR_ARRAY_SIZE(cc_msg_names) == CC_MSG_MAX + 1);
+
 #endif //__CC_MESSAGES_STRINGS__
 
 typedef enum cc_srcs_t_ {
