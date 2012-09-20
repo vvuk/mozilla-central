@@ -43,10 +43,7 @@ extern "C" {
 #include <ws2def.h>
 #else
 #include <sys/socket.h>
-/*  to make sure some OSs define in6_pktinfo */
-#define __USE_GNU
 #include <netinet/in.h>
-#undef __USE_GNU
 #endif
 
 #ifndef MSG_NOTIFICATION
@@ -544,14 +541,8 @@ struct sctp_event_subscribe {
 #define SCTP_ADD_STREAMS                0x00000903 /* struct sctp_add_streams */
 
 struct sctp_initmsg {
-#if defined(__FreeBSD__) && __FreeBSD_version < 800000
-	/* This is a bug. Not fixed for ABI compatibility */
-	uint32_t sinit_num_ostreams;
-	uint32_t sinit_max_instreams;
-#else
 	uint16_t sinit_num_ostreams;
 	uint16_t sinit_max_instreams;
-#endif
 	uint16_t sinit_max_attempts;
 	uint16_t sinit_max_init_timeo;
 };
