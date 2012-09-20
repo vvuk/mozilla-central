@@ -569,7 +569,7 @@ DataChannel *
 DataChannelConnection::FindChannelByStreamIn(uint16_t streamIn)
 {
   // Auto-extend mStreamsIn as needed
-  if (((int32_t) streamIn) + 1 > mStreamsIn.Length()) {
+  if (((uint32_t) streamIn) + 1 > mStreamsIn.Length()) {
     uint32_t old_len = mStreamsIn.Length();
     LOG(("Extending mStreamsIn[] to %d elements",((int32_t) streamIn)+1));
     mStreamsIn.AppendElements((streamIn+1) - mStreamsIn.Length());
@@ -977,6 +977,7 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
 
     channel->mStreamIn = streamIn;
     channel->mState = OPEN;
+    channel->mReady = true;
     mStreamsIn[streamIn] = channel;
     if (SendOpenAckMessage(streamOut)) {
       channel->mFlags = 0;
@@ -1004,11 +1005,15 @@ DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack 
   DC_ENSURE_TRUE(channel != NULL);
   DC_ENSURE_TRUE(channel->mState == CONNECTING);
 
-  channel->mState = OPEN;
-  LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
-  NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
-                          DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
-                          channel));
+  channel->mState = channel->mReady ? DataChannel::OPEN : DataChannel::WAITING_TO_OPEN;
+  if (channel->mState == OPEN) {
+    LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
+    NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+                              DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
+                              channel));
+  } else {
+    LOG(("%s: deferring sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
+  }
   return;
 }
 
@@ -1032,10 +1037,8 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
 
   // XXX A closed channel may trip this... check
   DC_ENSURE_TRUE(channel != NULL);
-  if (channel->mState == CONNECTING) {
-    /* Implicit ACK */
-    channel->mState = OPEN;
-  }
+  DC_ENSURE_TRUE(channel->mState != CONNECTING);
+
   // XXX should this be a simple if, no warnings/debugbreaks?
   DC_ENSURE_TRUE(channel->mState != CLOSED);
 
@@ -1070,7 +1073,8 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
         if (!channel->mBinaryBuffer.IsEmpty()) {
           channel->mBinaryBuffer += recvData;
           LOG(("%s: sending ON_DATA (binary fragmented) for %p",__FUNCTION__,channel));
-          NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+          SendOrQueue(channel,
+                      new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_DATA, this,
                               channel, channel->mBinaryBuffer, 
                               channel->mBinaryBuffer.Length()));
@@ -1086,19 +1090,39 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
     }
     /* Notify onmessage */
     LOG(("%s: sending ON_DATA for %p",__FUNCTION__,channel));
-    NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
+    SendOrQueue(channel,
+                new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_DATA, this,
                               channel, recvData, length));
   }
   return;
 }
 
+// Called with mLock locked!
+void
+DataChannelConnection::SendOrQueue(DataChannel *aChannel, 
+                                   DataChannelOnMessageAvailable *aMessage)
+{
+  mLock.AssertCurrentThreadOwns();
+
+  if (!aChannel->mReady &&
+      (aChannel->mState == DataChannel::CONNECTING || 
+       aChannel->mState == DataChannel::WAITING_TO_OPEN)) {
+    aChannel->mQueuedMessages.AppendElement(aMessage);
+  } else {
+    NS_DispatchToMainThread(aMessage);
+  }
+}
+
+// Called with mLock locked!
 void
 DataChannelConnection::HandleMessage(char *buffer, size_t length, uint32_t ppid, uint16_t streamIn)
 {
   struct rtcweb_datachannel_open_request *req;
   struct rtcweb_datachannel_open_response *rsp;
   struct rtcweb_datachannel_ack *ack, *msg;
+
+  mLock.AssertCurrentThreadOwns();
 
   switch (ppid) {
     case DATA_CHANNEL_PPID_CONTROL:
@@ -1333,6 +1357,7 @@ DataChannelConnection::ResetOutgoingStream(uint16_t streamOut)
 {
   uint32_t i;
 
+  mLock.AssertCurrentThreadOwns();
   // Rarely has more than a couple items and only for a short time
   for (i = 0; i < mStreamsResetting.Length(); i++) {
     if (mStreamsResetting[i] == streamOut) {
@@ -1350,6 +1375,7 @@ DataChannelConnection::SendOutgoingStreamReset()
   uint32_t i;
   size_t len;
 
+  mLock.AssertCurrentThreadOwns();
   if (mStreamsResetting.IsEmpty() == 0) {
     return;
   }
@@ -1528,9 +1554,11 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
 }
 
 
+// Called with mLock locked!
 void
 DataChannelConnection::HandleNotification(const union sctp_notification *notif, size_t n)
 {
+  mLock.AssertCurrentThreadOwns();
   if (notif->sn_header.sn_length != (uint32_t)n) {
     return;
   }
@@ -1893,14 +1921,29 @@ DataChannelConnection::SendMsgCommon(uint16_t stream, const nsACString &aMsg,
   return SendMsgInternal(channel, data, len, DATA_CHANNEL_PPID_DOMSTRING);
 }
 
-nsresult DataChannel::ResendOpen()
+// May be called from another (i.e. Main) thread!
+void DataChannel::AppReady()
 {
-  if (mState == DataChannel::OPEN) {
+  MutexAutoLock lock(mConnection->mLock);
+
+  mReady = true;
+  if (mState == WAITING_TO_OPEN) {
+    mState = OPEN;
     NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, mConnection,
                               this));
+    for (uint32_t i = 0; i < mQueuedMessages.Length(); i++) {
+      nsCOMPtr<nsIRunnable> runnable = mQueuedMessages[i];
+      MOZ_ASSERT(runnable);
+      NS_DispatchToMainThread(runnable);
+    }
+  } else {
+    NS_ASSERTION(mQueuedMessages.IsEmpty(),"Shouldn't have queued messages if not WAITING_TO_OPEN");
   }
-  return NS_OK;
+  mQueuedMessages.Clear();
+  mQueuedMessages.Compact();
+  // We never use it again...  We could even allocate the array in the odd
+  // cases we need it.
 }
 
 }

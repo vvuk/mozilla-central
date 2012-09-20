@@ -173,6 +173,7 @@ private:
 
   DataChannel *OpenFinish(DataChannel *channel);
 
+  void SendOrQueue(DataChannel *aChannel, DataChannelOnMessageAvailable *aMessage);
   void StartDefer();
   bool SendDeferredMessages();
   void SendOutgoingStreamReset();
@@ -228,7 +229,8 @@ public:
     CONNECTING = 0U,
     OPEN = 1U,
     CLOSING = 2U,
-    CLOSED = 3U
+    CLOSED = 3U,
+    WAITING_TO_OPEN = 4U
   };
 
   DataChannel(DataChannelConnection *connection,
@@ -240,7 +242,7 @@ public:
               DataChannelListener *aListener,
               nsISupports *aContext) : 
     mListener(aListener), mConnection(connection),
-    mLabel(label), mState(state),
+    mLabel(label), mState(state), mReady(false),
     mStreamOut(streamOut), mStreamIn(streamIn),
     mPrPolicy(policy), mPrValue(value),
     mFlags(0), mContext(aContext)
@@ -312,12 +314,18 @@ public:
     }
 
   // Find out state
-  uint16_t GetReadyState() { return mState; }
+  uint16_t GetReadyState()
+    {
+      if (mState == WAITING_TO_OPEN)
+        return CONNECTING;
+      return mState;
+    }
+
   void SetReadyState(uint16_t aState) { mState = aState; }
 
   void GetLabel(nsAString& aLabel) { CopyUTF8toUTF16(mLabel, aLabel); }
 
-  nsresult ResendOpen();
+  void AppReady();
 
 protected:
   DataChannelListener *mListener;
@@ -331,6 +339,7 @@ private:
   nsRefPtr<DataChannelConnection> mConnection;
   nsCString mLabel;
   uint16_t mState;
+  bool     mReady;
   uint16_t mStreamOut;
   uint16_t mStreamIn;
   uint16_t mPrPolicy;
@@ -340,6 +349,7 @@ private:
   nsCOMPtr<nsISupports> mContext;
   nsCString mBinaryBuffer;
   nsTArray<nsAutoPtr<BufferedMsg> > mBufferedData;
+  nsTArray<nsCOMPtr<nsIRunnable> > mQueuedMessages;
 };
 
 // used to dispatch notifications of incoming data to the main thread

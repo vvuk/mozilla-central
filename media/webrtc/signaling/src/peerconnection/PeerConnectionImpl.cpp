@@ -176,6 +176,9 @@ public:
       case PC_OBSERVER_DATACHANNEL:
         std::cerr << "Delivering PeerConnection ondatachannel" << std::endl;
         mObserver->NotifyDataChannel(mChannel);
+#ifdef MOZILLA_INTERNAL_API
+        NS_DataChannelAppReady(mChannel);
+#endif
         break;
       case PC_OBSERVER_ICE:
         std::cerr << "Delivering PeerConnection ICE callback " << std::endl;

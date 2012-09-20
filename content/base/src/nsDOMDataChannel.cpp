@@ -44,8 +44,9 @@ class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(mozilla::DataChannel* aDataChannel) : mDataChannel(aDataChannel),
-                                                         mBinaryType(DC_BINARY_TYPE_BLOB)
+  nsDOMDataChannel(mozilla::DataChannel* aDataChannel)
+    : mDataChannel(aDataChannel)
+    , mBinaryType(DC_BINARY_TYPE_BLOB)
   {}
 
   nsresult Init(nsPIDOMWindow* aDOMWindow);
@@ -59,13 +60,13 @@ public:
                                            nsDOMEventTargetHelper)
 
   nsresult
-  DoOnMessageAvailable(const nsACString& message, bool isBinary);
+  DoOnMessageAvailable(const nsACString& aMessage, bool aBinary);
 
   virtual nsresult
-  OnMessageAvailable(nsISupports* aContext, const nsACString& message);
+  OnMessageAvailable(nsISupports* aContext, const nsACString& aMessage);
 
   virtual nsresult
-  OnBinaryMessageAvailable(nsISupports* aContext, const nsACString& message);
+  OnBinaryMessageAvailable(nsISupports* aContext, const nsACString& aMessage);
 
   virtual nsresult OnSimpleEvent(nsISupports* aContext, const nsAString& aName);
 
@@ -75,15 +76,15 @@ public:
   virtual nsresult
   OnChannelClosed(nsISupports* aContext);
 
+  virtual void
+  AppReady();
+
 private:
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,
                          bool &aIsBinary, uint32_t &aOutgoingLength,
                          JSContext *aCx);
-
-  nsresult CreateResponseBlob(const nsACString& aData, JSContext *aCx,
-                              jsval &jsData);
 
   // Owning reference
   nsAutoPtr<mozilla::DataChannel> mDataChannel;
@@ -157,29 +158,10 @@ nsDOMDataChannel::Init(nsPIDOMWindow* aDOMWindow)
   return rv;
 }
 
+NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, open)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, error)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, close)
 NS_IMPL_EVENT_HANDLER(nsDOMDataChannel, message)
-
-// Can't use NS_IMPL_EVENT_HANDLER for onopen
-NS_IMETHODIMP nsDOMDataChannel::GetOnopen(JSContext* aCx, JS::Value* aValue)
-{
-  GetEventHandler(nsGkAtoms::onopen, aCx, aValue);
-  return NS_OK;
-}
-NS_IMETHODIMP nsDOMDataChannel::SetOnopen(JSContext* aCx,
-                                                const JS::Value& aValue)
-{
-  nsresult rv = SetEventHandler(nsGkAtoms::onopen, aCx, aValue);
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  // If the channel is already open, fire onopen to avoid a frequent race condition
-  if (mDataChannel->GetReadyState() == mozilla::DataChannel::OPEN) {
-    LOG(("Avoiding onopen race!"));
-    rv = mDataChannel->ResendOpen();
-  }
-  return rv;
-}
 
 NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)
@@ -204,9 +186,19 @@ nsDOMDataChannel::GetOrdered(bool* aOrdered)
 }
 
 NS_IMETHODIMP
-nsDOMDataChannel::GetReadyState(uint16_t* aReadyState)
+nsDOMDataChannel::GetReadyState(nsAString& aReadyState)
 {
-  *aReadyState = mDataChannel->GetReadyState();
+  uint16_t readyState = mDataChannel->GetReadyState();
+  const char * stateName[] = {
+    "Connecting",
+    "Open",
+    "Closing",
+    "Closed"
+  };
+  MOZ_ASSERT(/*readyState >= mozilla::DataChannel::CONNECTING && */ // Always true due to datatypes
+             readyState <= mozilla::DataChannel::CLOSED);
+  aReadyState.AssignASCII(stateName[readyState]);
+
   return NS_OK;
 }
 
@@ -257,12 +249,12 @@ nsDOMDataChannel::Close()
 NS_IMETHODIMP
 nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread());
   uint16_t state = mDataChannel->GetReadyState();
 
   // In reality, the DataChannel protocol allows this, but we want it to
   // look like WebSockets
-  if (state == nsIDOMDataChannel::CONNECTING) {
+  if (state == mozilla::DataChannel::CONNECTING) {
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
@@ -273,15 +265,12 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
   nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Always increment outgoing buffer len, even if closed
-  //mOutgoingBufferedAmount += msgLen;
-
-  if (state == nsIDOMDataChannel::CLOSING ||
-      state == nsIDOMDataChannel::CLOSED) {
+  if (state == mozilla::DataChannel::CLOSING ||
+      state == mozilla::DataChannel::CLOSED) {
     return NS_OK;
   }
 
-  MOZ_ASSERT(state == nsIDOMDataChannel::OPEN,
+  MOZ_ASSERT(state == mozilla::DataChannel::OPEN,
              "Unknown state in nsWebSocket::Send");
 
   if (msgStream) {
@@ -373,36 +362,15 @@ nsDOMDataChannel::GetSendParams(nsIVariant *aData, nsCString &aStringOut,
   return NS_OK;
 }
 
-// Copied from WebSockets including comment:
-// Initial implementation: only stores to RAM, not file
-// TODO: bug 704447: large file support
-nsresult
-nsDOMDataChannel::CreateResponseBlob(const nsACString& aData, JSContext *aCx,
-                                     jsval &jsData)
-{
-  uint32_t blobLen = aData.Length();
-  void *blobData = PR_Malloc(blobLen);
-  nsCOMPtr<nsIDOMBlob> blob;
-  if (blobData) {
-    memcpy(blobData, aData.BeginReading(), blobLen);
-    blob = new nsDOMMemoryFile(blobData, blobLen, EmptyString());
-  } else {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  JSObject* scope = JS_GetGlobalForScopeChain(aCx);
-  return nsContentUtils::WrapNative(aCx, scope, blob, &jsData, nullptr, true);
-}
-
 nsresult
 nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
-                                       bool isBinary)
+                                       bool aBinary)
 {
-  nsresult rv;
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread());
 
-  LOG(("DoOnMessageAvailable%s\n",isBinary ? ((mBinaryType == DC_BINARY_TYPE_BLOB) ? " (blob)" : " (binary)") : ""));
+  LOG(("DoOnMessageAvailable%s\n",aBinary ? ((mBinaryType == DC_BINARY_TYPE_BLOB) ? " (blob)" : " (binary)") : ""));
 
-  rv = CheckInnerWindowCorrectness();
+  nsresult rv = CheckInnerWindowCorrectness();
   if (NS_FAILED(rv)) {
     return NS_OK;
   }
@@ -418,9 +386,9 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   JSAutoRequest ar(cx);
   jsval jsData;
 
-  if (isBinary) {
+  if (aBinary) {
     if (mBinaryType == DC_BINARY_TYPE_BLOB) {
-      rv = CreateResponseBlob(aData, cx, jsData);
+      rv = nsContentUtils::CreateBlobBuffer(cx, aData, jsData);
       NS_ENSURE_SUCCESS(rv, rv);
     } else if (mBinaryType == DC_BINARY_TYPE_ARRAYBUFFER) {
       JSObject *arrayBuf;
@@ -433,8 +401,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
     }
   } else {
     NS_ConvertUTF8toUTF16 utf16data(aData);
-    JSString* jsString;
-    jsString = JS_NewUCStringCopyN(cx, utf16data.get(), utf16data.Length());
+    JSString* jsString = JS_NewUCStringCopyN(cx, utf16data.get(), utf16data.Length());
     NS_ENSURE_TRUE(jsString, NS_ERROR_FAILURE);
 
     jsData = STRING_TO_JSVAL(jsString);
@@ -511,8 +478,13 @@ nsDOMDataChannel::OnChannelClosed(nsISupports* aContext)
 {
   LOG(("%p(%p): %s - Dispatching\n",this,(void*)mDataChannel,__FUNCTION__));
 
-
   return OnSimpleEvent(aContext, NS_LITERAL_STRING("close"));
+}
+
+void
+nsDOMDataChannel::AppReady()
+{
+  mDataChannel->AppReady();
 }
 
 /* static */
@@ -521,12 +493,18 @@ NS_NewDOMDataChannel(mozilla::DataChannel* aDataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** aDomDataChannel)
 {
-  nsresult rv;
-
   nsRefPtr<nsDOMDataChannel> domdc = new nsDOMDataChannel(aDataChannel);
 
-  rv = domdc->Init(aWindow);
+  nsresult rv = domdc->Init(aWindow);
   NS_ENSURE_SUCCESS(rv,rv);
 
   return CallQueryInterface(domdc, aDomDataChannel);
+}
+
+/* static */
+void
+NS_DataChannelAppReady(nsIDOMDataChannel* aDomDataChannel)
+{
+  // XXX This is wrong...
+  ((nsDOMDataChannel *)aDomDataChannel)->AppReady();
 }

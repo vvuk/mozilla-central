@@ -23,4 +23,11 @@ NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** domDataChannel);
 
+// XXX verify this is still true - signaling is now in libxul
+// Should be in the class, but per above we don't want to expose the full
+// class definition
+
+// Tell DataChannel it's ok to deliver open and message events
+void NS_DataChannelAppReady(nsIDOMDataChannel* domDataChannel);
+
 #endif
