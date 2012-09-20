@@ -6024,10 +6024,10 @@ lsm_update_inalert_status (line_t line, callid_t call_id,
         (data->caller_id.calling_number[0] != '\0') &&
         data->caller_id.display_calling_number) {
 
-        strncat(disp_str, data->caller_id.calling_number,
+        sstrncat(disp_str, data->caller_id.calling_number,
                 sizeof(disp_str) - strlen(disp_str));
     } else {
-        strncat(disp_str, platform_get_phrase_index_str(UI_UNKNOWN),
+        sstrncat(disp_str, platform_get_phrase_index_str(UI_UNKNOWN),
                 sizeof(disp_str) - strlen(disp_str));
     }
 

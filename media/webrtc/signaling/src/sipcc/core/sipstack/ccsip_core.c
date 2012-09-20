@@ -2681,11 +2681,11 @@ ccsip_handle_idle_ev_sip_invite (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
         sip_to_temp = strlib_open(ccb->sip_to, MAX_SIP_URL_LENGTH);
         if (sip_to_temp) {
-            strncat(sip_to_temp, ";tag=",
-                    MAX_SIP_URL_LENGTH - strlen(sip_to_temp) - 1);
+            sstrncat(sip_to_temp, ";tag=",
+                    MAX_SIP_URL_LENGTH - strlen(sip_to_temp));
             if (ccb->sip_to_tag) {
-                strncat(sip_to_temp, ccb->sip_to_tag,
-                        MAX_SIP_URL_LENGTH - strlen(sip_to_temp) - 1);
+                sstrncat(sip_to_temp, ccb->sip_to_tag,
+                        MAX_SIP_URL_LENGTH - strlen(sip_to_temp));
             }
         }
         ccb->sip_to = strlib_close(sip_to_temp);
@@ -2817,7 +2817,7 @@ ccsip_handle_idle_ev_sip_invite (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
         memset(tempreplace, 0, MAX_SIP_URL_LENGTH);
         sstrncpy(tempreplace, "Replaces=", sizeof(tempreplace));
-        strncat(tempreplace, replaceshdr, (sizeof(tempreplace) - 10));
+        sstrncat(tempreplace, replaceshdr, (sizeof(tempreplace) - sizeof("Replaces=")));
         replaces_t = sippmh_parse_replaces(tempreplace, FALSE);
         if (NULL != replaces_t) {
             //Check if a call exists that matches the callid, to and from tags found in the replaces header
@@ -6037,7 +6037,7 @@ ccsip_handle_refer_sip_message (ccsipCCB_t *ccb, sipSMEvent_t *event)
 
         memset(tempreplace, 0, MAX_SIP_URL_LENGTH);
         sstrncpy(tempreplace, "Replaces=", sizeof(tempreplace));
-        strncat(tempreplace, referto->sip_replaces_hdr, (sizeof(tempreplace) - 10));
+        sstrncat(tempreplace, referto->sip_replaces_hdr, (sizeof(tempreplace) - sizeof("Replaces=")));
         replaces_t = sippmh_parse_replaces(tempreplace, FALSE);
         if (NULL != replaces_t) {
             ccb->sipxfercallid = strlib_update(ccb->sipxfercallid, replaces_t->callid);
@@ -9594,11 +9594,11 @@ ccsip_handle_active_ev_cc_feature_xfer (ccsipCCB_t *ccb, sipSMEvent_t *event)
             len = semi - pTransferNumberString;
         } else {
             sstrncpy(referto, "sip:", MAX_SIP_URL_LENGTH);
-            len = MAX_SIP_URL_LENGTH - 5; /* 5 = sip: + NUL */
+            len = MAX_SIP_URL_LENGTH - sizeof("sip:");
         }
 
         /* if we have a ;user=, only copy up until that point */
-        strncat(referto, pTransferNumberString, len);
+        sstrncat(referto, pTransferNumberString, len);
 
         domainloc = referto + strlen(referto);
         if ((domainloc - referto) < (MAX_SIP_URL_LENGTH - 1)) {
@@ -9651,7 +9651,7 @@ ccsip_handle_active_ev_cc_feature_xfer (ccsipCCB_t *ccb, sipSMEvent_t *event)
         }
 
         if (semi) {
-            strncat(domainloc, ">", MAX_SIP_URL_LENGTH - strlen(referto) - 1);
+            sstrncat(domainloc, ">", MAX_SIP_URL_LENGTH - strlen(referto));
         }
     }
     /* If the method is direct trasnfer then

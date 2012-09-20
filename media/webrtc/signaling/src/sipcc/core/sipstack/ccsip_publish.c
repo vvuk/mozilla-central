@@ -435,7 +435,7 @@ static boolean sipSPISendPublish (ccsip_publish_cb_t *pcb_p, boolean authen)
      */
     if (pcb_p->full_ruri[0] == 0) {
         sstrncpy(pcb_p->full_ruri, "sip:", MAX_SIP_URL_LENGTH);
-        strncat(pcb_p->full_ruri, pcb_p->ruri, MAX_SIP_URL_LENGTH - 5);
+        sstrncat(pcb_p->full_ruri, pcb_p->ruri, MAX_SIP_URL_LENGTH - sizeof("sip:"));
         /* check if it has host part */
         domainloc = strchr(pcb_p->full_ruri, '@');
         if (domainloc == NULL) {
@@ -483,9 +483,9 @@ static boolean sipSPISendPublish (ccsip_publish_cb_t *pcb_p, boolean authen)
     }
 
     // Add From Header.
-    strncat(sip_temp_str, ";tag=", MAX_SIP_URL_LENGTH - strlen(sip_temp_str) - 1);
+    sstrncat(sip_temp_str, ";tag=", MAX_SIP_URL_LENGTH - strlen(sip_temp_str));
     sip_util_make_tag(sip_temp_tag);
-    strncat(sip_temp_str, sip_temp_tag, MAX_SIP_URL_LENGTH - strlen(sip_temp_str) - 1);
+    sstrncat(sip_temp_str, sip_temp_tag, MAX_SIP_URL_LENGTH - strlen(sip_temp_str));
     if (HSTATUS_SUCCESS != sippmh_add_text_header(request, SIP_HEADER_FROM, sip_temp_str)) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Error in adding FROM header\n", fname);
         free_sip_message(request);

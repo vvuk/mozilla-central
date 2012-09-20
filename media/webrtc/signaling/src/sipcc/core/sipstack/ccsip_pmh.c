@@ -3876,7 +3876,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
      * This routine takes a sip_author_t struct and generates an Authorization
      * header or a Proxy-Authorization header.  Since this routine generates
      * a header for Authorization or Proxy-Authorization, the header will
-     * start with "Digest" or "Basic".  The user should use strncat to
+     * start with "Digest" or "Basic".  The user should use sstrncat to
      * add "Proxy Authorization: " or "Authorization: " depending which is
      * needed.
      */
@@ -3914,7 +3914,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
             }
             snprintf(buffer2, MAX_URI_LENGTH, ",%s=\"%s\"",
                      AUTHENTICATION_OPAQUE, sip_author->opaque);
-            strncat(buffer, buffer2, MAX_SIP_HEADER_LENGTH - strlen(buffer) - 1);
+            sstrncat(buffer, buffer2, MAX_SIP_HEADER_LENGTH - strlen(buffer));
             cpr_free(buffer2);
         }
         if (sip_author->cnonce) {
@@ -3927,7 +3927,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
             }
             snprintf(buffer3, MAX_URI_LENGTH,
                      ",cnonce=\"%s\"", sip_author->cnonce);
-            strncat(buffer, buffer3, MAX_SIP_HEADER_LENGTH - strlen(buffer) - 1);
+            sstrncat(buffer, buffer3, MAX_SIP_HEADER_LENGTH - strlen(buffer));
             cpr_free(buffer3);
         }
         if (sip_author->qop) {
@@ -3939,7 +3939,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
                 return NULL;
             }
             snprintf(buffer4, MAX_URI_LENGTH, ",qop=%s", sip_author->qop);
-            strncat(buffer, buffer4, MAX_SIP_HEADER_LENGTH - strlen(buffer) - 1);
+            sstrncat(buffer, buffer4, MAX_SIP_HEADER_LENGTH - strlen(buffer));
             cpr_free(buffer4);
         }
         if (sip_author->nc_count) {
@@ -3951,7 +3951,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
                 return NULL;
             }
             snprintf(buffer5, MAX_URI_LENGTH, ",nc=%s", sip_author->nc_count);
-            strncat(buffer, buffer5, MAX_SIP_HEADER_LENGTH - strlen(buffer) - 1);
+            sstrncat(buffer, buffer5, MAX_SIP_HEADER_LENGTH - strlen(buffer));
             cpr_free(buffer5);
         }
         if (sip_author->algorithm) {
@@ -3964,7 +3964,7 @@ sippmh_generate_authorization (sip_author_t *sip_author)
             }
             snprintf(buffer6, MAX_URI_LENGTH,
                      ",%s=%s", AUTHENTICATION_ALGORITHM, sip_author->algorithm);
-            strncat(buffer, buffer6, MAX_SIP_HEADER_LENGTH - strlen(buffer) - 1);
+            sstrncat(buffer, buffer6, MAX_SIP_HEADER_LENGTH - strlen(buffer));
             cpr_free(buffer6);
         }
     } else {
@@ -5539,15 +5539,15 @@ sippmh_add_join_header (sipMessage_t *message, sipJoinInfo_t *join)
     snprintf(joinhdr, MAX_SIP_HEADER_LENGTH, "%s", join->call_id);
     left = (uint16_t) MAX_SIP_HEADER_LENGTH - strlen(join->call_id);
     if (join->from_tag && left > 0) {
-        strncat(joinhdr, ";from-tag=", left);
+        sstrncat(joinhdr, ";from-tag=", left);
         left -= sizeof(";from-tag=") - 1;
-        strncat(joinhdr, join->from_tag, left);
+        sstrncat(joinhdr, join->from_tag, left);
         left -= strlen(join->from_tag);
     }
     if (join->to_tag && left > 0) {
-        strncat(joinhdr, ";to-tag=", left);
+        sstrncat(joinhdr, ";to-tag=", left);
         left -= sizeof(";to-tag=") - 1;
-        strncat(joinhdr, join->to_tag, left);
+        sstrncat(joinhdr, join->to_tag, left);
     }
     return (sippmh_add_text_header(message, SIP_HEADER_JOIN, joinhdr));
 }

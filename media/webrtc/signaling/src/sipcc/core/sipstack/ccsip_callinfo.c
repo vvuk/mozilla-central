@@ -494,13 +494,13 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
     case CC_FEAT_HOLD:
     case CC_FEAT_RESUME:
         if (call_info_p->type == CC_FEAT_HOLD) {
-            strncat(header, SIP_CI_HOLD_STR,
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, SIP_CI_HOLD_STR,
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
         } else {
-            strncat(header, SIP_CI_RESUME_STR,
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, SIP_CI_RESUME_STR,
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
         }
-        strncat(header, ">", MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+        sstrncat(header, ">", MAX_SIP_HEADER_LENGTH - strlen(header));
 
         switch (call_info_p->data.hold_resume_reason) {
         case CC_REASON_NONE:
@@ -508,16 +508,16 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
         case CC_REASON_SWAP:
             break;
         case CC_REASON_XFER:
-            strncat(header, "; reason= ",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-            strncat(header, SIP_CI_HOLD_REASON_XFER,
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "; reason= ",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
+            sstrncat(header, SIP_CI_HOLD_REASON_XFER,
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
             break;
         case CC_REASON_CONF:
-            strncat(header, "; reason= ",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-            strncat(header, SIP_CI_HOLD_REASON_CONF,
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "; reason= ",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
+            sstrncat(header, SIP_CI_HOLD_REASON_CONF,
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
             break;
         default:
             CCSIP_DEBUG_ERROR(SIP_F_PREFIX  "unsupported hold_resume_reason\n",
@@ -528,13 +528,13 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
 
         /* Add swap information */
         if (call_info_p->data.call_info_feat_data.swap == TRUE) {
-            strncat(header, "; operation= swap",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "; operation= swap",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
         }
 
         if (call_info_p->data.call_info_feat_data.protect == TRUE) {
-            strncat(header, "; protect= true; noholdreversion",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "; protect= true; noholdreversion",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
         }
 
         break;
@@ -542,29 +542,29 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
     case CC_FEAT_INIT_CALL:
         /* Add global call id here */
         if (call_info_p->data.initcall.gcid[0] != '\0') {
-            strncat(header, "callinfo>; gci= ",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-            strncat(header, call_info_p->data.initcall.gcid,
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "callinfo>; gci= ",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
+            sstrncat(header, call_info_p->data.initcall.gcid,
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
         } else {
             cpr_free(header);
             return NULL;
         }
         /* Add the monitor mode here if it exists */
         if (call_info_p->data.initcall.monitor_mode != CC_MONITOR_NONE) {
-            strncat(header, "; mode=",
-                    MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+            sstrncat(header, "; mode=",
+                    MAX_SIP_HEADER_LENGTH - strlen(header));
 
             switch (call_info_p->data.initcall.monitor_mode) {
 
             case CC_MONITOR_SILENT :
-                strncat(header, SIP_CI_SILENT_STR,
-                        MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+                sstrncat(header, SIP_CI_SILENT_STR,
+                        MAX_SIP_HEADER_LENGTH - strlen(header));
                 break;
 			
             case CC_MONITOR_COACHING :
-                strncat(header, SIP_CI_COACHING_STR,
-                        MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+                sstrncat(header, SIP_CI_COACHING_STR,
+                        MAX_SIP_HEADER_LENGTH - strlen(header));
                 break;
 			
             default:
@@ -574,22 +574,22 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
         break;
         
     case CC_FEAT_TOGGLE_TO_WHISPER_COACHING:
-        strncat(header, "callinfo>",
-        	MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-        strncat(header, "; mode=",
-            MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-        strncat(header, SIP_CI_COACHING_STR,
-            MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+        sstrncat(header, "callinfo>",
+        	MAX_SIP_HEADER_LENGTH - strlen(header));
+        sstrncat(header, "; mode=",
+            MAX_SIP_HEADER_LENGTH - strlen(header));
+        sstrncat(header, SIP_CI_COACHING_STR,
+            MAX_SIP_HEADER_LENGTH - strlen(header));
             
         break;
             
     case CC_FEAT_TOGGLE_TO_SILENT_MONITORING:
-        strncat(header, "callinfo>",
-            MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-        strncat(header, "; mode=",
-            MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
-        strncat(header, SIP_CI_SILENT_STR,
-            MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+        sstrncat(header, "callinfo>",
+            MAX_SIP_HEADER_LENGTH - strlen(header));
+        sstrncat(header, "; mode=",
+            MAX_SIP_HEADER_LENGTH - strlen(header));
+        sstrncat(header, SIP_CI_SILENT_STR,
+            MAX_SIP_HEADER_LENGTH - strlen(header));
             
         break;    
     
@@ -600,10 +600,10 @@ ccsip_encode_call_info_hdr (cc_call_info_t *call_info_p,
 
 
     if (misc_parms_p) {
-        strncat(header, misc_parms_p,
-                MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+        sstrncat(header, misc_parms_p,
+                MAX_SIP_HEADER_LENGTH - strlen(header));
     }
-    strncat(header, "\0", MAX_SIP_HEADER_LENGTH - strlen(header) - 1);
+    sstrncat(header, "\0", MAX_SIP_HEADER_LENGTH - strlen(header));
     return (header);
 }
 

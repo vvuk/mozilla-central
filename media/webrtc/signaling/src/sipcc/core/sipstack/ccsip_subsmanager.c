@@ -3140,11 +3140,11 @@ subsmanager_handle_ev_sip_subscribe (sipMessage_t *pSipMessage,
             scbp->sip_to_tag = strlib_close(sip_to_tag_temp);
             sip_to_temp = strlib_open(scbp->sip_to, MAX_SIP_URL_LENGTH);
             if (sip_to_temp) {
-                strncat(sip_to_temp, ";tag=",
-                        MAX_SIP_URL_LENGTH - strlen(sip_to_temp) - 1);
+                sstrncat(sip_to_temp, ";tag=",
+                        MAX_SIP_URL_LENGTH - strlen(sip_to_temp));
                 if (scbp->sip_to_tag) {
-                    strncat(sip_to_temp, scbp->sip_to_tag,
-                            MAX_SIP_URL_LENGTH - strlen(sip_to_temp) - 1);
+                    sstrncat(sip_to_temp, scbp->sip_to_tag,
+                            MAX_SIP_URL_LENGTH - strlen(sip_to_temp));
                 }
             }
             scbp->sip_to = strlib_close(sip_to_temp);
@@ -3970,9 +3970,9 @@ sipSPIAddRouteHeadersToSubNot (sipMessage_t *msg, sipSCB_t * scbp,
         /* Append Contact to the Route Header, if Contact is available */
         if (Contact[0] != '\0') {
             if (route[0] != '\0') {
-                strncat(route, ", ", sizeof(route) - strlen(route) - 1);
+                sstrncat(route, ", ", sizeof(route) - strlen(route));
             }
-            strncat(route, Contact, MIN((sizeof(route) - strlen(route) - 1), sizeof(Contact)));
+            sstrncat(route, Contact, MIN((sizeof(route) - strlen(route)), sizeof(Contact)));
         }
     }
 
@@ -4144,10 +4144,10 @@ sipSPISendSubscribe (sipSCB_t *scbp, boolean renew, boolean authen)
             sip_from_tag = strlib_open(scbp->sip_from_tag, MAX_SIP_URL_LENGTH);
             if (sip_from_tag) {
                 sip_util_make_tag(sip_from_tag);
-                strncat(sip_from_temp, ";tag=",
-                        MAX_SIP_URL_LENGTH - strlen(sip_from_temp) - 1);
-                strncat(sip_from_temp, sip_from_tag,
-                        MAX_SIP_URL_LENGTH - strlen(sip_from_temp) - 1);
+                sstrncat(sip_from_temp, ";tag=",
+                        MAX_SIP_URL_LENGTH - strlen(sip_from_temp));
+                sstrncat(sip_from_temp, sip_from_tag,
+                        MAX_SIP_URL_LENGTH - strlen(sip_from_temp));
             }
             scbp->sip_from_tag = strlib_close(sip_from_tag);
         }
@@ -4170,7 +4170,7 @@ sipSPISendSubscribe (sipSCB_t *scbp, boolean renew, boolean authen)
 
         /* Indialog requests should contain suburi only
          */
-        strncat(scbp->SubURI, scbp->SubURIOriginal, MAX_SIP_URL_LENGTH - 5);
+        sstrncat(scbp->SubURI, scbp->SubURIOriginal, MAX_SIP_URL_LENGTH - sizeof("sip:"));
         domainloc = strchr(scbp->SubURI, '@');
         if (domainloc == NULL) {
             domainloc = scbp->SubURI + strlen(scbp->SubURI);
@@ -4827,14 +4827,14 @@ sipSPISendSubNotify (ccsip_common_cb_t *cbp, boolean authen)
             /*
              * if (request_uri_loc->name) {
              * if (request_uri_loc->name[0]) {
-             * strncat(ReqURI, "\"", sizeof(ReqURI)-strlen(ReqURI)-1);
-             * strncat(ReqURI, request_uri_loc->name,
-             * sizeof(ReqURI)-strlen(ReqURI)-1);
-             * strncat(ReqURI, "\" ", sizeof(ReqURI)-strlen(ReqURI)-1);
+             * sstrncat(ReqURI, "\"", sizeof(ReqURI)-strlen(ReqURI));
+             * sstrncat(ReqURI, request_uri_loc->name,
+             * sizeof(ReqURI)-strlen(ReqURI));
+             * sstrncat(ReqURI, "\" ", sizeof(ReqURI)-strlen(ReqURI));
              * }
              * }
              */
-            strncat(ReqURI, "sip:", sizeof(ReqURI) - strlen(ReqURI) - 1);
+            sstrncat(ReqURI, "sip:", sizeof(ReqURI) - strlen(ReqURI));
             if (request_uri_loc->genUrl->schema == URL_TYPE_SIP) {
                 request_uri_url = request_uri_loc->genUrl->u.sipUrl;
             } else {
@@ -4845,17 +4845,17 @@ sipSPISendSubNotify (ccsip_common_cb_t *cbp, boolean authen)
             }
 
             if (request_uri_url->user) {
-                strncat(ReqURI, request_uri_url->user,
-                        sizeof(ReqURI) - strlen(ReqURI) - 1);
-                strncat(ReqURI, "@", sizeof(ReqURI) - strlen(ReqURI) - 1);
+                sstrncat(ReqURI, request_uri_url->user,
+                        sizeof(ReqURI) - strlen(ReqURI));
+                sstrncat(ReqURI, "@", sizeof(ReqURI) - strlen(ReqURI));
             }
             if (request_uri_url->is_phone) {
-                strncat(ReqURI, ";user=phone",
-                        sizeof(ReqURI) - strlen(ReqURI) - 1);
+                sstrncat(ReqURI, ";user=phone",
+                        sizeof(ReqURI) - strlen(ReqURI));
             }
-            strncat(ReqURI, request_uri_url->host,
-                    sizeof(ReqURI) - strlen(ReqURI) - 1);
-            // strncat(ReqURI, ">", sizeof(ReqURI)-strlen(ReqURI)-1);
+            sstrncat(ReqURI, request_uri_url->host,
+                    sizeof(ReqURI) - strlen(ReqURI));
+            // sstrncat(ReqURI, ">", sizeof(ReqURI)-strlen(ReqURI));
             sippmh_free_location(request_uri_loc);
         }
     } else { //Unsolicited NOTIFY
@@ -4895,9 +4895,9 @@ sipSPISendSubNotify (ccsip_common_cb_t *cbp, boolean authen)
     // The From field including the tag is the same as the To field in the
     // response to SUBSCRIBE
     if (cbp->cb_type != SUBNOT_CB) {
-        strncat(sip_temp_str, ";tag=", MAX_SIP_URL_LENGTH - strlen(sip_temp_str) - 1);
+        sstrncat(sip_temp_str, ";tag=", MAX_SIP_URL_LENGTH - strlen(sip_temp_str));
         sip_util_make_tag(sip_temp_tag);
-        strncat(sip_temp_str, sip_temp_tag, MAX_SIP_URL_LENGTH - strlen(sip_temp_str) - 1);
+        sstrncat(sip_temp_str, sip_temp_tag, MAX_SIP_URL_LENGTH - strlen(sip_temp_str));
     }
     if (STATUS_SUCCESS != sippmh_add_text_header(request, SIP_HEADER_FROM,
                                                  ((cbp->cb_type == SUBNOT_CB) ?  scbp->sip_to : sip_temp_str))) {

@@ -834,49 +834,49 @@ httpish_msg_to_wstream (pmhWstream_t *ws,
             }
             snprintf(tmp_body_buf, TMP_BODY_BUF_SIZE, "Content-Type: %s\r\n",
                     msg->mesg_body[i].msgContentType);
-            strncat(tmp_body_buf, "Content-Disposition: ",
-                    TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+            sstrncat(tmp_body_buf, "Content-Disposition: ",
+                    sizeof(tmp_body_buf) - strlen(tmp_body_buf));
 
             switch (msg->mesg_body[i].msgContentDisp) {
             case SIP_CONTENT_DISPOSITION_RENDER_VALUE:
-                strncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_RENDER,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_RENDER,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
                 break;
             case SIP_CONTENT_DISPOSITION_SESSION_VALUE:
             default:
-                strncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_SESSION,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_SESSION,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
                 break;
             case SIP_CONTENT_DISPOSITION_ICON_VALUE:
-                strncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_ICON,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_ICON,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
                 break;
             case SIP_CONTENT_DISPOSITION_ALERT_VALUE:
-                strncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_ALERT,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_ALERT,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
                 break;
             case SIP_CONTENT_DISPOSITION_PRECONDITION_VALUE:
-                strncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_PRECONDITION,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, SIP_CONTENT_DISPOSITION_PRECONDITION,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
                 break;
             }
             if (msg->mesg_body[i].msgRequiredHandling) {
-                strncat(tmp_body_buf, ";handling=required\r\n",
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, ";handling=required\r\n",
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
             } else {
-                strncat(tmp_body_buf, ";handling=optional\r\n",
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, ";handling=optional\r\n",
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
             }
             if (msg->mesg_body[i].msgContentId) {
-                strncat(tmp_body_buf, "Content-Id: ",
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
-                strncat(tmp_body_buf, msg->mesg_body[i].msgContentId,
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
-                strncat(tmp_body_buf, "\r\n",
-                        TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+                sstrncat(tmp_body_buf, "Content-Id: ",
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
+                sstrncat(tmp_body_buf, msg->mesg_body[i].msgContentId,
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
+                sstrncat(tmp_body_buf, "\r\n",
+                        sizeof(tmp_body_buf) - strlen(tmp_body_buf));
             }
-            strncat(tmp_body_buf, "\r\n",
-                    TMP_BODY_BUF_SIZE - strlen(tmp_body_buf) - 1);
+            sstrncat(tmp_body_buf, "\r\n",
+                     sizeof(tmp_body_buf) - strlen(tmp_body_buf));
             buf_len = strlen(tmp_body_buf);
             if (!pmhutils_wstream_write_bytes(ws, tmp_body_buf, buf_len)) {
                 return (FALSE);

@@ -229,28 +229,28 @@ get_ua_model_and_device (char sipHdrUserAgent[])
 
     if (model) {
         if (strncmp(model, CSF_MODEL, 3) == 0) {
-            strncat(sipHdrUserAgent, CCSIP_SIP_CSF_USER_AGENT,
-                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent) - 1);
+            sstrncat(sipHdrUserAgent, CCSIP_SIP_CSF_USER_AGENT,
+                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent));
             sstrncpy(sipPhoneModelNumber, PHONE_MODEL_NUMBER_CSF,
                     SIP_PHONE_MODEL_NUMBER_LEN);
         } else if (strcmp(model, PHONE_MODEL) == 0) {
             //if phone model is any of vendor defined, set as is.
-            strncat(sipHdrUserAgent, CCSIP_SIP_USER_AGENT,
-                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent) - 1);
+            sstrncat(sipHdrUserAgent, CCSIP_SIP_USER_AGENT,
+                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent));
             sstrncpy(sipPhoneModelNumber, PHONE_MODEL_NUMBER,
                     SIP_PHONE_MODEL_NUMBER_LEN);
         } else {
             // Default to 7970
             CCSIP_DEBUG_ERROR(SIP_F_PREFIX"unknown model,defaulting to model 7970: %s\n", fname, model);
-            strncat(sipHdrUserAgent, CCSIP_SIP_7970_USER_AGENT,
-                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent) - 1);
+            sstrncat(sipHdrUserAgent, CCSIP_SIP_7970_USER_AGENT,
+                    SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent));
             sstrncpy(sipPhoneModelNumber, PHONE_MODEL_NUMBER_7970,
                     SIP_PHONE_MODEL_NUMBER_LEN);
         }
     } else {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"could not obtain model information\n", fname);
-        strncat(sipHdrUserAgent, CCSIP_SIP_7970_USER_AGENT,
-                SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent) - 1);
+        sstrncat(sipHdrUserAgent, CCSIP_SIP_7970_USER_AGENT,
+                SIP_HEADER_SERVER_LEN - strlen(sipHdrUserAgent));
         sstrncpy(sipPhoneModelNumber, PHONE_MODEL_NUMBER_7970,
                 SIP_PHONE_MODEL_NUMBER_LEN);
     }
@@ -316,8 +316,8 @@ SIPTaskInit (void)
     sipHeaderServer[0] = '\0';
 
 #if defined _COMMUNICATOR_
-    strncat(sipHeaderUserAgent, CCSIP_SIP_COMMUNICATOR_USER_AGENT,
-            SIP_HEADER_SERVER_LEN - strlen(sipHeaderUserAgent) - 1);
+    sstrncat(sipHeaderUserAgent, CCSIP_SIP_COMMUNICATOR_USER_AGENT,
+            sizeof(sipHeaderUserAgent) - strlen(sipHeaderUserAgent));
     sstrncpy(sipPhoneModelNumber, PHONE_MODEL_NUMBER_COMMUNICATOR,
             SIP_PHONE_MODEL_NUMBER_LEN);
 #else
@@ -325,10 +325,10 @@ SIPTaskInit (void)
 #endif
 
     // Now add the firmware version
-    strncat(sipHeaderUserAgent, "/",
-            SIP_HEADER_SERVER_LEN - strlen(sipHeaderUserAgent) - 1);
-    strncat(sipHeaderUserAgent, gVersion,
-            SIP_HEADER_SERVER_LEN - strlen(sipHeaderUserAgent) - 1);
+    sstrncat(sipHeaderUserAgent, "/",
+            sizeof(sipHeaderUserAgent) - strlen(sipHeaderUserAgent));
+    sstrncat(sipHeaderUserAgent, gVersion,
+            sizeof(sipHeaderUserAgent) - strlen(sipHeaderUserAgent));
     sstrncpy(sipHeaderServer, sipHeaderUserAgent,
             SIP_HEADER_SERVER_LEN);
 }
