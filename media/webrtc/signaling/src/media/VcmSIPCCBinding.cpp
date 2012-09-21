@@ -899,6 +899,7 @@ short vcmCreateRemoteStream(
   int *pc_stream_id,
   vcm_media_payload_type_t payload) {
   PRUint32 hints = 0;
+  nsresult res;
 
   CSFLogDebug( logTag, "%s", __FUNCTION__);
 
@@ -917,10 +918,15 @@ short vcmCreateRemoteStream(
   }
 
   sipcc::RemoteSourceStreamInfo* info;
-  pc->impl()->CreateRemoteSourceStreamInfo(hints, &info);
-  nsresult res = pc->impl()->AddRemoteStream(info, pc_stream_id);
-  if (!NS_SUCCEEDED(res))
+  res = pc->impl()->CreateRemoteSourceStreamInfo(hints, &info);
+  if (NS_FAILED(res)) {
     return VCM_ERROR;
+  }
+
+  res = pc->impl()->AddRemoteStream(info, pc_stream_id);
+  if (NS_FAILED(res)) {
+    return VCM_ERROR;
+  }
 
   if (CC_IS_AUDIO(mcap_id)) {
     mozilla::AudioSegment *segment = new mozilla::AudioSegment();

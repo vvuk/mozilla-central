@@ -288,9 +288,7 @@ public:
   static void Shutdown();
 
   Role GetRole() const { return mRole; }
-  void MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** stream);
-  void MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info);
-  void CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info);
+  nsresult CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info);
 
   // Implementation of the only observer we need
   virtual void onCallEvent(
@@ -380,6 +378,9 @@ private:
 
   // Shutdown media transport. Must be called on STS thread.
   void ShutdownMediaTransport();
+
+  nsresult MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** stream);
+  nsresult MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info);
 
   // The role we are adopting
   Role mRole;

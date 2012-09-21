@@ -140,8 +140,7 @@ public:
               streams = mInfo->getMediaStreams();
               nsRefPtr<RemoteSourceStreamInfo> remoteStream = mPC->GetRemoteStream(streams->media_stream_id);
 
-              PR_ASSERT(remoteStream.get());
-
+              MOZ_ASSERT(remoteStream);
               if (!remoteStream.get())
               {
                 CSFLogErrorS(logTag, __FUNCTION__ << " GetRemoteStream returned NULL");
@@ -166,22 +165,22 @@ public:
           break;
         }
       case PC_OBSERVER_CONNECTION:
-        std::cerr << "Delivering PeerConnection onconnection" << std::endl;
+        CSFLogDebugS(logTag, __FUNCTION__ << ": Delivering PeerConnection onconnection");
         mObserver->NotifyConnection();
         break;
       case PC_OBSERVER_CLOSEDCONNECTION:
-        std::cerr << "Delivering PeerConnection onclosedconnection" << std::endl;
+        CSFLogDebugS(logTag, __FUNCTION__ << ": Delivering PeerConnection onclosedconnection");
         mObserver->NotifyClosedConnection();
         break;
       case PC_OBSERVER_DATACHANNEL:
-        std::cerr << "Delivering PeerConnection ondatachannel" << std::endl;
+        CSFLogDebugS(logTag, __FUNCTION__ << ": Delivering PeerConnection ondatachannel");
         mObserver->NotifyDataChannel(mChannel);
 #ifdef MOZILLA_INTERNAL_API
         NS_DataChannelAppReady(mChannel);
 #endif
         break;
       case PC_OBSERVER_ICE:
-        std::cerr << "Delivering PeerConnection ICE callback " << std::endl;
+        CSFLogDebugS(logTag, __FUNCTION__ << ": Delivering PeerConnection ICE callback ");
         mObserver->OnStateChange(IPeerConnectionObserver::kIceState);
     }
     return NS_OK;
@@ -208,41 +207,7 @@ LocalSourceStreamInfo::NotifyQueuedTrackChanges(
   PRUint32 aTrackEvents,
   const mozilla::MediaSegment& aQueuedMedia)
 {
-  /* Add the track ID to the list for audio/video so they can be counted when
-   * createOffer/createAnswer is called. This tells us whether we have the
-   * camera, mic, or both for example.
-   */
-  mozilla::MediaSegment::Type trackType = aQueuedMedia.GetType();
-
-  if (trackType == mozilla::MediaSegment::AUDIO) {
-    // Should have very few tracks so not a hashtable
-    bool found = false;
-    for (unsigned u = 0; u < mAudioTracks.Length(); u++) {
-      if (aID == mAudioTracks.ElementAt(u)) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      mAudioTracks.AppendElement(aID);
-    }
-  } else if (trackType == mozilla::MediaSegment::VIDEO) {
-    // Should have very few tracks so not a hashtable
-    bool found = false;
-    for (unsigned u = 0; u < mVideoTracks.Length(); u++) {
-      if (aID == mVideoTracks.ElementAt(u)) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      mVideoTracks.AppendElement(aID);
-    }
-  } else {
-    CSFLogError(logTag, "NotifyQueuedTrackChanges - unknown media type");
-  }
+  /* TODO: use this callback to keep track of changes to the MediaStream */
 }
 
 nsDOMMediaStream*
@@ -292,7 +257,7 @@ PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();
 
-  CSFLogDebug(logTag, "Created PeerConnection=%p", pc);
+  CSFLogDebugS(logTag, "Created PeerConnection: " << static_cast<void*>(pc));
 
   return pc;
 }
@@ -330,37 +295,51 @@ PeerConnectionImpl::~PeerConnectionImpl()
 }
 
 // One level of indirection so we can use WrapRunnable in CreateMediaStream.
-void
+nsresult
 PeerConnectionImpl::MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
+  MOZ_ASSERT(retval);
+
   nsRefPtr<nsDOMMediaStream> stream = nsDOMMediaStream::CreateInputStream(hint);
   NS_ADDREF(*retval = stream);
-  CSFLogDebug(logTag, "PeerConnection %p: Created media stream %p inner=%p",
-              this, stream.get(), stream->GetStream());
 
-  return;
+  CSFLogDebugS(logTag, "PeerConnection " << static_cast<void*>(this) 
+    << ": Created media stream " << static_cast<void*>(stream) 
+    << " inner: " << static_cast<void*>(stream->GetStream()));
+
+  return NS_OK;
 }
 
-void
+nsresult
 PeerConnectionImpl::MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info)
 {
+  MOZ_ASSERT(info);
+  MOZ_ASSERT(stream);
+
   // TODO(ekr@rtfm.com): Add the track info with the first segment
   nsRefPtr<RemoteSourceStreamInfo> remote = new RemoteSourceStreamInfo(stream);
   NS_ADDREF(*info = remote);
-  return;
+  return NS_OK;
 }
 
-void
+nsresult
 PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info)
 {
+  MOZ_ASSERT(info);
+  
   nsIDOMMediaStream* stream;
 
+  nsresult res;
   if (!mThread || NS_IsMainThread()) {
-    MakeMediaStream(hint, &stream);
+    res = MakeMediaStream(hint, &stream);
   } else {
-    mThread->Dispatch(WrapRunnable(
-      this, &PeerConnectionImpl::MakeMediaStream, hint, &stream
+    mThread->Dispatch(WrapRunnableRet(
+      this, &PeerConnectionImpl::MakeMediaStream, hint, &stream, &res
     ), NS_DISPATCH_SYNC);
+  }
+
+  if (NS_FAILED(res)) {
+    return res;
   }
 
   nsDOMMediaStream* comstream = static_cast<nsDOMMediaStream*>(stream);
@@ -370,43 +349,45 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStre
   if (!mThread || NS_IsMainThread()) {
     remote = new RemoteSourceStreamInfo(comstream);
     NS_ADDREF(*info = remote);
-    return;
+    return NS_OK;
   }
 
-  mThread->Dispatch(WrapRunnable(
-    this, &PeerConnectionImpl::MakeRemoteSource, comstream, info
+  mThread->Dispatch(WrapRunnableRet(
+    this, &PeerConnectionImpl::MakeRemoteSource, comstream, info, &res
   ), NS_DISPATCH_SYNC);
-  return;
+
+  if (NS_FAILED(res)) {
+    return res;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
                                nsIDOMWindow* aWindow,
                                nsIThread* thread) {
-  if (!observer) {
-    return NS_ERROR_FAILURE;
-  }
-
-  mThread = thread;
+  MOZ_ASSERT(observer);
   mPCObserver = observer;
 
 #ifdef MOZILLA_INTERNAL_API
   // Currently no standalone unit tests for DataChannel,
   // which is the user of mWindow
+  MOZ_ASSERT(aWindow);
   mWindow = do_QueryInterface(aWindow);
   NS_ENSURE_STATE(mWindow);
 #endif
 
+  // The thread parameter can be passed in as NULL
+  mThread = thread;
+
   PeerConnectionCtx *pcctx = PeerConnectionCtx::GetInstance();
 
-  if (!pcctx) {
-    return NS_ERROR_FAILURE;
-  }
+  MOZ_ASSERT(pcctx);
 
   mCall = pcctx->createCall();
-  if (!mCall.get()) {
-    return NS_ERROR_FAILURE;
-  }
+
+  MOZ_ASSERT(mCall.get());
 
   // Generate a random handle
   unsigned char handle_bin[4];
@@ -421,15 +402,38 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
   mIceCtx = NrIceCtx::Create("PC:" + mHandle, true);
+  MOZ_ASSERT(mIceCtx);
+
   mIceCtx->SignalGatheringCompleted.connect(this, &PeerConnectionImpl::IceGatheringCompleted);
   mIceCtx->SignalCompleted.connect(this, &PeerConnectionImpl::IceCompleted);
 
-  // Create two streams to start with, assume one for audio and
-  // one for video, a third stream for a Data Channel is created
-  // this will be re-visited
-  mIceStreams.push_back(mIceCtx->CreateStream("stream1", 2));
-  mIceStreams.push_back(mIceCtx->CreateStream("stream2", 2));
-  mIceStreams.push_back(mIceCtx->CreateStream("stream3", 2));
+  // Create three streams to start with.
+  // One each for audio, video and DataChannel
+  // TODO: this will be re-visited
+  RefPtr<NrIceMediaStream> audioStream = mIceCtx->CreateStream("stream1", 2);
+  RefPtr<NrIceMediaStream> videoStream = mIceCtx->CreateStream("stream2", 2);
+  RefPtr<NrIceMediaStream> dcStream = mIceCtx->CreateStream("stream3", 2);
+
+  if (!audioStream) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": audio stream is NULL");
+    return NS_ERROR_FAILURE;
+  } else {
+    mIceStreams.push_back(audioStream);
+  }
+
+  if (!videoStream) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": video stream is NULL");
+    return NS_ERROR_FAILURE;
+  } else {
+    mIceStreams.push_back(videoStream);
+  }
+
+  if (!dcStream) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": datachannel stream is NULL");
+    return NS_ERROR_FAILURE;
+  } else {
+    mIceStreams.push_back(dcStream);
+  }
 
   for (std::size_t i=0; i<mIceStreams.size(); i++) {
     mIceStreams[i]->SignalReady.connect(this, &PeerConnectionImpl::IceStreamReady);
@@ -440,7 +444,11 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   mIceCtx->thread()->Dispatch(WrapRunnableRet(
     mIceCtx, &NrIceCtx::StartGathering, &res), NS_DISPATCH_SYNC
   );
-  PR_ASSERT(NS_SUCCEEDED(res));
+
+  if (NS_FAILED(res)) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": StartGathering failed: " << res);
+    return res;
+  }
 
   // Store under mHandle
   mCall->setPeerConnection(mHandle);
@@ -448,6 +456,11 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 
   // Create the DTLS Identity
   mIdentity = DtlsIdentity::Generate("self");
+
+  if (!mIdentity) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": Generate returned NULL");
+    return NS_ERROR_FAILURE;
+  }
 
   // Set the fingerprint. Right now assume we only have one
   // DTLS identity
@@ -457,21 +470,27 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
                                       fingerprint,
                                       sizeof(fingerprint),
                                       &fingerprint_length);
-  PR_ASSERT(NS_SUCCEEDED(res));
-  if (!NS_SUCCEEDED(res))
-    return NS_ERROR_FAILURE;
+
+  if (NS_FAILED(res)) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": ComputeFingerprint failed: " << res);
+    return res;
+  }
 
   mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
 
    // Find the STS thread
    mSTSThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
-   if (!NS_SUCCEEDED(res))
-     return NS_ERROR_FAILURE;
+
+   if (NS_FAILED(res)) {
+    CSFLogErrorS(logTag, __FUNCTION__ << ": do_GetService failed: " << res);
+     return res;
+   }
 
   // Busy-wait until we are ready
   // TODO(ekr@rtfm.com): This needs to be fixed with deferred operation
   // in PeerConnection.js
+  CSFLogDebugS(logTag, __FUNCTION__ << ": Sleeping until kStarted");
   while(PeerConnectionCtx::GetInstance()->sipcc_state() != kStarted) {
     PR_Sleep(100);
   }
@@ -482,6 +501,8 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
 NS_IMETHODIMP
 PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** retval)
 {
+  MOZ_ASSERT(retval);
+
   bool mute = false;
 
   // Hack to allow you to mute the stream
@@ -490,19 +511,24 @@ PeerConnectionImpl::CreateFakeMediaStream(PRUint32 hint, nsIDOMMediaStream** ret
     hint &= ~0x80;
   }
 
+  nsresult res;
   if (!mThread || NS_IsMainThread()) {
-    MakeMediaStream(hint, retval);
+    res = MakeMediaStream(hint, retval);
   } else {
-    mThread->Dispatch(WrapRunnable(
-      this, &PeerConnectionImpl::MakeMediaStream, hint, retval
+    mThread->Dispatch(WrapRunnableRet(
+      this, &PeerConnectionImpl::MakeMediaStream, hint, retval, &res
     ), NS_DISPATCH_SYNC);
+  }
+
+  if (NS_FAILED(res)) {
+    return res;
   }
 
   if (!mute) {
     if (hint & nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
       new Fake_AudioGenerator(static_cast<nsDOMMediaStream*>(*retval));
     } else {
-  #ifdef MOZILLA_INTERNAL_API
+#ifdef MOZILLA_INTERNAL_API
       new Fake_VideoGenerator(static_cast<nsDOMMediaStream*>(*retval));
 #endif
     }
@@ -523,7 +549,7 @@ PeerConnectionImpl::ConnectDataConnection(PRUint16 localport, PRUint16 remotepor
     // XXX Fix!  get the correct flow for DataChannel
     // XXX FIX! Main Thread?  Do we need to get this off?
     nsRefPtr<TransportFlow> flow = GetTransportFlow(1,false).get();
-    std::cerr << "Transportflow[1] = " << flow.get() << std::endl;
+    CSFLogDebugS(logTag, "Transportflow[1] = " << flow.get());
 
     mDataConnection->ConnectDTLS(flow, localport, remoteport);
     // XXX errors?
@@ -541,6 +567,8 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& label,
                                       PRUint16 maxNum,
                                       nsIDOMDataChannel** aRetval)
 {
+  MOZ_ASSERT(aRetval);
+
 #ifdef MOZILLA_INTERNAL_API
   mozilla::DataChannel *aDataChannel;
   mozilla::DataChannelConnection::Type theType = (mozilla::DataChannelConnection::Type) type;
@@ -556,7 +584,8 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& label,
   if (!aDataChannel)
     return NS_ERROR_FAILURE;
 
-  std::cerr << "PeerConnectionImpl::making DOMDataChannel" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": making DOMDataChannel");
+
   return NS_NewDOMDataChannel(aDataChannel,
                               mWindow, /* GetOwner(), */
                               aRetval);
@@ -569,7 +598,8 @@ PeerConnectionImpl::CreateDataChannel(const nsACString& label,
 NS_IMETHODIMP
 PeerConnectionImpl::Listen(unsigned short port, PRUint16 numstreams)
 {
-  std::cerr << "PeerConnectionImpl::Listen()" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": port: " << port << ", numstreams: " << numstreams);
+
 #ifdef MOZILLA_INTERNAL_API
   if (!mDataConnection) {
     mDataConnection = new mozilla::DataChannelConnection(this);
@@ -585,7 +615,7 @@ PeerConnectionImpl::Listen(unsigned short port, PRUint16 numstreams)
     PR_JOINABLE_THREAD, 0
   );
 
-  std::cerr << "PeerConnectionImpl::Listen() returned" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": returned");;
 #endif
   return NS_OK;
 }
@@ -594,19 +624,22 @@ PeerConnectionImpl::Listen(unsigned short port, PRUint16 numstreams)
 void
 PeerConnectionImpl::ListenThread(void *data)
 {
+  MOZ_ASSERT(data);
+
 #ifdef MOZILLA_INTERNAL_API
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
   ctx->mDataConnection->Listen(ctx->listenPort);
 #endif
-  std::cerr << "PeerConnectionImpl::ListenThread() finished" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": finished");
 }
 
 // XXX Temporary - remove
 NS_IMETHODIMP
 PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 remoteport, PRUint16 numstreams)
 {
-  std::cerr << "PeerConnectionImpl::Connect()" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__);
+
 #ifdef MOZILLA_INTERNAL_API
   char *s = ToNewCString(addr);
   if (!mDataConnection) {
@@ -624,7 +657,7 @@ PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 
     PR_JOINABLE_THREAD, 0
   );
 
-  std::cerr << "PeerConnectionImpl::Connect() returned" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": returned");;
 #endif
   return NS_OK;
 }
@@ -633,12 +666,14 @@ PeerConnectionImpl::Connect(const nsAString &addr, PRUint16 localport, PRUint16 
 void
 PeerConnectionImpl::ConnectThread(void *data)
 {
+  MOZ_ASSERT(data);
+
 #ifdef MOZILLA_INTERNAL_API
   sipcc::PeerConnectionImpl *ctx = static_cast<sipcc::PeerConnectionImpl*>(data);
 
   ctx->mDataConnection->Connect(ctx->connectStr,ctx->connectPort);
 #endif
-  std::cerr << "PeerConnectionImpl::ConnectThread() finished" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__ << ": finished");
 }
 
 void
@@ -646,7 +681,7 @@ PeerConnectionImpl::NotifyConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  std::cerr << "PeerConnectionImpl:: got NotifyConnection" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
@@ -667,7 +702,7 @@ PeerConnectionImpl::NotifyClosedConnection()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  std::cerr << "PeerConnectionImpl:: got NotifyClosedConnection" << std::endl;
+  CSFLogDebugS(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
   if (mPCObserver) {
@@ -686,7 +721,9 @@ PeerConnectionImpl::NotifyClosedConnection()
 void
 PeerConnectionImpl::NotifyDataChannel(mozilla::DataChannel *channel)
 {
-  std::cerr << "PeerConnectionImpl:: got NotifyDataChannel" << std::endl;
+  MOZ_ASSERT(channel);
+
+  CSFLogDebugS(logTag, __FUNCTION__ << ": channel: " << static_cast<void*>(channel));
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<nsIDOMDataChannel> domchannel;
@@ -712,6 +749,8 @@ PeerConnectionImpl::NotifyDataChannel(mozilla::DataChannel *channel)
  */
 NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(const char* hints) {
+  MOZ_ASSERT(hints);
+
   CheckApiState();
   mRole = kRoleOfferer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createOffer(hints);
@@ -720,6 +759,9 @@ PeerConnectionImpl::CreateOffer(const char* hints) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
+  MOZ_ASSERT(hints);
+  MOZ_ASSERT(offer);
+
   CheckApiState();
   mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
   mCall->createAnswer(hints, offer);
@@ -728,6 +770,8 @@ PeerConnectionImpl::CreateAnswer(const char* hints, const char* offer) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::SetLocalDescription(PRInt32 action, const char* sdp) {
+  MOZ_ASSERT(sdp);
+
   CheckApiState();
   mLocalRequestedSDP = sdp;
   mCall->setLocalDescription((cc_jsep_action_t)action, mLocalRequestedSDP);
@@ -736,6 +780,8 @@ PeerConnectionImpl::SetLocalDescription(PRInt32 action, const char* sdp) {
 
 NS_IMETHODIMP
 PeerConnectionImpl::SetRemoteDescription(PRInt32 action, const char* sdp) {
+  MOZ_ASSERT(sdp);
+
   CheckApiState();
   mRemoteRequestedSDP = sdp;
   mCall->setRemoteDescription((cc_jsep_action_t)action, mRemoteRequestedSDP);
@@ -745,9 +791,11 @@ PeerConnectionImpl::SetRemoteDescription(PRInt32 action, const char* sdp) {
 NS_IMETHODIMP
 PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream)
 {
+  MOZ_ASSERT(aMediaStream);
+
   nsDOMMediaStream* stream = static_cast<nsDOMMediaStream*>(aMediaStream);
 
-  CSFLogDebug(logTag, "AddStream");
+  CSFLogDebugS(logTag, __FUNCTION__ << ": MediaStream: " << static_cast<void*>(aMediaStream));
 
   // TODO(ekr@rtfm.com): Remove these asserts?
   // Adding tracks here based on nsDOMMediaStream expectation settings
@@ -770,7 +818,6 @@ PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream)
     if (localSourceStream->GetMediaStream()->GetHintContents() & hints) {
       CSFLogError(logTag, "Only one stream of any given type allowed");
       PR_Unlock(mLocalSourceStreamsLock);
-      PR_ASSERT(PR_FALSE);
       return NS_ERROR_FAILURE;
     }
   }
@@ -807,8 +854,11 @@ PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream)
 NS_IMETHODIMP
 PeerConnectionImpl::RemoveStream(nsIDOMMediaStream* aMediaStream)
 {
+  MOZ_ASSERT(aMediaStream);
+
   nsDOMMediaStream* stream = static_cast<nsDOMMediaStream*>(aMediaStream);
-  CSFLogDebug(logTag, "RemoveStream");
+
+  CSFLogDebugS(logTag, __FUNCTION__ << ": MediaStream: " << static_cast<void*>(aMediaStream));
 
   PR_Lock(mLocalSourceStreamsLock);
   for (unsigned u = 0; u < mLocalSourceStreams.Length(); u++) {
@@ -851,9 +901,12 @@ PeerConnectionImpl::CloseStreams() {
 NS_IMETHODIMP
 PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerprint)
 {
+  MOZ_ASSERT(hash);
+  MOZ_ASSERT(fingerprint);
+
   if (fingerprint != NULL && (strcmp(hash, "sha-1") == 0)) {
     mRemoteFingerprint = std::string(fingerprint);
-    std::cerr << "Setting remote fingerprint to " << mRemoteFingerprint << std::endl;
+    CSFLogDebugS(logTag, "Setting remote fingerprint to " << mRemoteFingerprint);
     return NS_OK;
   } else {
     return NS_ERROR_FAILURE;
@@ -863,6 +916,8 @@ PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerpri
 NS_IMETHODIMP
 PeerConnectionImpl::GetFingerprint(char** fingerprint)
 {
+  MOZ_ASSERT(fingerprint);
+
   if (!mIdentity) {
     return NS_ERROR_FAILURE;
   }
@@ -878,6 +933,8 @@ PeerConnectionImpl::GetFingerprint(char** fingerprint)
 NS_IMETHODIMP
 PeerConnectionImpl::GetLocalDescription(char** sdp)
 {
+  MOZ_ASSERT(sdp);
+
   char* tmp = new char[mLocalSDP.size() + 1];
   std::copy(mLocalSDP.begin(), mLocalSDP.end(), tmp);
   tmp[mLocalSDP.size()] = '\0';
@@ -889,6 +946,8 @@ PeerConnectionImpl::GetLocalDescription(char** sdp)
 NS_IMETHODIMP
 PeerConnectionImpl::GetRemoteDescription(char** sdp)
 {
+  MOZ_ASSERT(sdp);
+
   char* tmp = new char[mRemoteSDP.size() + 1];
   std::copy(mRemoteSDP.begin(), mRemoteSDP.end(), tmp);
   tmp[mRemoteSDP.size()] = '\0';
@@ -900,6 +959,8 @@ PeerConnectionImpl::GetRemoteDescription(char** sdp)
 NS_IMETHODIMP
 PeerConnectionImpl::GetReadyState(PRUint32* state)
 {
+  MOZ_ASSERT(state);
+
   *state = mReadyState;
   return NS_OK;
 }
@@ -907,6 +968,8 @@ PeerConnectionImpl::GetReadyState(PRUint32* state)
 NS_IMETHODIMP
 PeerConnectionImpl::GetSipccState(PRUint32* state)
 {
+  MOZ_ASSERT(state);
+
   PeerConnectionCtx* pcctx = PeerConnectionCtx::GetInstance();
   *state = pcctx ? pcctx->sipcc_state() : kIdle;
   return NS_OK;
@@ -915,6 +978,8 @@ PeerConnectionImpl::GetSipccState(PRUint32* state)
 NS_IMETHODIMP
 PeerConnectionImpl::GetIceState(PRUint32* state)
 {
+  MOZ_ASSERT(state);
+
   *state = mIceState;
   return NS_OK;
 }
@@ -986,6 +1051,9 @@ void
 PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
   CSF::CC_CallPtr call, CSF::CC_CallInfoPtr info)
 {
+  MOZ_ASSERT(call.get());
+  MOZ_ASSERT(info.get());
+
   cc_call_state_t state = info->getCallState();
   std::string statestr = info->callStateToString(state);
 
@@ -1003,7 +1071,7 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e callEvent,
       mRemoteSDP = mRemoteRequestedSDP;
       break;
     case CONNECTED:
-      std::cerr << "Setting PeerConnnection state to kActive" << std::endl;
+      CSFLogDebugS(logTag, "Setting PeerConnnection state to kActive");
       ChangeReadyState(kActive);
       break;
     default:
@@ -1059,7 +1127,10 @@ PeerConnectionImpl::GetHandle()
 void
 PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx)
 {
-  CSFLogDebug(logTag, "ICE gathering complete");
+  MOZ_ASSERT(ctx);
+
+  CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(ctx));
+
   mIceState = kIceWaiting;
 
 #ifdef MOZILLA_INTERNAL_API
@@ -1078,7 +1149,10 @@ PeerConnectionImpl::IceGatheringCompleted(NrIceCtx *ctx)
 void
 PeerConnectionImpl::IceCompleted(NrIceCtx *ctx)
 {
-  CSFLogDebug(logTag, "ICE completed");
+  MOZ_ASSERT(ctx);
+
+  CSFLogDebugS(logTag, __FUNCTION__ << ": ctx: " << static_cast<void*>(ctx));
+
   mIceState = kIceConnected;
 
 #ifdef MOZILLA_INTERNAL_API
@@ -1097,7 +1171,9 @@ PeerConnectionImpl::IceCompleted(NrIceCtx *ctx)
 void
 PeerConnectionImpl::IceStreamReady(NrIceMediaStream *stream)
 {
-  CSFLogDebug(logTag, "ICE stream ready : %s", stream->name().c_str());
+  MOZ_ASSERT(stream);
+
+  CSFLogDebugS(logTag, __FUNCTION__ << ": "  << stream->name().c_str());
 }
 
 nsRefPtr<LocalSourceStreamInfo>
@@ -1106,7 +1182,7 @@ PeerConnectionImpl::GetLocalStream(int index)
   if (index < 0 || index >= (int) mLocalSourceStreams.Length())
     return NULL;
 
-  PR_ASSERT(mLocalSourceStreams[index]);
+  MOZ_ASSERT(mLocalSourceStreams[index]);
   return mLocalSourceStreams[index];
 }
 
@@ -1116,7 +1192,7 @@ PeerConnectionImpl::GetRemoteStream(int index)
   if (index < 0 || index >= (int) mRemoteSourceStreams.Length())
     return NULL;
 
-  PR_ASSERT(mRemoteSourceStreams[index]);
+  MOZ_ASSERT(mRemoteSourceStreams[index]);
   return mRemoteSourceStreams[index];
 }
 
@@ -1124,6 +1200,8 @@ nsresult
 PeerConnectionImpl::AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info,
   int *index)
 {
+  MOZ_ASSERT(index);
+
   *index = mRemoteSourceStreams.Length();
 
   mRemoteSourceStreams.AppendElement(info);
@@ -1135,9 +1213,9 @@ void
 LocalSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline)
 {
-  PR_ASSERT(mPipelines.find(track) == mPipelines.end());
+  MOZ_ASSERT(mPipelines.find(track) == mPipelines.end());
   if (mPipelines.find(track) != mPipelines.end()) {
-    CSFLogDebug(logTag, "Storing duplicate track");
+    CSFLogErrorS(logTag, __FUNCTION__ << ": Storing duplicate track");
     return;
   }
   mPipelines[track] = pipeline;
@@ -1147,9 +1225,9 @@ void
 RemoteSourceStreamInfo::StorePipeline(int track,
   mozilla::RefPtr<mozilla::MediaPipeline> pipeline)
 {
-  PR_ASSERT(mPipelines.find(track) == mPipelines.end());
+  MOZ_ASSERT(mPipelines.find(track) == mPipelines.end());
   if (mPipelines.find(track) != mPipelines.end()) {
-    CSFLogDebug(logTag, "Storing duplicate track");
+    CSFLogErrorS(logTag, __FUNCTION__ << ": Storing duplicate track");
     return;
   }
 
