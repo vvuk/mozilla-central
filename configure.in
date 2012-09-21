@@ -3010,7 +3010,7 @@ AC_CACHE_CHECK(for sockaddr_in.sin_len,
 if test "$ac_cv_sockaddr_in_sin_len" = true ; then
   AC_DEFINE(HAVE_SIN_LEN)
 dnl HAVE_CONN_LEN must be the same as HAVE_SIN_LEN (and HAVE_SIN6_LEN too)
-  AC_DEFINE(HAVE_CONN_LEN)
+  AC_DEFINE(HAVE_SCONN_LEN)
 fi
 
 AC_CACHE_CHECK(for sockaddr_in6.sin6_len,
