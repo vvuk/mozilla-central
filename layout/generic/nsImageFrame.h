@@ -122,7 +122,7 @@ public:
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
-  NS_IMETHOD List(FILE* out, int32_t aIndent) const;
+  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
 #endif
 
   virtual int GetSkipSides() const;
@@ -399,7 +399,7 @@ public:
    * Configure an ImageLayer for this display item.
    * Set the required filter and scaling transform.
    */
-  void ConfigureLayer(ImageLayer* aLayer);
+  void ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset);
 
   NS_DISPLAY_DECL_NAME("Image", TYPE_IMAGE)
 private:

@@ -66,7 +66,7 @@ static JSLinearString *
 ArgToRootedString(JSContext *cx, CallArgs &args, unsigned argno)
 {
     if (argno >= args.length())
-        return cx->runtime->atomState.typeAtoms[JSTYPE_VOID];
+        return cx->names().undefined;
 
     Value &arg = args[argno];
     JSString *str = ToString(cx, arg);
@@ -439,7 +439,7 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
     if (call.thisv().isObject()) {
         RootedObject obj(cx, &call.thisv().toObject());
         if (obj->isString()) {
-            Rooted<jsid> id(cx, NameToId(cx->runtime->atomState.toStringAtom));
+            Rooted<jsid> id(cx, NameToId(cx->names().toString));
             if (ClassMethodIsNative(cx, obj, &StringClass, id, js_str_toString)) {
                 JSString *str = obj->asString().unbox();
                 call.setThis(StringValue(str));
@@ -1727,8 +1727,8 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     RootedValue textVal(cx, StringValue(textstr));
 
     if (!JSObject::defineElement(cx, obj, 0, patternVal) ||
-        !JSObject::defineProperty(cx, obj, cx->runtime->atomState.indexAtom, matchVal) ||
-        !JSObject::defineProperty(cx, obj, cx->runtime->atomState.inputAtom, textVal))
+        !JSObject::defineProperty(cx, obj, cx->names().index, matchVal) ||
+        !JSObject::defineProperty(cx, obj, cx->names().input, textVal))
     {
         return false;
     }
@@ -2438,11 +2438,11 @@ js::str_replace(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         /* We're about to store pointers into the middle of our string. */
-        JSFixedString *fixed = rdata.repstr->ensureFixed(cx);
-        if (!fixed)
+        JSStableString *stable = rdata.repstr->ensureStable(cx);
+        if (!stable)
             return false;
-        rdata.dollarEnd = fixed->chars() + fixed->length();
-        rdata.dollar = js_strchr_limit(fixed->chars(), '$', rdata.dollarEnd);
+        rdata.dollarEnd = stable->chars() + stable->length();
+        rdata.dollar = js_strchr_limit(stable->chars(), '$', rdata.dollarEnd);
     }
 
     /*
@@ -2991,7 +2991,7 @@ tagify(JSContext *cx, const char *begin, JSLinearString *param, const char *end,
 
     sb.infallibleAppend('>');
 
-    JSFixedString *retstr = sb.finishString();
+    JSFlatString *retstr = sb.finishString();
     if (!retstr)
         return false;
 
@@ -3220,7 +3220,7 @@ StringObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(nativeEmpty());
 
-    return addDataProperty(cx, NameToId(cx->runtime->atomState.lengthAtom),
+    return addDataProperty(cx, NameToId(cx->names().length),
                            LENGTH_SLOT, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
@@ -3237,7 +3237,8 @@ js_InitStringClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Now create the String function. */
-    RootedFunction ctor(cx, global->createConstructor(cx, js_String, CLASS_NAME(cx, String), 1));
+    RootedFunction ctor(cx);
+    ctor = global->createConstructor(cx, js_String, cx->names().String, 1);
     if (!ctor)
         return NULL;
 
@@ -3269,10 +3270,10 @@ js_InitStringClass(JSContext *cx, JSObject *obj)
     return proto;
 }
 
-JSFixedString *
+JSStableString *
 js_NewString(JSContext *cx, jschar *chars, size_t length)
 {
-    JSFixedString *s = JSFixedString::new_(cx, chars, length);
+    JSStableString *s = JSStableString::new_(cx, chars, length);
     if (s)
         Probes::createString(cx, s, length);
     return s;
@@ -3332,7 +3333,7 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     return s;
 }
 
-JSFixedString *
+JSFlatString *
 js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n)
 {
     if (JSShortString::lengthFits(n))
@@ -3343,13 +3344,13 @@ js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n)
         return NULL;
     js_strncpy(news, s, n);
     news[n] = 0;
-    JSFixedString *str = js_NewString(cx, news, n);
+    JSFlatString *str = js_NewString(cx, news, n);
     if (!str)
         js_free(news);
     return str;
 }
 
-JSFixedString *
+JSFlatString *
 js_NewStringCopyN(JSContext *cx, const char *s, size_t n)
 {
     if (JSShortString::lengthFits(n))
@@ -3358,13 +3359,13 @@ js_NewStringCopyN(JSContext *cx, const char *s, size_t n)
     jschar *chars = InflateString(cx, s, &n);
     if (!chars)
         return NULL;
-    JSFixedString *str = js_NewString(cx, chars, n);
+    JSFlatString *str = js_NewString(cx, chars, n);
     if (!str)
         js_free(chars);
     return str;
 }
 
-JSFixedString *
+JSFlatString *
 js_NewStringCopyZ(JSContext *cx, const jschar *s)
 {
     size_t n = js_strlen(s);
@@ -3376,13 +3377,13 @@ js_NewStringCopyZ(JSContext *cx, const jschar *s)
     if (!news)
         return NULL;
     js_memcpy(news, s, m);
-    JSFixedString *str = js_NewString(cx, news, n);
+    JSFlatString *str = js_NewString(cx, news, n);
     if (!str)
         js_free(news);
     return str;
 }
 
-JSFixedString *
+JSFlatString *
 js_NewStringCopyZ(JSContext *cx, const char *s)
 {
     return js_NewStringCopyN(cx, s, strlen(s));
@@ -3422,9 +3423,9 @@ js::ToStringSlow(JSContext *cx, const Value &arg)
     } else if (v.isBoolean()) {
         str = js_BooleanToString(cx, v.toBoolean());
     } else if (v.isNull()) {
-        str = cx->runtime->atomState.nullAtom;
+        str = cx->names().null;
     } else {
-        str = cx->runtime->atomState.typeAtoms[JSTYPE_VOID];
+        str = cx->names().undefined;
     }
     return str;
 }
@@ -3435,7 +3436,7 @@ js_ValueToSource(JSContext *cx, const Value &v)
     JS_CHECK_RECURSION(cx, return NULL);
 
     if (v.isUndefined())
-        return cx->runtime->atomState.void0Atom;
+        return cx->names().void0;
     if (v.isString())
         return js_QuoteString(cx, v.toString(), '"');
     if (v.isPrimitive()) {
@@ -3451,7 +3452,7 @@ js_ValueToSource(JSContext *cx, const Value &v)
 
     Value rval = NullValue();
     RootedValue fval(cx);
-    RootedId id(cx, NameToId(cx->runtime->atomState.toSourceAtom));
+    RootedId id(cx, NameToId(cx->names().toSource));
     Rooted<JSObject*> obj(cx, &v.toObject());
     if (!GetMethod(cx, obj, id, 0, &fval))
         return NULL;

@@ -36,6 +36,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
+  ["InputWidgetHelper", "chrome://browser/content/InputWidgetHelper.js"],
   ["AboutReader", "chrome://browser/content/aboutReader.js"],
   ["WebAppRT", "chrome://browser/content/WebAppRT.js"],
 ].forEach(function (aScript) {
@@ -172,6 +173,7 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Passwords:Init", false);
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "ToggleProfiling", false);
+    Services.obs.addObserver(this, "Memory:Dump", false);
 
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
@@ -450,8 +452,10 @@ var BrowserApp = {
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.shareImage"),
       NativeWindow.contextmenus.imageSaveableContext,
       function(aTarget) {
-        let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
-        let props = imageCache.findEntryProperties(aTarget.currentURI, aTarget.ownerDocument.characterSet);
+        let doc = aTarget.ownerDocument;
+        let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
+                                                         .getImgCacheForDocument(doc);
+        let props = imageCache.findEntryProperties(aTarget.currentURI, doc.characterSet);
         let src = aTarget.src;
         let type = "";
         try {
@@ -471,8 +475,10 @@ var BrowserApp = {
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.saveImage"),
       NativeWindow.contextmenus.imageSaveableContext,
       function(aTarget) {
-        let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
-        let props = imageCache.findEntryProperties(aTarget.currentURI, aTarget.ownerDocument.characterSet);
+        let doc = aTarget.ownerDocument;
+        let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
+                                                         .getImgCacheForDocument(doc);
+        let props = imageCache.findEntryProperties(aTarget.currentURI, doc.characterSet);
         let contentDisposition = "";
         let type = "";
         try {
@@ -811,7 +817,7 @@ var BrowserApp = {
       let json = JSON.parse(aPrefNames);
       let prefs = [];
 
-      for each (let prefName in json) {
+      for each (let prefName in json.preferences) {
         let pref = {
           name: prefName
         };
@@ -880,6 +886,7 @@ var BrowserApp = {
       sendMessageToJava({
         gecko: {
           type: "Preferences:Data",
+          requestId: json.requestId,    // opaque request identifier, can be any string/int/whatever
           preferences: prefs
         }
       });
@@ -1114,6 +1121,8 @@ var BrowserApp = {
       } else {
         profiler.StartProfiler(100000, 25, ["stackwalk"], 1);
       }
+    } else if (aTopic == "Memory:Dump") {
+      this.dumpMemoryStats(aData);
     }
   },
 
@@ -1126,7 +1135,83 @@ var BrowserApp = {
   // nsIAndroidBrowserApp
   getBrowserTab: function(tabId) {
     return this.getTabForId(tabId);
-  }
+  },
+
+  dumpMemoryStats: function(aLabel) {
+    // TODO once bug 788021 has landed, replace this code and just invoke that instead
+    // currently this code is hijacked from areweslimyet.com, original code can be found at:
+    // https://github.com/Nephyrin/MozAreWeSlimYet/blob/master/mozmill_endurance_test/performance.js
+    var memMgr = Cc["@mozilla.org/memory-reporter-manager;1"].getService(Ci.nsIMemoryReporterManager);
+
+    var timestamp = new Date();
+    var memory = {};
+
+    // These *should* be identical to the explicit/resident root node
+    // sum, AND the explicit/resident node explicit value (on newer builds),
+    // but we record all three so we can make sure the data is consistent
+    memory['manager_explicit'] = memMgr.explicit;
+    memory['manager_resident'] = memMgr.resident;
+
+    var knownHeap = 0;
+
+    function addReport(path, amount, kind, units) {
+      if (units !== undefined && units != Ci.nsIMemoryReporter.UNITS_BYTES)
+        // Unhandled. (old builds don't specify units, but use only bytes)
+        return;
+
+      if (memory[path])
+        memory[path] += amount;
+      else
+        memory[path] = amount;
+      if (kind !== undefined && kind == Ci.nsIMemoryReporter.KIND_HEAP
+          && path.indexOf('explicit/') == 0)
+        knownHeap += amount;
+    }
+
+    // Normal reporters
+    var reporters = memMgr.enumerateReporters();
+    while (reporters.hasMoreElements()) {
+      var r = reporters.getNext();
+      r instanceof Ci.nsIMemoryReporter;
+      if (r.path.length) {
+        addReport(r.path, r.amount, r.kind, r.units);
+      }
+    }
+
+    // Multireporters
+    if (memMgr.enumerateMultiReporters) {
+      var multireporters = memMgr.enumerateMultiReporters();
+
+      while (multireporters.hasMoreElements()) {
+        var mr = multireporters.getNext();
+        mr instanceof Ci.nsIMemoryMultiReporter;
+        mr.collectReports(function (proc, path, kind, units, amount, description, closure) {
+          addReport(path, amount, kind, units);
+        }, null);
+      }
+    }
+
+    var heapAllocated = memory['heap-allocated'];
+    // Called heap-used in older builds
+    if (!heapAllocated) heapAllocated = memory['heap-used'];
+    // This is how about:memory calculates derived value heap-unclassified, which
+    // is necessary to get a proper explicit value.
+    if (knownHeap && heapAllocated)
+      memory['explicit/heap-unclassified'] = memory['heap-allocated'] - knownHeap;
+
+    // If the build doesn't have a resident/explicit reporter, but does have
+    // the memMgr.explicit/resident field, use that
+    if (!memory['resident'])
+      memory['resident'] = memory['manager_resident']
+    if (!memory['explicit'])
+      memory['explicit'] = memory['manager_explicit']
+
+    var label = "[AboutMemoryDump|" + aLabel + "] ";
+    dump(label + timestamp);
+    for (var type in memory) {
+      dump(label + type + " = " + memory[type]);
+    }
+  },
 };
 
 var NativeWindow = {
@@ -2637,24 +2722,10 @@ Tab.prototype = {
   },
 
   sendViewportUpdate: function(aPageSizeUpdate) {
-    let message;
-    // for foreground tabs, send the viewport update unless the document
-    // displayed is different from the content document. In that case, just
-    // calculate the display port.
-    if (BrowserApp.selectedTab == this && BrowserApp.isBrowserContentDocumentDisplayed()) {
-      message = this.getViewport();
-      message.type = aPageSizeUpdate ? "Viewport:PageSize" : "Viewport:Update";
-    } else {
-      // for background tabs, request a new display port calculation, so that
-      // when we do switch to that tab, we have the correct display port and
-      // don't need to draw twice (once to allow the first-paint viewport to
-      // get to java, and again once java figures out the display port).
-      message = this.getViewport();
-      message.type = "Viewport:CalculateDisplayPort";
-    }
-    let displayPort = sendMessageToJava({ gecko: message });
+    let viewport = this.getViewport();
+    let displayPort = getBridge().getDisplayPort(aPageSizeUpdate, BrowserApp.isBrowserContentDocumentDisplayed(), this.id, viewport);
     if (displayPort != null)
-      this.setDisplayPort(JSON.parse(displayPort));
+      this.setDisplayPort(displayPort);
   },
 
   handleEvent: function(aEvent) {
@@ -2694,9 +2765,9 @@ Tab.prototype = {
         // require error page UI to do privileged things, without letting error
         // pages have any privilege themselves.
         if (/^about:/.test(target.documentURI)) {
-          this.browser.addEventListener("click", ErrorPageEventHandler, false);
+          this.browser.addEventListener("click", ErrorPageEventHandler, true);
           let listener = function() {
-            this.browser.removeEventListener("click", ErrorPageEventHandler, false);
+            this.browser.removeEventListener("click", ErrorPageEventHandler, true);
             this.browser.removeEventListener("pagehide", listener, true);
           }.bind(this);
 
@@ -3408,6 +3479,7 @@ var BrowserEventHandler = {
 
     BrowserApp.deck.addEventListener("DOMUpdatePageReport", PopupBlockerObserver.onUpdatePageReport, false);
     BrowserApp.deck.addEventListener("touchstart", this, true);
+    BrowserApp.deck.addEventListener("click", InputWidgetHelper, true);
     BrowserApp.deck.addEventListener("click", SelectHelper, true);
   },
 
@@ -4068,6 +4140,10 @@ var ErrorPageEventHandler = {
           } else if (target == errorDoc.getElementById("getMeOutOfHereButton")) {
             errorDoc.location = "about:home";
           }
+        } else if (/^about:neterror\?e=netOffline/.test(ownerDoc.documentURI)) {
+          let tryAgain = errorDoc.getElementById("errorTryAgain");
+          if (target == tryAgain)
+            Services.io.offline = false;
         }
         break;
       }
@@ -6150,8 +6226,10 @@ var WebappsUI = {
 
   observe: function observe(aSubject, aTopic, aData) {
     let data = {};
-    try { data = JSON.parse(aData); }
-    catch(ex) { }
+    try {
+      data = JSON.parse(aData);
+      data.mm = aSubject;
+    } catch(ex) { }
     switch (aTopic) {
       case "webapps-install-error":
         let msg = "";
@@ -6312,13 +6390,13 @@ var WebappsUI = {
       // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
       // a unique ID for Android webapp allocation
       this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(aData.app.origin, null, null)),
-        (function(icon) {
+        (function(scaledIcon, fullsizeIcon) {
           let profilePath = sendMessageToJava({
             gecko: {
               type: "WebApps:Install",
               name: manifest.name,
               launchPath: manifest.fullLaunchPath(),
-              iconURL: icon,
+              iconURL: scaledIcon,
               uniqueURI: aData.app.origin
             }
           });
@@ -6338,6 +6416,20 @@ var WebappsUI = {
             let defaultPrefsFile = file.clone();
             defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
             this.writeDefaultPrefs(defaultPrefsFile, prefs);
+
+            // also save the icon so that it can be used in the splash screen
+            try {
+              let iconFile = file.clone();
+              iconFile.append("logo.png");
+              let persist = Cc["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"].createInstance(Ci.nsIWebBrowserPersist);
+              persist.persistFlags = Ci.nsIWebBrowserPersist.PERSIST_FLAGS_REPLACE_EXISTING_FILES;
+              persist.persistFlags |= Ci.nsIWebBrowserPersist.PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION;
+  
+              let source = Services.io.newURI(fullsizeIcon, "UTF8", null);
+              persist.saveURI(source, null, null, null, null, iconFile);
+            } catch(ex) {
+              console.log(ex);
+            }
           }
           DOMApplicationRegistry.confirmInstall(aData, false, file);
         }).bind(this));
@@ -6350,7 +6442,7 @@ var WebappsUI = {
     if (aPrefs.length > 0) {
       let data = JSON.stringify(aPrefs);
 
-      var ostream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+      let ostream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
       ostream.init(aFile, -1, -1, 0);
 
       let istream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
@@ -6400,9 +6492,15 @@ var WebappsUI = {
     let favicon = new Image();
     favicon.onload = function() {
       ctx.drawImage(favicon, 0, 0, size, size);
-      let base64icon = canvas.toDataURL("image/png", "");
+      let scaledIcon = canvas.toDataURL("image/png", "");
+
+      canvas.width = favicon.width;
+      canvas.height = favicon.height;
+      ctx.drawImage(favicon, 0, 0, favicon.width, favicon.height);
+      let fullsizeIcon = canvas.toDataURL("image/png", "");
+
       canvas = null;
-      aCallbackFunction.call(null, base64icon);
+      aCallbackFunction.call(null, scaledIcon, fullsizeIcon);
     };
     favicon.onerror = function() {
       Cu.reportError("CreateShortcut: favicon image load error");

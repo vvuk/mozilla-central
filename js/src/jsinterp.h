@@ -90,16 +90,6 @@ ReportIsNotFunction(JSContext *cx, const Value *vp, MaybeConstruct construct = N
 extern JSObject *
 ValueToCallable(JSContext *cx, const Value *vp, MaybeConstruct construct = NO_CONSTRUCT);
 
-inline JSFunction *
-ReportIfNotFunction(JSContext *cx, const Value &v, MaybeConstruct construct = NO_CONSTRUCT)
-{
-    if (v.isObject() && v.toObject().isFunction())
-        return v.toObject().toFunction();
-
-    ReportIsNotFunction(cx, v, construct);
-    return NULL;
-}
-
 /*
  * InvokeKernel assumes that the given args have been pushed on the top of the
  * VM stack. Additionally, if 'args' is contained in a CallArgsList, that they
@@ -197,7 +187,7 @@ extern JS_NEVER_INLINE InterpretStatus
 Interpret(JSContext *cx, StackFrame *stopFp, InterpMode mode = JSINTERP_NORMAL);
 
 extern bool
-RunScript(JSContext *cx, JSScript *script, StackFrame *fp);
+RunScript(JSContext *cx, HandleScript script, StackFrame *fp);
 
 extern bool
 StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, bool *equal);

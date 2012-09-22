@@ -241,16 +241,14 @@ pref("gfx.canvas.azure.enabled", true);
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.canvas.azure.backends", "direct2d,cairo");
+pref("gfx.content.azure.backends", "direct2d");
 pref("gfx.content.azure.enabled", true);
 #else
 #ifdef XP_MACOSX
 pref("gfx.canvas.azure.backends", "cg");
 #else
-#ifdef ANDROID
 pref("gfx.canvas.azure.backends", "cairo");
-#else
-pref("gfx.canvas.azure.backends", "cairo");
-#endif
+pref("gfx.content.azure.backends", "cairo");
 #endif
 #endif
 
@@ -1119,8 +1117,10 @@ pref("network.dns.ipv4OnlyDomains", "");
 // This preference can be used to turn off IPv6 name lookups. See bug 68796.
 pref("network.dns.disableIPv6", false);
 
-// This preference can be used to turn off DNS prefetch.
-pref("network.dns.disablePrefetch", false);
+// The grace period allows the DNS cache to use expired entries, while kicking off
+// a revalidation in the background. In seconds, but rounded to minutes in gecko.
+// Default to 30 days. (basically forever)
+pref("network.dnsCacheExpirationGracePeriod", 2592000);
 
 // This preference controls whether or not URLs with UTF-8 characters are
 // escaped.  Set this preference to TRUE for strict RFC2396 conformance.
@@ -1340,6 +1340,10 @@ pref("security.dialog_enable_delay", 2000);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
+
+// Mixed content blocking
+pref("security.mixed_content.block_active_content", false);
+pref("security.mixed_content.block_display_content", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -3678,6 +3682,7 @@ pref("dom.mozAlarms.enabled", false);
 
 // WebSettings
 pref("dom.mozSettings.enabled", false);
+pref("dom.mozPermissionSettings.enabled", false);
 
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
@@ -3727,5 +3732,9 @@ pref("toolkit.identity.debug", false);
 // for them in their manifest.
 pref("dom.mozApps.dev_mode", false);
 
-// Lowest localId for installed apps.
-pref("dom.mozApps.maxLocalId", 10000);
+// Lowest localId for apps.
+pref("dom.mozApps.maxLocalId", 1000);
+
+// Let us know wether we should run the permissions update algorithm.
+// See Bug 787439
+pref("dom.mozApps.runUpdate", true);

@@ -73,6 +73,11 @@ class TransportLayerPrsock : public TransportLayer {
         PR_Close(fd_);
       }
 
+      virtual void IsLocal(bool *aIsLocal) {
+        // TODO(jesup): better check? Does it matter? (likely no)
+        *aIsLocal = false;
+      }
+
       // nsISupports methods
       NS_DECL_ISUPPORTS
 
@@ -90,6 +95,10 @@ class TransportLayerPrsock : public TransportLayer {
   void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
   void OnSocketDetached(PRFileDesc *fd) {
     SetState(CLOSED);
+  }
+  void IsLocal(bool *aIsLocal) {
+    // TODO(jesup): better check? Does it matter? (likely no)
+    *aIsLocal = false;
   }
 
   PRFileDesc *fd_;

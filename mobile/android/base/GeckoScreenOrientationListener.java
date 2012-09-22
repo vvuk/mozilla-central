@@ -11,15 +11,9 @@ import android.view.OrientationEventListener;
 import android.view.Surface;
 
 import java.util.Arrays;
-import java.util.ArrayList;
 import java.util.List;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import org.mozilla.gecko.util.GeckoEventListener;
-
-public class GeckoScreenOrientationListener implements GeckoEventListener {
+public class GeckoScreenOrientationListener {
     private static final String LOGTAG = "GeckoScreenOrientationListener";
 
     static class OrientationEventListenerImpl extends OrientationEventListener {
@@ -37,12 +31,10 @@ public class GeckoScreenOrientationListener implements GeckoEventListener {
 
     // Make sure that any change in dom/base/ScreenOrientation.h happens here too.
     static public final short eScreenOrientation_None               = 0;
-    static public final short eScreenOrientation_PortraitPrimary    = 1;
-    static public final short eScreenOrientation_PortraitSecondary  = 2;
-    static public final short eScreenOrientation_Portrait           = 3;
-    static public final short eScreenOrientation_LandscapePrimary   = 4;
-    static public final short eScreenOrientation_LandscapeSecondary = 8;
-    static public final short eScreenOrientation_Landscape          = 12;
+    static public final short eScreenOrientation_PortraitPrimary    = 1; // PR_BIT(0)
+    static public final short eScreenOrientation_PortraitSecondary  = 2; // PR_BIT(1)
+    static public final short eScreenOrientation_LandscapePrimary   = 4; // PR_BIT(2)
+    static public final short eScreenOrientation_LandscapeSecondary = 8; // PR_BIT(3)
 
     static private final short DEFAULT_ORIENTATION = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 
@@ -61,12 +53,12 @@ public class GeckoScreenOrientationListener implements GeckoEventListener {
     private GeckoScreenOrientationListener() {
         mListener = new OrientationEventListenerImpl(GeckoApp.mAppContext);
 
-        ArrayList<String> prefs = new ArrayList<String>();
-        prefs.add(DEFAULT_ORIENTATION_PREF);
-        JSONArray jsonPrefs = new JSONArray(prefs);
-        GeckoAppShell.registerEventListener("Preferences:Data", this);
-        GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Get", jsonPrefs.toString());
-        GeckoAppShell.sendEventToGecko(event);
+        PrefsHelper.getPref(DEFAULT_ORIENTATION_PREF, new PrefsHelper.PrefHandlerBase() {
+            @Override public void prefValue(String pref, String value) {
+                mDefaultOrientation = orientationFromStringArray(value);
+                unlockScreenOrientation();
+            }
+        });
 
         mDefaultOrientation = DEFAULT_ORIENTATION;
     }
@@ -119,30 +111,6 @@ public class GeckoScreenOrientationListener implements GeckoEventListener {
 
     private void stopListening() {
         mListener.disable();
-    }
-
-    public void handleMessage(String event, JSONObject message) {
-        try {
-            if ("Preferences:Data".equals(event)) {
-                JSONArray jsonPrefs = message.getJSONArray("preferences");
-                final int length = jsonPrefs.length();
-                for (int i = 0; i < length; i++) {
-                    JSONObject jPref = jsonPrefs.getJSONObject(i);
-                    final String prefName = jPref.getString("name");
-
-                    if (DEFAULT_ORIENTATION_PREF.equals(prefName)) {
-                        final String value = jPref.getString("value");
-                        mDefaultOrientation = orientationFromStringArray(value);
-                        unlockScreenOrientation();
-
-                        // this is the only pref we care about. unregister after we receive it
-                        GeckoAppShell.unregisterEventListener("Preferences:Data", this);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
-        }
     }
 
     private short orientationFromStringArray(String val) {
@@ -208,7 +176,7 @@ public class GeckoScreenOrientationListener implements GeckoEventListener {
         case eScreenOrientation_PortraitSecondary:
             orientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
             break;
-        case eScreenOrientation_Portrait:
+        case eScreenOrientation_PortraitPrimary | eScreenOrientation_PortraitSecondary:
             orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT;
             break;
         case eScreenOrientation_LandscapePrimary:
@@ -217,7 +185,7 @@ public class GeckoScreenOrientationListener implements GeckoEventListener {
         case eScreenOrientation_LandscapeSecondary:
             orientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
             break;
-        case eScreenOrientation_Landscape:
+        case eScreenOrientation_LandscapePrimary | eScreenOrientation_LandscapeSecondary:
             orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
             break;
         default:

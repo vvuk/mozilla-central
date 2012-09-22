@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 
 #include "ImageLogging.h"
@@ -868,8 +867,6 @@ void imgLoader::GlobalInit()
 
 nsresult imgLoader::InitCache()
 {
-  NS_TIME_FUNCTION;
-
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (!os)
     return NS_ERROR_FAILURE;
@@ -1250,8 +1247,9 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
 
     if (aCORSMode != imgIRequest::CORS_NONE) {
       bool withCredentials = aCORSMode == imgIRequest::CORS_USE_CREDENTIALS;
-      nsCOMPtr<nsIStreamListener> corsproxy =
-        new nsCORSListenerProxy(hvc, aLoadingPrincipal, newChannel, withCredentials, &rv);
+      nsRefPtr<nsCORSListenerProxy> corsproxy =
+        new nsCORSListenerProxy(hvc, aLoadingPrincipal, withCredentials);
+      rv = corsproxy->Init(newChannel);
       if (NS_FAILED(rv)) {
         return false;
       }
@@ -1704,9 +1702,9 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
               this));
       bool withCredentials = corsmode == imgIRequest::CORS_USE_CREDENTIALS;
 
-      nsCOMPtr<nsIStreamListener> corsproxy =
-        new nsCORSListenerProxy(pl, aLoadingPrincipal, newChannel,
-                                withCredentials, &rv);
+      nsRefPtr<nsCORSListenerProxy> corsproxy =
+        new nsCORSListenerProxy(pl, aLoadingPrincipal, withCredentials);
+      rv = corsproxy->Init(newChannel);
       if (NS_FAILED(rv)) {
         PR_LOG(gImgLog, PR_LOG_DEBUG,
                ("[this=%p] imgLoader::LoadImage -- nsCORSListenerProxy "

@@ -82,6 +82,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
 XPCOMUtils.defineLazyServiceGetter(this, "idleService",
                                    "@mozilla.org/widget/idleservice;1",
                                    "nsIIdleService");
+XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
+                                  "resource://gre/modules/UpdateChannel.jsm");
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
@@ -141,42 +143,6 @@ function getSimpleMeasurements() {
     ret.shutdownDuration = shutdownDuration;
 
   return ret;
-}
-
-/**
- * Read the update channel from defaults only.  We do this to ensure that
- * the channel is tightly coupled with the application and does not apply
- * to other installations of the application that may use the same profile.
- */
-function getUpdateChannel() {
-  var channel = "default";
-  var prefName;
-  var prefValue;
-
-  var defaults = Services.prefs.getDefaultBranch(null);
-  try {
-    channel = defaults.getCharPref("app.update.channel");
-  } catch (e) {
-    // use default when pref not found
-  }
-
-  try {
-    var partners = Services.prefs.getChildList("app.partner.");
-    if (partners.length) {
-      channel += "-cck";
-      partners.sort();
-
-      for each (prefName in partners) {
-        prefValue = Services.prefs.getCharPref(prefName);
-        channel += "-" + prefValue;
-      }
-    }
-  }
-  catch (e) {
-    Cu.reportError(e);
-  }
-
-  return channel;
 }
 
 /**
@@ -359,7 +325,7 @@ TelemetryPing.prototype = {
       appVersion: ai.version,
       appName: ai.name,
       appBuildID: ai.appBuildID,
-      appUpdateChannel: getUpdateChannel(),
+      appUpdateChannel: UpdateChannel.get(),
       platformBuildID: ai.platformBuildID,
       locale: getLocale()
     };
@@ -830,7 +796,7 @@ TelemetryPing.prototype = {
       initFlags |= PR_EXCL;
     }
     try {
-      ostream.init(file, initFlags, RW_OWNER, ostream.DEFER_OPEN);
+      ostream.init(file, initFlags, RW_OWNER, 0);
     } catch (e) {
       // Probably due to PR_EXCL.
       return;
@@ -839,8 +805,13 @@ TelemetryPing.prototype = {
     if (sync) {
       let utf8String = converter.ConvertFromUnicode(pingString);
       utf8String += converter.Finish();
-      let amount = ostream.write(utf8String, utf8String.length);
-      this.finishTelemetrySave(amount == utf8String.length, ostream);
+      let success = false;
+      try {
+        let amount = ostream.write(utf8String, utf8String.length);
+        success = amount == utf8String.length;
+      } catch (e) {
+      }
+      this.finishTelemetrySave(success, ostream);
     } else {
       let istream = converter.convertToInputStream(pingString)
       let self = this;
@@ -868,18 +839,11 @@ TelemetryPing.prototype = {
     let profileDirectory = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
     let directory = profileDirectory.clone();
     directory.append("saved-telemetry-pings");
-    if (directory.exists()) {
-      if (directory.isDirectory()) {
-        // We used to wrongly create the directory with mode 0600.
-        // Fix that.
-        directory.permissions = RWX_OWNER;
-        return directory;
-      } else {
-        directory.remove(true);
-      }
+    try {
+      directory.create(Ci.nsIFile.DIRECTORY_TYPE, RWX_OWNER);
+    } catch (e) {
+      // Already exists, just ignore this.
     }
-
-    directory.create(Ci.nsIFile.DIRECTORY_TYPE, RWX_OWNER);
     return directory;
   },
 
@@ -1030,7 +994,9 @@ TelemetryPing.prototype = {
       }
       break;
     case "quit-application-granted":
-      this.savePendingPings();
+      if (Telemetry.canSend) {
+        this.savePendingPings();
+      }
       break;
     }
   },

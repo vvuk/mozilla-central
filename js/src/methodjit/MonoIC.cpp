@@ -173,7 +173,7 @@ class EqualityICLinker : public LinkerHelper
 
   public:
     EqualityICLinker(Assembler &masm, VMFrame &f)
-        : LinkerHelper(masm, JSC::METHOD_CODE), f(f)
+        : LinkerHelper(masm, JSC::JAEGER_CODE), f(f)
     { }
 
     bool init(JSContext *cx) {
@@ -912,7 +912,7 @@ class CallCompiler : public BaseCompiler
             masm.load32(FrameAddress(VMFrame::offsetOfDynamicArgc()), JSParamReg_Argc);
         masm.jump(t0);
 
-        LinkerHelper linker(masm, JSC::METHOD_CODE);
+        LinkerHelper linker(masm, JSC::JAEGER_CODE);
         JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ScriptStub);
         if (!ep)
             return false;
@@ -933,7 +933,7 @@ class CallCompiler : public BaseCompiler
                    (unsigned long) masm.size());
 
         if (f.regs.inlined()) {
-            JSC::LinkBuffer code((uint8_t *) cs.executableAddress(), masm.size(), JSC::METHOD_CODE);
+            JSC::LinkBuffer code((uint8_t *) cs.executableAddress(), masm.size(), JSC::JAEGER_CODE);
             code.patch(inlined, f.regs.inlined());
         }
 
@@ -997,7 +997,7 @@ class CallCompiler : public BaseCompiler
                                        ImmPtr(obj->toFunction()->script()));
         Jump done = masm.jump();
 
-        LinkerHelper linker(masm, JSC::METHOD_CODE);
+        LinkerHelper linker(masm, JSC::JAEGER_CODE);
         JSC::ExecutablePool *ep = poolForSize(linker, CallICInfo::Pool_ClosureStub);
         if (!ep)
             return false;
@@ -1209,11 +1209,11 @@ class CallCompiler : public BaseCompiler
 
         StackFrame *initialFp = f.fp();
 
-        stubs::UncachedCallResult ucr;
+        stubs::UncachedCallResult ucr(f.cx);
         if (callingNew)
-            stubs::UncachedNewHelper(f, ic.frameSize.staticArgc(), &ucr);
+            stubs::UncachedNewHelper(f, ic.frameSize.staticArgc(), ucr);
         else
-            stubs::UncachedCallHelper(f, ic.frameSize.getArgc(f), lowered, &ucr);
+            stubs::UncachedCallHelper(f, ic.frameSize.getArgc(f), lowered, ucr);
 
         // Watch out in case the IC was invalidated by a recompilation on the calling
         // script. This can happen either if the callee is executed or if it compiles
@@ -1442,7 +1442,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
 
     Jump done = masm.jump();
 
-    LinkerHelper linker(masm, JSC::METHOD_CODE);
+    LinkerHelper linker(masm, JSC::JAEGER_CODE);
     JSC::ExecutablePool *ep = linker.init(f.cx);
     if (!ep)
         return;

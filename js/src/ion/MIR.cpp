@@ -12,6 +12,7 @@
 #include "EdgeCaseAnalysis.h"
 #include "jsnum.h"
 #include "jsstr.h"
+#include "jsatominlines.h"
 #include "jstypedarrayinlines.h" // For ClampIntForUint8Array
 
 using namespace js;
@@ -487,9 +488,9 @@ MCall::addArg(size_t argnum, MPassArg *arg)
 }
 
 void
-MBitNot::infer(const TypeOracle::Unary &u)
+MBitNot::infer(const TypeOracle::UnaryTypes &u)
 {
-    if (u.ival == MIRType_Object)
+    if (u.inTypes->maybeObject())
         specialization_ = MIRType_None;
     else
         specialization_ = MIRType_Int32;
@@ -532,9 +533,9 @@ MBinaryBitwiseInstruction::foldsTo(bool useValueNumbers)
 }
 
 void
-MBinaryBitwiseInstruction::infer(const TypeOracle::Binary &b)
+MBinaryBitwiseInstruction::infer(const TypeOracle::BinaryTypes &b)
 {
-    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object) {
+    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject()) {
         specialization_ = MIRType_None;
     } else {
         specialization_ = MIRType_Int32;
@@ -543,24 +544,24 @@ MBinaryBitwiseInstruction::infer(const TypeOracle::Binary &b)
 }
 
 void
-MShiftInstruction::infer(const TypeOracle::Binary &b)
+MShiftInstruction::infer(const TypeOracle::BinaryTypes &b)
 {
-    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object)
+    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject())
         specialization_ = MIRType_None;
     else
         specialization_ = MIRType_Int32;
 }
 
 void
-MUrsh::infer(const TypeOracle::Binary &b)
+MUrsh::infer(const TypeOracle::BinaryTypes &b)
 {
-    if (b.lhs == MIRType_Object || b.rhs == MIRType_Object) {
+    if (b.lhsTypes->maybeObject() || b.rhsTypes->maybeObject()) {
         specialization_ = MIRType_None;
         setResultType(MIRType_Value);
         return;
     }
 
-    if (b.rval == MIRType_Double) {
+    if (b.outTypes->getKnownTypeTag() == JSVAL_TYPE_DOUBLE) {
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;
@@ -692,11 +693,6 @@ MDiv::foldsTo(bool useValueNumbers)
 
     if (MDefinition *folded = EvaluateConstantOperands(this))
         return folded;
-
-    // 0 / x -> 0
-    // x / 1 -> x
-    if (IsConstant(lhs(), 0) || IsConstant(rhs(), 1))
-        return lhs();
 
     return this;
 }
@@ -1129,7 +1125,7 @@ MTypeOf::foldsTo(bool useValueNumbers)
     }
 
     JSRuntime *rt = GetIonContext()->compartment->rt;
-    return MConstant::New(StringValue(rt->atomState.typeAtoms[type]));
+    return MConstant::New(StringValue(TypeName(type, rt)));
 }
 
 MBitAnd *

@@ -29,11 +29,21 @@ ifdef MOZ_SCTP
 PARALLEL_DIRS += sctp
 endif
 
+ifdef MOZ_SRTP
+PARALLEL_DIRS += \
+  srtp/src \
+  $(NULL)
+endif
+
 ifdef NECKO_WIFI
 PARALLEL_DIRS += wifi
 endif
 
 PARALLEL_DIRS += locales
+
+ifdef MOZ_DASH
+PARALLEL_DIRS += dash
+endif
 
 DIRS = build
 

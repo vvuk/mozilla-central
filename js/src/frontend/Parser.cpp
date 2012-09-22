@@ -174,7 +174,7 @@ ParseContext::define(JSContext *cx, PropertyName *name, ParseNode *pn, Definitio
             return false;
         if (!args_.append(dn))
             return false;
-        if (name == cx->runtime->atomState.emptyAtom)
+        if (name == cx->names().empty)
             break;
         if (!decls_.addUnique(name, dn))
             return false;
@@ -403,8 +403,6 @@ FunctionBox::FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fu
                          ParseContext *outerpc, StrictMode sms)
   : SharedContext(cx, /* isFunction = */ true, sms),
     objbox(traceListHead, fun, this),
-    siblings(outerpc ? outerpc->functionList : NULL),
-    kids(NULL),
     bindings(),
     bufStart(0),
     bufEnd(0),
@@ -475,8 +473,6 @@ Parser::newFunctionBox(JSFunction *fun, ParseContext *outerpc, StrictMode sms)
         return NULL;
     }
 
-    if (outerpc)
-        outerpc->functionList = funbox;
     traceListHead = &funbox->objbox;
 
     return funbox;
@@ -696,8 +692,7 @@ CheckStrictAssignment(JSContext *cx, Parser *parser, ParseNode *lhs)
 {
     if (parser->pc->sc->needStrictChecks() && lhs->isKind(PNK_NAME)) {
         JSAtom *atom = lhs->pn_atom;
-        JSAtomState *atomState = &cx->runtime->atomState;
-        if (atom == atomState->evalAtom || atom == atomState->argumentsAtom) {
+        if (atom == cx->names().eval || atom == cx->names().arguments) {
             JSAutoByteString name;
             if (!js_AtomToPrintableString(cx, atom, &name) ||
                 !parser->reportStrictModeError(lhs, JSMSG_DEPRECATED_ASSIGN, name.ptr()))
@@ -721,9 +716,8 @@ CheckStrictBinding(JSContext *cx, Parser *parser, HandlePropertyName name, Parse
     if (!parser->pc->sc->needStrictChecks())
         return true;
 
-    JSAtomState *atomState = &cx->runtime->atomState;
-    if (name == atomState->evalAtom ||
-        name == atomState->argumentsAtom ||
+    if (name == cx->names().eval ||
+        name == cx->names().arguments ||
         FindKeyword(name->charsZ(), name->length()))
     {
         JSAutoByteString bytes;
@@ -790,7 +784,7 @@ Parser::functionBody(FunctionBodyType type)
     }
 
     /* Time to implement the odd semantics of 'arguments'. */
-    Rooted<PropertyName*> arguments(context, context->runtime->atomState.argumentsAtom);
+    Handle<PropertyName*> arguments = context->names().arguments;
 
     /*
      * Non-top-level functions use JSOP_DEFFUN which is a dynamic scope
@@ -1153,7 +1147,6 @@ LeaveFunction(ParseNode *fn, Parser *parser, PropertyName *funName = NULL,
 
     FunctionBox *funbox = fn->pn_funbox;
     JS_ASSERT(funbox == funpc->sc->asFunbox());
-    funbox->kids = funpc->functionList;
 
     if (!pc->topStmt || pc->topStmt->type == STMT_BLOCK)
         fn->pn_dflags |= PND_BLOCKCHILD;
@@ -1425,7 +1418,7 @@ Parser::functionArguments(ParseNode **listp, ParseNode* funcpn, bool &hasRest)
                  * anonymous positional parameter into the destructuring
                  * left-hand-side expression and accumulate it in list.
                  */
-                PropertyName *name = context->runtime->atomState.emptyAtom;
+                HandlePropertyName name = context->names().empty;
                 ParseNode *rhs = NameNode::create(PNK_NAME, name, this, this->pc);
                 if (!rhs)
                     return false;
@@ -1797,16 +1790,6 @@ Parser::functionExpr()
     return functionDef(name, Normal, Expression);
 }
 
-void
-FunctionBox::recursivelySetStrictMode(StrictMode strictness)
-{
-    if (strictModeState == StrictMode::UNKNOWN) {
-        strictModeState = strictness;
-        for (FunctionBox *kid = kids; kid; kid = kid->siblings)
-            kid->recursivelySetStrictMode(strictness);
-    }
-}
-
 /*
  * Indicate that the current scope can't switch to strict mode with a body-level
  * "use strict" directive anymore. Return false on error.
@@ -1820,10 +1803,12 @@ Parser::setStrictMode(bool strictMode)
         if (pc->sc->isFunction) {
             JS_ASSERT(pc->parent->sc->strictModeState == StrictMode::STRICT);
         } else {
-            JS_ASSERT(StrictModeFromContext(context) == StrictMode::STRICT || pc->staticLevel);
+            JS_ASSERT_IF(pc->staticLevel == 0,
+                         StrictModeFromContext(context) == StrictMode::STRICT);
         }
         return true;
     }
+
     if (strictMode) {
         if (pc->queuedStrictModeError) {
             // There was a strict mode error in this scope before we knew it was
@@ -1833,24 +1818,24 @@ Parser::setStrictMode(bool strictMode)
             return false;
         }
         pc->sc->strictModeState = StrictMode::STRICT;
-    } else if (!pc->parent || pc->parent->sc->strictModeState == StrictMode::NOTSTRICT) {
-        // This scope will not be strict.
-        pc->sc->strictModeState = StrictMode::NOTSTRICT;
-        if (pc->queuedStrictModeError && context->hasStrictOption() &&
-            pc->queuedStrictModeError->report.errorNumber != JSMSG_STRICT_CODE_WITH) {
-            // Convert queued strict mode error to a warning.
-            pc->queuedStrictModeError->report.flags |= JSREPORT_WARNING;
-            pc->queuedStrictModeError->throwError();
+    } else {
+        if (!pc->parent || pc->parent->sc->strictModeState == StrictMode::NOTSTRICT) {
+            // This scope lacks a strict directive, and its parent (if it has
+            // one) definitely isn't strict, so it definitely won't be strict.
+            pc->sc->strictModeState = StrictMode::NOTSTRICT;
+            if (pc->queuedStrictModeError && context->hasStrictOption() &&
+                pc->queuedStrictModeError->report.errorNumber != JSMSG_STRICT_CODE_WITH) {
+                // Convert queued strict mode error to a warning.
+                pc->queuedStrictModeError->report.flags |= JSREPORT_WARNING;
+                pc->queuedStrictModeError->throwError();
+            }
+        } else {
+            // This scope (which has a parent and so must be a function) lacks
+            // a strict directive, but it's not yet clear if its parent is
+            // strict.  (This can only happen for functions in default
+            // arguments.)  Leave it in the UNKNOWN state for now.
+            JS_ASSERT(pc->sc->isFunction);
         }
-    }
-    JS_ASSERT_IF(!pc->sc->isFunction, !pc->functionList);
-    if (pc->sc->strictModeState != StrictMode::UNKNOWN && pc->sc->isFunction) {
-        // We changed the strict mode state. Retroactively recursively set
-        // strict mode status on all the function children we've seen so far
-        // children (That is, functions in default expressions).
-        pc->sc->asFunbox()->strictModeState = pc->sc->strictModeState;
-        for (FunctionBox *kid = pc->functionList; kid; kid = kid->siblings)
-            kid->recursivelySetStrictMode(pc->sc->strictModeState);
     }
     return true;
 }
@@ -1912,7 +1897,7 @@ Parser::processDirectives(ParseNode *stmts)
         tokenStream.matchToken(TOK_SEMI);
         if (isDirective) {
             // It's a directive. Is it one we know?
-            if (atom == context->runtime->atomState.useStrictAtom && !gotStrictMode) {
+            if (atom == context->names().useStrict && !gotStrictMode) {
                 pc->sc->setExplicitUseStrict();
                 if (!setStrictMode(true))
                     return false;
@@ -2953,13 +2938,61 @@ Parser::matchInOrOf(bool *isForOfp)
         return true;
     }
     if (tokenStream.matchToken(TOK_NAME)) {
-        if (tokenStream.currentToken().name() == context->runtime->atomState.ofAtom) {
+        if (tokenStream.currentToken().name() == context->names().of) {
             *isForOfp = true;
             return true;
         }
         tokenStream.ungetToken();
     }
     return false;
+}
+
+static bool
+IsValidForStatementLHS(ParseNode *pn1, JSVersion version, bool forDecl, bool forEach, bool forOf)
+{
+    if (forDecl) {
+        if (pn1->pn_count > 1)
+            return false;
+        if (pn1->isOp(JSOP_DEFCONST))
+            return false;
+#if JS_HAS_DESTRUCTURING
+        // In JS 1.7 only, for (var [K, V] in EXPR) has a special meaning.
+        // Hence all other destructuring decls are banned there.
+        if (version == JSVERSION_1_7 && !forEach && !forOf) {
+            ParseNode *lhs = pn1->pn_head;
+            if (lhs->isKind(PNK_ASSIGN))
+                lhs = lhs->pn_left;
+
+            if (lhs->isKind(PNK_OBJECT))
+                return false;
+            if (lhs->isKind(PNK_ARRAY) && lhs->pn_count != 2)
+                return false;
+        }
+#endif
+        return true;
+    }
+
+    switch (pn1->getKind()) {
+      case PNK_NAME:
+      case PNK_DOT:
+      case PNK_CALL:
+      case PNK_XMLUNARY:
+      case PNK_ELEM:
+        return true;
+
+#if JS_HAS_DESTRUCTURING
+      case PNK_ARRAY:
+      case PNK_OBJECT:
+        // In JS 1.7 only, for ([K, V] in EXPR) has a special meaning.
+        // Hence all other destructuring left-hand sides are banned there.
+        if (version == JSVERSION_1_7 && !forEach && !forOf)
+            return pn1->isKind(PNK_ARRAY) && pn1->pn_count == 2;
+        return true;
+#endif
+
+      default:
+        return false;
+    }
 }
 
 ParseNode *
@@ -2978,7 +3011,7 @@ Parser::forStatement()
     pn->setOp(JSOP_ITER);
     pn->pn_iflags = 0;
     if (tokenStream.matchToken(TOK_NAME)) {
-        if (tokenStream.currentToken().name() == context->runtime->atomState.eachAtom)
+        if (tokenStream.currentToken().name() == context->names().each)
             pn->pn_iflags = JSITER_FOREACH;
         else
             tokenStream.ungetToken();
@@ -3089,35 +3122,8 @@ Parser::forStatement()
         pn->pn_iflags |= (forOf ? JSITER_FOR_OF : JSITER_ENUMERATE);
 
         /* Check that the left side of the 'in' or 'of' is valid. */
-        if (forDecl
-            ? (pn1->pn_count > 1 || pn1->isOp(JSOP_DEFCONST)
-#if JS_HAS_DESTRUCTURING
-               || (versionNumber() == JSVERSION_1_7 &&
-                   pn->isOp(JSOP_ITER) &&
-                   !(pn->pn_iflags & JSITER_FOREACH) &&
-                   (pn1->pn_head->isKind(PNK_OBJECT) ||
-                    (pn1->pn_head->isKind(PNK_ARRAY) &&
-                     pn1->pn_head->pn_count != 2) ||
-                    (pn1->pn_head->isKind(PNK_ASSIGN) &&
-                     (!pn1->pn_head->pn_left->isKind(PNK_ARRAY) ||
-                      pn1->pn_head->pn_left->pn_count != 2))))
-#endif
-              )
-            : (!pn1->isKind(PNK_NAME) &&
-               !pn1->isKind(PNK_DOT) &&
-#if JS_HAS_DESTRUCTURING
-               ((versionNumber() == JSVERSION_1_7 &&
-                 pn->isOp(JSOP_ITER) &&
-                 !(pn->pn_iflags & JSITER_FOREACH))
-                ? (!pn1->isKind(PNK_ARRAY) || pn1->pn_count != 2)
-                : (!pn1->isKind(PNK_ARRAY) && !pn1->isKind(PNK_OBJECT))) &&
-#endif
-               !pn1->isKind(PNK_CALL) &&
-#if JS_HAS_XML_SUPPORT
-               !pn1->isKind(PNK_XMLUNARY) &&
-#endif
-               !pn1->isKind(PNK_ELEM)))
-        {
+        bool forEach = bool(pn->pn_iflags & JSITER_FOREACH);
+        if (!IsValidForStatementLHS(pn1, versionNumber(), forDecl, forEach, forOf)) {
             reportError(pn1, JSMSG_BAD_FOR_LEFTSIDE);
             return NULL;
         }
@@ -3241,7 +3247,7 @@ Parser::forStatement()
                  * in JS1.7.
                  */
                 JS_ASSERT(pn->isOp(JSOP_ITER));
-                if (!(pn->pn_iflags & JSITER_FOREACH))
+                if (!(pn->pn_iflags & JSITER_FOREACH) && !forOf)
                     pn->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
             }
             break;
@@ -4040,9 +4046,9 @@ Parser::statement()
         if (!pn)
             return NULL;
         if (!tokenStream.matchToken(TOK_NAME) ||
-            tokenStream.currentToken().name() != context->runtime->atomState.xmlAtom ||
+            tokenStream.currentToken().name() != context->names().xml ||
             !tokenStream.matchToken(TOK_NAME) ||
-            tokenStream.currentToken().name() != context->runtime->atomState.namespaceAtom ||
+            tokenStream.currentToken().name() != context->names().namespace_ ||
             !tokenStream.matchToken(TOK_ASSIGN))
         {
             reportError(NULL, JSMSG_BAD_DEFAULT_XML_NAMESPACE);
@@ -4758,12 +4764,11 @@ class CompExprTransplanter {
     Parser          *parser;
     bool            genexp;
     unsigned        adjust;
-    unsigned        funcLevel;
     HashSet<Definition *> visitedImplicitArguments;
 
   public:
     CompExprTransplanter(ParseNode *pn, Parser *parser, bool ge, unsigned adj)
-      : root(pn), parser(parser), genexp(ge), adjust(adj), funcLevel(0),
+      : root(pn), parser(parser), genexp(ge), adjust(adj),
         visitedImplicitArguments(parser->context)
     {}
 
@@ -4942,33 +4947,9 @@ CompExprTransplanter::transplant(ParseNode *pn)
         break;
 
       case PN_FUNC:
-      {
-        /*
-         * Only the first level of transplant recursion through functions needs
-         * to reparent the funbox, since all descendant functions are correctly
-         * linked under the top-most funbox.
-         */
-        FunctionBox *funbox = pn->pn_funbox;
-
-        if (++funcLevel == 1 && genexp) {
-            FunctionBox *parent = pc->sc->asFunbox();
-
-            FunctionBox **funboxp = &pc->parent->functionList;
-            while (*funboxp != funbox)
-                funboxp = &(*funboxp)->siblings;
-            *funboxp = funbox->siblings;
-
-            funbox->siblings = parent->kids;
-            parent->kids = funbox;
-        }
-        /* FALL THROUGH */
-      }
-
       case PN_NAME:
         if (!transplant(pn->maybeExpr()))
             return false;
-        if (pn->isArity(PN_FUNC))
-            --funcLevel;
 
         if (pn->isDefn()) {
             if (genexp && !BumpStaticLevel(pn, pc))
@@ -5161,7 +5142,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
         pn2->setOp(JSOP_ITER);
         pn2->pn_iflags = JSITER_ENUMERATE;
         if (tokenStream.matchToken(TOK_NAME)) {
-            if (tokenStream.currentToken().name() == context->runtime->atomState.eachAtom)
+            if (tokenStream.currentToken().name() == context->names().each)
                 pn2->pn_iflags |= JSITER_FOREACH;
             else
                 tokenStream.ungetToken();
@@ -5242,7 +5223,10 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
             if (!CheckDestructuring(context, &data, pn3, this))
                 return NULL;
 
-            if (versionNumber() == JSVERSION_1_7) {
+            if (versionNumber() == JSVERSION_1_7 &&
+                !(pn2->pn_iflags & JSITER_FOREACH) &&
+                !forOf)
+            {
                 /* Destructuring requires [key, value] enumeration in JS1.7. */
                 if (!pn3->isKind(PNK_ARRAY) || pn3->pn_count != 2) {
                     reportError(NULL, JSMSG_BAD_FOR_LEFTSIDE);
@@ -5251,8 +5235,7 @@ Parser::comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
 
                 JS_ASSERT(pn2->isOp(JSOP_ITER));
                 JS_ASSERT(pn2->pn_iflags & JSITER_ENUMERATE);
-                if (!(pn2->pn_iflags & JSITER_FOREACH))
-                    pn2->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
+                pn2->pn_iflags |= JSITER_FOREACH | JSITER_KEYVALUE;
             }
             break;
 #endif
@@ -5392,8 +5375,7 @@ Parser::generatorExpr(ParseNode *kid)
         genfn->pn_pos.begin = body->pn_pos.begin = kid->pn_pos.begin;
         genfn->pn_pos.end = body->pn_pos.end = tokenStream.currentToken().pos.end;
 
-        JSAtom *arguments = context->runtime->atomState.argumentsAtom;
-        if (AtomDefnPtr p = genpc.lexdeps->lookup(arguments)) {
+        if (AtomDefnPtr p = genpc.lexdeps->lookup(context->names().arguments)) {
             Definition *dn = p.value();
             ParseNode *errorNode = dn->dn_uses ? dn->dn_uses : body;
             reportError(errorNode, JSMSG_BAD_GENEXP_BODY, js_arguments_str);
@@ -5695,7 +5677,7 @@ Parser::memberExpr(bool allowCallSyntax)
             nextMember->setOp(JSOP_CALL);
 
             if (lhs->isOp(JSOP_NAME)) {
-                if (lhs->pn_atom == context->runtime->atomState.evalAtom) {
+                if (lhs->pn_atom == context->names().eval) {
                     /* Select JSOP_EVAL and flag pc as heavyweight. */
                     nextMember->setOp(JSOP_EVAL);
                     pc->sc->setBindingsAccessedDynamically();
@@ -5709,9 +5691,9 @@ Parser::memberExpr(bool allowCallSyntax)
                 }
             } else if (lhs->isOp(JSOP_GETPROP)) {
                 /* Select JSOP_FUNAPPLY given foo.apply(...). */
-                if (lhs->pn_atom == context->runtime->atomState.applyAtom)
+                if (lhs->pn_atom == context->names().apply)
                     nextMember->setOp(JSOP_FUNAPPLY);
-                else if (lhs->pn_atom == context->runtime->atomState.callAtom)
+                else if (lhs->pn_atom == context->names().call)
                     nextMember->setOp(JSOP_FUNCALL);
             }
 
@@ -5830,7 +5812,7 @@ Parser::propertySelector()
         if (!selector)
             return NULL;
         selector->setOp(JSOP_ANYNAME);
-        selector->pn_atom = context->runtime->atomState.starAtom;
+        selector->pn_atom = context->names().star;
     } else {
         JS_ASSERT(tokenStream.isCurrentTokenType(TOK_NAME));
         selector = NullaryNode::create(PNK_NAME, this);
@@ -5866,7 +5848,7 @@ Parser::qualifiedSuffix(ParseNode *pn)
         pn2->setOp(JSOP_QNAMECONST);
         pn2->pn_pos.begin = pn->pn_pos.begin;
         pn2->pn_atom = (tt == TOK_STAR)
-                       ? context->runtime->atomState.starAtom
+                       ? context->names().star
                        : tokenStream.currentToken().name();
         pn2->pn_expr = pn;
         pn2->pn_cookie.makeFree();
@@ -6465,7 +6447,7 @@ Parser::intrinsicName()
     }
 
     PropertyName *name = tokenStream.currentToken().name();
-    if (!(name == context->runtime->atomState._CallFunctionAtom ||
+    if (!(name == context->names()._CallFunction ||
           context->global()->hasIntrinsicFunction(context, name)))
     {
         reportError(NULL, JSMSG_INTRINSIC_NOT_DEFINED, JS_EncodeString(context, name));
@@ -6720,9 +6702,9 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
               case TOK_NAME:
                 {
                     atom = tokenStream.currentToken().name();
-                    if (atom == context->runtime->atomState.getAtom) {
+                    if (atom == context->names().get) {
                         op = JSOP_GETTER;
-                    } else if (atom == context->runtime->atomState.setAtom) {
+                    } else if (atom == context->names().set) {
                         op = JSOP_SETTER;
                     } else {
                         pn3 = NullaryNode::create(PNK_NAME, this);
@@ -6821,7 +6803,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
                  * so that we can later assume singleton objects delegate to
                  * the default Object.prototype.
                  */
-                if (!pnval->isConstant() || atom == context->runtime->atomState.protoAtom)
+                if (!pnval->isConstant() || atom == context->names().proto)
                     pn->pn_xflags |= PNX_NONCONST;
             }
 #if JS_HAS_DESTRUCTURING_SHORTHAND

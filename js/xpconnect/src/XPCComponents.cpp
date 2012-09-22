@@ -1403,7 +1403,10 @@ nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
         nsresult rv;
         while (nsXPCException::IterateNSResults(&rv, &rv_name, nullptr, &iter)) {
             if (!strcmp(name.ptr(), rv_name)) {
-                jsval val = JS_NumberValue((double)rv);
+                // The two casts below is required since nsresult is an enum,
+                // and it can be interpreted as a signed integer if we directly
+                // cast to a double.
+                jsval val = JS_NumberValue((double)(uint32_t)rv);
 
                 *objp = obj;
                 if (!JS_DefinePropertyById(cx, obj, id, val,
@@ -3172,7 +3175,7 @@ xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
     JS::RootedObject obj(cx, wrappedObject(proxy));
     JS::RootedId id(cx, id_);
 
-    JS_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
+    MOZ_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
     // XXXbz Not sure about the JSRESOLVE_QUALIFIED here, but we have
     // no way to tell for sure whether to use it.
     if (!JS_GetPropertyDescriptorById(cx, obj, id,
@@ -4718,7 +4721,10 @@ nsXPCComponents::GetProperty(nsIXPConnectWrappedNative *wrapper,
 
     nsresult rv = NS_OK;
     if (doResult) {
-        *vp = JS_NumberValue((double) res);
+        // The two casts below is required since nsresult is an enum,
+        // and it can be interpreted as a signed integer if we directly
+        // cast to a double.
+        *vp = JS_NumberValue((double)(uint32_t) res);
         rv = NS_SUCCESS_I_DID_SOMETHING;
     }
 

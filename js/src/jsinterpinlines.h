@@ -19,6 +19,7 @@
 #include "jsstr.h"
 #include "methodjit/MethodJIT.h"
 
+#include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
 #include "jsopcodeinlines.h"
@@ -333,7 +334,7 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, HandleValue lval, HandleValu
 
             if (shape->hasDefaultSetter() && shape->hasSlot()) {
                 /* Fast path for, e.g., plain Object instance properties. */
-                obj->nativeSetSlotWithType(cx, shape, rval);
+                JSObject::nativeSetSlotWithType(cx, obj, shape, rval);
             } else {
                 RootedValue rref(cx, rval);
                 bool strict = cx->stack.currentScript()->strictModeCode;
@@ -802,9 +803,9 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
                     if (js_PrototypeHasIndexedProperties(cx, obj))
                         break;
                     if ((uint32_t)i >= obj->getArrayLength())
-                        obj->setArrayLength(cx, i + 1);
+                        JSObject::setArrayLength(cx, obj, i + 1);
                 }
-                obj->setDenseArrayElementWithType(cx, i, value);
+                JSObject::setDenseArrayElementWithType(cx, obj, i, value);
                 return true;
             } else {
                 if (!cx->fp()->beginsIonActivation()) {
@@ -827,7 +828,7 @@ static JS_ALWAYS_INLINE JSString *
 TypeOfOperation(JSContext *cx, HandleValue v)
 {
     JSType type = JS_TypeOfValue(cx, v);
-    return cx->runtime->atomState.typeAtoms[type];
+    return TypeName(type, cx);
 }
 
 #define RELATIONAL_OP(OP)                                                     \
@@ -954,6 +955,16 @@ UrshOperation(JSContext *cx, HandleScript script, jsbytecode *pc,
 }
 
 #undef RELATIONAL_OP
+
+inline JSFunction *
+ReportIfNotFunction(JSContext *cx, const Value &v, MaybeConstruct construct = NO_CONSTRUCT)
+{
+    if (v.isObject() && v.toObject().isFunction())
+        return v.toObject().toFunction();
+
+    ReportIsNotFunction(cx, v, construct);
+    return NULL;
+}
 
 }  /* namespace js */
 

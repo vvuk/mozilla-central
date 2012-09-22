@@ -103,6 +103,14 @@ BluetoothServiceChildProcess::GetDefaultAdapterPathInternal(
 }
 
 nsresult
+BluetoothServiceChildProcess::GetDevicePropertiesInternal(
+                                                 const BluetoothSignal& aSignal)
+{
+  MOZ_NOT_REACHED("Should never be called from child");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsresult
 BluetoothServiceChildProcess::GetPairedDevicePropertiesInternal(
                                      const nsTArray<nsString>& aDeviceAddresses,
                                      BluetoothReplyRunnable* aRunnable)
@@ -117,7 +125,7 @@ BluetoothServiceChildProcess::GetPairedDevicePropertiesInternal(
 nsresult
 BluetoothServiceChildProcess::StopDiscoveryInternal(
                                               const nsAString& aAdapterPath,
-                                              BluetoothReplyRunnable* aRunnable) 
+                                              BluetoothReplyRunnable* aRunnable)
 {
   SendRequest(aRunnable, StopDiscoveryRequest(nsString(aAdapterPath)));
   return NS_OK;
@@ -217,37 +225,62 @@ BluetoothServiceChildProcess::CloseSocket(int aFd,
 bool
 BluetoothServiceChildProcess::SetPinCodeInternal(
                                                 const nsAString& aDeviceAddress,
-                                                const nsAString& aPinCode)
+                                                const nsAString& aPinCode,
+                                                BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return false;
+  SendRequest(aRunnable,
+              SetPinCodeRequest(nsString(aDeviceAddress), nsString(aPinCode)));
+  return true;
 }
 
 bool
 BluetoothServiceChildProcess::SetPasskeyInternal(
                                                 const nsAString& aDeviceAddress,
-                                                uint32_t aPasskey)
+                                                uint32_t aPasskey,
+                                                BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return false;
+  SendRequest(aRunnable,
+              SetPasskeyRequest(nsString(aDeviceAddress), aPasskey));
+  return true;
 }
 
 bool
 BluetoothServiceChildProcess::SetPairingConfirmationInternal(
                                                 const nsAString& aDeviceAddress,
-                                                bool aConfirm)
+                                                bool aConfirm,
+                                                BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return false;
+  if(aConfirm) {
+    SendRequest(aRunnable,
+                ConfirmPairingConfirmationRequest(nsString(aDeviceAddress)));
+  } else {
+    SendRequest(aRunnable,
+                DenyPairingConfirmationRequest(nsString(aDeviceAddress)));
+  }
+  return true;
 }
 
 bool
 BluetoothServiceChildProcess::SetAuthorizationInternal(
                                                 const nsAString& aDeviceAddress,
-                                                bool aAllow)
+                                                bool aAllow,
+                                                BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return false;
+  if(aAllow) {
+    SendRequest(aRunnable,
+                ConfirmAuthorizationRequest(nsString(aDeviceAddress)));
+  } else {
+    SendRequest(aRunnable,
+                DenyAuthorizationRequest(nsString(aDeviceAddress)));
+  }
+  return true;
+}
+
+nsresult
+BluetoothServiceChildProcess::PrepareAdapterInternal(const nsAString& aPath)
+{
+  MOZ_NOT_REACHED("Should never be called from child");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 nsresult

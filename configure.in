@@ -61,7 +61,8 @@ dnl Set the minimum version of toolkit libs used by mozilla
 dnl ========================================================
 GLIB_VERSION=1.2.0
 PERL_VERSION=5.006
-PYTHON_VERSION=2.5
+PYTHON_VERSION_MAJOR=2
+PYTHON_VERSION_MINOR=5
 CAIRO_VERSION=1.10
 PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
@@ -754,9 +755,6 @@ if test -n "$_WIN32_MSVC"; then
     AC_DEFINE(HAVE_IO_H)
     AC_DEFINE(HAVE_SETBUF)
     AC_DEFINE(HAVE_ISATTY)
-    if test $_MSC_VER -ge 1600; then
-        AC_DEFINE(HAVE_NULLPTR)
-    fi
 fi
 
 fi # COMPILE_ENVIRONMENT
@@ -1839,13 +1837,20 @@ case "$host" in
 esac
 
 dnl We require version 2.5 or newer of Python to build.
-AC_MSG_CHECKING([for Python version >= $PYTHON_VERSION but not 3.x])
-changequote(,)
-$PYTHON -c "import sys; sys.exit(sys.version[:3] < sys.argv[1] or sys.version[:2] != '2.')" $PYTHON_VERSION
-_python_res=$?
+AC_MSG_CHECKING([for Python version >= $PYTHON_VERSION_MAJOR.$PYTHON_VERSION_MINOR but not 3.x])
+
+changequote(:)
+read python_version_major python_version_minor python_version_micro <<EOF
+`$PYTHON -c 'import sys; print sys.version_info[0], sys.version_info[1], sys.version_info[2]'`
+EOF
 changequote([,])
-if test "$_python_res" != 0; then
-    AC_MSG_ERROR([Python $PYTHON_VERSION or higher (but not Python 3.x) is required.])
+
+if test $python_version_major -ne $PYTHON_VERSION_MAJOR; then
+    AC_MSG_ERROR([Cannot build on Python $python_version_major.])
+else
+    if test $python_version_minor -lt $PYTHON_VERSION_MINOR; then
+        AC_MSG_ERROR([Cannot build on Python $python_version_major.$python_version_minor. You need at least $PYTHON_VERSION_MAJOR.$PYTHON_VERSION_MINOR.])
+    fi
 fi
 AC_MSG_RESULT([yes])
 
@@ -2077,6 +2082,7 @@ ia64*-hpux*)
         _PLATFORM_DEFAULT_TOOLKIT=cairo-gonk
         MOZ_B2G_RIL=1
         MOZ_B2G_BT=1
+        MOZ_B2G_FM=1
     else
         _PLATFORM_DEFAULT_TOOLKIT=cairo-android
         MOZ_LINKER=1
@@ -2286,6 +2292,7 @@ ia64*-hpux*)
         if test -n "$GNU_CC"; then
             CFLAGS="$CFLAGS -mstackrealign -fno-keep-inline-dllexport"
             CXXFLAGS="$CXXFLAGS -mstackrealign -fno-keep-inline-dllexport"
+            LDFLAGS="$LDFLAGS -Wl,--enable-stdcall-fixup"
         else
             AC_DEFINE(HAVE_STDCALL)
             DSO_LDOPTS="$DSO_LDOPTS -MACHINE:X86"
@@ -2804,21 +2811,6 @@ dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
     fi
 fi
 
-dnl Check for nullptr (bug 626472)
-AC_LANG_CPLUSPLUS
-AC_MSG_CHECKING(for nullptr)
-AC_CACHE_VAL(ac_cv_nullptr,
- [AC_TRY_COMPILE([],
-                 [int* foo = nullptr;],
-                 [ac_cv_nullptr=true],
-                 [ac_cv_nullptr=false])])
-if test "$ac_cv_nullptr" = true ; then
-  AC_DEFINE(HAVE_NULLPTR)
-  AC_MSG_RESULT(yes)
-else
-  AC_MSG_RESULT(no)
-fi
-
 AC_LANG_C
 
 dnl Check for .hidden assembler directive and visibility attribute.
@@ -2993,9 +2985,9 @@ dnl NB - later gcc versions require -mmmx for this header to be successfully
 dnl included (or another option which implies it, such as -march=pentium-mmx)
 MOZ_CHECK_HEADERS(mmintrin.h)
 
+MOZ_CHECK_HEADERS(sys/types.h netinet/in.h byteswap.h)
 
 dnl Check for sin_len and sin6_len - used by SCTP; only appears in Mac/*BSD generally
-MOZ_CHECK_HEADERS(sys/types.h)
 AC_CACHE_CHECK(for sockaddr_in.sin_len,
                    ac_cv_sockaddr_in_sin_len,
                    [AC_TRY_COMPILE([#ifdef HAVE_SYS_TYPES_H
@@ -4255,6 +4247,7 @@ MOZ_PEERCONNECTION=
 MOZ_WEBRTC_SIGNALING=
 MOZ_WEBRTC_IN_LIBXUL=
 MOZ_SCTP=
+MOZ_SRTP=
 MOZ_MEDIA_PLUGINS=
 MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
@@ -5264,12 +5257,15 @@ if test -n "$MOZ_WEBRTC"; then
     fi
     MOZ_PEERCONNECTION=1
     MOZ_SCTP=1
+    MOZ_SRTP=1
+    AC_DEFINE(MOZ_SRTP)
 fi
 
 AC_SUBST(MOZ_WEBRTC)
 AC_SUBST(MOZ_PEERCONNECTION)
 AC_SUBST(MOZ_WEBRTC_IN_LIBXUL)
 AC_SUBST(MOZ_SCTP)
+AC_SUBST(MOZ_SRTP)
 
 case "$target_cpu" in
 arm*)
@@ -5810,7 +5806,7 @@ if test -n "$MOZ_WEBGL_DISABLED"; then
   MOZ_ANGLE_RENDERER=
 fi
 
-if test -n "$MOZ_ANGLE_RENDERER"; then
+if test -n "$MOZ_ANGLE_RENDERER" -a -z "$CROSS_COMPILE"; then
   # Get the SDK path from the registry.
   # First try to get the June 2010 SDK
   MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK (June 2010)' | head -n 1`
@@ -7342,19 +7338,6 @@ dnl ========================================================
 MOZ_ARG_HEADER(Profiling and Instrumenting)
 
 dnl ========================================================
-dnl = Enable NS_FUNCTION_TIMER, which provides Function
-dnl = timing for identifying code bottlenecks
-dnl = NS_FUNCTION_TIMER is off by default.
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(functiontimer,
-[  --enable-functiontimer  Enable NS_FUNCTION_TIMER ],
-    NS_FUNCTION_TIMER=1,
-    NS_FUNCTION_TIMER= )
-if test -n "$NS_FUNCTION_TIMER"; then
-    AC_DEFINE(NS_FUNCTION_TIMER)
-fi
-
-dnl ========================================================
 dnl = Enable runtime visual profiling logger
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(visual-event-tracer,
@@ -7402,6 +7385,14 @@ if test -n "$MOZ_B2G_RIL"; then
     AC_DEFINE(MOZ_B2G_RIL)
 fi
 AC_SUBST(MOZ_B2G_RIL)
+
+dnl ========================================================
+dnl = Enable Radio FM for B2G (Gonk usually)
+dnl ========================================================
+if test -n "$MOZ_B2G_FM"; then
+    AC_DEFINE(MOZ_B2G_FM)
+fi
+AC_SUBST(MOZ_B2G_FM)
 
 dnl ========================================================
 dnl = Enable Bluetooth Interface for B2G (Gonk usually)
@@ -8442,6 +8433,9 @@ else
   MOZ_APP_MAXVERSION=$MOZ_APP_VERSION
 fi
 
+MOZ_B2G_VERSION=${MOZ_B2G_VERSION:-"1.0.0"}
+AC_DEFINE_UNQUOTED(MOZ_B2G_VERSION,"$MOZ_B2G_VERSION")
+
 AC_SUBST(MOZ_APP_NAME)
 AC_SUBST(MOZ_APP_DISPLAYNAME)
 AC_SUBST(MOZ_APP_BASENAME)
@@ -8787,9 +8781,29 @@ esac
 
 AC_SUBST(PYTHON)
 
-# Populate the virtualenv
+dnl Populate the virtualenv
+
+dnl We always use the version Python was compiled with to ensure that compiled
+dnl extensions work properly. This works around a bug in Python. See also
+dnl http://bugs.python.org/issue9516 and bug 659881.
+dnl
+dnl Please note that this assumes nothing built during virtualenv population is
+dnl shipped as part of a release package. If it does ship, binaries built here
+dnl may not be compatible with the minimum supported OS X version.
+osx_deployment_target_system=
+
+if test $python_version_major -ne 2; then
+    AC_MSG_ERROR([Assertion failed: building with Python 2.])
+fi
+
+dnl sysconfig is only present on Python 2.7 and above.
+if test $python_version_minor -ge 7; then
+    osx_deployment_target_system=`$PYTHON -c 'import sysconfig; print sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")'`
+fi
+
 AC_MSG_RESULT([Populating Python virtualenv])
-MACOSX_DEPLOYMENT_TARGET= LDFLAGS="${HOST_LDFLAGS}" \
+MACOSX_DEPLOYMENT_TARGET=$osx_deployment_target_system \
+  LDFLAGS="${HOST_LDFLAGS}" \
   CC="${HOST_CC}" CXX="${HOST_CXX}" \
   CFLAGS="${HOST_CFLAGS}" CXXFLAGS="${HOST_CXXFLAGS}" \
   $PYTHON $_topsrcdir/build/virtualenv/populate_virtualenv.py \

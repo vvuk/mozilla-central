@@ -108,7 +108,7 @@ extern "C" {
 #include "nr_socket_prsock.h"
 
 // Implement the nsISupports ref counting
-NS_IMPL_THREADSAFE_ISUPPORTS0(NrSocket);
+NS_IMPL_THREADSAFE_ISUPPORTS0(NrSocket)
 
 
 // The nsASocket callbacks
@@ -121,6 +121,11 @@ void NrSocket::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
 
 void NrSocket::OnSocketDetached(PRFileDesc *fd) {
   ;  // TODO(ekr@rtfm.com): Log?
+}
+
+void NrSocket::IsLocal(bool *aIsLocal) {
+  // TODO(jesup): better check? Does it matter? (likely no)
+  *aIsLocal = false;
 }
 
 // async_event APIs
@@ -333,7 +338,7 @@ int NrSocket::sendto(const void *msg, size_t len,
 
   // TODO(ekr@rtfm.com): Convert flags?
   status = PR_SendTo(fd_, msg, len, flags, &naddr, PR_INTERVAL_NO_WAIT);
-  if (status != len) {
+  if (status < 0 || (size_t)status != len) {
     r_log_e(LOG_GENERIC, LOG_INFO, "Error in sendto %s", to->as_string);
 
     ABORT(R_IO_ERROR);

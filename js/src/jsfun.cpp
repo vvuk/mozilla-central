@@ -51,6 +51,7 @@
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
@@ -79,7 +80,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         if (!obj)
             return true;
     }
-    JSFunction *fun = obj->toFunction();
+    RootedFunction fun(cx, obj->toFunction());
 
     /*
      * Mark the function's script as uninlineable, to expand any of its
@@ -108,7 +109,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
 
     StackFrame *fp = iter.fp();
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.argumentsAtom)) {
+    if (JSID_IS_ATOM(id, cx->names().arguments)) {
         if (fun->hasRest()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_FUNCTION_ARGUMENTS_AND_REST);
             return false;
@@ -141,7 +142,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
     if (iter.isScript() && iter.isIon())
         fp = NULL;
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom) && fp && fp->prev()) {
+    if (JSID_IS_ATOM(id, cx->names().caller) && fp && fp->prev()) {
         /*
          * If the frame was called from within an inlined frame, mark the
          * innermost function as uninlineable to expand its frame and allow us
@@ -151,14 +152,14 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         jsbytecode *prevpc = fp->prevpc(&inlined);
         if (inlined) {
             mjit::JITChunk *chunk = fp->prev()->jit()->chunk(prevpc);
-            JSFunction *fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
+            RawFunction fun = chunk->inlineFrames()[inlined->inlineIndex].fun;
             fun->script()->uninlineable = true;
             MarkTypeObjectFlags(cx, fun, OBJECT_FLAG_UNINLINEABLE);
         }
     }
 #endif
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom)) {
+    if (JSID_IS_ATOM(id, cx->names().caller)) {
         ++iter;
         if (iter.done() || !iter.isFunctionFrame()) {
             JS_ASSERT(vp.isNull());
@@ -205,16 +206,16 @@ fun_enumerate(JSContext *cx, HandleObject obj)
     bool found;
 
     if (!obj->isBoundFunction()) {
-        id = NameToId(cx->runtime->atomState.classPrototypeAtom);
+        id = NameToId(cx->names().classPrototype);
         if (!JSObject::hasProperty(cx, obj, id, &found, JSRESOLVE_QUALIFIED))
             return false;
     }
 
-    id = NameToId(cx->runtime->atomState.lengthAtom);
+    id = NameToId(cx->names().length);
     if (!JSObject::hasProperty(cx, obj, id, &found, JSRESOLVE_QUALIFIED))
         return false;
 
-    id = NameToId(cx->runtime->atomState.nameAtom);
+    id = NameToId(cx->names().name);
     if (!JSObject::hasProperty(cx, obj, id, &found, JSRESOLVE_QUALIFIED))
         return false;
 
@@ -264,10 +265,10 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, HandleObject obj)
      */
     RootedValue protoVal(cx, ObjectValue(*proto));
     RootedValue objVal(cx, ObjectValue(*obj));
-    if (!JSObject::defineProperty(cx, obj, cx->runtime->atomState.classPrototypeAtom,
+    if (!JSObject::defineProperty(cx, obj, cx->names().classPrototype,
                                   protoVal, JS_PropertyStub, JS_StrictPropertyStub,
                                   JSPROP_PERMANENT) ||
-        !JSObject::defineProperty(cx, proto, cx->runtime->atomState.constructorAtom,
+        !JSObject::defineProperty(cx, proto, cx->names().constructor,
                                   objVal, JS_PropertyStub, JS_StrictPropertyStub, 0))
     {
        return NULL;
@@ -285,7 +286,7 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 
     RootedFunction fun(cx, obj->toFunction());
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.classPrototypeAtom)) {
+    if (JSID_IS_ATOM(id, cx->names().classPrototype)) {
         /*
          * Built-in functions do not have a .prototype property per ECMA-262,
          * or (Object.prototype, Function.prototype, etc.) have that property
@@ -307,15 +308,16 @@ fun_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         return true;
     }
 
-    if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom) ||
-        JSID_IS_ATOM(id, cx->runtime->atomState.nameAtom)) {
+    if (JSID_IS_ATOM(id, cx->names().length) || JSID_IS_ATOM(id, cx->names().name)) {
         JS_ASSERT(!IsInternalFunctionObject(obj));
 
         RootedValue v(cx);
-        if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom))
-            v.setInt32(fun->nargs - fun->hasRest());
-        else
+        if (JSID_IS_ATOM(id, cx->names().length)) {
+            uint16_t defaults = fun->isInterpreted() ? fun->script()->ndefaults : 0;
+            v.setInt32(fun->nargs - defaults - fun->hasRest());
+        } else {
             v.setString(fun->atom() == NULL ?  cx->runtime->emptyString : fun->atom());
+        }
 
         if (!DefineNativeProperty(cx, fun, id, v, JS_PropertyStub, JS_StrictPropertyStub,
                                   JSPROP_PERMANENT | JSPROP_READONLY, 0, 0)) {
@@ -480,7 +482,7 @@ fun_hasInstance(JSContext *cx, HandleObject objArg, MutableHandleValue v, JSBool
     }
 
     RootedValue pval(cx);
-    if (!JSObject::getProperty(cx, obj, obj, cx->runtime->atomState.classPrototypeAtom, &pval))
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().classPrototype, &pval))
         return JS_FALSE;
 
     if (pval.isPrimitive()) {
@@ -633,14 +635,15 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
     }
     if (haveSource) {
         RootedScript script(cx, fun->script());
-        RootedString src(cx, fun->script()->sourceData(cx));
+        RootedString srcStr(cx, fun->script()->sourceData(cx));
+        if (!srcStr)
+            return NULL;
+        Rooted<JSStableString *> src(cx, srcStr->ensureStable(cx));
         if (!src)
             return NULL;
-        const jschar *chars = src->getChars(cx);
-        if (!chars)
-            return NULL;
-        bool exprBody = fun->flags & JSFUN_EXPR_CLOSURE;
 
+        const jschar *chars = src->chars();
+        bool exprBody = fun->flags & JSFUN_EXPR_CLOSURE;
         // The source data for functions created by calling the Function
         // constructor is only the function's body.
         bool funCon = script->sourceStart == 0 && script->scriptSource()->argumentsNotIncluded();
@@ -1365,19 +1368,19 @@ Function(JSContext *cx, unsigned argc, Value *vp)
     const jschar *chars;
     size_t length;
 
-    SkipRoot skip(cx, &chars);
-
-    if (args.length()) {
-        JSString *str = ToString(cx, args[args.length() - 1]);
-        if (!str)
-            return false;
-        strAnchor.set(str);
-        chars = str->getChars(cx);
-        length = str->length();
-    } else {
-        chars = cx->runtime->emptyString->chars();
-        length = 0;
-    }
+    JSString *str;
+    if (!args.length())
+        str = cx->runtime->emptyString;
+    else
+        str = ToString(cx, args[args.length() - 1]);
+    if (!str)
+        return false;
+    JSStableString *stable = str->ensureStable(cx);
+    if (!stable)
+        return false;
+    strAnchor.set(str);
+    chars = stable->chars();
+    length = stable->length();
 
     /*
      * NB: (new Function) is not lexically closed by its caller, it's just an
@@ -1386,7 +1389,7 @@ Function(JSContext *cx, unsigned argc, Value *vp)
      * and so would a call to f from another top-level's script or function.
      */
     RootedFunction fun(cx, js_NewFunction(cx, NULL, NULL, 0, JSFUN_LAMBDA | JSFUN_INTERPRETED,
-                                          global, cx->runtime->atomState.anonymousAtom));
+                                          global, cx->names().anonymous));
     if (!fun)
         return false;
 

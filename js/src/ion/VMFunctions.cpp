@@ -131,7 +131,7 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
     RootedValue rval(cx, value);
     RootedId id(cx, NameToId(name));
 
-    if (name == cx->runtime->atomState.protoAtom)
+    if (name == cx->names().proto)
         return baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, false);
     return !!DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
 }
@@ -237,8 +237,9 @@ IteratorMore(JSContext *cx, HandleObject obj, JSBool *res)
 }
 
 JSObject*
-NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *type)
+NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 {
+    RootedTypeObject type(cx, typeArg);
     RootedObject obj(cx, NewDenseAllocatedArray(cx, count));
     if (!obj)
         return NULL;
@@ -327,6 +328,18 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
+}
+
+JSFlatString *
+StringFromCharCode(JSContext *cx, int32_t code)
+{
+    jschar c = jschar(code);
+
+    if (StaticStrings::hasUnit(c))
+        return cx->runtime->staticStrings.getUnit(c);
+
+    return js_NewStringCopyN(cx, &c, 1);
+
 }
 
 bool

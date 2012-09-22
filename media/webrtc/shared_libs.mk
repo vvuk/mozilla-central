@@ -5,7 +5,6 @@
 # shared libs for webrtc
 WEBRTC_LIBS = \
     $(call EXPAND_LIBNAME_PATH,jingle,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle) \
-    $(call EXPAND_LIBNAME_PATH,srtp,$(DEPTH)/media/webrtc/trunk/third_party/libsrtp/libsrtp_libsrtp) \
     $(call EXPAND_LIBNAME_PATH,jingle_p2p,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_p2p) \
     $(call EXPAND_LIBNAME_PATH,jingle_app,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_app) \
     $(call EXPAND_LIBNAME_PATH,jsoncpp,$(DEPTH)/media/webrtc/trunk/third_party/jsoncpp/jsoncpp_jsoncpp) \

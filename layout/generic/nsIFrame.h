@@ -702,6 +702,12 @@ public:
   virtual nsIFrame* GetContentInsertionFrame() { return this; }
 
   /**
+   * Move any frames on our overflow list to the end of our principal list.
+   * @return true if there were any overflow frames
+   */
+  virtual bool DrainSelfOverflowList() { return false; }
+
+  /**
    * Get the frame that should be scrolled if the content associated
    * with this frame is targeted for scrolling. For frames implementing
    * nsIScrollableFrame this will return the frame itself. For frames
@@ -2009,7 +2015,7 @@ public:
    * @return A gfxMatrix that converts points in this frame's coordinate space
    *   into points in aOutAncestor's coordinate space.
    */
-  gfx3DMatrix GetTransformMatrix(nsIFrame* aStopAtAncestor,
+  gfx3DMatrix GetTransformMatrix(const nsIFrame* aStopAtAncestor,
                                  nsIFrame **aOutAncestor);
 
   /**
@@ -3079,7 +3085,10 @@ private:
 #ifdef DEBUG
 public:
   // Formerly nsIFrameDebug
-  NS_IMETHOD  List(FILE* out, int32_t aIndent) const = 0;
+  enum {
+    TRAVERSE_SUBDOCUMENT_FRAMES = 0x01
+  };
+  NS_IMETHOD  List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const = 0;
   NS_IMETHOD  GetFrameName(nsAString& aResult) const = 0;
   NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const = 0;
   NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext,

@@ -22,6 +22,7 @@
 #include "jsgc.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
+#include "jsprototypes.h"
 #include "jsutil.h"
 #include "prmjtime.h"
 
@@ -164,11 +165,8 @@ struct ConservativeGCData
     JS_NEVER_INLINE void recordStackTop();
 
 #ifdef JS_THREADSAFE
-    void updateForRequestEnd(unsigned suspendCount) {
-        if (suspendCount)
-            recordStackTop();
-        else
-            nativeStackTop = NULL;
+    void updateForRequestEnd() {
+        nativeStackTop = NULL;
     }
 #endif
 
@@ -180,15 +178,16 @@ struct ConservativeGCData
 class SourceDataCache
 {
     typedef HashMap<ScriptSource *,
-                    JSFixedString *,
+                    JSStableString *,
                     DefaultHasher<ScriptSource *>,
                     SystemAllocPolicy> Map;
-     Map *map_;
-   public:
+    Map *map_;
+
+  public:
     SourceDataCache() : map_(NULL) {}
-    JSFixedString *lookup(ScriptSource *ss);
-    void put(ScriptSource *ss, JSFixedString *);
-     void purge();
+    JSStableString *lookup(ScriptSource *ss);
+    void put(ScriptSource *ss, JSStableString *);
+    void purge();
 };
 
 struct EvalCacheLookup
@@ -378,6 +377,20 @@ namespace JS {
 struct RuntimeSizes;
 }
 
+/* Various built-in or commonly-used names pinned on first context. */
+struct JSAtomState
+{
+#define PROPERTYNAME_FIELD(idpart, id, text) js::FixedHeapPtr<js::PropertyName> id;
+    FOR_EACH_COMMON_PROPERTYNAME(PROPERTYNAME_FIELD)
+#undef PROPERTYNAME_FIELD
+#define PROPERTYNAME_FIELD(name, code, init) js::FixedHeapPtr<js::PropertyName> name;
+    JS_FOR_EACH_PROTOTYPE(PROPERTYNAME_FIELD)
+#undef PROPERTYNAME_FIELD
+};
+
+#define NAME_OFFSET(name)       offsetof(JSAtomState, name)
+#define OFFSET_TO_NAME(rt,off)  (*(js::FixedHeapPtr<js::PropertyName>*)((char*)&(rt)->atomState + (off)))
+
 struct JSRuntime : js::RuntimeFriendFields
 {
     /* Default compartment. */
@@ -487,9 +500,6 @@ struct JSRuntime : js::RuntimeFriendFields
     void                 *activityCallbackArg;
 
 #ifdef JS_THREADSAFE
-    /* Number of JS_SuspendRequest calls withot JS_ResumeRequest. */
-    unsigned            suspendCount;
-
     /* The request depth for this thread. */
     unsigned            requestDepth;
 
@@ -766,7 +776,7 @@ struct JSRuntime : js::RuntimeFriendFields
     js::Value           negativeInfinityValue;
     js::Value           positiveInfinityValue;
 
-    JSAtom              *emptyString;
+    js::PropertyName    *emptyString;
 
     /* List of active contexts sharing this runtime. */
     JSCList             contextList;
@@ -884,8 +894,18 @@ struct JSRuntime : js::RuntimeFriendFields
     void setTrustedPrincipals(JSPrincipals *p) { trustedPrincipals_ = p; }
     JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
 
-    /* Literal table maintained by jsatom.c functions. */
-    JSAtomState         atomState;
+    /* Set of all currently-living atoms. */
+    js::AtomSet         atoms;
+
+    union {
+        /*
+         * Cached pointers to various interned property names, initialized in
+         * order from first to last via the other union arm.
+         */
+        JSAtomState atomState;
+
+        js::FixedHeapPtr<js::PropertyName> firstCachedName;
+    };
 
     /* Tables of strings that are pre-allocated in the atomsCompartment. */
     js::StaticStrings   staticStrings;
@@ -1250,9 +1270,37 @@ struct JSContext : js::ContextFriendFields
   private:
     unsigned            enterCompartmentDepth_;
   public:
-    inline bool hasEnteredCompartment() const;
-    inline void enterCompartment(JSCompartment *c);
-    inline void leaveCompartment(JSCompartment *c);
+    bool hasEnteredCompartment() const {
+        return enterCompartmentDepth_ > 0;
+    }
+
+    void enterCompartment(JSCompartment *c) {
+        enterCompartmentDepth_++;
+        compartment = c;
+        if (throwing)
+            wrapPendingException();
+    }
+
+    inline void leaveCompartment(JSCompartment *oldCompartment) {
+        JS_ASSERT(hasEnteredCompartment());
+        enterCompartmentDepth_--;
+
+        /*
+         * Before we entered the current compartment, 'compartment' was
+         * 'oldCompartment', so we might want to simply set it back. However, we
+         * currently have this terrible scheme whereby defaultCompartmentObject_
+         * can be updated while enterCompartmentDepth_ > 0. In this case,
+         * oldCompartment != defaultCompartmentObject_->compartment and we must
+         * ignore oldCompartment.
+         */
+        if (hasEnteredCompartment() || !defaultCompartmentObject_)
+            compartment = oldCompartment;
+        else
+            compartment = defaultCompartmentObject_->compartment();
+
+        if (throwing)
+            wrapPendingException();
+    }
 
     /* See JS_SaveFrameChain/JS_RestoreFrameChain. */
   private:
@@ -1511,6 +1559,8 @@ struct JSContext : js::ContextFriendFields
         throwing = false;
         exception.setUndefined();
     }
+
+    JSAtomState & names() { return runtime->atomState; }
 
 #ifdef DEBUG
     /*

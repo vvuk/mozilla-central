@@ -57,6 +57,8 @@ let asyncTestTimeoutId;
  * If the actor returns an ID, we start the listeners. Otherwise, nothing happens.
  */
 function registerSelf() {
+  Services.io.manageOfflineStatus = false;
+  Services.io.offline = false;
   let register = sendSyncMessage("Marionette:register", {value: winUtil.outerWindowID, href: content.location.href});
   
   if (register[0]) {
@@ -259,7 +261,12 @@ function createExecuteContentSandbox(aWindow) {
   let marionette = new Marionette(this, aWindow, "content", marionetteLogObj, marionettePerf);
   sandbox.marionette = marionette;
   marionette.exports.forEach(function(fn) {
-    sandbox[fn] = marionette[fn].bind(marionette);
+    try {
+      sandbox[fn] = marionette[fn].bind(marionette);
+    }
+    catch(e) {
+      sandbox[fn] = marionette[fn];
+    }
   });
 
   sandbox.SpecialPowers = new SpecialPowers(aWindow);

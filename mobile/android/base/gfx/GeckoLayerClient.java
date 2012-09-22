@@ -7,6 +7,7 @@ package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.ScreenshotHandler;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
@@ -15,7 +16,6 @@ import org.mozilla.gecko.ui.PanZoomTarget;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventResponder;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -126,30 +126,20 @@ public class GeckoLayerClient
         mRootLayer = new VirtualLayer(new IntSize(mView.getWidth(), mView.getHeight()));
         mLayerRenderer = new LayerRenderer(mView);
 
-        registerEventListener("Viewport:Update");
-        registerEventListener("Viewport:PageSize");
-        registerEventListener("Viewport:CalculateDisplayPort");
         registerEventListener("Checkerboard:Toggle");
-        registerEventListener("Preferences:Data");
 
         mView.setListener(this);
         mView.setLayerRenderer(mLayerRenderer);
 
         sendResizeEventIfNecessary(true);
 
-        JSONArray prefs = new JSONArray();
-        DisplayPortCalculator.addPrefNames(prefs);
-        PluginLayer.addPrefNames(prefs);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Preferences:Get", prefs.toString()));
+        DisplayPortCalculator.initPrefs();
+        PluginLayer.initPrefs();
     }
 
     public void destroy() {
         mPanZoomController.destroy();
-        unregisterEventListener("Viewport:Update");
-        unregisterEventListener("Viewport:PageSize");
-        unregisterEventListener("Viewport:CalculateDisplayPort");
         unregisterEventListener("Checkerboard:Toggle");
-        unregisterEventListener("Preferences:Data");
     }
 
     private void registerEventListener(String event) {
@@ -315,8 +305,7 @@ public class GeckoLayerClient
     }
 
     /** Viewport message handler. */
-    private void handleViewportMessage(JSONObject message, ViewportMessageType type) throws JSONException {
-        ViewportMetrics messageMetrics = new ViewportMetrics(message);
+    private DisplayPortMetrics handleViewportMessage(ViewportMetrics messageMetrics, ViewportMessageType type) {
         synchronized (this) {
             final ViewportMetrics newMetrics;
             ImmutableViewportMetrics oldMetrics = getViewportMetrics();
@@ -347,40 +336,31 @@ public class GeckoLayerClient
             setViewportMetrics(newMetrics, type == ViewportMessageType.UPDATE);
             mDisplayPort = DisplayPortCalculator.calculate(getViewportMetrics(), null);
         }
-        mReturnDisplayPort = mDisplayPort;
+        return mDisplayPort;
+    }
+
+    public DisplayPortMetrics getDisplayPort(boolean pageSizeUpdate, boolean isBrowserContentDisplayed, int tabId, ViewportMetrics metrics) {
+        Tabs tabs = Tabs.getInstance();
+        if (tabs.isSelectedTab(tabs.getTab(tabId)) && isBrowserContentDisplayed) {
+            // for foreground tabs, send the viewport update unless the document
+            // displayed is different from the content document. In that case, just
+            // calculate the display port.
+            return handleViewportMessage(metrics, pageSizeUpdate ? ViewportMessageType.UPDATE : ViewportMessageType.PAGE_SIZE);
+        } else {
+            // for background tabs, request a new display port calculation, so that
+            // when we do switch to that tab, we have the correct display port and
+            // don't need to draw twice (once to allow the first-paint viewport to
+            // get to java, and again once java figures out the display port).
+            ImmutableViewportMetrics newMetrics = new ImmutableViewportMetrics(metrics);
+            return DisplayPortCalculator.calculate(newMetrics, null);
+        }
     }
 
     /** Implementation of GeckoEventResponder/GeckoEventListener. */
     public void handleMessage(String event, JSONObject message) {
         try {
-            if ("Viewport:Update".equals(event)) {
-                handleViewportMessage(message, ViewportMessageType.UPDATE);
-            } else if ("Viewport:PageSize".equals(event)) {
-                handleViewportMessage(message, ViewportMessageType.PAGE_SIZE);
-            } else if ("Viewport:CalculateDisplayPort".equals(event)) {
-                ImmutableViewportMetrics newMetrics = new ImmutableViewportMetrics(new ViewportMetrics(message));
-                mReturnDisplayPort = DisplayPortCalculator.calculate(newMetrics, null);
-            } else if ("Checkerboard:Toggle".equals(event)) {
+            if ("Checkerboard:Toggle".equals(event)) {
                 mView.setCheckerboardShouldShowChecks(message.getBoolean("value"));
-            } else if ("Preferences:Data".equals(event)) {
-                JSONArray jsonPrefs = message.getJSONArray("preferences");
-                Map<String, Integer> prefValues = new HashMap<String, Integer>();
-                for (int i = jsonPrefs.length() - 1; i >= 0; i--) {
-                    JSONObject pref = jsonPrefs.getJSONObject(i);
-                    String name = pref.getString("name");
-                    try {
-                        prefValues.put(name, pref.getInt("value"));
-                    } catch (JSONException je) {
-                        // the pref value couldn't be parsed as an int. drop this pref
-                        // and continue with the rest
-                    }
-                }
-                // check return value from setStrategy to make sure that this is the
-                // right batch of prefs, since other java code may also have sent requests
-                // for prefs.
-                if (DisplayPortCalculator.setStrategy(prefValues) && PluginLayer.setUsePlaceholder(prefValues)) {
-                    unregisterEventListener("Preferences:Data");
-                }
             }
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error decoding JSON in " + event + " handler", e);
@@ -452,7 +432,7 @@ public class GeckoLayerClient
         DisplayPortCalculator.resetPageState();
         mDrawTimingQueue.reset();
         mView.getRenderer().resetCheckerboard();
-        GeckoAppShell.screenshotWholePage(Tabs.getInstance().getSelectedTab());
+        ScreenshotHandler.screenshotWholePage(Tabs.getInstance().getSelectedTab());
     }
 
     /** This function is invoked by Gecko via JNI; be careful when modifying signature.

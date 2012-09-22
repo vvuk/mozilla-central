@@ -43,7 +43,7 @@ NS_IMETHODIMP nrappkitTimerCallback::Notify(nsITimer *timer) {
   cb_(0, 0, cb_arg_);
   
   timer->Release();
-  return 0;
+  return NS_OK;
 }
 
 int NR_async_timer_set(int timeout, NR_async_cb cb, void *arg, char *func,

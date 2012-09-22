@@ -108,5 +108,4 @@ void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
   }
 }
 
-
 NS_IMPL_THREADSAFE_ISUPPORTS0(TransportLayerPrsock::SocketHandler);

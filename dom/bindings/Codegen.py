@@ -1366,6 +1366,25 @@ class CGIsMethod(CGAbstractMethod):
         #   js::GetObjectJSClass(obj) == &Class.mBase
         return """  return IsProxy(obj);"""
 
+def CreateBindingJSObject(descriptor, parent):
+    if descriptor.proxy:
+        create = """  JSObject *obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
+                                 JS::PrivateValue(aObject), proto, %s);
+  if (!obj) {
+    return NULL;
+  }
+
+"""
+    else:
+        create = """  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, %s);
+  if (!obj) {
+    return NULL;
+  }
+
+  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
+"""
+    return create % parent
+
 class CGWrapWithCacheMethod(CGAbstractMethod):
     def __init__(self, descriptor):
         assert descriptor.interface.hasInterfacePrototypeObject()
@@ -1379,23 +1398,6 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
         if self.descriptor.workers:
             return """  *aTriedToWrap = true;
   return aObject->GetJSObject();"""
-
-        if self.descriptor.proxy:
-            create = """  JSObject *obj = NewProxyObject(aCx, DOMProxyHandler::getInstance(),
-                                 JS::PrivateValue(aObject), proto, parent);
-  if (!obj) {
-    return NULL;
-  }
-
-"""
-        else:
-            create = """  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, parent);
-  if (!obj) {
-    return NULL;
-  }
-
-  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
-"""
 
         return """  *aTriedToWrap = true;
 
@@ -1417,7 +1419,8 @@ class CGWrapWithCacheMethod(CGAbstractMethod):
 
   aCache->SetWrapper(obj);
 
-  return obj;""" % (CheckPref(self.descriptor, "global", "*aTriedToWrap", "NULL", "aCache"), create)
+  return obj;""" % (CheckPref(self.descriptor, "global", "*aTriedToWrap", "NULL", "aCache"),
+                    CreateBindingJSObject(self.descriptor, "parent"))
 
 class CGWrapMethod(CGAbstractMethod):
     def __init__(self, descriptor):
@@ -1446,15 +1449,10 @@ class CGWrapNonWrapperCacheMethod(CGAbstractMethod):
     return NULL;
   }
 
-  JSObject* obj = JS_NewObject(aCx, &Class.mBase, proto, global);
-  if (!obj) {
-    return NULL;
-  }
-
-  js::SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
+%s
   NS_ADDREF(aObject);
 
-  return obj;"""
+  return obj;""" % CreateBindingJSObject(self.descriptor, "global")
 
 builtinNames = {
     IDLType.Tags.bool: 'bool',
@@ -1577,6 +1575,27 @@ ${codeOnFailure}
 }
 ${target} = tmp.forget();""").substitute(self.substitution)
 
+def dictionaryHasSequenceMember(dictionary):
+    return (any(typeIsSequenceOrHasSequenceMember(m.type) for m in
+                dictionary.members) or
+            (dictionary.parent and
+             dictionaryHasSequenceMember(dictionary.parent)))
+
+def typeIsSequenceOrHasSequenceMember(type):
+    if type.nullable():
+        type = type.inner
+    if type.isSequence():
+        return True
+    if  type.isArray():
+        elementType = type.inner
+        return typeIsSequenceOrHasSequenceMember(elementType)
+    if type.isDictionary():
+        return dictionaryHasSequenceMember(type.inner)
+    if type.isUnion():
+        return any(typeIsSequenceOrHasSequenceMember(m.type) for m in
+                   type.flatMemberTypes)
+    return False
+
 def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
                                     isDefinitelyObject=False,
                                     isMember=False,
@@ -1602,7 +1621,9 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
 
     if isMember is True, we're being converted from a property of some
     JS object, not from an actual method argument, so we can't rely on
-    our jsval being rooted or outliving us in any way.
+    our jsval being rooted or outliving us in any way.  Any caller
+    passing true needs to ensure that it is handled correctly in
+    typeIsSequenceOrHasSequenceMember.
 
     If isOptional is true, then we are doing conversion of an optional
     argument with no default value.
@@ -1723,14 +1744,6 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
     if type.isSequence():
         assert not isEnforceRange and not isClamp
 
-        if isMember:
-            # XXXbz we probably _could_ handle this; we just have to be careful
-            # with reallocation behavior for arrays.  In particular, if we have
-            # a return value that's a sequence of dictionaries of sequences,
-            # that will cause us to have an nsTArray containing objects with
-            # nsAutoTArray members, which is a recipe for badness as the
-            # outermost array is resized.
-            raise TypeError("Can't handle unrooted sequences")
         if failureCode is not None:
             raise TypeError("Can't handle sequences when failureCode is not None")
         nullable = type.nullable();
@@ -1739,8 +1752,23 @@ def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
             elementType = type.inner.inner
         else:
             elementType = type.inner
-        # We don't know anything about the object-ness of the things
-        # we wrap, so don't pass through isDefinitelyObject
+
+        # We have to be careful with reallocation behavior for arrays.  In
+        # particular, if we have a sequence of elements which are themselves
+        # sequences (so nsAutoTArrays) or have sequences as members, we have a
+        # problem.  In that case, resizing the outermost nsAutoTarray to the
+        # right size will memmove its elements, but nsAutoTArrays are not
+        # memmovable and hence will end up with pointers to bogus memory, which
+        # is bad.  To deal with this, we disallow sequences, arrays,
+        # dictionaries, and unions which contain sequences as sequence item
+        # types.  If WebIDL ever adds another container type, we'd have to
+        # disallow it as well.
+        if typeIsSequenceOrHasSequenceMember(elementType):
+            raise TypeError("Can't handle a sequence containing another "
+                            "sequence as an element or member of an element.  "
+                            "See the big comment explaining why.\n%s" %
+                            str(type.location))
+
         (elementTemplate, elementDeclType,
          elementHolderType, dealWithOptional) = getJSToNativeConversionTemplate(
             elementType, descriptorProvider, isMember=True)
@@ -2821,11 +2849,18 @@ def infallibleForMember(member, type, descriptorProvider):
     return getWrapTemplateForType(type, descriptorProvider, 'result', None,\
                                   memberIsCreator(member))[1]
 
-def typeNeedsCx(type):
-    return (type is not None and
-            (type.isCallback() or type.isAny() or type.isObject() or
-             (type.isUnion() and
-              any(typeNeedsCx(t) for t in type.unroll().flatMemberTypes))))
+def typeNeedsCx(type, retVal=False):
+    if type is None:
+        return False
+    if type.nullable():
+        type = type.inner
+    if type.isSequence() or type.isArray():
+        type = type.inner
+    if type.isUnion():
+        return any(typeNeedsCx(t) for t in type.unroll().flatMemberTypes)
+    if retVal and type.isSpiderMonkeyInterface():
+        return True
+    return type.isCallback() or type.isAny() or type.isObject()
 
 # Returns a tuple consisting of a CGThing containing the type of the return
 # value, or None if there is no need for a return value, and a boolean signaling
@@ -2858,7 +2893,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         # XXXbz we're going to assume that callback types are always
         # nullable for now.
         return CGGeneric("JSObject*"), False
-    if returnType.tag() is IDLType.Tags.any:
+    if returnType.isAny():
         return CGGeneric("JS::Value"), False
     if returnType.isObject() or returnType.isSpiderMonkeyInterface():
         return CGGeneric("JSObject*"), False
@@ -2918,7 +2953,7 @@ class CGCallGenerator(CGThing):
         if isFallible:
             args.append(CGGeneric("rv"))
 
-        needsCx = (typeNeedsCx(returnType) or
+        needsCx = (typeNeedsCx(returnType, True) or
                    any(typeNeedsCx(a.type) for (a, _) in arguments) or
                    'implicitJSContext' in extendedAttributes)
 
@@ -3585,7 +3620,7 @@ class CGMemberJITInfo(CGThing):
         return ""
 
     def defineJitInfo(self, infoName, opName, infallible):
-        protoID = "prototypes::id::%s" % self.descriptor.interface.identifier.name
+        protoID = "prototypes::id::%s" % self.descriptor.name
         depth = "PrototypeTraits<%s>::Depth" % protoID
         failstr = "true" if infallible else "false"
         return ("\n"

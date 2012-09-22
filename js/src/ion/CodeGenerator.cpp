@@ -197,7 +197,7 @@ CodeGenerator::visitPolyInlineDispatch(LPolyInlineDispatch *lir)
 bool
 CodeGenerator::visitIntToString(LIntToString *lir)
 {
-    typedef JSFixedString *(*pf)(JSContext *, int);
+    typedef JSFlatString *(*pf)(JSContext *, int);
     static const VMFunction IntToStringInfo = FunctionInfo<pf>(Int32ToString);
 
     pushArg(ToRegister(lir->input()));
@@ -1096,8 +1096,9 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
                 return false;
 
             JS_ASSERT(ArgumentsRectifierReg != objreg);
+            masm.movePtr(ImmGCPtr(argumentsRectifier), objreg); // Necessary for GC marking.
+            masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
             masm.movePtr(argcreg, ArgumentsRectifierReg);
-            masm.movePtr(ImmWord(argumentsRectifier->raw()), objreg);
         }
 
         masm.bind(&rejoin);
@@ -1695,22 +1696,17 @@ bool
 CodeGenerator::visitPowI(LPowI *ins)
 {
     FloatRegister value = ToFloatRegister(ins->value());
+    Register power = ToRegister(ins->power());
     Register temp = ToRegister(ins->temp());
+
+    JS_ASSERT(power != temp);
 
     // In all implementations, setupUnalignedABICall() relinquishes use of
     // its scratch register. We can therefore save an input register by
     // reusing the scratch register to pass constants to callWithABI.
     masm.setupUnalignedABICall(2, temp);
     masm.passABIArg(value);
-
-    const LAllocation *power = ins->power();
-    if (power->isRegister()) {
-        JS_ASSERT(ToRegister(power) != temp);
-        masm.passABIArg(ToRegister(power));
-    } else {
-        masm.move32(Imm32(ToInt32(power)), temp);
-        masm.passABIArg(temp);
-    }
+    masm.passABIArg(power);
 
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, js::powi), MacroAssembler::DOUBLE);
     JS_ASSERT(ToFloatRegister(ins->output()) == ReturnFloatReg);
@@ -2051,30 +2047,19 @@ CodeGenerator::visitFromCharCode(LFromCharCode *lir)
     Register code = ToRegister(lir->code());
     Register output = ToRegister(lir->output());
 
-    // This static variable would be used by js_NewString as an initial buffer.
-    Label fast;
-    masm.cmpPtr(code, ImmWord(StaticStrings::UNIT_STATIC_LIMIT));
-    masm.j(Assembler::Below, &fast);
-
-    // Store the code in the tmpString. This assume that jitted codes are not
-    // running concurently.
-    static jschar tmpString[2] = {0, 0};
-    Register tmpStringAddr = output;
-    masm.movePtr(ImmWord(tmpString), tmpStringAddr);
-    masm.store16(code, Address(tmpStringAddr, 0));
-
-    // Copy the tmpString to a newly allocated string.
-    typedef JSFixedString *(*pf)(JSContext *, const jschar *, size_t);
-    static const VMFunction newStringCopyNInfo = FunctionInfo<pf>(js_NewStringCopyN);
-    OutOfLineCode *ool = oolCallVM(newStringCopyNInfo, lir, (ArgList(), tmpStringAddr, Imm32(1)),
-                                   StoreRegisterTo(output));
+    typedef JSFlatString *(*pf)(JSContext *, int32_t);
+    static const VMFunction Info = FunctionInfo<pf>(ion::StringFromCharCode);
+    OutOfLineCode *ool = oolCallVM(Info, lir, (ArgList(), code), StoreRegisterTo(output));
     if (!ool)
         return false;
 
-    masm.jump(ool->entry());
-    masm.bind(&fast);
+    // OOL path if code >= UNIT_STATIC_LIMIT.
+    masm.branch32(Assembler::AboveOrEqual, code, Imm32(StaticStrings::UNIT_STATIC_LIMIT),
+                  ool->entry());
+
     masm.movePtr(ImmWord(&gen->compartment->rt->staticStrings.unitStaticTable), output);
     masm.loadPtr(BaseIndex(output, code, ScalePointer), output);
+
     masm.bind(ool->rejoin());
     return true;
 }
@@ -2831,7 +2816,7 @@ CodeGenerator::generate()
                                  bailouts_.length(), graph.numConstants(),
                                  safepointIndices_.length(), osiIndices_.length(),
                                  cacheList_.length(), barrierOffsets_.length(),
-                                 safepoints_.size());
+                                 safepoints_.size(), graph.mir().numScripts());
     if (!script->ion)
         return false;
     invalidateEpilogueData_.fixup(&masm);
@@ -2866,6 +2851,9 @@ CodeGenerator::generate()
         script->ion->copyPrebarrierEntries(&barrierOffsets_[0], masm);
     if (safepoints_.size())
         script->ion->copySafepoints(&safepoints_);
+
+    JS_ASSERT(graph.mir().numScripts() > 0);
+    script->ion->copyScriptEntries(graph.mir().scripts());
 
     linkAbsoluteLabels();
 
@@ -3168,7 +3156,7 @@ CodeGenerator::visitOutOfLineCacheGetProperty(OutOfLineCache *ool)
     switch (ins->op()) {
       case LInstruction::LOp_InstanceOfO:
       case LInstruction::LOp_InstanceOfV:
-        name = gen->compartment->rt->atomState.classPrototypeAtom;
+        name = gen->compartment->rt->atomState.classPrototype;
         objReg = ToRegister(ins->getTemp(1));
         output = TypedOrValueRegister(MIRType_Object, ToAnyRegister(ins->getDef(0)));
         break;
@@ -3335,7 +3323,7 @@ CodeGenerator::visitCallDeleteProperty(LCallDeleteProperty *lir)
 {
     typedef bool (*pf)(JSContext *, HandleValue, HandlePropertyName, JSBool *);
 
-    pushArg(ImmGCPtr(lir->mir()->atom()));
+    pushArg(ImmGCPtr(lir->mir()->name()));
     pushArg(ToValue(lir, LCallDeleteProperty::Value));
 
     if (lir->mir()->block()->info().script()->strictModeCode) {
@@ -3465,7 +3453,7 @@ CodeGenerator::visitTypeOfV(LTypeOfV *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    PropertyName **typeAtoms = gen->compartment->rt->atomState.typeAtoms;
+    JSRuntime *rt = gen->compartment->rt;
 
     // Jump to the OOL path if the value is an object. Objects are complicated
     // since they may have a typeof hook.
@@ -3475,29 +3463,29 @@ CodeGenerator::visitTypeOfV(LTypeOfV *lir)
 
     Label notNumber;
     masm.branchTestNumber(Assembler::NotEqual, tag, &notNumber);
-    masm.movePtr(ImmGCPtr(typeAtoms[JSTYPE_NUMBER]), output);
+    masm.movePtr(ImmGCPtr(rt->atomState.number), output);
     masm.jump(&done);
     masm.bind(&notNumber);
 
     Label notUndefined;
     masm.branchTestUndefined(Assembler::NotEqual, tag, &notUndefined);
-    masm.movePtr(ImmGCPtr(typeAtoms[JSTYPE_VOID]), output);
+    masm.movePtr(ImmGCPtr(rt->atomState.undefined), output);
     masm.jump(&done);
     masm.bind(&notUndefined);
 
     Label notNull;
     masm.branchTestNull(Assembler::NotEqual, tag, &notNull);
-    masm.movePtr(ImmGCPtr(typeAtoms[JSTYPE_OBJECT]), output);
+    masm.movePtr(ImmGCPtr(rt->atomState.object), output);
     masm.jump(&done);
     masm.bind(&notNull);
 
     Label notBoolean;
     masm.branchTestBoolean(Assembler::NotEqual, tag, &notBoolean);
-    masm.movePtr(ImmGCPtr(typeAtoms[JSTYPE_BOOLEAN]), output);
+    masm.movePtr(ImmGCPtr(rt->atomState.boolean), output);
     masm.jump(&done);
     masm.bind(&notBoolean);
 
-    masm.movePtr(ImmGCPtr(typeAtoms[JSTYPE_STRING]), output);
+    masm.movePtr(ImmGCPtr(rt->atomState.string), output);
 
     masm.bind(&done);
     masm.bind(ool->rejoin());

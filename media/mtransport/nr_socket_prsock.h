@@ -69,6 +69,7 @@ public:
   // Implement nsASocket
   virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
   virtual void OnSocketDetached(PRFileDesc *fd);
+  virtual void IsLocal(bool *aIsLocal);
 
   // nsISupports methods
   NS_DECL_ISUPPORTS

@@ -39,7 +39,7 @@ JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
     JS_ASSERT(rt->hasContexts());
-    return rt->atomState.anonymousAtom;
+    return rt->atomState.anonymous;
 }
 
 JS_FRIEND_API(JSObject *)
@@ -704,10 +704,10 @@ GetOwnerThread(const JSContext *cx)
     return cx->runtime->ownerThread();
 }
 
-JS_FRIEND_API(unsigned)
-GetContextOutstandingRequests(const JSContext *cx)
+JS_FRIEND_API(bool)
+ContextHasOutstandingRequests(const JSContext *cx)
 {
-    return cx->outstandingRequests;
+    return cx->outstandingRequests > 0;
 }
 #endif
 

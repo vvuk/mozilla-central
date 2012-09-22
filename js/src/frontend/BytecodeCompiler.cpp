@@ -194,8 +194,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         if (!NameFunctions(cx, pn))
             return NULL;
 
-        pc.functionList = NULL;
-
         if (!EmitTree(cx, &bce, pn))
             return NULL;
 
@@ -224,7 +222,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     // It's an error to use |arguments| in a function that has a rest parameter.
     if (callerFrame && callerFrame->isFunctionFrame() && callerFrame->fun()->hasRest()) {
-        PropertyName *arguments = cx->runtime->atomState.argumentsAtom;
+        HandlePropertyName arguments = cx->names().arguments;
         for (AtomDefnRange r = pc.lexdeps->all(); !r.empty(); r.popFront()) {
             if (r.front().key() == arguments) {
                 parser.reportError(NULL, JSMSG_ARGUMENTS_AND_REST);
@@ -310,7 +308,7 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
      * at the end.
      */
     ParseNode *pn = parser.functionBody(Parser::StatementListBody);
-    if (!pn) 
+    if (!pn)
         return false;
 
     if (!parser.tokenStream.matchToken(TOK_EOF)) {

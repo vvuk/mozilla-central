@@ -156,17 +156,8 @@ XPCOMUtils.defineLazyGetter(this, "SafeBrowsing", function() {
 });
 #endif
 
-XPCOMUtils.defineLazyGetter(this, "gBrowserNewTabPreloader", function () {
-  let tmp = {};
-  Cu.import("resource:///modules/BrowserNewTabPreloader.jsm", tmp);
-  return new tmp.BrowserNewTabPreloader();
-});
-
-XPCOMUtils.defineLazyGetter(this, "TabTitleAbridger", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/TabTitleAbridger.jsm", tmp);
-  return new tmp.TabTitleAbridger(window);
-});
+XPCOMUtils.defineLazyModuleGetter(this, "gBrowserNewTabPreloader",
+  "resource:///modules/BrowserNewTabPreloader.jsm", "BrowserNewTabPreloader");
 
 let gInitialPages = [
   "about:blank",
@@ -1134,7 +1125,7 @@ var gBrowserInit = {
       else if (window.arguments.length >= 3) {
         loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
                 window.arguments[4] || false);
-        content.focus();
+        window.focus();
       }
       // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
       // Such callers expect that window.arguments[0] is handled as a single URI.
@@ -1417,15 +1408,8 @@ var gBrowserInit = {
     gSyncUI.init();
 #endif
 
-    // Don't preload new tab pages when the toolbar is hidden
-    // (i.e. when the current window is a popup window).
-    if (window.toolbar.visible) {
-      gBrowserNewTabPreloader.init(window);
-    }
-
     gBrowserThumbnails.init();
     TabView.init();
-    TabTitleAbridger.init();
 
     setUrlAndSearchBarWidthForConditionalForwardButton();
     window.addEventListener("resize", function resizeHandler(event) {
@@ -1572,10 +1556,6 @@ var gBrowserInit = {
 
     Services.obs.removeObserver(gPluginHandler.pluginCrashed, "plugin-crashed");
 
-    if (!__lookupGetter__("gBrowserNewTabPreloader")) {
-      gBrowserNewTabPreloader.uninit();
-    }
-
     try {
       gBrowser.removeProgressListener(window.XULBrowserWindow);
       gBrowser.removeTabsProgressListener(window.TabsProgressListener);
@@ -1613,7 +1593,6 @@ var gBrowserInit = {
       TabView.uninit();
       gBrowserThumbnails.uninit();
       FullZoom.destroy();
-      TabTitleAbridger.destroy();
 
       Services.obs.removeObserver(gSessionHistoryObserver, "browser:purge-session-history");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-disabled");
@@ -1993,11 +1972,9 @@ function focusAndSelectUrlBar() {
     if (window.fullScreen)
       FullScreen.mouseoverToggle(true);
 
-    gURLBar.focus();
-    if (document.activeElement == gURLBar.inputField) {
-      gURLBar.select();
+    gURLBar.select();
+    if (document.activeElement == gURLBar.inputField)
       return true;
-    }
   }
   return false;
 }
@@ -3357,12 +3334,9 @@ const BrowserSearch = {
     if (searchBar && window.fullScreen)
       FullScreen.mouseoverToggle(true);
     if (searchBar)
-      searchBar.focus();
-    if (searchBar && document.activeElement == searchBar.textbox.inputField) {
       searchBar.select();
-    } else {
+    if (!searchBar || document.activeElement != searchBar.textbox.inputField)
       openUILinkIn(Services.search.defaultEngine.searchForm, "current");
-    }
   },
 
   /**
@@ -3688,7 +3662,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
 
-  window.content.focus();
+  gBrowser.selectedBrowser.focus();
 }
 
 function BrowserToolboxCustomizeChange(aType) {
@@ -4676,7 +4650,7 @@ nsBrowserAccess.prototype = {
           gBrowser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
         }
         if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
-          content.focus();
+          window.focus();
     }
     return newWindow;
   },
@@ -4994,7 +4968,7 @@ function toggleSidebar(commandID, forceOpen) {
       sidebarTitle.value = "";
       sidebarBox.hidden = true;
       sidebarSplitter.hidden = true;
-      content.focus();
+      gBrowser.selectedBrowser.focus();
     } else {
       fireSidebarFocusedEvent();
     }

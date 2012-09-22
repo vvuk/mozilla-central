@@ -162,7 +162,7 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
   }
 
-  NS_IMETHOD Run() 
+  NS_IMETHOD Run()
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
@@ -270,6 +270,7 @@ BluetoothService::Init()
   }
 
   RegisterBluetoothSignalHandler(NS_LITERAL_STRING(LOCAL_AGENT_PATH), this);
+  RegisterBluetoothSignalHandler(NS_LITERAL_STRING(REMOTE_AGENT_PATH), this);
   mRegisteredForLocalAgent = true;
 
   return true;
@@ -708,6 +709,9 @@ SetJsObject(JSContext* aContext,
     } else if (aData[i].value().type() == BluetoothValue::Tuint32_t) {
       int data = aData[i].value().get_uint32_t();
       v = INT_TO_JSVAL(data);
+    } else if (aData[i].value().type() == BluetoothValue::Tbool) {
+      bool data = aData[i].value().get_bool();
+      v = BOOLEAN_TO_JSVAL(data);
     } else {
       NS_WARNING("SetJsObject: Parameter is not handled");
     }
@@ -731,6 +735,7 @@ BluetoothService::Notify(const BluetoothSignal& aData)
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
 
+  JSAutoRequest jsar(cx);
   JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!obj) {
     NS_WARNING("Failed to new JSObject for system message!");
@@ -758,6 +763,9 @@ BluetoothService::Notify(const BluetoothSignal& aData)
   } else if (aData.name().EqualsLiteral("Cancel")) {
     NS_ASSERTION(arr.Length() == 0, "Cancel: Wrong length of parameters");
     type.AssignLiteral("bluetooth-cancel");
+  } else if (aData.name().EqualsLiteral("PairedStatusChanged")) {
+    NS_ASSERTION(arr.Length() == 1, "PairedStatusChagned: Wrong length of parameters");
+    type.AssignLiteral("bluetooth-pairingstatuschanged");
   } else {
 #ifdef DEBUG
     nsCString warningMsg;

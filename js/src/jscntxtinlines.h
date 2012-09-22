@@ -227,8 +227,6 @@ class CompartmentChecker
         }
     }
 
-    void check(JSPrincipals *) { /* nothing for now */ }
-
     void check(JSObject *obj) {
         if (obj)
             check(obj->compartment());
@@ -565,44 +563,6 @@ inline js::PropertyTree&
 JSContext::propertyTree()
 {
     return compartment->propertyTree;
-}
-
-inline bool
-JSContext::hasEnteredCompartment() const
-{
-    return enterCompartmentDepth_ > 0;
-}
-
-inline void
-JSContext::enterCompartment(JSCompartment *c)
-{
-    enterCompartmentDepth_++;
-    compartment = c;
-    if (throwing)
-        wrapPendingException();
-}
-
-inline void
-JSContext::leaveCompartment(JSCompartment *oldCompartment)
-{
-    JS_ASSERT(hasEnteredCompartment());
-    enterCompartmentDepth_--;
-
-    /*
-     * Before we entered the current compartment, 'compartment' was
-     * 'oldCompartment', so we might want to simply set it back. However, we
-     * currently have this terrible scheme whereby defaultCompartmentObject_
-     * can be updated while enterCompartmentDepth_ > 0. In this case,
-     * oldCompartment != defaultCompartmentObject_->compartment and we must
-     * ignore oldCompartment.
-     */
-    if (hasEnteredCompartment() || !defaultCompartmentObject_)
-        compartment = oldCompartment;
-    else
-        compartment = defaultCompartmentObject_->compartment();
-
-    if (throwing)
-        wrapPendingException();
 }
 
 inline void

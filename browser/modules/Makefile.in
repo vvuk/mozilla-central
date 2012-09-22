@@ -22,7 +22,6 @@ EXTRA_JS_MODULES = \
 	offlineAppCache.jsm \
 	SignInToWebsite.jsm \
 	SignInToBrowser.jsm \
-	TabTitleAbridger.jsm \
 	TelemetryTimestamps.jsm \
 	Social.jsm \
 	webappsUI.jsm \

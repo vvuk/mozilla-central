@@ -122,6 +122,11 @@ class SocketHandler : public nsASocketHandler {
 
   void OnSocketDetached(PRFileDesc *fd) {}
 
+  void IsLocal(bool *aIsLocal) {
+    // TODO(jesup): better check? Does it matter? (likely no)
+    *aIsLocal = false;
+  }
+
   NS_DECL_ISUPPORTS
   
  private:

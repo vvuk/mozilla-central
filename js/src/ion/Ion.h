@@ -9,6 +9,7 @@
 #define jsion_ion_h__
 
 #include "jscntxt.h"
+#include "jscompartment.h"
 #include "IonCode.h"
 #include "jsinfer.h"
 #include "jsinterp.h"
@@ -215,9 +216,9 @@ IonContext *GetIonContext();
 
 bool SetIonContext(IonContext *ctx);
 
-MethodStatus CanEnterAtBranch(JSContext *cx, JSScript *script,
+MethodStatus CanEnterAtBranch(JSContext *cx, HandleScript script,
                               StackFrame *fp, jsbytecode *pc);
-MethodStatus CanEnter(JSContext *cx, JSScript *script, StackFrame *fp, bool newType);
+MethodStatus CanEnter(JSContext *cx, HandleScript script, StackFrame *fp, bool newType);
 
 enum IonExecStatus
 {

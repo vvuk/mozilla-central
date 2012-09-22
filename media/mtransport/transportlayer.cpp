@@ -14,7 +14,7 @@ MLOG_INIT("mtransport");
 
 nsresult TransportLayer::Init() {
   if (state_ != NONE)
-    return state_ == ERROR ? false : true;
+    return state_ == ERROR ? NS_ERROR_FAILURE : NS_OK;
 
   nsresult rv = InitInternal();
 

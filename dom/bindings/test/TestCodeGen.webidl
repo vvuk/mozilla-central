@@ -216,6 +216,9 @@ interface TestInterface {
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
+  sequence<any> receiveAnySequence();
+  sequence<any>? receiveNullableAnySequence();
+
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
   void passNullableArrayBuffer(ArrayBuffer? arg);
@@ -308,6 +311,7 @@ interface TestInterface {
   void passDictionaryOrLong(long x);
 
   void passDictContainingDict(optional DictContainingDict arg);
+  void passDictContainingSequence(optional DictContainingSequence arg);
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);
@@ -390,6 +394,10 @@ dictionary ParentDict : GrandparentDict {
 
 dictionary DictContainingDict {
   Dict memberDict;
+};
+
+dictionary DictContainingSequence {
+  sequence<long> ourSequence;
 };
 
 interface TestIndexedGetterInterface {

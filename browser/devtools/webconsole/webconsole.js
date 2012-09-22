@@ -1306,6 +1306,7 @@ WebConsoleFrame.prototype = {
                                              msgNode, null, null, clipboardText);
 
     messageNode._connectionId = entry.connection;
+    messageNode.url = request.url;
 
     this.makeOutputMessageLink(messageNode, function WCF_net_message_link() {
       if (!messageNode._panelOpen) {
@@ -2270,9 +2271,16 @@ WebConsoleFrame.prototype = {
 
   /**
    * Copies the selected items to the system clipboard.
+   *
+   * @param object aOptions
+   *        - linkOnly:
+   *        An optional flag to copy only URL without timestamp and
+   *        other meta-information. Default is false.
    */
-  copySelectedItems: function WCF_copySelectedItems()
+  copySelectedItems: function WCF_copySelectedItems(aOptions)
   {
+    aOptions = aOptions || { linkOnly: false };
+
     // Gather up the selected items and concatenate their clipboard text.
     let strings = [];
     let newGroup = false;
@@ -2299,11 +2307,31 @@ WebConsoleFrame.prototype = {
           strings.push("--");
           newGroup = false;
         }
-        strings.push("[" + timestampString + "] " + item.clipboardText);
+
+        if (aOptions.linkOnly) {
+          strings.push(item.url);
+        }
+        else {
+          strings.push("[" + timestampString + "] " + item.clipboardText);
+        }
       }
     }
 
     clipboardHelper.copyString(strings.join("\n"), this.document);
+  },
+
+  /**
+   * Open the selected item's URL in a new tab.
+   */
+  openSelectedItemInTab: function WCF_openSelectedItemInTab()
+  {
+    let item = this.outputNode.selectedItem;
+
+    if (!item || !item.url) {
+      return;
+    }
+
+    this.owner.openLink(item.url);
   },
 
   /**
@@ -3441,6 +3469,19 @@ CommandController.prototype = {
     this.owner.outputNode.selectAll();
   },
 
+  /**
+   * Open the URL of the selected message in a new tab.
+   */
+  openURL: function CommandController_openURL()
+  {
+    this.owner.openSelectedItemInTab();
+  },
+
+  copyURL: function CommandController_copyURL()
+  {
+    this.owner.copySelectedItems({ linkOnly: true });
+  },
+
   supportsCommand: function CommandController_supportsCommand(aCommand)
   {
     return this.isCommandEnabled(aCommand);
@@ -3452,6 +3493,12 @@ CommandController.prototype = {
       case "cmd_copy":
         // Only enable "copy" if nodes are selected.
         return this.owner.outputNode.selectedCount > 0;
+      case "consoleCmd_openURL":
+      case "consoleCmd_copyURL": {
+        // Only enable URL-related actions if node is Net Activity.
+        let selectedItem = this.owner.outputNode.selectedItem;
+        return selectedItem && selectedItem.url;
+      }
       case "cmd_fontSizeEnlarge":
       case "cmd_fontSizeReduce":
       case "cmd_fontSizeReset":
@@ -3465,6 +3512,12 @@ CommandController.prototype = {
     switch (aCommand) {
       case "cmd_copy":
         this.copy();
+        break;
+      case "consoleCmd_openURL":
+        this.openURL();
+        break;
+      case "consoleCmd_copyURL":
+        this.copyURL();
         break;
       case "cmd_selectAll":
         this.selectAll();
@@ -3488,3 +3541,115 @@ function gSequenceId()
 }
 gSequenceId.n = 0;
 
+
+function goUpdateConsoleCommands() {
+  goUpdateCommand("consoleCmd_openURL");
+  goUpdateCommand("consoleCmd_copyURL");
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Context Menu
+///////////////////////////////////////////////////////////////////////////////
+
+const CONTEXTMENU_ID = "output-contextmenu";
+
+/*
+ * ConsoleContextMenu: This handle to show/hide a context menu item.
+ */
+let ConsoleContextMenu = {
+  /*
+   * Handle to show/hide context menu item.
+   *
+   * @param nsIDOMEvent aEvent
+   */
+  build: function CCM_build(aEvent)
+  {
+    let popup = aEvent.target;
+    if (popup.id !== CONTEXTMENU_ID) {
+      return;
+    }
+
+    let view = document.querySelector(".hud-output-node");
+    let metadata = this.getSelectionMetadata(view);
+
+    for (let i = 0, l = popup.childNodes.length; i < l; ++i) {
+      let element = popup.childNodes[i];
+      element.hidden = this.shouldHideMenuItem(element, metadata);
+    }
+  },
+
+  /*
+   * Get selection information from the view.
+   *
+   * @param nsIDOMElement aView
+   *        This should be <xul:richlistbox>.
+   *
+   * @return object
+   *         Selection metadata.
+   */
+  getSelectionMetadata: function CCM_getSelectionMetadata(aView)
+  {
+    let metadata = {
+      selectionType: "",
+      selection: new Set(),
+    };
+    let selectedItems = aView.selectedItems;
+
+    metadata.selectionType = (selectedItems > 1) ? "multiple" : "single";
+
+    let selection = metadata.selection;
+    for (let item of selectedItems) {
+      switch (item.category) {
+        case CATEGORY_NETWORK:
+          selection.add("network");
+          break;
+        case CATEGORY_CSS:
+          selection.add("css");
+          break;
+        case CATEGORY_JS:
+          selection.add("js");
+          break;
+        case CATEGORY_WEBDEV:
+          selection.add("webdev");
+          break;
+      }
+    }
+
+    return metadata;
+  },
+
+  /*
+   * Determine if an item should be hidden.
+   *
+   * @param nsIDOMElement aMenuItem
+   * @param object aMetadata
+   * @return boolean
+   *         Whether the given item should be hidden or not.
+   */
+  shouldHideMenuItem: function CCM_shouldHideMenuItem(aMenuItem, aMetadata)
+  {
+    let selectionType = aMenuItem.getAttribute("selectiontype");
+    if (selectionType && !aMetadata.selectionType == selectionType) {
+      return true;
+    }
+
+    let selection = aMenuItem.getAttribute("selection");
+    if (!selection) {
+      return false;
+    }
+
+    let shouldHide = true;
+    let itemData = selection.split("|");
+    for (let type of aMetadata.selection) {
+      // check whether this menu item should show or not.
+      if (itemData.indexOf(type) !== -1) {
+        shouldHide = false;
+        break;
+      }
+    }
+
+    return shouldHide;
+  },
+};

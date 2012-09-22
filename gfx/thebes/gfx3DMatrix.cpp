@@ -5,9 +5,12 @@
 
 #include "gfxMatrix.h"
 #include "gfx3DMatrix.h"
+#include "mozilla/gfx/Tools.h"
 #include <math.h>
 #include <algorithm>
+
 using namespace std;
+using namespace mozilla::gfx;
 
 /* Force small values to zero.  We do this to avoid having sin(360deg)
  * evaluate to a tiny but nonzero value.
@@ -810,3 +813,22 @@ bool gfx3DMatrix::IsBackfaceVisible() const
   return (_33 * det) < 0;
 }
 
+void gfx3DMatrix::NudgeToIntegers(void)
+{
+  NudgeToInteger(&_11);
+  NudgeToInteger(&_12);
+  NudgeToInteger(&_13);
+  NudgeToInteger(&_14);
+  NudgeToInteger(&_21);
+  NudgeToInteger(&_22);
+  NudgeToInteger(&_23);
+  NudgeToInteger(&_24);
+  NudgeToInteger(&_31);
+  NudgeToInteger(&_32);
+  NudgeToInteger(&_33);
+  NudgeToInteger(&_34);
+  NudgeToInteger(&_41);
+  NudgeToInteger(&_42);
+  NudgeToInteger(&_43);
+  NudgeToInteger(&_44);
+}

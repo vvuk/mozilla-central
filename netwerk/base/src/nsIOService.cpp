@@ -39,11 +39,7 @@
 #include "nsIConsoleService.h"
 #include "nsIUploadChannel2.h"
 #include "nsXULAppAPI.h"
-#include "nsIProxiedChannel.h"
-#include "nsIProtocolProxyCallback.h"
-#include "nsICancelable.h"
 
-#include "mozilla/FunctionTimer.h"
 
 #if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsNativeConnectionHelper.h"
@@ -160,8 +156,6 @@ nsIOService::nsIOService()
 nsresult
 nsIOService::Init()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv;
 
     // We need to get references to the DNS service so that we can shut it
@@ -174,8 +168,6 @@ nsIOService::Init()
         return rv;
     }
 
-    NS_TIME_FUNCTION_MARK("got DNS Service");
-
     // XXX hack until xpidl supports error info directly (bug 13423)
     nsCOMPtr<nsIErrorService> errorService = do_GetService(NS_ERRORSERVICE_CONTRACTID);
     if (errorService) {
@@ -184,8 +176,6 @@ nsIOService::Init()
     else
         NS_WARNING("failed to get error service");
     
-    NS_TIME_FUNCTION_MARK("got Error Service");
-
     // setup our bad port list stuff
     for(int i=0; gBadPortList[i]; i++)
         mRestrictedPortList.AppendElement(gBadPortList[i]);
@@ -212,14 +202,10 @@ nsIOService::Init()
     }
     else
         NS_WARNING("failed to get observer service");
-        
-    NS_TIME_FUNCTION_MARK("Registered observers");
 
     gIOService = this;
 
     InitializeNetworkLinkService();
- 
-    NS_TIME_FUNCTION_MARK("Set up network link service");
 
     return NS_OK;
 }
@@ -233,8 +219,6 @@ nsIOService::~nsIOService()
 nsresult
 nsIOService::InitializeSocketTransportService()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv = NS_OK;
 
     if (!mSocketTransportService) {
@@ -248,6 +232,7 @@ nsIOService::InitializeSocketTransportService()
         rv = mSocketTransportService->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
         mSocketTransportService->SetAutodialEnabled(mAutoDialEnabled);
+        mSocketTransportService->SetOffline(false);
     }
 
     return rv;
@@ -256,8 +241,6 @@ nsIOService::InitializeSocketTransportService()
 nsresult
 nsIOService::InitializeNetworkLinkService()
 {
-    NS_TIME_FUNCTION;
-
     nsresult rv = NS_OK;
 
     if (mNetworkLinkServiceInitialized)
@@ -579,6 +562,31 @@ nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
     return NewChannelFromURIWithProxyFlags(aURI, nullptr, 0, result);
 }
 
+void
+nsIOService::LookupProxyInfo(nsIURI *aURI,
+                             nsIURI *aProxyURI,
+                             uint32_t aProxyFlags,
+                             nsCString *aScheme,
+                             nsIProxyInfo **outPI)
+{
+    nsresult rv;
+    nsCOMPtr<nsIProxyInfo> pi;
+
+    if (!mProxyService) {
+        mProxyService = do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID);
+        if (!mProxyService)
+            NS_WARNING("failed to get protocol proxy service");
+    }
+    if (mProxyService) {
+        rv = mProxyService->Resolve(aProxyURI ? aProxyURI : aURI, aProxyFlags,
+                                    getter_AddRefs(pi));
+        if (NS_FAILED(rv))
+            pi = nullptr;
+    }
+    pi.forget(outPI);
+}
+
+
 NS_IMETHODIMP
 nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
                                              nsIURI *aProxyURI,
@@ -603,11 +611,26 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIProxiedProtocolHandler> pph = do_QueryInterface(handler);
-    if (pph)
-        rv = pph->NewProxiedChannel(aURI, nullptr, aProxyFlags, aProxyURI, result);
-    else
-        rv = handler->NewChannel(aURI, result);
+    // Talk to the PPS if the protocol handler allows proxying.  Otherwise,
+    // skip this step.  This allows us to lazily load the PPS at startup.
+    if (protoFlags & nsIProtocolHandler::ALLOWS_PROXY) {
+        nsCOMPtr<nsIProxyInfo> pi;
+        LookupProxyInfo(aURI, aProxyURI, aProxyFlags, &scheme, getter_AddRefs(pi));
+        if (pi) {
+            nsAutoCString type;
+            if (NS_SUCCEEDED(pi->GetType(type)) && type.EqualsLiteral("http")) {
+                // we are going to proxy this channel using an http proxy
+                rv = GetProtocolHandler("http", getter_AddRefs(handler));
+                if (NS_FAILED(rv))
+                    return rv;
+            }
+            nsCOMPtr<nsIProxiedProtocolHandler> pph = do_QueryInterface(handler);
+            if (pph)
+                return pph->NewProxiedChannel(aURI, pi, result);
+        }
+    }
+
+    rv = handler->NewChannel(aURI, result);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Some extensions override the http protocol handler and provide their own
@@ -705,41 +728,36 @@ nsIOService::SetOffline(bool offline)
         }
     }
 
+    nsIIOService *subject = static_cast<nsIIOService *>(this);
+    nsresult rv;
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
 
-        nsresult rv;
         if (offline && !mOffline) {
             NS_NAMED_LITERAL_STRING(offlineString, NS_IOSERVICE_OFFLINE);
             mOffline = true; // indicate we're trying to shutdown
 
-            // don't care if notification fails
-            // this allows users to attempt a little cleanup before dns and socket transport are shut down.
+            // don't care if notifications fail
             if (observerService)
-                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
+                observerService->NotifyObservers(subject,
                                                  NS_IOSERVICE_GOING_OFFLINE_TOPIC,
                                                  offlineString.get());
 
-            // be sure to try and shutdown both (even if the first fails)...
-            // shutdown dns service first, because it has callbacks for socket transport
-            if (mDNSService) {
-                rv = mDNSService->Shutdown();
-                NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
-            }
-            if (mSocketTransportService) {
-                rv = mSocketTransportService->Shutdown();
-                NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
-            }
+            if (mDNSService)
+                mDNSService->SetOffline(true);
 
-            // don't care if notification fails
+            if (mSocketTransportService)
+                mSocketTransportService->SetOffline(true);
+
             if (observerService)
-                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
+                observerService->NotifyObservers(subject,
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  offlineString.get());
         }
         else if (!offline && mOffline) {
             // go online
             if (mDNSService) {
+                mDNSService->SetOffline(false);
                 rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
@@ -753,9 +771,23 @@ nsIOService::SetOffline(bool offline)
 
             // don't care if notification fails
             if (observerService)
-                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
+                observerService->NotifyObservers(subject,
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  NS_LITERAL_STRING(NS_IOSERVICE_ONLINE).get());
+        }
+    }
+
+    // Don't notify here, as the above notifications (if used) suffice.
+    if (mShutdown && mOffline) {
+        // be sure to try and shutdown both (even if the first fails)...
+        // shutdown dns service first, because it has callbacks for socket transport
+        if (mDNSService) {
+            rv = mDNSService->Shutdown();
+            NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
+        }
+        if (mSocketTransportService) {
+            rv = mSocketTransportService->Shutdown();
+            NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
         }
     }
 
@@ -1175,79 +1207,35 @@ nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
 }
 
 // nsISpeculativeConnect
-class IOServiceProxyCallback MOZ_FINAL : public nsIProtocolProxyCallback
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIPROTOCOLPROXYCALLBACK
-
-    IOServiceProxyCallback(nsIInterfaceRequestor *aCallbacks,
-                           nsIEventTarget *aTarget,
-                           nsIOService *aIOService)
-        : mCallbacks(aCallbacks)
-        , mTarget(aTarget)
-        , mIOService(aIOService)
-    { }
-
-private:
-    nsRefPtr<nsIInterfaceRequestor> mCallbacks;
-    nsRefPtr<nsIEventTarget>        mTarget;
-    nsRefPtr<nsIOService>           mIOService;
-};
-
-NS_IMPL_ISUPPORTS1(IOServiceProxyCallback, nsIProtocolProxyCallback)
-
 NS_IMETHODIMP
-IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIURI *aURI,
-                                         nsIProxyInfo *pi, nsresult status)
+nsIOService::SpeculativeConnect(nsIURI *aURI,
+                                nsIInterfaceRequestor *aCallbacks,
+                                nsIEventTarget *aTarget)
 {
-    // Checking proxy status for speculative connect
-    nsAutoCString type;
-    if (NS_SUCCEEDED(status) && pi &&
-        NS_SUCCEEDED(pi->GetType(type)) &&
-        !type.EqualsLiteral("direct")) {
-        // proxies dont do speculative connect
-        return NS_OK;
-    }
-
     nsAutoCString scheme;
     nsresult rv = aURI->GetScheme(scheme);
     if (NS_FAILED(rv))
+        return rv;
+
+    // Check for proxy information. If there is a proxy configured then a
+    // speculative connect should not be performed because the potential
+    // reward is slim with tcp peers closely located to the browser.
+    nsCOMPtr<nsIProxyInfo> pi;
+    LookupProxyInfo(aURI, nullptr, 0, &scheme, getter_AddRefs(pi));
+    if (pi) 
         return NS_OK;
 
     nsCOMPtr<nsIProtocolHandler> handler;
-    rv = mIOService->GetProtocolHandler(scheme.get(),
-                                        getter_AddRefs(handler));
+    rv = GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
     if (NS_FAILED(rv))
-        return NS_OK;
+        return rv;
 
     nsCOMPtr<nsISpeculativeConnect> speculativeHandler =
         do_QueryInterface(handler);
     if (!speculativeHandler)
         return NS_OK;
 
-    speculativeHandler->SpeculativeConnect(aURI,
-                                           mCallbacks,
-                                           mTarget);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIOService::SpeculativeConnect(nsIURI *aURI,
-                                nsIInterfaceRequestor *aCallbacks,
-                                nsIEventTarget *aTarget)
-{
-    // Check for proxy information. If there is a proxy configured then a
-    // speculative connect should not be performed because the potential
-    // reward is slim with tcp peers closely located to the browser.
-    nsresult rv;
-    nsCOMPtr<nsIProtocolProxyService> pps =
-            do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsCOMPtr<nsICancelable> cancelable;
-    nsRefPtr<IOServiceProxyCallback> callback =
-        new IOServiceProxyCallback(aCallbacks, aTarget, this);
-    return pps->AsyncResolve(aURI, 0, callback, getter_AddRefs(cancelable));
+    return speculativeHandler->SpeculativeConnect(aURI,
+                                                  aCallbacks,
+                                                  aTarget);
 }

@@ -60,6 +60,7 @@
   <string name="save_as_pdf">&save_as_pdf;</string>
   <string name="find_in_page">&find_in_page;</string>
   <string name="desktop_mode">&desktop_mode;</string>
+  <string name="tools">&tools;</string>
 
   <string name="find_text">&find_text;</string>
   <string name="find_prev">&find_prev;</string>
@@ -164,6 +165,8 @@
   <string name="button_ok">&button_ok;</string>
   <string name="button_cancel">&button_cancel;</string>
   <string name="button_clear_data">&button_clear_data;</string>
+  <string name="button_set">&button_set;</string>
+  <string name="button_clear">&button_clear;</string>
 
   <string name="abouthome_addons_title">&abouthome_addons_title;</string>
   <string name="abouthome_addons_browse">&abouthome_addons_browse;</string>

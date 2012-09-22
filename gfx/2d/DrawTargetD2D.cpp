@@ -100,7 +100,19 @@ public:
       gfxWarning() << "Failed to create shared bitmap for old surface.";
     }
 
-    mClippedArea = mDT->GetClippedGeometry();
+    IntRect clipBounds;
+    mClippedArea = mDT->GetClippedGeometry(&clipBounds);
+
+    if (!clipBounds.IsEqualEdges(IntRect(IntPoint(0, 0), mDT->mSize))) {
+      // We still need to take into account clipBounds if it contains additional
+      // clipping information.
+      RefPtr<ID2D1RectangleGeometry> rectGeom;
+      factory()->CreateRectangleGeometry(D2D1::Rect(clipBounds.x, clipBounds.y,
+                                                    clipBounds.XMost(), clipBounds.YMost()),
+                                         byRef(rectGeom));
+
+      mClippedArea = mDT->Intersect(mClippedArea, rectGeom);
+    }
   }
 
   ID2D1Factory *factory() { return mDT->factory(); }
@@ -279,9 +291,15 @@ DrawTargetD2D::DrawSurface(SourceSurface *aSurface,
       AddDependencyOnSource(srcSurf);
     }
     break;
-  case SURFACE_DATA:
+  default:
     {
-      DataSourceSurface *srcSurf = static_cast<DataSourceSurface*>(aSurface);
+      RefPtr<DataSourceSurface> srcSurf = aSurface->GetDataSurface();
+
+      if (!srcSurf) {
+        gfxDebug() << "Not able to deal with non-data source surface.";
+        return;
+      }
+
       if (aSource.width > rt->GetMaximumBitmapSize() ||
           aSource.height > rt->GetMaximumBitmapSize()) {
         gfxDebug() << "Bitmap source larger than texture size specified. DrawBitmap will silently fail.";
@@ -303,8 +321,6 @@ DrawTargetD2D::DrawSurface(SourceSurface *aSurface,
       srcRect.y -= (uint32_t)aSource.y;
     }
     break;
-  default:
-    break;
   }
 
   rt->DrawBitmap(bitmap, D2DRect(aDest), aOptions.mAlpha, D2DFilter(aSurfOptions.mFilter), D2DRect(srcRect));
@@ -324,6 +340,8 @@ DrawTargetD2D::DrawSurfaceWithShadow(SourceSurface *aSurface,
   if (aSurface->GetType() != SURFACE_D2D1_DRAWTARGET) {
     return;
   }
+
+  SetScissorToRect(nullptr);
 
   // XXX - This function is way too long, it should be split up soon to make
   // it more graspable!
@@ -357,8 +375,9 @@ DrawTargetD2D::DrawSurfaceWithShadow(SourceSurface *aSurface,
 
   RefPtr<ID3D10Texture2D> maskTexture;
   RefPtr<ID3D10ShaderResourceView> maskSRView;
+  IntRect clipBounds;
   if (mPushedClips.size()) {
-    EnsureClipMaskTexture();
+    EnsureClipMaskTexture(&clipBounds);
 
     mDevice->CreateShaderResourceView(mCurrentClipMaskTexture, nullptr, byRef(maskSRView));
   }
@@ -614,6 +633,7 @@ DrawTargetD2D::DrawSurfaceWithShadow(SourceSurface *aSurface,
                                              Float(aSurface->GetSize().height) / mSize.height));
     mPrivateData->mEffect->GetTechniqueByName("SampleTextureWithShadow")->
       GetPassByIndex(2)->Apply(0);
+    SetScissorToRect(&clipBounds);
   } else {
     mPrivateData->mEffect->GetTechniqueByName("SampleTextureWithShadow")->
       GetPassByIndex(1)->Apply(0);
@@ -639,6 +659,7 @@ DrawTargetD2D::DrawSurfaceWithShadow(SourceSurface *aSurface,
                                              Float(aSurface->GetSize().height) / mSize.height));
     mPrivateData->mEffect->GetTechniqueByName("SampleMaskedTexture")->
       GetPassByIndex(0)->Apply(0);
+    // We've set the scissor rect here for the previous draw call.
   } else {
     mPrivateData->mEffect->GetTechniqueByName("SampleTexture")->
       GetPassByIndex(0)->Apply(0);
@@ -1006,15 +1027,20 @@ DrawTargetD2D::PushClipRect(const Rect &aRect)
   }
 
   PushedClip clip;
+  Rect rect = mTransform.TransformBounds(aRect);
+  IntRect intRect;
+  clip.mIsPixelAligned = rect.ToIntRect(&intRect);
+
   // Do not store the transform, just store the device space rectangle directly.
-  clip.mBounds = D2DRect(mTransform.TransformBounds(aRect));
+  clip.mBounds = D2DRect(rect);
 
   mPushedClips.push_back(clip);
 
   mRT->SetTransform(D2D1::IdentityMatrix());
   mTransformDirty = true;
+
   if (mClipsArePushed) {
-    mRT->PushAxisAlignedClip(clip.mBounds, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+    mRT->PushAxisAlignedClip(clip.mBounds, clip.mIsPixelAligned ? D2D1_ANTIALIAS_MODE_ALIASED : D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
   }
 }
 
@@ -1575,6 +1601,7 @@ DrawTargetD2D::FinalizeRTForOperation(CompositionOp aOperator, const Pattern &aP
 
   mDevice->OMSetBlendState(GetBlendStateForOperator(aOperator), nullptr, 0xffffffff);
   
+  SetScissorToRect(nullptr);
   mDevice->Draw(4, 0);
 }
 
@@ -1584,6 +1611,32 @@ DrawTargetD2D::ConvertRectToGeometry(const D2D1_RECT_F& aRect)
   RefPtr<ID2D1RectangleGeometry> rectGeom;
   factory()->CreateRectangleGeometry(&aRect, byRef(rectGeom));
   return rectGeom.forget();
+}
+
+TemporaryRef<ID2D1Geometry>
+DrawTargetD2D::GetTransformedGeometry(ID2D1Geometry *aGeometry, const D2D1_MATRIX_3X2_F &aTransform)
+{
+  RefPtr<ID2D1PathGeometry> tmpGeometry;
+  factory()->CreatePathGeometry(byRef(tmpGeometry));
+  RefPtr<ID2D1GeometrySink> currentSink;
+  tmpGeometry->Open(byRef(currentSink));
+  aGeometry->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
+                      aTransform, currentSink);
+  currentSink->Close();
+  return tmpGeometry;
+}
+
+TemporaryRef<ID2D1Geometry>
+DrawTargetD2D::Intersect(ID2D1Geometry *aGeometryA, ID2D1Geometry *aGeometryB)
+{
+  RefPtr<ID2D1PathGeometry> pathGeom;
+  factory()->CreatePathGeometry(byRef(pathGeom));
+  RefPtr<ID2D1GeometrySink> sink;
+  pathGeom->Open(byRef(sink));
+  aGeometryA->CombineWithGeometry(aGeometryB, D2D1_COMBINE_MODE_INTERSECT, nullptr, sink);
+  sink->Close();
+
+  return pathGeom;
 }
 
 static D2D1_RECT_F
@@ -1598,36 +1651,56 @@ IntersectRect(const D2D1_RECT_F& aRect1, const D2D1_RECT_F& aRect2)
 }
 
 TemporaryRef<ID2D1Geometry>
-DrawTargetD2D::GetClippedGeometry()
+DrawTargetD2D::GetClippedGeometry(IntRect *aClipBounds)
 {
   if (mCurrentClippedGeometry) {
+    *aClipBounds = mCurrentClipBounds;
     return mCurrentClippedGeometry;
   }
+
+  mCurrentClipBounds = IntRect(IntPoint(0, 0), mSize);
 
   // if pathGeom is null then pathRect represents the path.
   RefPtr<ID2D1Geometry> pathGeom;
   D2D1_RECT_F pathRect;
+  bool pathRectIsAxisAligned = false;
   std::vector<DrawTargetD2D::PushedClip>::iterator iter = mPushedClips.begin();
+  
   if (iter->mPath) {
-    RefPtr<ID2D1PathGeometry> tmpGeometry;
-    factory()->CreatePathGeometry(byRef(tmpGeometry));
-    RefPtr<ID2D1GeometrySink> currentSink;
-    tmpGeometry->Open(byRef(currentSink));
-    iter->mPath->GetGeometry()->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
-                                         iter->mTransform, currentSink);
-    currentSink->Close();
-    pathGeom = tmpGeometry.forget();
+    pathGeom = GetTransformedGeometry(iter->mPath->GetGeometry(), iter->mTransform);
   } else {
     pathRect = iter->mBounds;
+    pathRectIsAxisAligned = iter->mIsPixelAligned;
   }
 
   iter++;
   for (;iter != mPushedClips.end(); iter++) {
+    // Do nothing but add it to the current clip bounds.
+    if (!iter->mPath && iter->mIsPixelAligned) {
+      mCurrentClipBounds.IntersectRect(mCurrentClipBounds,
+        IntRect(iter->mBounds.left, iter->mBounds.top,
+                int32_t(iter->mBounds.right - iter->mBounds.left),
+                int32_t(iter->mBounds.bottom - iter->mBounds.top)));
+      continue;
+    }
+
     if (!pathGeom) {
+      if (pathRectIsAxisAligned) {
+        mCurrentClipBounds.IntersectRect(mCurrentClipBounds,
+          IntRect(pathRect.left, pathRect.top,
+                  int32_t(pathRect.right - pathRect.left),
+                  int32_t(pathRect.bottom - pathRect.top)));
+      }
       if (iter->mPath) {
-        pathGeom = ConvertRectToGeometry(pathRect);
+        // See if pathRect needs to go into the path geometry.
+        if (!pathRectIsAxisAligned) {
+          pathGeom = ConvertRectToGeometry(pathRect);
+        } else {
+          pathGeom = GetTransformedGeometry(iter->mPath->GetGeometry(), iter->mTransform);
+        }
       } else {
         pathRect = IntersectRect(pathRect, iter->mBounds);
+        pathRectIsAxisAligned = false;
         continue;
       }
     }
@@ -1652,10 +1725,15 @@ DrawTargetD2D::GetClippedGeometry()
     pathGeom = newGeom.forget();
   }
 
+  // For now we need mCurrentClippedGeometry to always be non-NULL. This method
+  // might seem a little strange but it is just fine, if pathGeom is NULL
+  // pathRect will always still contain 1 clip unaccounted for regardless of
+  // mCurrentClipBounds.
   if (!pathGeom) {
     pathGeom = ConvertRectToGeometry(pathRect);
   }
   mCurrentClippedGeometry = pathGeom.forget();
+  *aClipBounds = mCurrentClipBounds;
   return mCurrentClippedGeometry;
 }
 
@@ -1759,7 +1837,7 @@ DrawTargetD2D::PushClipsToRT(ID2D1RenderTarget *aRT)
                                             iter->mTransform, 1.0f, nullptr,
                                             options), iter->mLayer);
     } else {
-      aRT->PushAxisAlignedClip(iter->mBounds, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+      aRT->PushAxisAlignedClip(iter->mBounds, iter->mIsPixelAligned ? D2D1_ANTIALIAS_MODE_ALIASED : D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
     }
   }
 }
@@ -1777,12 +1855,15 @@ DrawTargetD2D::PopClipsFromRT(ID2D1RenderTarget *aRT)
 }
 
 void
-DrawTargetD2D::EnsureClipMaskTexture()
+DrawTargetD2D::EnsureClipMaskTexture(IntRect *aBounds)
 {
   if (mCurrentClipMaskTexture || mPushedClips.empty()) {
+    *aBounds = mCurrentClipBounds;
     return;
   }
   
+  RefPtr<ID2D1Geometry> geometry = GetClippedGeometry(aBounds);
+
   CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_A8_UNORM,
                              mSize.width,
                              mSize.height,
@@ -1806,8 +1887,6 @@ DrawTargetD2D::EnsureClipMaskTexture()
   RefPtr<ID2D1SolidColorBrush> brush;
   rt->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), byRef(brush));
     
-  RefPtr<ID2D1Geometry> geometry = GetClippedGeometry();
-
   rt->BeginDraw();
   rt->Clear(D2D1::ColorF(0, 0));
   rt->FillGeometry(geometry, brush);
@@ -1940,8 +2019,12 @@ DrawTargetD2D::FillGlyphsManual(ScaledFontDWrite *aFont,
 
   bool isMasking = false;
 
+  IntRect clipBoundsStorage;
+  IntRect *clipBounds = nullptr;
+
   if (!mPushedClips.empty()) {
-    RefPtr<ID2D1Geometry> geom = GetClippedGeometry();
+    clipBounds = &clipBoundsStorage;
+    RefPtr<ID2D1Geometry> geom = GetClippedGeometry(clipBounds);
 
     RefPtr<ID2D1RectangleGeometry> rectGeom;
     factory()->CreateRectangleGeometry(D2D1::RectF(rectBounds.x, rectBounds.y,
@@ -1951,13 +2034,14 @@ DrawTargetD2D::FillGlyphsManual(ScaledFontDWrite *aFont,
 
     D2D1_GEOMETRY_RELATION relation;
     if (FAILED(geom->CompareWithGeometry(rectGeom, D2D1::IdentityMatrix(), &relation)) ||
-        relation != D2D1_GEOMETRY_RELATION_CONTAINS) {
+        relation != D2D1_GEOMETRY_RELATION_CONTAINS ) {
       isMasking = true;
     }        
   }
   
   if (isMasking) {
-    EnsureClipMaskTexture();
+    clipBounds = &clipBoundsStorage;
+    EnsureClipMaskTexture(clipBounds);
 
     RefPtr<ID3D10ShaderResourceView> srViewMask;
     hr = mDevice->CreateShaderResourceView(mCurrentClipMaskTexture, nullptr, byRef(srViewMask));
@@ -1983,7 +2067,7 @@ DrawTargetD2D::FillGlyphsManual(ScaledFontDWrite *aFont,
 
   rtViews = rtView;
   mDevice->OMSetRenderTargets(1, &rtViews, nullptr);
-
+  SetScissorToRect(clipBounds);
   mDevice->Draw(4, 0);
   return true;
 }
@@ -2611,6 +2695,23 @@ DrawTargetD2D::GetDWriteFactory()
   }
 
   return mDWriteFactory;
+}
+
+void
+DrawTargetD2D::SetScissorToRect(IntRect *aRect)
+{
+  D3D10_RECT rect;
+  if (aRect) {
+    rect.left = aRect->x;
+    rect.right = aRect->XMost();
+    rect.top = aRect->y;
+    rect.bottom = aRect->YMost();
+  } else {
+    rect.left = rect.left = INT32_MIN;
+    rect.right = rect.top = INT32_MAX;
+  }
+
+  mDevice->RSSetScissorRects(1, &rect);
 }
 
 }

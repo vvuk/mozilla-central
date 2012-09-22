@@ -78,8 +78,6 @@
 
 #include "ArchiveReader.h"
 
-using namespace mozilla::dom::file;
-
 #include "nsFormData.h"
 #include "nsBlobProtocolHandler.h"
 #include "nsBlobURI.h"
@@ -95,10 +93,6 @@ using namespace mozilla::dom::file;
 #include "mozilla/dom/DOMRequest.h"
 #include "mozilla/OSFileConstants.h"
 #include "mozilla/dom/Activity.h"
-
-using mozilla::dom::indexedDB::IndexedDatabaseManager;
-using mozilla::dom::DOMRequestService;
-using mozilla::dom::Activity;
 
 #ifdef MOZ_B2G_RIL
 #include "SystemWorkerManager.h"
@@ -124,6 +118,12 @@ using mozilla::dom::gonk::AudioManager;
 #include "nsVolumeService.h"
 using mozilla::system::nsVolumeService;
 #endif
+
+#ifdef MOZ_B2G_FM
+#include "FMRadio.h"
+using mozilla::dom::fm::FMRadio;
+#endif
+
 #include "nsDOMMutationObserver.h"
 
 // Editor stuff
@@ -236,16 +236,19 @@ static void Shutdown();
 #include "mozilla/dom/sms/SmsServicesFactory.h"
 #include "nsIPowerManagerService.h"
 #include "nsIAlarmHalService.h"
-
-using namespace mozilla::dom::sms;
+#include "nsMixedContentBlocker.h"
 
 #include "mozilla/dom/power/PowerManagerService.h"
-
-using mozilla::dom::power::PowerManagerService;
-
 #include "mozilla/dom/alarm/AlarmHalService.h"
 
+using namespace mozilla;
+using namespace mozilla::dom;
+using namespace mozilla::dom::file;
+using namespace mozilla::dom::sms;
 using mozilla::dom::alarm::AlarmHalService;
+using mozilla::dom::indexedDB::IndexedDatabaseManager;
+using mozilla::dom::power::PowerManagerService;
+
 
 // Transformiix
 /* 5d5d92cd-6bf8-11d9-bf4a-000a95dc234c */
@@ -290,6 +293,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMMutationObserver)
 NS_GENERIC_FACTORY_CONSTRUCTOR(AudioManager)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVolumeService)
 #endif
+
+#ifdef MOZ_B2G_FM
+NS_GENERIC_FACTORY_CONSTRUCTOR(FMRadio)
+#endif
+
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceSensors)
 
 #ifndef MOZ_WIDGET_GONK
@@ -639,6 +647,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGeolocation, Init)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsGeolocationService, nsGeolocationService::GetGeolocationService)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(CSPService)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsMixedContentBlocker)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPrincipal)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSecurityNameSet)
@@ -769,6 +778,11 @@ NS_DEFINE_NAMED_CID(BLUETOOTHSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_AUDIOMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_VOLUMESERVICE_CID);
 #endif
+
+#ifdef MOZ_B2G_FM
+NS_DEFINE_NAMED_CID(NS_FMRADIO_CID);
+#endif
+
 #ifdef ENABLE_EDITOR_API_LOG
 NS_DEFINE_NAMED_CID(NS_HTMLEDITOR_CID);
 #else
@@ -783,6 +797,7 @@ NS_DEFINE_NAMED_CID(NS_GEOLOCATION_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_GEOLOCATION_CID);
 NS_DEFINE_NAMED_CID(NS_FOCUSMANAGER_CID);
 NS_DEFINE_NAMED_CID(CSPSERVICE_CID);
+NS_DEFINE_NAMED_CID(NS_MIXEDCONTENTBLOCKER_CID);
 NS_DEFINE_NAMED_CID(NS_EVENTLISTENERSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_GLOBALMESSAGEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_PARENTPROCESSMESSAGEMANAGER_CID);
@@ -1044,6 +1059,9 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_AUDIOMANAGER_CID, true, NULL, AudioManagerConstructor },
   { &kNS_VOLUMESERVICE_CID, true, NULL, nsVolumeServiceConstructor },
 #endif
+#ifdef MOZ_B2G_FM
+  { &kNS_FMRADIO_CID, true, NULL, FMRadioConstructor },
+#endif
 #ifdef ENABLE_EDITOR_API_LOG
   { &kNS_HTMLEDITOR_CID, false, NULL, nsHTMLEditorLogConstructor },
 #else
@@ -1058,6 +1076,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_GEOLOCATION_CID, false, NULL, nsGeolocationConstructor },
   { &kNS_FOCUSMANAGER_CID, false, NULL, CreateFocusManager },
   { &kCSPSERVICE_CID, false, NULL, CSPServiceConstructor },
+  { &kNS_MIXEDCONTENTBLOCKER_CID, false, NULL, nsMixedContentBlockerConstructor },
   { &kNS_EVENTLISTENERSERVICE_CID, false, NULL, CreateEventListenerService },
   { &kNS_GLOBALMESSAGEMANAGER_CID, false, NULL, CreateGlobalMessageManager },
   { &kNS_PARENTPROCESSMESSAGEMANAGER_CID, false, NULL, CreateParentMessageManager },
@@ -1184,6 +1203,9 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_AUDIOMANAGER_CONTRACTID, &kNS_AUDIOMANAGER_CID },
   { NS_VOLUMESERVICE_CONTRACTID, &kNS_VOLUMESERVICE_CID },
 #endif
+#ifdef MOZ_B2G_FM
+  { NS_FMRADIO_CONTRACTID, &kNS_FMRADIO_CID },
+#endif
 #ifdef ENABLE_EDITOR_API_LOG
   { "@mozilla.org/editor/htmleditor;1", &kNS_HTMLEDITOR_CID },
 #else
@@ -1196,6 +1218,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/geolocation;1", &kNS_GEOLOCATION_CID },
   { "@mozilla.org/focus-manager;1", &kNS_FOCUSMANAGER_CID },
   { CSPSERVICE_CONTRACTID, &kCSPSERVICE_CID },
+  { NS_MIXEDCONTENTBLOCKER_CONTRACTID, &kNS_MIXEDCONTENTBLOCKER_CID },
   { NS_EVENTLISTENERSERVICE_CONTRACTID, &kNS_EVENTLISTENERSERVICE_CID },
   { NS_GLOBALMESSAGEMANAGER_CONTRACTID, &kNS_GLOBALMESSAGEMANAGER_CID },
   { NS_PARENTPROCESSMESSAGEMANAGER_CONTRACTID, &kNS_PARENTPROCESSMESSAGEMANAGER_CID },
@@ -1238,6 +1261,7 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
   { "content-policy", NS_DATADOCUMENTCONTENTPOLICY_CONTRACTID, NS_DATADOCUMENTCONTENTPOLICY_CONTRACTID },
   { "content-policy", NS_NODATAPROTOCOLCONTENTPOLICY_CONTRACTID, NS_NODATAPROTOCOLCONTENTPOLICY_CONTRACTID },
   { "content-policy", "CSPService", CSPSERVICE_CONTRACTID },
+  { "content-policy", NS_MIXEDCONTENTBLOCKER_CONTRACTID, NS_MIXEDCONTENTBLOCKER_CONTRACTID },
   { "net-channel-event-sinks", "CSPService", CSPSERVICE_CONTRACTID },
   { JAVASCRIPT_GLOBAL_STATIC_NAMESET_CATEGORY, "PrivilegeManager", NS_SECURITYNAMESET_CONTRACTID },
   { "app-startup", "Script Security Manager", "service," NS_SCRIPTSECURITYMANAGER_CONTRACTID },

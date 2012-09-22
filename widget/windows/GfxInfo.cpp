@@ -11,7 +11,6 @@
 #include "GfxInfo.h"
 #include "GfxInfoWebGL.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
 #include "GfxDriverInfo.h"
@@ -32,9 +31,6 @@ NS_IMPL_ISUPPORTS_INHERITED1(GfxInfo, GfxInfoBase, nsIGfxInfoDebug)
 #endif
 
 static const uint32_t allWindowsVersions = 0xffffffff;
-
-#define V(a,b,c,d) GFX_DRIVER_VERSION(a,b,c,d)
-
 
 GfxInfo::GfxInfo()
  :  mWindowsVersion(0),
@@ -245,8 +241,6 @@ ParseIDFromDeviceID(const nsAString &key, const char *prefix, int length)
 nsresult
 GfxInfo::Init()
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = GfxInfoBase::Init();
 
   DISPLAY_DEVICEW displayDevice;
@@ -315,12 +309,20 @@ GfxInfo::Init()
           /* we've found the driver we're looking for */
           dwcbData = sizeof(value);
           result = RegQueryValueExW(key, L"DriverVersion", NULL, NULL, (LPBYTE)value, &dwcbData);
-          if (result == ERROR_SUCCESS)
+          if (result == ERROR_SUCCESS) {
             mDriverVersion = value;
+          } else {
+            // If the entry wasn't found, assume the worst (0.0.0.0).
+            mDriverVersion.AssignLiteral("0.0.0.0");
+          }
           dwcbData = sizeof(value);
           result = RegQueryValueExW(key, L"DriverDate", NULL, NULL, (LPBYTE)value, &dwcbData);
-          if (result == ERROR_SUCCESS)
+          if (result == ERROR_SUCCESS) {
             mDriverDate = value;
+          } else {
+            // Again, assume the worst
+            mDriverDate.AssignLiteral("01-01-1970");
+          }
           RegCloseKey(key); 
           break;
         }
@@ -904,15 +906,6 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         driverVersion == V(6,14,11,7756))
     {
       *aStatus = FEATURE_NO_INFO;
-      return NS_OK;
-    }
-
-    // ANGLE currently uses D3D10 <-> D3D9 interop, which crashes on Optimus
-    // machines.
-    if (aFeature == FEATURE_WEBGL_ANGLE &&
-        gfxWindowsPlatform::IsOptimus())
-    {
-      *aStatus = FEATURE_BLOCKED_DEVICE;
       return NS_OK;
     }
 

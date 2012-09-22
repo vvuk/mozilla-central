@@ -1539,14 +1539,20 @@ nsContainerFrame::MoveOverflowToChildList(nsPresContext* aPresContext)
     }
   }
 
-  // It's also possible that we have an overflow list for ourselves
+  // It's also possible that we have an overflow list for ourselves.
+  return DrainSelfOverflowList() || result;
+}
+
+bool
+nsContainerFrame::DrainSelfOverflowList()
+{
   nsAutoPtr<nsFrameList> overflowFrames(StealOverflowFrames());
   if (overflowFrames) {
     NS_ASSERTION(mFrames.NotEmpty(), "overflow list w/o frames");
     mFrames.AppendFrames(nullptr, *overflowFrames);
-    result = true;
+    return true;
   }
-  return result;
+  return false;
 }
 
 nsOverflowContinuationTracker::nsOverflowContinuationTracker(nsPresContext*    aPresContext,
@@ -1757,7 +1763,7 @@ nsOverflowContinuationTracker::Finish(nsIFrame* aChild)
 
 #ifdef DEBUG
 NS_IMETHODIMP
-nsContainerFrame::List(FILE* out, int32_t aIndent) const
+nsContainerFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
   IndentBy(out, aIndent);
   ListTag(out);
@@ -1824,7 +1830,7 @@ nsContainerFrame::List(FILE* out, int32_t aIndent) const
       NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
 
       // Have the child frame list
-      kid->List(out, aIndent + 1);
+      kid->List(out, aIndent + 1, aFlags);
     }
     IndentBy(out, aIndent);
     fputs(">\n", out);

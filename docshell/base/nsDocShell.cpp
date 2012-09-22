@@ -51,7 +51,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIUploadChannel.h"
 #include "nsISecurityEventSink.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIJSContextStack.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -4454,13 +4453,9 @@ nsDocShell::Reload(uint32_t aReloadFlags)
     nsCOMPtr<nsISHistory> rootSH;
     rv = GetRootSessionHistory(getter_AddRefs(rootSH));
     nsCOMPtr<nsISHistoryInternal> shistInt(do_QueryInterface(rootSH));
-    bool canReload = true; 
+    bool canReload = true;
     if (rootSH) {
-      nsCOMPtr<nsISHistoryListener> listener;
-      shistInt->GetListener(getter_AddRefs(listener));
-      if (listener) {
-        listener->OnHistoryReload(mCurrentURI, aReloadFlags, &canReload);
-      }
+      shistInt->NotifyOnHistoryReload(mCurrentURI, aReloadFlags, &canReload);
     }
 
     if (!canReload)
@@ -6662,8 +6657,6 @@ nsDocShell::EnsureContentViewer()
     if (mIsBeingDestroyed)
         return NS_ERROR_FAILURE;
 
-    NS_TIME_FUNCTION;
-
     nsCOMPtr<nsIURI> baseURI;
     nsIPrincipal* principal = GetInheritedPrincipal(false);
     nsCOMPtr<nsIDocShellTreeItem> parentItem;
@@ -8152,8 +8145,9 @@ class nsCopyFaviconCallback MOZ_FINAL : public nsIFaviconDataCallback
 public:
     NS_DECL_ISUPPORTS
 
-    nsCopyFaviconCallback(nsIURI *aNewURI)
+    nsCopyFaviconCallback(nsIURI *aNewURI, bool aInPrivateBrowsing)
       : mNewURI(aNewURI)
+      , mInPrivateBrowsing(aInPrivateBrowsing)
     {
     }
 
@@ -8173,23 +8167,28 @@ public:
         NS_ENSURE_STATE(favSvc);
 
         return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
-                                                 false, nullptr);
+                                                 false,
+                                                 mInPrivateBrowsing ?
+                                                   nsIFaviconService::FAVICON_LOAD_PRIVATE :
+                                                   nsIFaviconService::FAVICON_LOAD_NON_PRIVATE,
+                                                 nullptr);
     }
 
 private:
     nsCOMPtr<nsIURI> mNewURI;
+    bool mInPrivateBrowsing;
 };
 
 NS_IMPL_ISUPPORTS1(nsCopyFaviconCallback, nsIFaviconDataCallback)
 
 // Tell the favicon service that aNewURI has the same favicon as aOldURI.
-void CopyFavicon(nsIURI *aOldURI, nsIURI *aNewURI)
+void CopyFavicon(nsIURI *aOldURI, nsIURI *aNewURI, bool inPrivateBrowsing)
 {
     nsCOMPtr<mozIAsyncFavicons> favSvc =
         do_GetService("@mozilla.org/browser/favicon-service;1");
     if (favSvc) {
         nsCOMPtr<nsIFaviconDataCallback> callback =
-            new nsCopyFaviconCallback(aNewURI);
+            new nsCopyFaviconCallback(aNewURI, inPrivateBrowsing);
         favSvc->GetFaviconURLForPage(aOldURI, callback);
     }
 }
@@ -8676,15 +8675,17 @@ nsDocShell::InternalLoad(nsIURI * aURI,
            sameExceptHashes && !newHash.IsEmpty());
 
         if (doShortCircuitedLoad) {
-            // Cancel any outstanding loads if this is a history load.
+            // Cancel an outstanding new-document load if this is a history
+            // load.
             //
-            // We can't cancel the oustanding load unconditionally, because if a page does
+            // We can't cancel the oustanding load unconditionally, because if a
+            // page does
             //   - load a.html
             //   - start loading b.html
             //   - load a.html#h
             // we break the web if we cancel the load of b.html.
-            if (aSHEntry) {
-                Stop(nsIWebNavigation::STOP_NETWORK);
+            if (aSHEntry && mDocumentRequest) {
+                mDocumentRequest->Cancel(NS_BINDING_ABORTED);
             }
 
             // Save the current URI; we need it if we fire a hashchange later.
@@ -8856,7 +8857,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             // Inform the favicon service that the favicon for oldURI also
             // applies to aURI.
-            CopyFavicon(oldURI, aURI);
+            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
 
             return NS_OK;
         }
@@ -10195,7 +10196,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
         // Inform the favicon service that our old favicon applies to this new
         // URI.
-        CopyFavicon(oldURI, newURI);
+        CopyFavicon(oldURI, newURI, mInPrivateBrowsing);
     }
     else {
         FireDummyOnLocationChange();
@@ -11193,8 +11194,6 @@ nsDocShell::EnsureScriptEnvironment()
     if (mIsBeingDestroyed) {
         return NS_ERROR_NOT_AVAILABLE;
     }
-
-    NS_TIME_FUNCTION;
 
 #ifdef DEBUG
     NS_ASSERTION(!mInEnsureScriptEnv,

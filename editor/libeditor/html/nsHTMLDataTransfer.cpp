@@ -91,7 +91,6 @@
 #include "nscore.h"
 #include "plbase64.h"
 #include "prmem.h"
-#include "prtypes.h"
 
 class nsIAtom;
 class nsILoadContext;
@@ -243,6 +242,9 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
                                       bool aTrustedInput)
 {
   NS_ENSURE_TRUE(mRules, NS_ERROR_NOT_INITIALIZED);
+
+  // Prevent the edit rules object from dying
+  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
   // force IME commit; set up rules sniffing and batching
   ForceCompositionEnd();

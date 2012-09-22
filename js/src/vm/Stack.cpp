@@ -688,7 +688,7 @@ StackSpace::markAndClobberFrame(JSTracer *trc, StackFrame *fp, Value *slotsEnd, 
                 else if (type == JSVAL_TYPE_BOOLEAN)
                     *vp = BooleanValue(false);
                 else if (type == JSVAL_TYPE_STRING)
-                    *vp = StringValue(rt->atomState.nullAtom);
+                    *vp = StringValue(rt->atomState.null);
                 else if (type == JSVAL_TYPE_NULL)
                     *vp = NullValue();
                 else if (type == JSVAL_TYPE_OBJECT)
@@ -904,7 +904,7 @@ ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars
      * runtime->ionTop.
      */
     if (regs && report != DONT_REPORT_ERROR) {
-        JSFunction *fun = NULL;
+        RootedFunction fun(cx);
         if (InlinedSite *site = regs->inlined()) {
             mjit::JITChunk *chunk = regs->fp()->jit()->chunk(regs->pc);
             fun = chunk->inlineFrames()[site->inlineIndex].fun;

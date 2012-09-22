@@ -7,12 +7,17 @@
 #undef NDEBUG
 #include "cubeb/cubeb.h"
 #include <assert.h>
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <SLES/OpenSLES.h>
 
 struct cubeb {
+  void * lib;
+  SLInterfaceID SL_IID_BUFFERQUEUE;
+  SLInterfaceID SL_IID_PLAY;
   SLObjectItf engObj;
   SLEngineItf eng;
+  SLObjectItf outmixObj;
 };
 
 #define NBUFS 4
@@ -22,7 +27,6 @@ struct cubeb_stream {
   SLObjectItf playerObj;
   SLPlayItf play;
   SLBufferQueueItf bufq;
-  SLObjectItf outmixObj;
   void *queuebuf[NBUFS];
   int queuebuf_idx;
   long queuebuf_len;
@@ -82,22 +86,64 @@ cubeb_init(cubeb ** context, char const * context_name)
   ctx = calloc(1, sizeof(*ctx));
   assert(ctx);
 
+  ctx->lib = dlopen("libOpenSLES.so", RTLD_LAZY);
+  if (!ctx->lib) {
+    free(ctx);
+    return CUBEB_ERROR;
+  }
+
+  typedef SLresult (*slCreateEngine_t)(SLObjectItf *,
+                                       SLuint32,
+                                       const SLEngineOption *,
+                                       SLuint32,
+                                       const SLInterfaceID *,
+                                       const SLboolean *);
+  slCreateEngine_t f_slCreateEngine =
+    (slCreateEngine_t)dlsym(ctx->lib, "slCreateEngine");
+  SLInterfaceID SL_IID_ENGINE = *(SLInterfaceID *)dlsym(ctx->lib, "SL_IID_ENGINE");
+  SLInterfaceID SL_IID_OUTPUTMIX = *(SLInterfaceID *)dlsym(ctx->lib, "SL_IID_OUTPUTMIX");
+  ctx->SL_IID_BUFFERQUEUE = *(SLInterfaceID *)dlsym(ctx->lib, "SL_IID_BUFFERQUEUE");
+  ctx->SL_IID_PLAY = *(SLInterfaceID *)dlsym(ctx->lib, "SL_IID_PLAY");
+  if (!f_slCreateEngine ||
+      !SL_IID_ENGINE ||
+      !SL_IID_OUTPUTMIX ||
+      !ctx->SL_IID_BUFFERQUEUE ||
+      !ctx->SL_IID_PLAY) {
+    cubeb_destroy(ctx);
+    return CUBEB_ERROR;
+  }
+
+
   const SLEngineOption opt[] = {{SL_ENGINEOPTION_THREADSAFE, SL_BOOLEAN_TRUE}};
 
   SLresult res;
-  res = slCreateEngine(&ctx->engObj, 1, opt, 0, NULL, NULL);
+  res = f_slCreateEngine(&ctx->engObj, 1, opt, 0, NULL, NULL);
   if (res != SL_RESULT_SUCCESS) {
-    free(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
   res = (*ctx->engObj)->Realize(ctx->engObj, SL_BOOLEAN_FALSE);
   if (res != SL_RESULT_SUCCESS) {
-    free(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
   res = (*ctx->engObj)->GetInterface(ctx->engObj, SL_IID_ENGINE, &ctx->eng);
+  if (res != SL_RESULT_SUCCESS) {
+    cubeb_destroy(ctx);
+    return CUBEB_ERROR;
+  }
+
+  const SLInterfaceID idsom[] = {SL_IID_OUTPUTMIX};
+  const SLboolean reqom[] = {SL_BOOLEAN_TRUE};
+  res = (*ctx->eng)->CreateOutputMix(ctx->eng, &ctx->outmixObj, 1, idsom, reqom);
+  if (res != SL_RESULT_SUCCESS) {
+    cubeb_destroy(ctx);
+    return CUBEB_ERROR;
+  }
+
+  res = (*ctx->outmixObj)->Realize(ctx->outmixObj, SL_BOOLEAN_FALSE);
   if (res != SL_RESULT_SUCCESS) {
     cubeb_destroy(ctx);
     return CUBEB_ERROR;
@@ -117,7 +163,11 @@ cubeb_get_backend_id(cubeb * ctx)
 void
 cubeb_destroy(cubeb * ctx)
 {
-  (*ctx->engObj)->Destroy(ctx->engObj);
+  dlclose(ctx->lib);
+  if (ctx->outmixObj)
+    (*ctx->outmixObj)->Destroy(ctx->outmixObj);
+  if (ctx->engObj)
+    (*ctx->engObj)->Destroy(ctx->engObj);
   free(ctx);
 }
 
@@ -187,32 +237,17 @@ cubeb_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
   source.pLocator = &loc_bufq;
   source.pFormat = &format;
 
-  SLresult res;
-  const SLInterfaceID idsom[] = {SL_IID_OUTPUTMIX};
-  const SLboolean reqom[] = {SL_BOOLEAN_TRUE};
-  res = (*ctx->eng)->CreateOutputMix(ctx->eng, &stm->outmixObj, 1, idsom, reqom);
-  if (res != SL_RESULT_SUCCESS) {
-    cubeb_stream_destroy(stm);
-    return CUBEB_ERROR;
-  }
-
-  res = (*stm->outmixObj)->Realize(stm->outmixObj, SL_BOOLEAN_FALSE);
-  if (res != SL_RESULT_SUCCESS) {
-    cubeb_stream_destroy(stm);
-    return CUBEB_ERROR;
-  }
-
   SLDataLocator_OutputMix loc_outmix;
   loc_outmix.locatorType = SL_DATALOCATOR_OUTPUTMIX;
-  loc_outmix.outputMix = stm->outmixObj;
+  loc_outmix.outputMix = ctx->outmixObj;
   SLDataSink sink;
   sink.pLocator = &loc_outmix;
   sink.pFormat = NULL;
 
-  const SLInterfaceID ids[] = {SL_IID_BUFFERQUEUE};
+  const SLInterfaceID ids[] = {ctx->SL_IID_BUFFERQUEUE};
   const SLboolean req[] = {SL_BOOLEAN_TRUE};
-  res = (*ctx->eng)->CreateAudioPlayer(ctx->eng, &stm->playerObj,
-                                       &source, &sink, 1, ids, req);
+  SLresult res = (*ctx->eng)->CreateAudioPlayer(ctx->eng, &stm->playerObj,
+                                                &source, &sink, 1, ids, req);
   if (res != SL_RESULT_SUCCESS) {
     cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
@@ -224,13 +259,13 @@ cubeb_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
     return CUBEB_ERROR;
   }
 
-  res = (*stm->playerObj)->GetInterface(stm->playerObj, SL_IID_PLAY, &stm->play);
+  res = (*stm->playerObj)->GetInterface(stm->playerObj, ctx->SL_IID_PLAY, &stm->play);
   if (res != SL_RESULT_SUCCESS) {
     cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
-  res = (*stm->playerObj)->GetInterface(stm->playerObj, SL_IID_BUFFERQUEUE,
+  res = (*stm->playerObj)->GetInterface(stm->playerObj, ctx->SL_IID_BUFFERQUEUE,
                                     &stm->bufq);
   if (res != SL_RESULT_SUCCESS) {
     cubeb_stream_destroy(stm);
@@ -253,8 +288,6 @@ cubeb_stream_destroy(cubeb_stream * stm)
 {
   if (stm->playerObj)
     (*stm->playerObj)->Destroy(stm->playerObj);
-  if (stm->outmixObj)
-    (*stm->outmixObj)->Destroy(stm->outmixObj);
   free(stm);
 }
 

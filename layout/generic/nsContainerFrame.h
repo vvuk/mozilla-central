@@ -74,7 +74,7 @@ public:
                                      bool aRespectClusters = true) MOZ_OVERRIDE;
   
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out, int32_t aIndent) const MOZ_OVERRIDE;
+  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
 #endif  
 
   // nsContainerFrame methods
@@ -302,6 +302,12 @@ public:
                                            nsOverflowAreas&         aOverflowRects,
                                            uint32_t                 aFlags,
                                            nsReflowStatus&          aStatus);
+
+  /**
+   * Move any frames on our overflow list to the end of our principal list.
+   * @return true if there were any overflow frames
+   */
+  virtual bool DrainSelfOverflowList();
 
   /**
    * Removes aChild without destroying it and without requesting reflow.
