@@ -1794,15 +1794,19 @@ fsmdef_get_cause (boolean data_valid, cc_feature_data_t *data)
 sm_rcs_t
 fsmdef_release (fsm_fcb_t *fcb, cc_causes_t cause, boolean send_release)
 {
-    static const char fname[] = "fsmdef_release";
     fsmdef_dcb_t   *dcb = fcb->dcb;
     cc_state_data_t state_data;
     cc_kfact_t      kfactor;
     fsmdef_media_t *media;
     char tmp_str[STATUS_LINE_MAX_LEN];
 
+    if (!dcb) {
+      /* Already been released */
+      return SM_RC_CLEANUP;
+    }
+
     FSM_DEBUG_SM(DEB_L_C_F_PREFIX"Entered. cause= %s\n",
-		DEB_L_C_F_PREFIX_ARGS(FSM, dcb->line, dcb->call_id, fname), cc_cause_name(cause));
+		DEB_L_C_F_PREFIX_ARGS(FSM, dcb->line, dcb->call_id, __FUNCTION__), cc_cause_name(cause));
 
     if (g_dock_undock_event != MEDIA_INTERFACE_UPDATE_NOT_REQUIRED) {
         ui_update_media_interface_change(dcb->line, dcb->call_id, MEDIA_INTERFACE_UPDATE_FAIL);
@@ -2904,14 +2908,13 @@ fsmdef_ev_createoffer (sm_event_t *event) {
     
     config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
     if (!sdpmode) {
-    	/* Force clean up call without sending release */
-    	return (fsmdef_release(fcb, cause, FALSE));
+      /* Force clean up call without sending release */
+      return (fsmdef_release(fcb, cause, FALSE));
     }    
     
     if (dcb == NULL) {
-    	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+      FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
+      return SM_RC_CLEANUP;
     }
     
     vcmGetIceParams(dcb->peerconnection, &ufrag, &ice_pwd);
@@ -3001,8 +3004,7 @@ fsmdef_ev_createanswer (sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
     cc_initialize_msg_body_parts_info(&msg_body);
@@ -3112,8 +3114,7 @@ fsmdef_ev_setlocaldesc(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
     
     if (JSEP_OFFER == action) {
@@ -3227,8 +3228,7 @@ fsmdef_ev_setremotedesc(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
     cc_initialize_msg_body_parts_info(&msg_body);
@@ -3335,8 +3335,7 @@ fsmdef_ev_localdesc(sm_event_t *event) {
     
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
     
 
@@ -3364,8 +3363,7 @@ fsmdef_ev_remotedesc(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
 
@@ -3442,8 +3440,7 @@ fsmdef_ev_addstream(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
     /*
@@ -3491,8 +3488,7 @@ fsmdef_ev_removestream(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
     /*
@@ -3535,8 +3531,7 @@ fsmdef_ev_addcandidate(sm_event_t *event) {
 
     if (dcb == NULL) {
     	FSM_DEBUG_SM(DEB_F_PREFIX"dcb is NULL.\n", DEB_F_PREFIX_ARGS(FSM, __FUNCTION__));
-    	return (fsmdef_release(fcb, cause, FALSE));
-    	return SM_RC_END;
+    	return SM_RC_CLEANUP;;
     }
 
 
