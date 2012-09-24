@@ -17,7 +17,7 @@
     'codec_g722_enable': 0,
     'codec_ilbc_enable': 0,
     'codec_isac_enable': 0,
-    'codec_pcm16b_enable': 0,
+    'codec_pcm16b_enable': 1,
     'include_pulse_audio': 0,
   }
 }

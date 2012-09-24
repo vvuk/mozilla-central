@@ -15,6 +15,7 @@ WEBRTC_LIBS = \
   $(call EXPAND_LIBNAME_PATH,signal_processing,$(DEPTH)/media/webrtc/trunk/src/common_audio/common_audio_signal_processing) \
   $(call EXPAND_LIBNAME_PATH,G711,$(DEPTH)/media/webrtc/trunk/src/modules/modules_G711) \
   $(call EXPAND_LIBNAME_PATH,opus,$(DEPTH)/media/webrtc/trunk/src/modules/modules_opus) \
+  $(call EXPAND_LIBNAME_PATH,PCM16B,$(DEPTH)/media/webrtc/trunk/src/modules/modules_PCM16B) \
   $(call EXPAND_LIBNAME_PATH,NetEq,$(DEPTH)/media/webrtc/trunk/src/modules/modules_NetEq) \
   $(call EXPAND_LIBNAME_PATH,resampler,$(DEPTH)/media/webrtc/trunk/src/common_audio/common_audio_resampler) \
   $(call EXPAND_LIBNAME_PATH,vad,$(DEPTH)/media/webrtc/trunk/src/common_audio/common_audio_vad) \
@@ -54,5 +55,4 @@ WEBRTC_LIBS = \
 #  $(call EXPAND_LIBNAME_PATH,iLBC,$(DEPTH)/media/webrtc/trunk/src/modules/modules_iLBC) \
 #  $(call EXPAND_LIBNAME_PATH,iSAC,$(DEPTH)/media/webrtc/trunk/src/modules/modules_iSAC) \
 #  $(call EXPAND_LIBNAME_PATH,iSACFix,$(DEPTH)/media/webrtc/trunk/src/modules/modules_iSACFix) \
-#  $(call EXPAND_LIBNAME_PATH,PCM16B,$(DEPTH)/media/webrtc/trunk/src/modules/modules_PCM16B) \
 #
