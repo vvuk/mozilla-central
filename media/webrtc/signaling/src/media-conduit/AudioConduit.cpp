@@ -5,7 +5,7 @@
 
 #include "AudioConduit.h"
 #include "CSFLog.h"
-#include "voice_engine/main/interface/voe_errors.h"
+#include "voice_engine/include/voe_errors.h"
 
 
 namespace mozilla {

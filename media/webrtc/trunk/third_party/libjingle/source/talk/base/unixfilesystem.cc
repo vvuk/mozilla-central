@@ -371,6 +371,7 @@ bool UnixFilesystem::GetAppPathname(Pathname* path) {
 
 #ifdef SUPPORT_APP_ADATA_FOLDER
 bool UnixFilesystem::GetAppDataFolder(Pathname* path, bool per_user) {
+xxxx
   ASSERT(!organization_name_.empty());
   ASSERT(!application_name_.empty());
 

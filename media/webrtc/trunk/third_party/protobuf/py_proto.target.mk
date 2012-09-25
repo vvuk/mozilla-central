@@ -103,14 +103,14 @@ $(builddir)/pyproto/google/protobuf/internal/wire_format.py: third_party/protobu
 	$(call do_cmd,copy)
 
 all_deps += $(builddir)/pyproto/google/protobuf/internal/wire_format.py
-py_proto_copies = $(builddir)/pyproto/google/__init__.py $(builddir)/pyproto/google/protobuf/__init__.py $(builddir)/pyproto/google/protobuf/descriptor.py $(builddir)/pyproto/google/protobuf/message.py $(builddir)/pyproto/google/protobuf/reflection.py $(builddir)/pyproto/google/protobuf/service.py $(builddir)/pyproto/google/protobuf/service_reflection.py $(builddir)/pyproto/google/protobuf/text_format.py $(builddir)/pyproto/google/protobuf/descriptor_pb2.py $(builddir)/pyproto/google/protobuf/internal/__init__.py $(builddir)/pyproto/google/protobuf/internal/api_implementation.py $(builddir)/pyproto/google/protobuf/internal/containers.py $(builddir)/pyproto/google/protobuf/internal/cpp_message.py $(builddir)/pyproto/google/protobuf/internal/decoder.py $(builddir)/pyproto/google/protobuf/internal/encoder.py $(builddir)/pyproto/google/protobuf/internal/generator_test.py $(builddir)/pyproto/google/protobuf/internal/message_listener.py $(builddir)/pyproto/google/protobuf/internal/python_message.py $(builddir)/pyproto/google/protobuf/internal/type_checkers.py $(builddir)/pyproto/google/protobuf/internal/wire_format.py
+trunk_third_party_protobuf_protobuf_gyp_py_proto_target_copies = $(builddir)/pyproto/google/__init__.py $(builddir)/pyproto/google/protobuf/__init__.py $(builddir)/pyproto/google/protobuf/descriptor.py $(builddir)/pyproto/google/protobuf/message.py $(builddir)/pyproto/google/protobuf/reflection.py $(builddir)/pyproto/google/protobuf/service.py $(builddir)/pyproto/google/protobuf/service_reflection.py $(builddir)/pyproto/google/protobuf/text_format.py $(builddir)/pyproto/google/protobuf/descriptor_pb2.py $(builddir)/pyproto/google/protobuf/internal/__init__.py $(builddir)/pyproto/google/protobuf/internal/api_implementation.py $(builddir)/pyproto/google/protobuf/internal/containers.py $(builddir)/pyproto/google/protobuf/internal/cpp_message.py $(builddir)/pyproto/google/protobuf/internal/decoder.py $(builddir)/pyproto/google/protobuf/internal/encoder.py $(builddir)/pyproto/google/protobuf/internal/generator_test.py $(builddir)/pyproto/google/protobuf/internal/message_listener.py $(builddir)/pyproto/google/protobuf/internal/python_message.py $(builddir)/pyproto/google/protobuf/internal/type_checkers.py $(builddir)/pyproto/google/protobuf/internal/wire_format.py
 
 ### Rules for final target.
 # Build our special outputs first.
-$(obj).target/third_party/protobuf/py_proto.stamp: | $(py_proto_copies)
+$(obj).target/third_party/protobuf/py_proto.stamp: | $(trunk_third_party_protobuf_protobuf_gyp_py_proto_target_copies)
 
 # Preserve order dependency of special output on deps.
-$(py_proto_copies): | 
+$(trunk_third_party_protobuf_protobuf_gyp_py_proto_target_copies): | 
 
 $(obj).target/third_party/protobuf/py_proto.stamp: TOOLSET := $(TOOLSET)
 $(obj).target/third_party/protobuf/py_proto.stamp:  FORCE_DO_CMD

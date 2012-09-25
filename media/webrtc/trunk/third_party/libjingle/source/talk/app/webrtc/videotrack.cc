@@ -28,7 +28,7 @@
 
 #include <string>
 
-#include "talk/session/phone/webrtcvideocapturer.h"
+#include "talk/media/webrtc/webrtcvideocapturer.h"
 
 namespace webrtc {
 
@@ -46,15 +46,6 @@ VideoTrack::VideoTrack(const std::string& label,
   video_device_.reset(video_device);
 }
 
-void VideoTrack::SetRenderer(VideoRendererWrapperInterface* renderer) {
-  video_renderer_ = renderer;
-  Notifier<LocalVideoTrackInterface>::FireOnChanged();
-}
-
-VideoRendererWrapperInterface* VideoTrack::GetRenderer() {
-  return video_renderer_.get();
-}
-
   // Get the VideoCapture device associated with this track.
 cricket::VideoCapturer* VideoTrack::GetVideoCapture() {
   return video_device_.get();
@@ -62,6 +53,18 @@ cricket::VideoCapturer* VideoTrack::GetVideoCapture() {
 
 std::string VideoTrack::kind() const {
   return kVideoTrackKind;
+}
+
+void VideoTrack::AddRenderer(VideoRendererInterface* renderer) {
+  renderers_.AddRenderer(renderer);
+}
+
+void VideoTrack::RemoveRenderer(VideoRendererInterface* renderer) {
+  renderers_.RemoveRenderer(renderer);
+}
+
+cricket::VideoRenderer* VideoTrack::FrameInput() {
+  return &renderers_;
 }
 
 talk_base::scoped_refptr<VideoTrack> VideoTrack::CreateRemote(

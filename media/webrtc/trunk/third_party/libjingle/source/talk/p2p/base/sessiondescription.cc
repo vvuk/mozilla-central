@@ -31,6 +31,17 @@
 
 namespace cricket {
 
+ContentInfo* FindContentInfoByName(
+    ContentInfos& contents, const std::string& name) {
+  for (ContentInfos::iterator content = contents.begin();
+       content != contents.end(); content++) {
+    if (content->name == name) {
+      return &(*content);
+    }
+  }
+  return NULL;
+}
+
 const ContentInfo* FindContentInfoByName(
     const ContentInfos& contents, const std::string& name) {
   for (ContentInfos::const_iterator content = contents.begin();
@@ -91,6 +102,16 @@ const ContentInfo* SessionDescription::GetContentByName(
   return FindContentInfoByName(contents_, name);
 }
 
+ContentDescription* SessionDescription::GetContentDescriptionByName(
+    const std::string& name) {
+  ContentInfo* cinfo = FindContentInfoByName(contents_, name);
+  if (cinfo == NULL) {
+    return NULL;
+  }
+
+  return cinfo->description;
+}
+
 const ContentInfo* SessionDescription::FirstContentByType(
     const std::string& type) const {
   return FindContentInfoByType(contents_, type);
@@ -102,8 +123,15 @@ const ContentInfo* SessionDescription::FirstContent() const {
 
 void SessionDescription::AddContent(const std::string& name,
                                     const std::string& type,
-                                    const ContentDescription* description) {
+                                    ContentDescription* description) {
   contents_.push_back(ContentInfo(name, type, description));
+}
+
+void SessionDescription::AddContent(const std::string& name,
+                                    const std::string& type,
+                                    bool rejected,
+                                    ContentDescription* description) {
+  contents_.push_back(ContentInfo(name, type, rejected, description));
 }
 
 bool SessionDescription::RemoveContentByName(const std::string& name) {
@@ -117,6 +145,36 @@ bool SessionDescription::RemoveContentByName(const std::string& name) {
   }
 
   return false;
+}
+
+bool SessionDescription::AddTransportInfo(const TransportInfo& transport_info) {
+  if (GetTransportInfoByName(transport_info.content_name) != NULL) {
+    return false;
+  }
+  transport_infos_.push_back(transport_info);
+  return true;
+}
+
+bool SessionDescription::RemoveTransportInfoByName(const std::string& name) {
+  for (TransportInfos::iterator transport_info = transport_infos_.begin();
+       transport_info != transport_infos_.end(); ++transport_info) {
+    if (transport_info->content_name == name) {
+      transport_infos_.erase(transport_info);
+      return true;
+    }
+  }
+  return false;
+}
+
+const TransportInfo* SessionDescription::GetTransportInfoByName(
+    const std::string& name) const {
+  for (TransportInfos::const_iterator iter = transport_infos_.begin();
+       iter != transport_infos_.end(); ++iter) {
+    if (iter->content_name == name) {
+      return &(*iter);
+    }
+  }
+  return NULL;
 }
 
 void SessionDescription::RemoveGroupByName(const std::string& name) {

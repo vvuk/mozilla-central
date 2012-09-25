@@ -13,7 +13,7 @@
   },  
 
   # for mozilla, we want to force stuff to build but we don't want peerconnection_client or server
-  # for unknown reasons, 'target' must be outside of conditions.  And don't try to build a dummy
+  # for unknown reasons, 'targets' must be outside of conditions.  And don't try to build a dummy
   # executable...
   'targets': [
   {
@@ -27,19 +27,22 @@
 	  'action': [
 	     'echo ARGHHHHHHHHHHHHHHHHHHHH',
           ],
+	  'inputs': [
+	     'dummy_file.txt',
+          ],
           'message': 'Generating scream',
         }, ],
         'dependencies': [
-	  'third_party/libjingle/libjingle.gyp:libjingle_app',
+	  'third_party/libjingle/libjingle.gyp:libjingle',
 	
 ## allow building without libjingle
 ##	  'third_party/libjingle/libjingle.gyp:libjingle_app',
-#          'src/modules/modules.gyp:audio_device',
-#          'src/modules/modules.gyp:video_capture_module',
+          'src/modules/modules.gyp:audio_device',
+          'src/modules/modules.gyp:video_capture_module',
 #          'src/modules/modules.gyp:video_render_module',
 #          'src/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-#          'src/video_engine/video_engine.gyp:video_engine_core',
-#          'src/voice_engine/voice_engine.gyp:voice_engine_core',
+          'src/video_engine/video_engine.gyp:video_engine_core',
+          'src/voice_engine/voice_engine.gyp:voice_engine_core',
 ##          '<(DEPTH)/third_party/libsrtp/libsrtp.gyp:libsrtp',
         ],
       }, ],
@@ -89,7 +92,7 @@
             },
           },
           'dependencies': [
-            'third_party/libjingle/libjingle.gyp:libjingle_app',
+            'third_party/libjingle/libjingle.gyp:libjingle_peerconnection',
           ],
           'include_dirs': [
             'src',
@@ -116,14 +119,13 @@
             '<(peerconnection_sample)/client/peer_connection_client.h',
           ],
           'dependencies': [
-            'third_party/libjingle/libjingle.gyp:libjingle_app',
+            'third_party/jsoncpp/jsoncpp.gyp:jsoncpp',
+            'third_party/libjingle/libjingle.gyp:libjingle_peerconnection',
             # TODO(tommi): Switch to this and remove specific gtk dependency
             # sections below for cflags and link_settings.
             # '<(DEPTH)/build/linux/system.gyp:gtk',
           ],
           'include_dirs': [
-            'src',
-            'src/modules/interface',
             'third_party/libjingle/source',
           ],
           'cflags': [
@@ -145,4 +147,5 @@
   ],
     }, ],
   ],
+
 }

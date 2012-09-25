@@ -28,12 +28,12 @@
 // WebRTC library includes follow
 
 // Audio Engine
-#include "voice_engine/main/interface/voe_base.h"
-#include "voice_engine/main/interface/voe_codec.h"
-#include "voice_engine/main/interface/voe_hardware.h"
-#include "voice_engine/main/interface/voe_audio_processing.h"
-#include "voice_engine/main/interface/voe_volume_control.h"
-#include "voice_engine/main/interface/voe_external_media.h"
+#include "voice_engine/include/voe_base.h"
+#include "voice_engine/include/voe_codec.h"
+#include "voice_engine/include/voe_hardware.h"
+#include "voice_engine/include/voe_audio_processing.h"
+#include "voice_engine/include/voe_volume_control.h"
+#include "voice_engine/include/voe_external_media.h"
 
 // Video Engine
 #include "video_engine/include/vie_base.h"

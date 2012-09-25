@@ -18,8 +18,7 @@
 #include "treewriter.h"
 #include "tokenize.h"
 #include "vp8/common/onyxc_int.h"
-#include "variance.h"
-#include "dct.h"
+#include "vp8/common/variance.h"
 #include "encodemb.h"
 #include "quantize.h"
 #include "vp8/common/entropy.h"
@@ -27,9 +26,11 @@
 #include "vpx_ports/mem.h"
 #include "vpx/internal/vpx_codec_internal.h"
 #include "mcomp.h"
-#include "temporal_filter.h"
 #include "vp8/common/findnearmv.h"
 #include "lookahead.h"
+#if CONFIG_TEMPORAL_DENOISING
+#include "vp8/encoder/denoising.h"
+#endif
 
 //#define SPEEDSTATS 1
 #define MIN_GF_INTERVAL             4
@@ -55,8 +56,6 @@
 #if !(CONFIG_REALTIME_ONLY)
 #define VP8_TEMPORAL_ALT_REF 1
 #endif
-
-#define MAX_PERIODICITY 16
 
 #define MAX(x,y) (((x)>(y))?(x):(y))
 #define MIN(x,y) (((x)<(y))?(x):(y))
@@ -163,7 +162,7 @@ typedef enum
     THR_SPLIT2         = 17,
     THR_SPLIT3         = 18,
 
-    THR_B_PRED         = 19,
+    THR_B_PRED         = 19
 }
 THR_MODES;
 
@@ -220,18 +219,6 @@ typedef struct
     int ithread;
     void *ptr1;
 } LPFTHREAD_DATA;
-
-
-typedef struct VP8_ENCODER_RTCD
-{
-    VP8_COMMON_RTCD            *common;
-    vp8_variance_rtcd_vtable_t  variance;
-    vp8_fdct_rtcd_vtable_t      fdct;
-    vp8_encodemb_rtcd_vtable_t  encodemb;
-    vp8_quantize_rtcd_vtable_t  quantize;
-    vp8_search_rtcd_vtable_t    search;
-    vp8_temporal_rtcd_vtable_t  temporal;
-} VP8_ENCODER_RTCD;
 
 enum
 {
@@ -327,10 +314,12 @@ typedef struct VP8_COMP
     struct lookahead_ctx    *lookahead;
     struct lookahead_entry  *source;
     struct lookahead_entry  *alt_ref_source;
+    struct lookahead_entry  *last_source;
 
     YV12_BUFFER_CONFIG *Source;
     YV12_BUFFER_CONFIG *un_scaled_source;
     YV12_BUFFER_CONFIG scaled_source;
+    YV12_BUFFER_CONFIG *last_frame_unscaled_source;
 
     int source_alt_ref_pending; // frame in src_buffers has been identified to be encoded as an alt ref
     int source_alt_ref_active;  // an alt ref frame has been encoded and is usable
@@ -457,9 +446,12 @@ typedef struct VP8_COMP
     unsigned int MVcount [2] [MVvals];  /* (row,col) MV cts this frame */
 
     unsigned int coef_counts [BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [MAX_ENTROPY_TOKENS];  /* for this frame */
+
     //DECLARE_ALIGNED(16, int, coef_counts_backup [BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [MAX_ENTROPY_TOKENS]);   //not used any more
     //save vp8_tree_probs_from_distribution result for each frame to avoid repeat calculation
     vp8_prob frame_coef_probs [BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [ENTROPY_NODES];
+    char update_probs [BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [ENTROPY_NODES];
+
     unsigned int frame_branch_ct [BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [ENTROPY_NODES][2];
 
     int gfu_boost;
@@ -491,8 +483,6 @@ typedef struct VP8_COMP
     int goldfreq;
     int auto_worst_q;
     int cpu_used;
-    int horiz_scale;
-    int vert_scale;
     int pass;
 
 
@@ -518,7 +508,6 @@ typedef struct VP8_COMP
     int gf_bad_count;
     int gf_update_recommended;
     int skip_true_count;
-    int skip_false_count;
 
     unsigned char *segmentation_map;
     signed char segment_feature_data[MB_LVL_MAX][MAX_MB_SEGMENTS];            // Segment data (can be deltas or absolute values)
@@ -540,6 +529,7 @@ typedef struct VP8_COMP
     int mt_sync_range;
     int b_multi_threaded;
     int encoding_thread_count;
+    int b_lpf_running;
 
     pthread_t *h_encoding_thread;
     pthread_t h_filter_thread;
@@ -557,6 +547,8 @@ typedef struct VP8_COMP
 
     TOKENLIST *tplist;
     unsigned int partition_sz[MAX_PARTITIONS];
+    unsigned char *partition_d[MAX_PARTITIONS];
+    unsigned char *partition_d_end[MAX_PARTITIONS];
     // end of multithread data
 
 
@@ -616,9 +608,6 @@ typedef struct VP8_COMP
         double est_max_qcorrection_factor;
     } twopass;
 
-#if CONFIG_RUNTIME_CPU_DETECT
-    VP8_ENCODER_RTCD            rtcd;
-#endif
 #if VP8_TEMPORAL_ALT_REF
     YV12_BUFFER_CONFIG alt_ref_buffer;
     YV12_BUFFER_CONFIG *frames[MAX_LAG_BUFFERS];
@@ -673,23 +662,27 @@ typedef struct VP8_COMP
 
     int droppable;
 
+#if CONFIG_TEMPORAL_DENOISING
+    VP8_DENOISER denoiser;
+#endif
+
     // Coding layer state variables
     unsigned int current_layer;
-    LAYER_CONTEXT layer_context[MAX_LAYERS];
+    LAYER_CONTEXT layer_context[VPX_TS_MAX_LAYERS];
 
-    int64_t frames_in_layer[MAX_LAYERS];
-    int64_t bytes_in_layer[MAX_LAYERS];
-    double sum_psnr[MAX_LAYERS];
-    double sum_psnr_p[MAX_LAYERS];
-    double total_error2[MAX_LAYERS];
-    double total_error2_p[MAX_LAYERS];
-    double sum_ssim[MAX_LAYERS];
-    double sum_weights[MAX_LAYERS];
+    int64_t frames_in_layer[VPX_TS_MAX_LAYERS];
+    int64_t bytes_in_layer[VPX_TS_MAX_LAYERS];
+    double sum_psnr[VPX_TS_MAX_LAYERS];
+    double sum_psnr_p[VPX_TS_MAX_LAYERS];
+    double total_error2[VPX_TS_MAX_LAYERS];
+    double total_error2_p[VPX_TS_MAX_LAYERS];
+    double sum_ssim[VPX_TS_MAX_LAYERS];
+    double sum_weights[VPX_TS_MAX_LAYERS];
 
-    double total_ssimg_y_in_layer[MAX_LAYERS];
-    double total_ssimg_u_in_layer[MAX_LAYERS];
-    double total_ssimg_v_in_layer[MAX_LAYERS];
-    double total_ssimg_all_in_layer[MAX_LAYERS];
+    double total_ssimg_y_in_layer[VPX_TS_MAX_LAYERS];
+    double total_ssimg_u_in_layer[VPX_TS_MAX_LAYERS];
+    double total_ssimg_v_in_layer[VPX_TS_MAX_LAYERS];
+    double total_ssimg_all_in_layer[VPX_TS_MAX_LAYERS];
 
 #if CONFIG_MULTI_RES_ENCODING
     /* Number of MBs per row at lower-resolution level */
@@ -700,11 +693,7 @@ typedef struct VP8_COMP
 
 void control_data_rate(VP8_COMP *cpi);
 
-void vp8_encode_frame(VP8_COMP *cpi);
-
 void vp8_pack_bitstream(VP8_COMP *cpi, unsigned char *dest, unsigned char *dest_end, unsigned long *size);
-
-void vp8_activity_masking(VP8_COMP *cpi, MACROBLOCK *x);
 
 int rd_cost_intra_mb(MACROBLOCKD *x);
 

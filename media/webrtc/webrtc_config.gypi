@@ -9,6 +9,10 @@
     'include_internal_video_render': 0,
     'clang_use_chrome_plugins': 0,
     'enable_protobuf': 0,
+    'include_pulse_audio': 0,
+    'include_tests': 0,
+    'use_system_libjpeg': 1,
+    'use_system_libvpx': 1,
 
     # codec enable/disables:
     # Note: if you change one here, you must modify shared_libs.mk!
@@ -18,6 +22,5 @@
     'codec_ilbc_enable': 0,
     'codec_isac_enable': 0,
     'codec_pcm16b_enable': 1,
-    'include_pulse_audio': 0,
   }
 }

@@ -1,6 +1,6 @@
 /*
  * libjingle
- * Copyright 2011, Google Inc.
+ * Copyright 2012, Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -25,124 +25,160 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "talk/app/webrtc/mediastreamhandler.h"
+
 #include <string>
 
+#include "talk/app/webrtc/audiotrack.h"
 #include "talk/app/webrtc/mediastream.h"
-#include "talk/app/webrtc/mediastreamhandler.h"
-#include "talk/app/webrtc/streamcollectionimpl.h"
+#include "talk/app/webrtc/streamcollection.h"
 #include "talk/app/webrtc/videotrack.h"
-#include "talk/base/thread.h"
 #include "talk/base/gunit.h"
+#include "talk/media/base/fakevideocapturer.h"
 #include "testing/base/public/gmock.h"
 
+using ::testing::_;
 using ::testing::Exactly;
 
 static const char kStreamLabel1[] = "local_stream_1";
-static const char kVideoDeviceName[] = "dummy_video_cam_1";
+static const char kVideoTrackLabel[] = "video_1";
+static const char kAudioTrackLabel[] = "audio_1";
 
 namespace webrtc {
 
 // Helper class to test MediaStreamHandler.
-class MockMediaProvier : public MediaProviderInterface {
+class MockAudioProvider : public AudioProviderInterface {
  public:
-  MOCK_METHOD1(SetCaptureDevice, bool(const std::string& name));
-  MOCK_METHOD1(SetLocalRenderer, void(const std::string& name));
-  MOCK_METHOD1(SetRemoteRenderer, void(const std::string& name));
-
-  virtual bool SetCaptureDevice(const std::string& name,
-                                cricket::VideoCapturer* camera) {
-    return SetCaptureDevice(name);
-  }
-  virtual void SetLocalRenderer(const std::string& name,
-                                cricket::VideoRenderer* renderer) {
-    SetLocalRenderer(name);
-  }
-
-  virtual void SetRemoteRenderer(const std::string& name,
-                                 cricket::VideoRenderer* renderer) {
-    SetRemoteRenderer(name);
-  }
-  ~MockMediaProvier() {}
+  virtual ~MockAudioProvider() {}
+  MOCK_METHOD2(SetAudioPlayout, void(const std::string& name, bool enable));
+  MOCK_METHOD2(SetAudioSend, void(const std::string& name, bool enable));
 };
 
-TEST(MediaStreamHandlerTest, LocalStreams) {
-  // Create a local stream.
-  std::string label(kStreamLabel1);
-  talk_base::scoped_refptr<LocalMediaStreamInterface> stream(
-      MediaStream::Create(label));
-  talk_base::scoped_refptr<LocalVideoTrackInterface>
-      video_track(VideoTrack::CreateLocal(kVideoDeviceName, NULL));
-  EXPECT_TRUE(stream->AddTrack(video_track));
-  talk_base::scoped_refptr<VideoRendererWrapperInterface> renderer(
-      CreateVideoRenderer(NULL));
-  video_track->SetRenderer(renderer);
+// Helper class to test MediaStreamHandler.
+class MockVideoProvider : public VideoProviderInterface {
+ public:
+  virtual ~MockVideoProvider() {}
+  MOCK_METHOD2(SetCaptureDevice, bool(const std::string& name,
+                                      cricket::VideoCapturer* camera));
+  MOCK_METHOD3(SetVideoPlayout, void(const std::string& name,
+                                     bool enable,
+                                     cricket::VideoRenderer* renderer));
+  MOCK_METHOD2(SetVideoSend, void(const std::string& name, bool enable));
+};
 
-  MockMediaProvier provider;
-  MediaStreamHandlers handlers(&provider);
+class MediaStreamHandlerTest : public testing::Test {
+ public:
+  MediaStreamHandlerTest()
+      : handlers_(&audio_provider_, &video_provider_) {
+  }
 
-  talk_base::scoped_refptr<StreamCollection> collection(
-      StreamCollection::Create());
-  collection->AddStream(stream);
+  virtual void SetUp() {
+    collection_ = StreamCollection::Create();
+    stream_ = MediaStream::Create(kStreamLabel1);
+    video_track_ = VideoTrack::CreateLocal(kVideoTrackLabel,
+                                           new cricket::FakeVideoCapturer());
+    EXPECT_TRUE(stream_->AddTrack(video_track_));
+    audio_track_ = AudioTrack::CreateLocal(kAudioTrackLabel,
+                                           NULL);
+    EXPECT_TRUE(stream_->AddTrack(audio_track_));
+  }
 
-  EXPECT_CALL(provider, SetLocalRenderer(kVideoDeviceName))
-      .Times(Exactly(2));  // SetLocalRender will also be called from dtor of
-                           // LocalVideoTrackHandler
-  EXPECT_CALL(provider, SetCaptureDevice(kVideoDeviceName))
-      .Times(Exactly(2)); // SetCaptureDevice will also be called from dtor of
-                          // LocalVideoTrackHandler
-  handlers.CommitLocalStreams(collection);
+  void AddLocalStream() {
+    collection_->AddStream(stream_);
+    EXPECT_CALL(video_provider_, SetCaptureDevice(
+        kVideoTrackLabel, video_track_->GetVideoCapture()));
+    EXPECT_CALL(video_provider_, SetVideoSend(kVideoTrackLabel, true));
+    EXPECT_CALL(audio_provider_, SetAudioSend(kAudioTrackLabel, true));
+    handlers_.CommitLocalStreams(collection_);
+  }
 
-  video_track->set_state(MediaStreamTrackInterface::kLive);
-  // Process posted messages.
-  talk_base::Thread::Current()->ProcessMessages(1);
+  void RemoveLocalStream() {
+    collection_->RemoveStream(stream_);
+    EXPECT_CALL(video_provider_, SetCaptureDevice(kVideoTrackLabel,
+                                                  NULL));
+    handlers_.CommitLocalStreams(collection_);
+  }
 
-  collection->RemoveStream(stream);
-  handlers.CommitLocalStreams(collection);
+  void AddRemoteStream() {
+    EXPECT_CALL(video_provider_, SetVideoPlayout(kVideoTrackLabel, true,
+                                                 video_track_->FrameInput()));
+    EXPECT_CALL(audio_provider_, SetAudioPlayout(kAudioTrackLabel, true));
+    handlers_.AddRemoteStream(stream_);
+  }
 
-  video_track->set_state(MediaStreamTrackInterface::kEnded);
-  // Process posted messages.
-  talk_base::Thread::Current()->ProcessMessages(1);
+  void RemoveRemoteStream() {
+    EXPECT_CALL(video_provider_, SetVideoPlayout(kVideoTrackLabel, false,
+                                                 NULL));
+    handlers_.RemoveRemoteStream(stream_);
+  }
+
+ protected:
+  MockAudioProvider audio_provider_;
+  MockVideoProvider video_provider_;
+  MediaStreamHandlers handlers_;
+  talk_base::scoped_refptr<StreamCollection> collection_;
+  talk_base::scoped_refptr<LocalMediaStreamInterface> stream_;
+  talk_base::scoped_refptr<LocalVideoTrackInterface> video_track_;
+  talk_base::scoped_refptr<AudioTrackInterface> audio_track_;
+};
+
+TEST_F(MediaStreamHandlerTest, AddRemoveLocalMediaStream) {
+  AddLocalStream();
+  RemoveLocalStream();
 }
 
-TEST(MediaStreamHandlerTest, RemoteStreams) {
-  // Create a local stream. We use local stream in this test as well because
-  // they are easier to create.
-  // LocalMediaStreams inherit from MediaStreams.
-  std::string label(kStreamLabel1);
-  talk_base::scoped_refptr<LocalMediaStreamInterface> stream(
-      MediaStream::Create(label));
-  talk_base::scoped_refptr<LocalVideoTrackInterface>
-      video_track(VideoTrack::CreateLocal(kVideoDeviceName, NULL));
-  EXPECT_TRUE(stream->AddTrack(video_track));
+TEST_F(MediaStreamHandlerTest, AddRemoveRemoteMediaStream) {
+  AddRemoteStream();
+  RemoveRemoteStream();
+}
 
-  MockMediaProvier provider;
-  MediaStreamHandlers handlers(&provider);
+TEST_F(MediaStreamHandlerTest, LocalAudioTrackDisable) {
+  AddLocalStream();
 
-  handlers.AddRemoteStream(stream);
+  EXPECT_CALL(audio_provider_, SetAudioSend(kAudioTrackLabel, false));
+  audio_track_->set_enabled(false);
 
-  EXPECT_CALL(provider, SetRemoteRenderer(kVideoDeviceName))
-      .Times(Exactly(3));  // SetRemoteRenderer is also called from dtor of
-                           // RemoteVideoTrackHandler.
+  EXPECT_CALL(audio_provider_, SetAudioSend(kAudioTrackLabel, true));
+  audio_track_->set_enabled(true);
 
-  // Set the renderer once.
-  talk_base::scoped_refptr<VideoRendererWrapperInterface> renderer(
-      CreateVideoRenderer(NULL));
-    video_track->SetRenderer(renderer);
-  talk_base::Thread::Current()->ProcessMessages(1);
+  RemoveLocalStream();
+}
 
-  // Change the already set renderer.
-  renderer = CreateVideoRenderer(NULL);
-    video_track->SetRenderer(renderer);
-  talk_base::Thread::Current()->ProcessMessages(1);
+TEST_F(MediaStreamHandlerTest, RemoteAudioTrackDisable) {
+  AddRemoteStream();
 
-  handlers.RemoveRemoteStream(stream);
+  EXPECT_CALL(audio_provider_, SetAudioPlayout(kAudioTrackLabel, false));
+  audio_track_->set_enabled(false);
 
-  // Change the renderer after the stream have been removed from handler.
-  // This should not trigger a call to SetRemoteRenderer.
-  renderer = CreateVideoRenderer(NULL);
-    video_track->SetRenderer(renderer);
-  // Process posted messages.
-  talk_base::Thread::Current()->ProcessMessages(1);
+  EXPECT_CALL(audio_provider_, SetAudioPlayout(kAudioTrackLabel, true));
+  audio_track_->set_enabled(true);
+
+  RemoveRemoteStream();
+}
+
+TEST_F(MediaStreamHandlerTest, LocalVideoTrackDisable) {
+  AddLocalStream();
+
+  EXPECT_CALL(video_provider_, SetVideoSend(kVideoTrackLabel, false));
+  video_track_->set_enabled(false);
+
+  EXPECT_CALL(video_provider_, SetVideoSend(kVideoTrackLabel, true));
+  video_track_->set_enabled(true);
+
+  RemoveLocalStream();
+}
+
+TEST_F(MediaStreamHandlerTest, RemoteVideoTrackDisable) {
+  AddRemoteStream();
+
+  EXPECT_CALL(video_provider_, SetVideoPlayout(kVideoTrackLabel, false, _));
+  video_track_->set_enabled(false);
+
+  EXPECT_CALL(video_provider_, SetVideoPlayout(kVideoTrackLabel, true,
+                                               video_track_->FrameInput()));
+  video_track_->set_enabled(true);
+
+  RemoveRemoteStream();
 }
 
 }  // namespace webrtc

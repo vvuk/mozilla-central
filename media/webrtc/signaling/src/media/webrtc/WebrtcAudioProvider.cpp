@@ -245,7 +245,7 @@ WebrtcAudioProvider::~WebrtcAudioProvider() {
 		LOG_WEBRTC_ERROR( logTag, "~WebrtcAudioProvider(): voeVoiceQuality->Release() failed, num_ifs left= %d ",num_ifs );
     if((num_ifs=voeEncryption->Release())!=0)
         LOG_WEBRTC_ERROR( logTag, "~WebrtcAudioProvider(): voeEncryption->Release() failed, num_ifs left= %d ",num_ifs );
-	if(webrtc::VoiceEngine::Delete( voeVoice, true ) == false)
+	if(webrtc::VoiceEngine::Delete( voeVoice ) == false)
 		LOG_WEBRTC_ERROR( logTag, "~WebrtcAudioProvider(): voeVoiceEngine::Delete failed" );
 
 	delete toneGen;

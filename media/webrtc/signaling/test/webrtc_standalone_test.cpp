@@ -17,12 +17,12 @@
 #include "common_types.h"
 
 //Audio Engine Includes
-#include "voice_engine/main/interface/voe_base.h"
-#include "voice_engine/main/interface/voe_file.h"
-#include "voice_engine/main/interface/voe_hardware.h"
-#include "voice_engine/main/interface/voe_codec.h"
-#include "voice_engine/main/interface/voe_external_media.h"
-#include "voice_engine/main/interface/voe_errors.h"
+#include "voice_engine/include/voe_base.h"
+#include "voice_engine/include/voe_file.h"
+#include "voice_engine/include/voe_hardware.h"
+#include "voice_engine/include/voe_codec.h"
+#include "voice_engine/include/voe_external_media.h"
+#include "voice_engine/include/voe_errors.h"
 
 
 //webrtc test utilities

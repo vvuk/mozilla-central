@@ -111,43 +111,18 @@ void vp8_copy_mem8x4_v6(unsigned char *src, int src_pitch, unsigned char *dst, i
 void vp8_copy_mem8x4_neon(unsigned char *src, int src_pitch, unsigned char *dst, int dst_pitch);
 RTCD_EXTERN void (*vp8_copy_mem8x4)(unsigned char *src, int src_pitch, unsigned char *dst, int dst_pitch);
 
-void vp8_build_intra_predictors_mby_c(struct macroblockd *x);
-void vp8_build_intra_predictors_mby_neon(struct macroblockd *x);
-RTCD_EXTERN void (*vp8_build_intra_predictors_mby)(struct macroblockd *x);
-
-void vp8_build_intra_predictors_mby_s_c(struct macroblockd *x, unsigned char * yabove_row, unsigned char * yleft, int left_stride, unsigned char * ypred_ptr);
+void vp8_build_intra_predictors_mby_s_c(struct macroblockd *x, unsigned char * yabove_row, unsigned char * yleft, int left_stride, unsigned char * ypred_ptr, int y_stride);
 #define vp8_build_intra_predictors_mby_s vp8_build_intra_predictors_mby_s_c
 
-void vp8_build_intra_predictors_mbuv_c(struct macroblockd *x);
-#define vp8_build_intra_predictors_mbuv vp8_build_intra_predictors_mbuv_c
-
-void vp8_build_intra_predictors_mbuv_s_c(struct macroblockd *x, unsigned char * uabove_row, unsigned char * vabove_row,  unsigned char *uleft, unsigned char *vleft, int left_stride, unsigned char * upred_ptr, unsigned char * vpred_ptr);
+void vp8_build_intra_predictors_mbuv_s_c(struct macroblockd *x, unsigned char * uabove_row, unsigned char * vabove_row,  unsigned char *uleft, unsigned char *vleft, int left_stride, unsigned char * upred_ptr, unsigned char * vpred_ptr, int pred_stride);
 #define vp8_build_intra_predictors_mbuv_s vp8_build_intra_predictors_mbuv_s_c
+
+void vp8_intra4x4_predict_d_c(unsigned char *above, unsigned char *left, int left_stride, int b_mode, unsigned char *dst, int dst_stride, unsigned char top_left);
+#define vp8_intra4x4_predict_d vp8_intra4x4_predict_d_c
 
 void vp8_intra4x4_predict_c(unsigned char *src, int src_stride, int b_mode, unsigned char *dst, int dst_stride);
 void vp8_intra4x4_predict_armv6(unsigned char *src, int src_stride, int b_mode, unsigned char *dst, int dst_stride);
 RTCD_EXTERN void (*vp8_intra4x4_predict)(unsigned char *src, int src_stride, int b_mode, unsigned char *dst, int dst_stride);
-
-void vp8_mbpost_proc_down_c(unsigned char *dst, int pitch, int rows, int cols,int flimit);
-#define vp8_mbpost_proc_down vp8_mbpost_proc_down_c
-
-void vp8_mbpost_proc_across_ip_c(unsigned char *dst, int pitch, int rows, int cols,int flimit);
-#define vp8_mbpost_proc_across_ip vp8_mbpost_proc_across_ip_c
-
-void vp8_post_proc_down_and_across_c(unsigned char *src, unsigned char *dst, int src_pitch, int dst_pitch, int rows, int cols, int flimit);
-#define vp8_post_proc_down_and_across vp8_post_proc_down_and_across_c
-
-void vp8_plane_add_noise_c(unsigned char *s, char *noise, char blackclamp[16], char whiteclamp[16], char bothclamp[16], unsigned int w, unsigned int h, int pitch);
-#define vp8_plane_add_noise vp8_plane_add_noise_c
-
-void vp8_blend_mb_inner_c(unsigned char *y, unsigned char *u, unsigned char *v, int y1, int u1, int v1, int alpha, int stride);
-#define vp8_blend_mb_inner vp8_blend_mb_inner_c
-
-void vp8_blend_mb_outer_c(unsigned char *y, unsigned char *u, unsigned char *v, int y1, int u1, int v1, int alpha, int stride);
-#define vp8_blend_mb_outer vp8_blend_mb_outer_c
-
-void vp8_blend_b_c(unsigned char *y, unsigned char *u, unsigned char *v, int y1, int u1, int v1, int alpha, int stride);
-#define vp8_blend_b vp8_blend_b_c
 
 void vp8_sixtap_predict16x16_c(unsigned char *src, int src_pitch, int xofst, int yofst, unsigned char *dst, int dst_pitch);
 void vp8_sixtap_predict16x16_armv6(unsigned char *src, int src_pitch, int xofst, int yofst, unsigned char *dst, int dst_pitch);
@@ -244,21 +219,6 @@ unsigned int vp8_variance_halfpixvar16x16_hv_armv6(const unsigned char *src_ptr,
 unsigned int vp8_variance_halfpixvar16x16_hv_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
 RTCD_EXTERN unsigned int (*vp8_variance_halfpixvar16x16_hv)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
 
-unsigned int vp8_get_mb_ss_c(const short *);
-#define vp8_get_mb_ss vp8_get_mb_ss_c
-
-unsigned int vp8_sub_pixel_mse16x16_c(const unsigned char  *src_ptr, int  source_stride, int  xoffset, int  yoffset, const unsigned char *ref_ptr, int Refstride, unsigned int *sse);
-#define vp8_sub_pixel_mse16x16 vp8_sub_pixel_mse16x16_c
-
-unsigned int vp8_mse16x16_c(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
-unsigned int vp8_mse16x16_armv6(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
-unsigned int vp8_mse16x16_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
-RTCD_EXTERN unsigned int (*vp8_mse16x16)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
-
-unsigned int vp8_get4x4sse_cs_c(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
-unsigned int vp8_get4x4sse_cs_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
-RTCD_EXTERN unsigned int (*vp8_get4x4sse_cs)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
-
 unsigned int vp8_sad4x4_c(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int ref_stride, int max_sad);
 unsigned int vp8_sad4x4_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int ref_stride, int max_sad);
 RTCD_EXTERN unsigned int (*vp8_sad4x4)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int ref_stride, int max_sad);
@@ -324,6 +284,21 @@ void vp8_sad16x8x4d_c(const unsigned char *src_ptr, int source_stride, unsigned 
 
 void vp8_sad16x16x4d_c(const unsigned char *src_ptr, int source_stride, unsigned char *ref_ptr[4], int  ref_stride, unsigned int *sad_array);
 #define vp8_sad16x16x4d vp8_sad16x16x4d_c
+
+unsigned int vp8_get_mb_ss_c(const short *);
+#define vp8_get_mb_ss vp8_get_mb_ss_c
+
+unsigned int vp8_sub_pixel_mse16x16_c(const unsigned char  *src_ptr, int  source_stride, int  xoffset, int  yoffset, const unsigned char *ref_ptr, int Refstride, unsigned int *sse);
+#define vp8_sub_pixel_mse16x16 vp8_sub_pixel_mse16x16_c
+
+unsigned int vp8_mse16x16_c(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
+unsigned int vp8_mse16x16_armv6(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
+unsigned int vp8_mse16x16_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
+RTCD_EXTERN unsigned int (*vp8_mse16x16)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride, unsigned int *sse);
+
+unsigned int vp8_get4x4sse_cs_c(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
+unsigned int vp8_get4x4sse_cs_neon(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
+RTCD_EXTERN unsigned int (*vp8_get4x4sse_cs)(const unsigned char *src_ptr, int source_stride, const unsigned char *ref_ptr, int  ref_stride);
 
 void vp8_short_fdct4x4_c(short *input, short *output, int pitch);
 void vp8_short_fdct4x4_armv6(short *input, short *output, int pitch);
@@ -403,13 +378,91 @@ int vp8_diamond_search_sad_c(struct macroblock *x, struct block *b, struct block
 void vp8_yv12_copy_partial_frame_c(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
 void vp8_yv12_copy_partial_frame_neon(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
 RTCD_EXTERN void (*vp8_yv12_copy_partial_frame)(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
-#include "vpx_config.h"
+
+void vp8_horizontal_line_4_5_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_4_5_scale vp8_horizontal_line_4_5_scale_c
+
+void vp8_vertical_band_4_5_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_4_5_scale vp8_vertical_band_4_5_scale_c
+
+void vp8_last_vertical_band_4_5_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_last_vertical_band_4_5_scale vp8_last_vertical_band_4_5_scale_c
+
+void vp8_horizontal_line_2_3_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_2_3_scale vp8_horizontal_line_2_3_scale_c
+
+void vp8_vertical_band_2_3_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_2_3_scale vp8_vertical_band_2_3_scale_c
+
+void vp8_last_vertical_band_2_3_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_last_vertical_band_2_3_scale vp8_last_vertical_band_2_3_scale_c
+
+void vp8_horizontal_line_3_5_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_3_5_scale vp8_horizontal_line_3_5_scale_c
+
+void vp8_vertical_band_3_5_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_3_5_scale vp8_vertical_band_3_5_scale_c
+
+void vp8_last_vertical_band_3_5_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_last_vertical_band_3_5_scale vp8_last_vertical_band_3_5_scale_c
+
+void vp8_horizontal_line_3_4_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_3_4_scale vp8_horizontal_line_3_4_scale_c
+
+void vp8_vertical_band_3_4_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_3_4_scale vp8_vertical_band_3_4_scale_c
+
+void vp8_last_vertical_band_3_4_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_last_vertical_band_3_4_scale vp8_last_vertical_band_3_4_scale_c
+
+void vp8_horizontal_line_1_2_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_1_2_scale vp8_horizontal_line_1_2_scale_c
+
+void vp8_vertical_band_1_2_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_1_2_scale vp8_vertical_band_1_2_scale_c
+
+void vp8_last_vertical_band_1_2_scale_c(unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_last_vertical_band_1_2_scale vp8_last_vertical_band_1_2_scale_c
+
+void vp8_horizontal_line_5_4_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_5_4_scale vp8_horizontal_line_5_4_scale_c
+
+void vp8_vertical_band_5_4_scale_c(unsigned char *source, unsigned int src_pitch, unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_5_4_scale vp8_vertical_band_5_4_scale_c
+
+void vp8_horizontal_line_5_3_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_5_3_scale vp8_horizontal_line_5_3_scale_c
+
+void vp8_vertical_band_5_3_scale_c(unsigned char *source, unsigned int src_pitch, unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_5_3_scale vp8_vertical_band_5_3_scale_c
+
+void vp8_horizontal_line_2_1_scale_c(const unsigned char *source, unsigned int source_width, unsigned char *dest, unsigned int dest_width);
+#define vp8_horizontal_line_2_1_scale vp8_horizontal_line_2_1_scale_c
+
+void vp8_vertical_band_2_1_scale_c(unsigned char *source, unsigned int src_pitch, unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_2_1_scale vp8_vertical_band_2_1_scale_c
+
+void vp8_vertical_band_2_1_scale_i_c(unsigned char *source, unsigned int src_pitch, unsigned char *dest, unsigned int dest_pitch, unsigned int dest_width);
+#define vp8_vertical_band_2_1_scale_i vp8_vertical_band_2_1_scale_i_c
+
+void vp8_yv12_extend_frame_borders_c(struct yv12_buffer_config *ybf);
+void vp8_yv12_extend_frame_borders_neon(struct yv12_buffer_config *ybf);
+RTCD_EXTERN void (*vp8_yv12_extend_frame_borders)(struct yv12_buffer_config *ybf);
+
+void vp8_yv12_copy_frame_c(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
+void vp8_yv12_copy_frame_neon(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
+RTCD_EXTERN void (*vp8_yv12_copy_frame)(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
+
+void vp8_yv12_copy_y_c(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
+void vp8_yv12_copy_y_neon(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
+RTCD_EXTERN void (*vp8_yv12_copy_y)(struct yv12_buffer_config *src_ybc, struct yv12_buffer_config *dst_ybc);
 
 void vpx_rtcd(void);
+#include "vpx_config.h"
 
 #ifdef RTCD_C
 #include "vpx_ports/arm.h"
-void vpx_rtcd(void)
+static void setup_rtcd_internal(void)
 {
     int flags = arm_cpu_caps();
 
@@ -488,21 +541,11 @@ void vpx_rtcd(void)
     if (flags & HAS_MEDIA) vp8_copy_mem8x4 = vp8_copy_mem8x4_v6;
     if (flags & HAS_NEON) vp8_copy_mem8x4 = vp8_copy_mem8x4_neon;
 
-    vp8_build_intra_predictors_mby = vp8_build_intra_predictors_mby_c;
-    if (flags & HAS_NEON) vp8_build_intra_predictors_mby = vp8_build_intra_predictors_mby_neon;
-
 
 
 
     vp8_intra4x4_predict = vp8_intra4x4_predict_c;
     if (flags & HAS_MEDIA) vp8_intra4x4_predict = vp8_intra4x4_predict_armv6;
-
-
-
-
-
-
-
 
     vp8_sixtap_predict16x16 = vp8_sixtap_predict16x16_c;
     if (flags & HAS_MEDIA) vp8_sixtap_predict16x16 = vp8_sixtap_predict16x16_armv6;
@@ -574,15 +617,6 @@ void vpx_rtcd(void)
     if (flags & HAS_MEDIA) vp8_variance_halfpixvar16x16_hv = vp8_variance_halfpixvar16x16_hv_armv6;
     if (flags & HAS_NEON) vp8_variance_halfpixvar16x16_hv = vp8_variance_halfpixvar16x16_hv_neon;
 
-
-
-    vp8_mse16x16 = vp8_mse16x16_c;
-    if (flags & HAS_MEDIA) vp8_mse16x16 = vp8_mse16x16_armv6;
-    if (flags & HAS_NEON) vp8_mse16x16 = vp8_mse16x16_neon;
-
-    vp8_get4x4sse_cs = vp8_get4x4sse_cs_c;
-    if (flags & HAS_NEON) vp8_get4x4sse_cs = vp8_get4x4sse_cs_neon;
-
     vp8_sad4x4 = vp8_sad4x4_c;
     if (flags & HAS_NEON) vp8_sad4x4 = vp8_sad4x4_neon;
 
@@ -613,6 +647,15 @@ void vpx_rtcd(void)
 
 
 
+
+
+
+    vp8_mse16x16 = vp8_mse16x16_c;
+    if (flags & HAS_MEDIA) vp8_mse16x16 = vp8_mse16x16_armv6;
+    if (flags & HAS_NEON) vp8_mse16x16 = vp8_mse16x16_neon;
+
+    vp8_get4x4sse_cs = vp8_get4x4sse_cs_c;
+    if (flags & HAS_NEON) vp8_get4x4sse_cs = vp8_get4x4sse_cs_neon;
 
     vp8_short_fdct4x4 = vp8_short_fdct4x4_c;
     if (flags & HAS_MEDIA) vp8_short_fdct4x4 = vp8_short_fdct4x4_armv6;
@@ -664,6 +707,37 @@ void vpx_rtcd(void)
 
     vp8_yv12_copy_partial_frame = vp8_yv12_copy_partial_frame_c;
     if (flags & HAS_NEON) vp8_yv12_copy_partial_frame = vp8_yv12_copy_partial_frame_neon;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    vp8_yv12_extend_frame_borders = vp8_yv12_extend_frame_borders_c;
+    if (flags & HAS_NEON) vp8_yv12_extend_frame_borders = vp8_yv12_extend_frame_borders_neon;
+
+    vp8_yv12_copy_frame = vp8_yv12_copy_frame_c;
+    if (flags & HAS_NEON) vp8_yv12_copy_frame = vp8_yv12_copy_frame_neon;
+
+    vp8_yv12_copy_y = vp8_yv12_copy_y_c;
+    if (flags & HAS_NEON) vp8_yv12_copy_y = vp8_yv12_copy_y_neon;
 }
 #endif
 #endif

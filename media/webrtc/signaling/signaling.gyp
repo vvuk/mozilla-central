@@ -48,14 +48,12 @@
         '../../../media/mtransport',
         '../trunk/src',
         '../trunk/src/video_engine/include',
-        '../trunk/src/voice_engine/main/interface',
+        '../trunk/src/voice_engine/include',
         '../trunk/src/modules/interface',
         '../trunk/src/peerconnection',
         '../trunk/third_party/libjingle/source',
-        '../trunk/third_party/libsrtp/srtp/include',
-        '../trunk/third_party/libsrtp/srtp/crypto/include',
-        # Danger: this is to include config.h. This could be bad.
-        '../trunk/third_party/libsrtp/config',
+        '$(DEPTH)/../netwerk/srtp/src/include',
+        '$(DEPTH)/../netwerk/srtp/src/crypto/include',
       ],	
 	  
       #
@@ -500,8 +498,7 @@
         './src/sipcc/core/src-common/digcalc.c',
         './src/sipcc/core/src-common/kpml_common_util.c',
         './src/sipcc/core/src-common/kpmlmap.c',
-# we'll pick this up from libjingle for now
-#        './src/sipcc/core/src-common/md5.c',
+        './src/sipcc/core/src-common/md5.c',
         './src/sipcc/core/src-common/misc_apps_task.c',
         './src/sipcc/core/src-common/pres_sub_not_handler.c',
         './src/sipcc/core/src-common/publish_int.c',

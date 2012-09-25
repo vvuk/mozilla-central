@@ -13,24 +13,18 @@
 #define __INC_VP8C_INT_H
 
 #include "vpx_config.h"
+#include "vpx_rtcd.h"
 #include "vpx/internal/vpx_codec_internal.h"
 #include "loopfilter.h"
 #include "entropymv.h"
 #include "entropy.h"
-#include "idct.h"
-#include "recon.h"
 #if CONFIG_POSTPROC
 #include "postproc.h"
 #endif
-#include "dequantize.h"
 
 /*#ifdef PACKET_TESTING*/
 #include "header.h"
 /*#endif*/
-
-/* Create/destroy static data structures. */
-
-void vp8_initialize_common(void);
 
 #define MINQ 0
 #define MAXQ 127
@@ -71,23 +65,6 @@ typedef enum
     BILINEAR = 1
 } INTERPOLATIONFILTERTYPE;
 
-typedef struct VP8_COMMON_RTCD
-{
-#if CONFIG_RUNTIME_CPU_DETECT
-    vp8_dequant_rtcd_vtable_t        dequant;
-    vp8_idct_rtcd_vtable_t        idct;
-    vp8_recon_rtcd_vtable_t       recon;
-    vp8_subpix_rtcd_vtable_t      subpix;
-    vp8_loopfilter_rtcd_vtable_t  loopfilter;
-#if CONFIG_POSTPROC
-    vp8_postproc_rtcd_vtable_t    postproc;
-#endif
-    int                           flags;
-#else
-    int unused;
-#endif
-} VP8_COMMON_RTCD;
-
 typedef struct VP8Common
 
 {
@@ -111,11 +88,13 @@ typedef struct VP8Common
     int fb_idx_ref_cnt[NUM_YV12_BUFFERS];
     int new_fb_idx, lst_fb_idx, gld_fb_idx, alt_fb_idx;
 
-    YV12_BUFFER_CONFIG post_proc_buffer;
     YV12_BUFFER_CONFIG temp_scale_frame;
 
+#if CONFIG_POSTPROC
+    YV12_BUFFER_CONFIG post_proc_buffer;
     YV12_BUFFER_CONFIG post_proc_buffer_int;
     int post_proc_buffer_int_used;
+#endif
 
     FRAME_TYPE last_frame_type;  /* Save last frame's frame type for motion search. */
     FRAME_TYPE frame_type;
@@ -203,15 +182,13 @@ typedef struct VP8Common
     double bitrate;
     double framerate;
 
-#if CONFIG_RUNTIME_CPU_DETECT
-    VP8_COMMON_RTCD rtcd;
-#endif
 #if CONFIG_MULTITHREAD
     int processor_core_count;
 #endif
 #if CONFIG_POSTPROC
     struct postproc_state  postproc_state;
 #endif
+    int cpu_caps;
 } VP8_COMMON;
 
 #endif

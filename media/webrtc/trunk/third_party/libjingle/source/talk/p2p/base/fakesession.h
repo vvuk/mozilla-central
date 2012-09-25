@@ -30,6 +30,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include "talk/base/buffer.h"
 #include "talk/base/sigslot.h"
@@ -56,13 +57,15 @@ class FakeTransportChannel : public TransportChannelImpl,
                              public talk_base::MessageHandler {
  public:
   explicit FakeTransportChannel(Transport* transport,
-                                const std::string& name,
-                                const std::string& session_type)
-      : TransportChannelImpl(name, session_type),
+                                const std::string& content_name,
+                                int component)
+      : TransportChannelImpl(content_name, component),
         transport_(transport),
         dest_(NULL),
         state_(STATE_INIT),
-        async_(false) {
+        async_(false),
+        identity_(NULL),
+        do_dtls_(false) {
   }
   ~FakeTransportChannel() {
     Reset();
@@ -96,6 +99,11 @@ class FakeTransportChannel : public TransportChannelImpl,
       // This simulates the delivery of candidates.
       dest_ = dest;
       dest_->dest_ = this;
+      if (identity_ && dest_->identity_) {
+        do_dtls_ = true;
+        dest_->do_dtls_ = true;
+        NegotiateSrtpCiphers();
+      }
       state_ = STATE_CONNECTED;
       dest_->state_ = STATE_CONNECTED;
       set_writable(true);
@@ -108,10 +116,15 @@ class FakeTransportChannel : public TransportChannelImpl,
     }
   }
 
-  virtual int SendPacket(const char* data, size_t len) {
+  virtual int SendPacket(const char* data, size_t len, int flags) {
     if (state_ != STATE_CONNECTED) {
       return -1;
     }
+
+    if (flags != PF_SRTP_BYPASS && flags != 0) {
+      return -1;
+    }
+
     PacketMessageData* packet = new PacketMessageData(data, len);
     if (async_) {
       talk_base::Thread::Current()->Post(this, 0, packet);
@@ -135,8 +148,61 @@ class FakeTransportChannel : public TransportChannelImpl,
   virtual void OnMessage(talk_base::Message* msg) {
     PacketMessageData* data = static_cast<PacketMessageData*>(
         msg->pdata);
-    dest_->SignalReadPacket(dest_, data->packet.data(), data->packet.length());
+    dest_->SignalReadPacket(dest_, data->packet.data(),
+                            data->packet.length(), 0);
     delete data;
+  }
+
+  bool SetLocalIdentity(talk_base::SSLIdentity* identity) {
+    identity_ = identity;
+
+    return true;
+  }
+
+  bool IsDtlsActive() const {
+    return do_dtls_;
+  }
+
+  bool SetSrtpCiphers(const std::vector<std::string>& ciphers) {
+    srtp_ciphers_ = ciphers;
+    return true;
+  }
+
+  virtual bool GetSrtpCipher(std::string* cipher) {
+    if (!chosen_srtp_cipher_.empty()) {
+      *cipher = chosen_srtp_cipher_;
+      return true;
+    }
+    return false;
+  }
+
+  virtual bool ExportKeyingMaterial(const std::string& label,
+                                    const uint8* context,
+                                    size_t context_len,
+                                    bool use_context,
+                                    uint8* result,
+                                    size_t result_len) {
+    if (!chosen_srtp_cipher_.empty()) {
+      memset(result, 0xff, result_len);
+      return true;
+    }
+
+    return false;
+  }
+
+  virtual void NegotiateSrtpCiphers() {
+    for (std::vector<std::string>::const_iterator it1 = srtp_ciphers_.begin();
+        it1 != srtp_ciphers_.end(); ++it1) {
+      for (std::vector<std::string>::const_iterator it2 =
+              dest_->srtp_ciphers_.begin();
+          it2 != dest_->srtp_ciphers_.end(); ++it2) {
+        if (*it1 == *it2) {
+          chosen_srtp_cipher_ = *it1;
+          dest_->chosen_srtp_cipher_ = *it2;
+          return;
+        }
+      }
+    }
   }
 
  private:
@@ -145,6 +211,10 @@ class FakeTransportChannel : public TransportChannelImpl,
   FakeTransportChannel* dest_;
   State state_;
   bool async_;
+  talk_base::SSLIdentity* identity_;
+  bool do_dtls_;
+  std::vector<std::string> srtp_ciphers_;
+  std::string chosen_srtp_cipher_;
 };
 
 // Fake transport class, which can be passed to anything that needs a Transport.
@@ -152,13 +222,16 @@ class FakeTransportChannel : public TransportChannelImpl,
 // of doing candidates)
 class FakeTransport : public Transport {
  public:
-  typedef std::map<std::string, FakeTransportChannel*> ChannelMap;
+  typedef std::map<int, FakeTransportChannel*> ChannelMap;
   FakeTransport(talk_base::Thread* signaling_thread,
                 talk_base::Thread* worker_thread,
+                const std::string& content_name,
                 PortAllocator* alllocator = NULL)
-      : Transport(signaling_thread, worker_thread, "test", NULL),
-        dest_(NULL),
-        async_(false) {
+      : Transport(signaling_thread, worker_thread,
+                  content_name, "test_type", NULL),
+      dest_(NULL),
+      async_(false),
+      identity_(NULL) {
   }
   ~FakeTransport() {
     DestroyAllChannels();
@@ -171,38 +244,45 @@ class FakeTransport : public Transport {
     dest_ = dest;
     for (ChannelMap::iterator it = channels_.begin(); it != channels_.end();
          ++it) {
+      it->second->SetLocalIdentity(identity_);
       SetChannelDestination(it->first, it->second);
     }
   }
 
+  void set_identity(talk_base::SSLIdentity* identity) {
+    identity_ = identity;
+  }
+
  protected:
-  virtual TransportChannelImpl* CreateTransportChannel(
-      const std::string& name, const std::string& session_type) {
-    if (channels_.find(name) != channels_.end()) {
+  virtual TransportChannelImpl* CreateTransportChannel(int component) {
+    if (channels_.find(component) != channels_.end()) {
       return NULL;
     }
     FakeTransportChannel* channel =
-        new FakeTransportChannel(this, name, session_type);
+        new FakeTransportChannel(this, content_name(), component);
     channel->SetAsync(async_);
-    SetChannelDestination(name, channel);
-    channels_[name] = channel;
+    SetChannelDestination(component, channel);
+    channels_[component] = channel;
     return channel;
   }
   virtual void DestroyTransportChannel(TransportChannelImpl* channel) {
-    channels_.erase(channel->name());
+    channels_.erase(channel->component());
     delete channel;
   }
 
  private:
-  FakeTransportChannel* GetFakeChannel(const std::string& name) {
-    ChannelMap::iterator it = channels_.find(name);
+  FakeTransportChannel* GetFakeChannel(int component) {
+    ChannelMap::iterator it = channels_.find(component);
     return (it != channels_.end()) ? it->second : NULL;
   }
-  void SetChannelDestination(const std::string& name,
+  void SetChannelDestination(int component,
                              FakeTransportChannel* channel) {
     FakeTransportChannel* dest_channel = NULL;
     if (dest_) {
-      dest_channel = dest_->GetFakeChannel(name);
+      dest_channel = dest_->GetFakeChannel(component);
+      if (dest_channel) {
+        dest_channel->SetLocalIdentity(dest_->identity_);
+      }
     }
     channel->SetDestination(dest_channel);
   }
@@ -212,17 +292,24 @@ class FakeTransport : public Transport {
   ChannelMap channels_;
   FakeTransport* dest_;
   bool async_;
+  talk_base::SSLIdentity* identity_;
 };
 
 // Fake session class, which can be passed into a BaseChannel object for
 // test purposes. Can be connected to other FakeSessions via Connect().
 class FakeSession : public BaseSession {
  public:
-  FakeSession()
+  explicit FakeSession()
       : BaseSession(talk_base::Thread::Current(),
                     talk_base::Thread::Current(),
                     NULL, "", "", true),
-        fail_create_channel_(false) {
+      fail_create_channel_(false) {
+  }
+  explicit FakeSession(bool initiator)
+      : BaseSession(talk_base::Thread::Current(),
+                    talk_base::Thread::Current(),
+                    NULL, "", "", initiator),
+      fail_create_channel_(false) {
   }
 
   FakeTransport* GetTransport(const std::string& content_name) {
@@ -242,21 +329,35 @@ class FakeSession : public BaseSession {
   }
 
   virtual cricket::TransportChannel* CreateChannel(
-      const std::string& content_name, const std::string& name) {
+      const std::string& content_name,
+      const std::string& channel_name,
+      int component) {
     if (fail_create_channel_) {
       return NULL;
     }
-    return BaseSession::CreateChannel(content_name, name);
+    return BaseSession::CreateChannel(content_name, channel_name, component);
   }
 
   void set_fail_channel_creation(bool fail_channel_creation) {
     fail_create_channel_ = fail_channel_creation;
   }
 
- protected:
-  virtual Transport* CreateTransport() {
-    return new FakeTransport(signaling_thread(), worker_thread());
+  // TODO: Hoist this into Session when we re-work the Session code.
+  void set_ssl_identity(talk_base::SSLIdentity* identity) {
+    for (TransportMap::const_iterator it = transport_proxies().begin();
+        it != transport_proxies().end(); ++it) {
+      // We know that we have a FakeTransport*
+
+      static_cast<FakeTransport*>(it->second->impl())->set_identity
+          (identity);
+    }
   }
+
+ protected:
+  virtual Transport* CreateTransport(const std::string& content_name) {
+    return new FakeTransport(signaling_thread(), worker_thread(), content_name);
+  }
+
   void CompleteNegotiation() {
     for (TransportMap::const_iterator it = transport_proxies().begin();
         it != transport_proxies().end(); ++it) {

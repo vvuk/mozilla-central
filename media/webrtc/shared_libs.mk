@@ -5,8 +5,6 @@
 # shared libs for webrtc
 WEBRTC_LIBS = \
     $(call EXPAND_LIBNAME_PATH,jingle,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle) \
-    $(call EXPAND_LIBNAME_PATH,jingle_p2p,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_p2p) \
-    $(call EXPAND_LIBNAME_PATH,jingle_app,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle_app) \
     $(call EXPAND_LIBNAME_PATH,jsoncpp,$(DEPTH)/media/webrtc/trunk/third_party/jsoncpp/jsoncpp_jsoncpp) \
   $(call EXPAND_LIBNAME_PATH,video_capture_module,$(DEPTH)/media/webrtc/trunk/src/modules/modules_video_capture_module) \
   $(call EXPAND_LIBNAME_PATH,webrtc_utility,$(DEPTH)/media/webrtc/trunk/src/modules/modules_webrtc_utility) \
@@ -22,13 +20,15 @@ WEBRTC_LIBS = \
   $(call EXPAND_LIBNAME_PATH,system_wrappers,$(DEPTH)/media/webrtc/trunk/src/system_wrappers/source/system_wrappers_system_wrappers) \
   $(call EXPAND_LIBNAME_PATH,webrtc_video_coding,$(DEPTH)/media/webrtc/trunk/src/modules/modules_webrtc_video_coding) \
   $(call EXPAND_LIBNAME_PATH,webrtc_i420,$(DEPTH)/media/webrtc/trunk/src/modules/modules_webrtc_i420) \
-  $(call EXPAND_LIBNAME_PATH,webrtc_vp8,$(DEPTH)/media/webrtc/trunk/src/modules/modules_webrtc_vp8) \
+  $(call EXPAND_LIBNAME_PATH,webrtc_vp8,$(DEPTH)/media/webrtc/trunk/src/modules/video_coding/codecs/vp8/vp8_webrtc_vp8) \
   $(call EXPAND_LIBNAME_PATH,webrtc_libyuv,$(DEPTH)/media/webrtc/trunk/src/common_video/common_video_webrtc_libyuv) \
   $(call EXPAND_LIBNAME_PATH,video_render_module,$(DEPTH)/media/webrtc/trunk/src/modules/modules_video_render_module) \
   $(call EXPAND_LIBNAME_PATH,video_engine_core,$(DEPTH)/media/webrtc/trunk/src/video_engine/video_engine_video_engine_core) \
   $(call EXPAND_LIBNAME_PATH,media_file,$(DEPTH)/media/webrtc/trunk/src/modules/modules_media_file) \
   $(call EXPAND_LIBNAME_PATH,rtp_rtcp,$(DEPTH)/media/webrtc/trunk/src/modules/modules_rtp_rtcp) \
   $(call EXPAND_LIBNAME_PATH,udp_transport,$(DEPTH)/media/webrtc/trunk/src/modules/modules_udp_transport) \
+  $(call EXPAND_LIBNAME_PATH,bitrate_controller,$(DEPTH)/media/webrtc/trunk/src/modules/modules_bitrate_controller) \
+  $(call EXPAND_LIBNAME_PATH,remote_bitrate_estimator,$(DEPTH)/media/webrtc/trunk/src/modules/modules_remote_bitrate_estimator) \
   $(call EXPAND_LIBNAME_PATH,video_processing,$(DEPTH)/media/webrtc/trunk/src/modules/modules_video_processing) \
   $(call EXPAND_LIBNAME_PATH,video_processing_sse2,$(DEPTH)/media/webrtc/trunk/src/modules/modules_video_processing_sse2) \
   $(call EXPAND_LIBNAME_PATH,voice_engine_core,$(DEPTH)/media/webrtc/trunk/src/voice_engine/voice_engine_voice_engine_core) \

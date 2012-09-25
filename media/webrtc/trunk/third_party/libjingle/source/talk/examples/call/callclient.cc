@@ -38,29 +38,34 @@
 #include "talk/base/thread.h"
 #include "talk/base/windowpickerfactory.h"
 #include "talk/examples/call/console.h"
-#include "talk/examples/call/presencepushtask.h"
-#include "talk/examples/call/presenceouttask.h"
-#include "talk/examples/call/mucinviterecvtask.h"
-#include "talk/examples/call/mucinvitesendtask.h"
 #include "talk/examples/call/friendinvitesendtask.h"
 #include "talk/examples/call/muc.h"
+#include "talk/examples/call/mucinviterecvtask.h"
+#include "talk/examples/call/mucinvitesendtask.h"
+#include "talk/examples/call/presenceouttask.h"
+#include "talk/examples/call/presencepushtask.h"
+#include "talk/media/base/mediacommon.h"
+#include "talk/media/base/mediaengine.h"
+#include "talk/media/base/rtpdataengine.h"
+#include "talk/media/base/screencastid.h"
+#include "talk/media/devices/devicemanager.h"
+#include "talk/media/devices/videorendererfactory.h"
 #include "talk/p2p/base/sessionmanager.h"
 #include "talk/p2p/client/basicportallocator.h"
 #include "talk/p2p/client/sessionmanagertask.h"
-#include "talk/session/phone/dataengine.h"
-#include "talk/session/phone/devicemanager.h"
-#include "talk/session/phone/mediacommon.h"
-#include "talk/session/phone/mediaengine.h"
-#include "talk/session/phone/mediamessages.h"
-#include "talk/session/phone/mediasessionclient.h"
-#include "talk/session/phone/screencastid.h"
-#include "talk/session/phone/videorendererfactory.h"
+#include "talk/session/media/mediamessages.h"
+#include "talk/session/media/mediasessionclient.h"
 #include "talk/xmpp/constants.h"
 #include "talk/xmpp/hangoutpubsubclient.h"
 #include "talk/xmpp/mucroomconfigtask.h"
 #include "talk/xmpp/mucroomlookuptask.h"
+#include "talk/xmpp/pingtask.h"
 
 namespace {
+
+// Must be period >= timeout.
+const uint32 kPingPeriodMillis = 10000;
+const uint32 kPingTimeoutMillis = 10000;
 
 const char* DescribeStatus(buzz::Status::Show show, const std::string& desc) {
   switch (show) {
@@ -91,17 +96,21 @@ int GetInt(const std::vector<std::string>& words, size_t index, int def) {
   }
 }
 
-
 }  // namespace
 
 const char* CALL_COMMANDS =
 "Available commands:\n"
 "\n"
-"  hangup     Ends the call.\n"
-"  mute       Stops sending voice.\n"
-"  unmute     Re-starts sending voice.\n"
-"  dtmf       Sends a DTMF tone.\n"
-"  quit       Quits the application.\n"
+"  hangup            Ends the call.\n"
+"  hold              Puts the current call on hold\n"
+"  calls             Lists the current calls\n"
+"  switch [call_id]  Switch to the specified call\n"
+"  mute              Stops sending voice.\n"
+"  unmute            Re-starts sending voice.\n"
+"  vmute             Stops sending video.\n"
+"  vunmute           Re-starts sending video.\n"
+"  dtmf              Sends a DTMF tone.\n"
+"  quit              Quits the application.\n"
 "";
 
 // TODO: Make present and record really work.
@@ -136,6 +145,8 @@ const char* CONSOLE_COMMANDS =
 "                      given JID and with optional bandwidth.\n"
 "  vcall [jid] [bw]    Initiates a video call to the user[/room] with\n"
 "                      the given JID and with optional bandwidth.\n"
+"  calls               Lists the current calls\n"
+"  switch [call_id]    Switch to the specified call\n"
 "  join [room_jid]     Joins a multi-user-chat with room JID.\n"
 "  ljoin [room_name]   Joins a MUC by looking up JID from room name.\n"
 "  invite user [room]  Invites a friend to a multi-user-chat.\n"
@@ -187,6 +198,13 @@ void CallClient::ParseLine(const std::string& line) {
   } else if (call_) {
     if (command == "hangup") {
       call_->Terminate();
+    } else if (command == "hold") {
+      media_client_->SetFocus(NULL);
+      call_ = NULL;
+    } else if (command == "calls") {
+      PrintCalls();
+    } else if ((words.size() == 2) && (command == "switch")) {
+      SwitchToCall(GetInt(words, 1, -1));
     } else if (command == "mute") {
       call_->Mute(true);
       if (InMuc()) {
@@ -196,6 +214,16 @@ void CallClient::ParseLine(const std::string& line) {
       call_->Mute(false);
       if (InMuc()) {
         hangout_pubsub_client_->PublishAudioMuteState(false);
+      }
+    } else if (command == "vmute") {
+      call_->MuteVideo(true);
+      if (InMuc()) {
+        hangout_pubsub_client_->PublishVideoMuteState(true);
+      }
+    } else if (command == "vunmute") {
+      call_->MuteVideo(false);
+      if (InMuc()) {
+        hangout_pubsub_client_->PublishVideoMuteState(false);
       }
     } else if (command == "screencast") {
       // TODO: Use a random ssrc
@@ -282,6 +310,10 @@ void CallClient::ParseLine(const std::string& line) {
       options.video_bandwidth = bandwidth;
       options.has_data = data_channel_enabled_;
       MakeCallTo(to, options);
+    } else if (command == "calls") {
+      PrintCalls();
+    } else if ((words.size() == 2) && (command == "switch")) {
+      SwitchToCall(GetInt(words, 1, -1));
     } else if (command == "join") {
       JoinMuc(GetWord(words, 1, ""));
     } else if (command == "ljoin") {
@@ -341,27 +373,27 @@ CallClient::~CallClient() {
 
 const std::string CallClient::strerror(buzz::XmppEngine::Error err) {
   switch (err) {
-    case  buzz::XmppEngine::ERROR_NONE:
+    case buzz::XmppEngine::ERROR_NONE:
       return "";
-    case  buzz::XmppEngine::ERROR_XML:
+    case buzz::XmppEngine::ERROR_XML:
       return "Malformed XML or encoding error";
-    case  buzz::XmppEngine::ERROR_STREAM:
+    case buzz::XmppEngine::ERROR_STREAM:
       return "XMPP stream error";
-    case  buzz::XmppEngine::ERROR_VERSION:
+    case buzz::XmppEngine::ERROR_VERSION:
       return "XMPP version error";
-    case  buzz::XmppEngine::ERROR_UNAUTHORIZED:
+    case buzz::XmppEngine::ERROR_UNAUTHORIZED:
       return "User is not authorized (Check your username and password)";
-    case  buzz::XmppEngine::ERROR_TLS:
+    case buzz::XmppEngine::ERROR_TLS:
       return "TLS could not be negotiated";
-    case  buzz::XmppEngine::ERROR_AUTH:
+    case buzz::XmppEngine::ERROR_AUTH:
       return "Authentication could not be negotiated";
-    case  buzz::XmppEngine::ERROR_BIND:
+    case buzz::XmppEngine::ERROR_BIND:
       return "Resource or session binding could not be negotiated";
-    case  buzz::XmppEngine::ERROR_CONNECTION_CLOSED:
+    case buzz::XmppEngine::ERROR_CONNECTION_CLOSED:
       return "Connection closed by output handler.";
-    case  buzz::XmppEngine::ERROR_DOCUMENT_CLOSED:
+    case buzz::XmppEngine::ERROR_DOCUMENT_CLOSED:
       return "Closed by </stream:stream>";
-    case  buzz::XmppEngine::ERROR_SOCKET:
+    case buzz::XmppEngine::ERROR_SOCKET:
       return "Socket error";
     default:
       return "Unknown error";
@@ -452,7 +484,9 @@ void CallClient::InitMedia() {
   }
 
   if (!data_engine_) {
-    data_engine_ = new cricket::DataEngine();
+    // TODO(pthatcher): Make it easy to make other types of data
+    // engines.
+    data_engine_ = new cricket::RtpDataEngine();
   }
 
   media_client_ = new cricket::MediaSessionClient(
@@ -473,7 +507,6 @@ void CallClient::OnRequestSignaling() {
 }
 
 void CallClient::OnSessionCreate(cricket::Session* session, bool initiate) {
-  session->set_allow_local_ips(allow_local_ips_);
   session->set_current_protocol(initial_protocol_);
 }
 
@@ -588,6 +621,24 @@ void CallClient::InitPresence() {
 
   friend_invite_send_ = new buzz::FriendInviteSendTask(xmpp_client_);
   friend_invite_send_->Start();
+
+  StartXmppPing();
+}
+
+void CallClient::StartXmppPing() {
+  buzz::PingTask* ping = new buzz::PingTask(
+      xmpp_client_, talk_base::Thread::Current(),
+      kPingPeriodMillis, kPingTimeoutMillis);
+  ping->SignalTimeout.connect(this, &CallClient::OnPingTimeout);
+  ping->Start();
+}
+
+void CallClient::OnPingTimeout() {
+  LOG(LS_WARNING) << "XMPP Ping timeout. Will keep trying...";
+  StartXmppPing();
+
+  // Or should we do this instead?
+  // Quit();
 }
 
 void CallClient::SendStatus(const buzz::Status& status) {
@@ -664,7 +715,7 @@ void CallClient::SendData(const std::string& stream_name,
     return;
   }
 
-  cricket::DataMediaChannel::SendDataParams params;
+  cricket::SendDataParams params;
   params.ssrc = stream.first_ssrc();
   call_->SendData(session_, params, text);
 }
@@ -737,7 +788,9 @@ void CallClient::OnDataReceived(cricket::Call*,
                                 const cricket::ReceiveDataParams& params,
                                 const std::string& data) {
   cricket::StreamParams stream;
-  if (GetStreamBySsrc(call_->data_recv_streams(), params.ssrc, &stream)) {
+  const std::vector<cricket::StreamParams>* data_streams =
+      call_->GetDataRecvStreams(session_);
+  if (data_streams && GetStreamBySsrc(*data_streams, params.ssrc, &stream)) {
     console_->PrintLine(
         "Received data from '%s' on stream '%s' (ssrc=%u): %s",
         stream.nick.c_str(), stream.name.c_str(),
@@ -787,6 +840,28 @@ void CallClient::PlaceCall(const buzz::Jid& jid,
     hangout_pubsub_client_->SignalRemoteMuteError.connect(
         this, &CallClient::OnHangoutRemoteMuteError);
     hangout_pubsub_client_->RequestAll();
+  }
+}
+
+void CallClient::PrintCalls() {
+  const std::map<uint32, cricket::Call*>& calls = media_client_->calls();
+  for (std::map<uint32, cricket::Call*>::const_iterator i = calls.begin();
+       i != calls.end(); ++i) {
+    console_->PrintLine("%d: %s",
+                        i->first,
+                        i->second == call_ ? "active" : "on hold");
+  }
+}
+
+void CallClient::SwitchToCall(uint32 call_id) {
+  const std::map<uint32, cricket::Call*>& calls = media_client_->calls();
+  std::map<uint32, cricket::Call*>::const_iterator call_iter =
+      calls.find(call_id);
+  if (call_iter != calls.end()) {
+    media_client_->SetFocus(call_iter->second);
+    call_ = call_iter->second;
+  } else {
+    console_->PrintLine("Unable to find call: %d", call_id);
   }
 }
 
@@ -915,7 +990,7 @@ void CallClient::LookupAndJoinMuc(const std::string& room_name) {
   }
 
   std::string room = room_name;
-  std::string domain =  xmpp_client_->jid().domain();
+  std::string domain = xmpp_client_->jid().domain();
   if (room_name.find("@") != std::string::npos) {
     // Assume the room_name is a fully qualified room name.
     // We'll find the room name string and domain name string from it.
@@ -923,8 +998,10 @@ void CallClient::LookupAndJoinMuc(const std::string& room_name) {
     domain = room_name.substr(room_name.find("@") + 1);
   }
 
-  buzz::MucRoomLookupTask* lookup_query_task = new buzz::MucRoomLookupTask(
-      xmpp_client_, buzz::Jid(buzz::STR_GOOGLE_MUC_LOOKUP_JID), room, domain);
+  buzz::MucRoomLookupTask* lookup_query_task =
+      buzz::MucRoomLookupTask::CreateLookupTaskForRoomName(
+          xmpp_client_, buzz::Jid(buzz::STR_GOOGLE_MUC_LOOKUP_JID), room,
+          domain);
   lookup_query_task->SignalResult.connect(this,
       &CallClient::OnRoomLookupResponse);
   lookup_query_task->SignalError.connect(this,

@@ -2,29 +2,40 @@
 
 TOOLSET := host
 TARGET := protoc
-DEFS_Debug := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Debug := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DGOOGLE_PROTOBUF_NO_RTTI' \
+	'-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -38,41 +49,54 @@ CFLAGS_Debug := -pthread \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := -Ithird_party/protobuf \
+INCS_Debug := \
+	-Ithird_party/protobuf \
 	-Ithird_party/protobuf/src/src \
 	-Ithird_party/protobuf/src
 
-DEFS_Release := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Release := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DGOOGLE_PROTOBUF_NO_RTTI' \
+	'-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -88,19 +112,22 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := -Ithird_party/protobuf \
+INCS_Release := \
+	-Ithird_party/protobuf \
 	-Ithird_party/protobuf/src/src \
 	-Ithird_party/protobuf/src
 
-OBJS := $(obj).host/$(TARGET)/third_party/protobuf/src/google/protobuf/compiler/code_generator.o \
+OBJS := \
+	$(obj).host/$(TARGET)/third_party/protobuf/src/google/protobuf/compiler/code_generator.o \
 	$(obj).host/$(TARGET)/third_party/protobuf/src/google/protobuf/compiler/command_line_interface.o \
 	$(obj).host/$(TARGET)/third_party/protobuf/src/google/protobuf/compiler/plugin.o \
 	$(obj).host/$(TARGET)/third_party/protobuf/src/google/protobuf/compiler/plugin.pb.o \
@@ -160,20 +187,27 @@ $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.cc FORCE_DO_CMD
 
 # End of this set of suffix rules
 ### Rules for final target.
-LDFLAGS_Debug := -pthread \
+LDFLAGS_Debug := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold
 
-LDFLAGS_Release := -pthread \
+LDFLAGS_Release := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold \
 	-Wl,-O1 \
 	-Wl,--as-needed \
 	-Wl,--gc-sections
 
-LIBS := 
+LIBS := \
+	
 
 $(builddir)/protoc: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE))
 $(builddir)/protoc: LIBS := $(LIBS)

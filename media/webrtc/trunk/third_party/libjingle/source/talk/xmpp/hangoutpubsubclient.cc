@@ -378,10 +378,20 @@ HangoutPubSubClient::HangoutPubSubClient(XmppTaskParentInterface* parent,
   audio_mute_state_client_->SignalPublishError.connect(
       this, &HangoutPubSubClient::OnAudioMutePublishError);
 
+  video_mute_state_client_.reset(new PubSubStateClient<bool>(
+      nick_, media_client_.get(), QN_GOOGLE_MUC_VIDEO_MUTE, false,
+      new PublishedNickKeySerializer(), new BoolStateSerializer()));
+  // Can't just repeat because we need to watch for remote mutes.
+  video_mute_state_client_->SignalStateChange.connect(
+      this, &HangoutPubSubClient::OnVideoMuteStateChange);
+  video_mute_state_client_->SignalPublishResult.connect(
+      this, &HangoutPubSubClient::OnVideoMutePublishResult);
+  video_mute_state_client_->SignalPublishError.connect(
+      this, &HangoutPubSubClient::OnVideoMutePublishError);
+
   video_pause_state_client_.reset(new PubSubStateClient<bool>(
       nick_, media_client_.get(), QN_GOOGLE_MUC_VIDEO_PAUSE, false,
       new PublishedNickKeySerializer(), new BoolStateSerializer()));
-  // Can't just repeat because we need to watch for remote mutes.
   video_pause_state_client_->SignalStateChange.connect(
       this, &HangoutPubSubClient::OnVideoPauseStateChange);
   video_pause_state_client_->SignalPublishResult.connect(
@@ -439,6 +449,11 @@ void HangoutPubSubClient::PublishAudioMuteState(
   audio_mute_state_client_->Publish(nick_, muted, task_id_out);
 }
 
+void HangoutPubSubClient::PublishVideoMuteState(
+    bool muted, std::string* task_id_out) {
+  video_mute_state_client_->Publish(nick_, muted, task_id_out);
+}
+
 void HangoutPubSubClient::PublishVideoPauseState(
     bool paused, std::string* task_id_out) {
   video_pause_state_client_->Publish(nick_, paused, task_id_out);
@@ -480,17 +495,22 @@ void HangoutPubSubClient::OnPresenterPublishError(
 }
 
 // Since a remote mute is accomplished by another client setting our
-// mute state, if our state changes to muted, we should mute
-// ourselves.  Note that we never remote un-mute, though.
+// mute state, if our state changes to muted, we should mute ourselves.
+// Note that remote un-muting is disallowed by the RoomServer.
 void HangoutPubSubClient::OnAudioMuteStateChange(
     const PubSubStateChange<bool>& change) {
   bool was_muted = change.old_state;
   bool is_muted = change.new_state;
   bool remote_action = (!change.publisher_nick.empty() &&
                         (change.publisher_nick != change.published_nick));
-  if (is_muted && remote_action) {
+  if (remote_action) {
     const std::string& mutee_nick = change.published_nick;
     const std::string& muter_nick = change.publisher_nick;
+    if (!is_muted) {
+      // The server should prevent remote un-mute.
+      LOG(LS_WARNING) << muter_nick << " remote unmuted " << mutee_nick;
+      return;
+    }
     bool should_mute_locally = (mutee_nick == nick_);
     SignalRemoteMute(mutee_nick, muter_nick, should_mute_locally);
   } else {
@@ -539,6 +559,23 @@ void HangoutPubSubClient::OnAudioMutePublishError(
   } else {
     SignalPublishAudioMuteError(task_id, stanza);
   }
+}
+
+void HangoutPubSubClient::OnVideoMuteStateChange(
+    const PubSubStateChange<bool>& change) {
+  SignalVideoMuteStateChange(
+      change.published_nick, change.old_state, change.new_state);
+}
+
+void HangoutPubSubClient::OnVideoMutePublishResult(
+    const std::string& task_id, const XmlElement* item) {
+  SignalPublishVideoMuteResult(task_id);
+}
+
+void HangoutPubSubClient::OnVideoMutePublishError(
+    const std::string& task_id, const XmlElement* item,
+    const XmlElement* stanza) {
+  SignalPublishVideoMuteError(task_id, stanza);
 }
 
 void HangoutPubSubClient::OnVideoPauseStateChange(

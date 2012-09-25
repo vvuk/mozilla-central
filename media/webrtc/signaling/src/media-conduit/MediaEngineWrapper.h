@@ -9,7 +9,7 @@
 
 //WebRTC includes
 #include "common_types.h"
-#include "voice_engine/main/interface/voe_base.h"
+#include "voice_engine/include/voe_base.h"
 #include "video_engine/include/vie_base.h"
 
 

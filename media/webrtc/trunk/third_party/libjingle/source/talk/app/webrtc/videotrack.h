@@ -1,6 +1,6 @@
 /*
  * libjingle
- * Copyright 2011, Google Inc.
+ * Copyright 2012, Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,15 +31,16 @@
 #include <string>
 
 #include "talk/app/webrtc/mediastreaminterface.h"
-#include "talk/app/webrtc/mediatrackimpl.h"
-#include "talk/app/webrtc/notifierimpl.h"
+#include "talk/app/webrtc/mediastreamtrack.h"
+#include "talk/app/webrtc/notifier.h"
+#include "talk/app/webrtc/videotrackrenderers.h"
 #include "talk/base/scoped_ptr.h"
 #include "talk/base/scoped_ref_ptr.h"
 
 #ifdef WEBRTC_RELATIVE_PATH
 #include "modules/video_capture/main/interface/video_capture.h"
 #else
-#include "third_party/webrtc/files/include/video_capture.h"
+#include "third_party/webrtc/modules/video_capture/main/interface/video_capture.h"
 #endif
 
 namespace cricket {
@@ -61,8 +62,10 @@ class VideoTrack : public MediaStreamTrack<LocalVideoTrackInterface> {
       cricket::VideoCapturer* video_device);
 
   virtual cricket::VideoCapturer* GetVideoCapture();
-  virtual void SetRenderer(VideoRendererWrapperInterface* renderer);
-  VideoRendererWrapperInterface* GetRenderer();
+
+  virtual void AddRenderer(VideoRendererInterface* renderer);
+  virtual void RemoveRenderer(VideoRendererInterface* renderer);
+  virtual cricket::VideoRenderer* FrameInput();
 
   virtual std::string kind() const;
 
@@ -71,8 +74,8 @@ class VideoTrack : public MediaStreamTrack<LocalVideoTrackInterface> {
   VideoTrack(const std::string& label, cricket::VideoCapturer* video_device);
 
  private:
+  VideoTrackRenderers renderers_;
   talk_base::scoped_ptr<cricket::VideoCapturer> video_device_;
-  talk_base::scoped_refptr<VideoRendererWrapperInterface> video_renderer_;
 };
 
 }  // namespace webrtc

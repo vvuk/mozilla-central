@@ -2,47 +2,53 @@
 
 TOOLSET := target
 TARGET := libjingle_p2p
-DEFS_Debug := '-DFEATURE_ENABLE_SSL' \
-	'-DFEATURE_ENABLE_VOICEMAIL' \
-	'-D_USE_32BIT_TIME_T' \
-	'-DSAFE_TO_DEFINE_TALK_BASE_LOGGING_MACROS' \
+DEFS_Debug := \
 	'-DEXPAT_RELATIVE_PATH' \
-	'-DJSONCPP_RELATIVE_PATH' \
-	'-DWEBRTC_RELATIVE_PATH' \
-	'-DHAVE_WEBRTC' \
+	'-DFEATURE_ENABLE_SSL' \
+	'-DGTEST_RELATIVE_PATH' \
+	'-DHAVE_SRTP' \
 	'-DHAVE_WEBRTC_VIDEO' \
 	'-DHAVE_WEBRTC_VOICE' \
-	'-DHAVE_SRTP' \
+	'-DJSONCPP_RELATIVE_PATH' \
+	'-DLOGGING_INSIDE_LIBJINGLE' \
+	'-DNO_MAIN_THREAD_WRAPPING' \
+	'-DNO_SOUND_SYSTEM' \
 	'-DSRTP_RELATIVE_PATH' \
+	'-D_USE_32BIT_TIME_T' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DLINUX' \
 	'-DPOSIX' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
-	'-DCPU_CISC' \
-	'-DSIZEOF_UNSIGNED_LONG=8' \
-	'-DSIZEOF_UNSIGNED_LONG_LONG=8' \
-	'-DHAVE_STDINT_H' \
-	'-DHAVE_INTTYPES_H' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
+	'-DFEATURE_ENABLE_VOICEMAIL' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -50,91 +56,78 @@ CFLAGS_Debug := -pthread \
 	-fvisibility=hidden \
 	-pipe \
 	-fPIC \
-	-pthread \
-	-I/usr/include/gtk-2.0 \
-	-I/usr/lib64/gtk-2.0/include \
-	-I/usr/include/atk-1.0 \
-	-I/usr/include/cairo \
-	-I/usr/include/gdk-pixbuf-2.0 \
-	-I/usr/include/pango-1.0 \
-	-I/usr/include/glib-2.0 \
-	-I/usr/lib64/glib-2.0/include \
-	-I/usr/include/pixman-1 \
-	-I/usr/include/freetype2 \
-	-I/usr/include/libpng12 \
 	-Wno-format \
 	-Wno-unused-result \
 	-O0 \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := -Ithird_party/libyuv/include \
-	-Isrc \
+INCS_Debug := \
+	-Ithird_party/libjingle/overrides \
 	-Ithird_party/libjingle/source \
-	-Ithird_party/expat/files \
-	-Ithird_party/libjingle/source/talk/third_party/libudev \
-	-Isrc \
-	-Isrc/modules/interface \
-	-Isrc/modules/audio_device/main/interface \
-	-Isrc/modules/video_capture/main/interface \
-	-Isrc/common_video/libyuv/include \
-	-Isrc/modules/video_render/main/interface \
-	-Isrc/system_wrappers/interface \
-	-Isrc/video_engine/include \
-	-Isrc/voice_engine/main/interface \
-	-Ithird_party/libsrtp/config \
-	-Ithird_party/libsrtp/srtp/include \
-	-Ithird_party/libsrtp/srtp/crypto/include
+	-Itesting/gtest/include \
+	-Ithird_party/libyuv/include \
+	-Ithird_party/webrtc \
+	-I. \
+	-Ithird_party/jsoncpp/overrides/include \
+	-Ithird_party/jsoncpp/source/include
 
-DEFS_Release := '-DFEATURE_ENABLE_SSL' \
-	'-DFEATURE_ENABLE_VOICEMAIL' \
-	'-D_USE_32BIT_TIME_T' \
-	'-DSAFE_TO_DEFINE_TALK_BASE_LOGGING_MACROS' \
+DEFS_Release := \
 	'-DEXPAT_RELATIVE_PATH' \
-	'-DJSONCPP_RELATIVE_PATH' \
-	'-DWEBRTC_RELATIVE_PATH' \
-	'-DHAVE_WEBRTC' \
+	'-DFEATURE_ENABLE_SSL' \
+	'-DGTEST_RELATIVE_PATH' \
+	'-DHAVE_SRTP' \
 	'-DHAVE_WEBRTC_VIDEO' \
 	'-DHAVE_WEBRTC_VOICE' \
-	'-DHAVE_SRTP' \
+	'-DJSONCPP_RELATIVE_PATH' \
+	'-DLOGGING_INSIDE_LIBJINGLE' \
+	'-DNO_MAIN_THREAD_WRAPPING' \
+	'-DNO_SOUND_SYSTEM' \
 	'-DSRTP_RELATIVE_PATH' \
+	'-D_USE_32BIT_TIME_T' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DLINUX' \
 	'-DPOSIX' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
-	'-DCPU_CISC' \
-	'-DSIZEOF_UNSIGNED_LONG=8' \
-	'-DSIZEOF_UNSIGNED_LONG_LONG=8' \
-	'-DHAVE_STDINT_H' \
-	'-DHAVE_INTTYPES_H' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
+	'-DFEATURE_ENABLE_VOICEMAIL' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -142,18 +135,6 @@ CFLAGS_Release := -pthread \
 	-fvisibility=hidden \
 	-pipe \
 	-fPIC \
-	-pthread \
-	-I/usr/include/gtk-2.0 \
-	-I/usr/lib64/gtk-2.0/include \
-	-I/usr/include/atk-1.0 \
-	-I/usr/include/cairo \
-	-I/usr/include/gdk-pixbuf-2.0 \
-	-I/usr/include/pango-1.0 \
-	-I/usr/include/glib-2.0 \
-	-I/usr/lib64/glib-2.0/include \
-	-I/usr/include/pixman-1 \
-	-I/usr/include/freetype2 \
-	-I/usr/include/libpng12 \
 	-Wno-format \
 	-Wno-unused-result \
 	-O2 \
@@ -162,33 +143,28 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := -Ithird_party/libyuv/include \
-	-Isrc \
+INCS_Release := \
+	-Ithird_party/libjingle/overrides \
 	-Ithird_party/libjingle/source \
-	-Ithird_party/expat/files \
-	-Ithird_party/libjingle/source/talk/third_party/libudev \
-	-Isrc \
-	-Isrc/modules/interface \
-	-Isrc/modules/audio_device/main/interface \
-	-Isrc/modules/video_capture/main/interface \
-	-Isrc/common_video/libyuv/include \
-	-Isrc/modules/video_render/main/interface \
-	-Isrc/system_wrappers/interface \
-	-Isrc/video_engine/include \
-	-Isrc/voice_engine/main/interface \
-	-Ithird_party/libsrtp/config \
-	-Ithird_party/libsrtp/srtp/include \
-	-Ithird_party/libsrtp/srtp/crypto/include
+	-Itesting/gtest/include \
+	-Ithird_party/libyuv/include \
+	-Ithird_party/webrtc \
+	-I. \
+	-Ithird_party/jsoncpp/overrides/include \
+	-Ithird_party/jsoncpp/source/include
 
-OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/constants.o \
+OBJS := \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/constants.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/dtlstransportchannel.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/p2ptransport.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/p2ptransportchannel.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/port.o \
@@ -215,46 +191,14 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/base/const
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/client/basicportallocator.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/client/httpportallocator.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/p2p/client/socketmonitor.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/audiomonitor.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/call.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/channel.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/channelmanager.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/codec.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/currentspeakermonitor.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/devicemanager.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/filemediaengine.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/mediaengine.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/mediamessages.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/mediamonitor.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/mediasession.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/mediasessionclient.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/rtcpmuxfilter.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/rtpdump.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/rtputils.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/soundclip.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/srtpfilter.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/ssrcmuxfilter.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/streamparams.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/videocapturer.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/videocommon.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/videoframe.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/webrtcpassthroughrender.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/webrtcvideocapturer.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/webrtcvideoengine.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/webrtcvideoframe.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/webrtcvoiceengine.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/tunnel/pseudotcpchannel.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/tunnel/tunnelsessionclient.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/gtkvideorenderer.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/libudevsymboltable.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/linuxdevicemanager.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/phone/v4llookup.o
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/session/tunnel/tunnelsessionclient.o
 
 # Add to the list of files we specially track dependencies for.
 all_deps += $(OBJS)
 
 # Make sure our dependencies are built before any of us.
-$(OBJS): | $(obj).target/third_party/expat/expat.stamp
+$(OBJS): | $(obj).target/base/base.stamp $(obj).target/net/net.stamp $(obj).target/third_party/expat/expat.stamp
 
 # CFLAGS et al overrides must be target-local.
 # See "Target-specific Variable Values" in the GNU Make manual.
@@ -277,20 +221,29 @@ $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.cc FORCE_DO_CMD
 
 # End of this set of suffix rules
 ### Rules for final target.
-LDFLAGS_Debug := -pthread \
+LDFLAGS_Debug := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
-	-B$(builddir)/../../third_party/gold
-
-LDFLAGS_Release := -pthread \
-	-Wl,-z,noexecstack \
-	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none
+
+LDFLAGS_Release := \
+	-pthread \
+	-Wl,-z,noexecstack \
+	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
+	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none \
 	-Wl,-O1 \
 	-Wl,--as-needed \
 	-Wl,--gc-sections
 
-LIBS := 
+LIBS := \
+	
 
 $(obj).target/third_party/libjingle/libjingle_p2p.a: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE))
 $(obj).target/third_party/libjingle/libjingle_p2p.a: LIBS := $(LIBS)

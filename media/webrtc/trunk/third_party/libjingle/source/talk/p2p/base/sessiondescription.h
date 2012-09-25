@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "talk/base/constructormagic.h"
+#include "talk/p2p/base/transportinfo.h"
 
 namespace cricket {
 
@@ -52,11 +53,17 @@ struct ContentInfo {
   ContentInfo() : description(NULL) {}
   ContentInfo(const std::string& name,
               const std::string& type,
-              const ContentDescription* description) :
-      name(name), type(type), description(description) {}
+              ContentDescription* description) :
+      name(name), type(type), rejected(false), description(description) {}
+  ContentInfo(const std::string& name,
+              const std::string& type,
+              bool rejected,
+              ContentDescription* description) :
+      name(name), type(type), rejected(rejected), description(description) {}
   std::string name;
   std::string type;
-  const ContentDescription* description;
+  bool rejected;
+  ContentDescription* description;
 };
 
 // This class provides a mechanism to aggregate different media contents into a
@@ -101,15 +108,32 @@ class SessionDescription {
       content_groups_(groups) {}
   SessionDescription* Copy() const;
   const ContentInfo* GetContentByName(const std::string& name) const;
+  ContentDescription* GetContentDescriptionByName(const std::string& name);
   const ContentInfo* FirstContentByType(const std::string& type) const;
   const ContentInfo* FirstContent() const;
   // Takes ownership of ContentDescription*.
   void AddContent(const std::string& name,
                   const std::string& type,
-                  const ContentDescription* description);
+                  ContentDescription* description);
+  void AddContent(const std::string& name,
+                  const std::string& type,
+                  bool rejected,
+                  ContentDescription* description);
   bool RemoveContentByName(const std::string& name);
+  // Adds the TransportInfo.
+  // Returns false if the TransportInfo with the same content name is already
+  // exist.
+  bool AddTransportInfo(const TransportInfo& transport_info);
+  bool RemoveTransportInfoByName(const std::string& name);
+  const TransportInfo* GetTransportInfoByName(
+      const std::string& name) const;
   const ContentInfos& contents() const { return contents_; }
   const ContentGroups& groups() const { return content_groups_; }
+  void set_transport_infos(const TransportInfos& transport_infos) {
+    transport_infos_ = transport_infos;
+  }
+  TransportInfos& transport_infos() { return transport_infos_; }
+  const TransportInfos& transport_infos() const { return transport_infos_; }
 
   ~SessionDescription() {
     for (ContentInfos::iterator content = contents_.begin();
@@ -126,6 +150,7 @@ class SessionDescription {
  private:
   ContentInfos contents_;
   ContentGroups content_groups_;
+  TransportInfos transport_infos_;
 };
 
 // Indicates whether a ContentDescription was an offer or an answer, as
@@ -133,7 +158,7 @@ class SessionDescription {
 // indicates a jingle update message which contains a subset of a full
 // session description
 enum ContentAction {
-  CA_OFFER, CA_ANSWER, CA_UPDATE
+  CA_OFFER, CA_PRANSWER, CA_ANSWER, CA_UPDATE
 };
 
 // Indicates whether a ContentDescription was sent by the local client

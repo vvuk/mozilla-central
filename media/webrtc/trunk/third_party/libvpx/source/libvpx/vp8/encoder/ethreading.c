@@ -12,21 +12,22 @@
 #include "vp8/common/threading.h"
 #include "vp8/common/common.h"
 #include "vp8/common/extend.h"
+#include "bitstream.h"
+#include "encodeframe.h"
 
 #if CONFIG_MULTITHREAD
 
 extern int vp8cx_encode_inter_macroblock(VP8_COMP *cpi, MACROBLOCK *x,
-                                         TOKENEXTRA **t, int recon_yoffset,
-                                         int recon_uvoffset);
-extern int vp8cx_encode_intra_macro_block(VP8_COMP *cpi, MACROBLOCK *x,
-                                          TOKENEXTRA **t);
+                                         TOKENEXTRA **t,
+                                         int recon_yoffset, int recon_uvoffset,
+                                         int mb_row, int mb_col);
+extern int vp8cx_encode_intra_macroblock(VP8_COMP *cpi, MACROBLOCK *x,
+                                         TOKENEXTRA **t);
 extern void vp8cx_mb_init_quantizer(VP8_COMP *cpi, MACROBLOCK *x, int ok_to_skip);
-extern void vp8_build_block_offsets(MACROBLOCK *x);
-extern void vp8_setup_block_ptrs(MACROBLOCK *x);
 
-extern void loopfilter_frame(VP8_COMP *cpi, VP8_COMMON *cm);
+extern void vp8_loopfilter_frame(VP8_COMP *cpi, VP8_COMMON *cm);
 
-static THREAD_FUNCTION loopfilter_thread(void *p_data)
+static THREAD_FUNCTION thread_loopfilter(void *p_data)
 {
     VP8_COMP *cpi = (VP8_COMP *)(((LPFTHREAD_DATA *)p_data)->ptr1);
     VP8_COMMON *cm = &cpi->common;
@@ -41,7 +42,7 @@ static THREAD_FUNCTION loopfilter_thread(void *p_data)
             if (cpi->b_multi_threaded == 0) // we're shutting down
                 break;
 
-            loopfilter_frame(cpi, cm);
+            vp8_loopfilter_frame(cpi, cm);
 
             sem_post(&cpi->h_event_end_lpf);
         }
@@ -74,6 +75,10 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
             MACROBLOCK *x = &mbri->mb;
             MACROBLOCKD *xd = &x->e_mbd;
             TOKENEXTRA *tp ;
+#if CONFIG_REALTIME_ONLY & CONFIG_ONTHEFLY_BITPACKING
+            TOKENEXTRA *tp_start = cpi->tok + (1 + ithread) * (16 * 24);
+            const int num_part = (1 << cm->multi_token_partition);
+#endif
 
             int *segment_counts = mbri->segment_counts;
             int *totalrate = &mbri->totalrate;
@@ -91,9 +96,15 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
                 int recon_y_stride = cm->yv12_fb[ref_fb_idx].y_stride;
                 int recon_uv_stride = cm->yv12_fb[ref_fb_idx].uv_stride;
                 int map_index = (mb_row * cm->mb_cols);
-                volatile int *last_row_current_mb_col;
+                volatile const int *last_row_current_mb_col;
+                volatile int *current_mb_col = &cpi->mt_current_mb_col[mb_row];
 
+#if  (CONFIG_REALTIME_ONLY & CONFIG_ONTHEFLY_BITPACKING)
+                vp8_writer *w = &cpi->bc[1 + (mb_row % num_part)];
+#else
                 tp = cpi->tok + (mb_row * (cm->mb_cols * 16 * 24));
+                cpi->tplist[mb_row].start = tp;
+#endif
 
                 last_row_current_mb_col = &cpi->mt_current_mb_col[mb_row - 1];
 
@@ -107,24 +118,26 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
                 recon_yoffset = (mb_row * recon_y_stride * 16);
                 recon_uvoffset = (mb_row * recon_uv_stride * 8);
 
-                cpi->tplist[mb_row].start = tp;
-
-                //printf("Thread mb_row = %d\n", mb_row);
-
                 // Set the mb activity pointer to the start of the row.
                 x->mb_activity_ptr = &cpi->mb_activity_map[map_index];
 
                 // for each macroblock col in image
                 for (mb_col = 0; mb_col < cm->mb_cols; mb_col++)
                 {
+                    *current_mb_col = mb_col - 1;
+
                     if ((mb_col & (nsync - 1)) == 0)
                     {
-                        while (mb_col > (*last_row_current_mb_col - nsync) && *last_row_current_mb_col != cm->mb_cols - 1)
+                        while (mb_col > (*last_row_current_mb_col - nsync))
                         {
                             x86_pause_hint();
                             thread_sleep(0);
                         }
                     }
+
+#if CONFIG_REALTIME_ONLY & CONFIG_ONTHEFLY_BITPACKING
+                    tp = tp_start;
+#endif
 
                     // Distance of Mb to the various image edges.
                     // These specified to 8th pel as they are always compared to values that are in 1/8th pel units
@@ -148,13 +161,13 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
                     x->rdmult = cpi->RDMULT;
 
                     //Copy current mb to a buffer
-                    RECON_INVOKE(&xd->rtcd->recon, copy16x16)(x->src.y_buffer, x->src.y_stride, x->thismb, 16);
+                    vp8_copy_mem16x16(x->src.y_buffer, x->src.y_stride, x->thismb, 16);
 
                     if (cpi->oxcf.tuning == VP8_TUNE_SSIM)
                         vp8_activity_masking(cpi, x);
 
                     // Is segmentation enabled
-                    // MB level adjutment to quantizer
+                    // MB level adjustment to quantizer
                     if (xd->segmentation_enabled)
                     {
                         // Code to set segment id in xd->mbmi.segment_id for current MB (with range checking)
@@ -172,14 +185,14 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
 
                     if (cm->frame_type == KEY_FRAME)
                     {
-                        *totalrate += vp8cx_encode_intra_macro_block(cpi, x, &tp);
+                        *totalrate += vp8cx_encode_intra_macroblock(cpi, x, &tp);
 #ifdef MODE_STATS
                         y_modes[xd->mbmi.mode] ++;
 #endif
                     }
                     else
                     {
-                        *totalrate += vp8cx_encode_inter_macroblock(cpi, x, &tp, recon_yoffset, recon_uvoffset);
+                        *totalrate += vp8cx_encode_inter_macroblock(cpi, x, &tp, recon_yoffset, recon_uvoffset, mb_row, mb_col);
 
 #ifdef MODE_STATS
                         inter_y_modes[xd->mbmi.mode] ++;
@@ -196,13 +209,13 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
 
 #endif
 
-                        // Count of last ref frame 0,0 useage
+                        // Count of last ref frame 0,0 usage
                         if ((xd->mode_info_context->mbmi.mode == ZEROMV) && (xd->mode_info_context->mbmi.ref_frame == LAST_FRAME))
                             cpi->inter_zz_count++;
 
                         // Special case code for cyclic refresh
                         // If cyclic update enabled then copy xd->mbmi.segment_id; (which may have been updated based on mode
-                        // during vp8cx_encode_inter_macroblock()) back into the global sgmentation map
+                        // during vp8cx_encode_inter_macroblock()) back into the global segmentation map
                         if (cpi->cyclic_refresh_mode_enabled && xd->segmentation_enabled)
                         {
                             const MB_MODE_INFO * mbmi = &xd->mode_info_context->mbmi;
@@ -223,9 +236,17 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
 
                         }
                     }
-                    cpi->tplist[mb_row].stop = tp;
 
-                    // Increment pointer into gf useage flags structure.
+#if CONFIG_REALTIME_ONLY & CONFIG_ONTHEFLY_BITPACKING
+                    /* pack tokens for this MB */
+                    {
+                        int tok_count = tp - tp_start;
+                        pack_tokens(w, tp_start, tok_count);
+                    }
+#else
+                    cpi->tplist[mb_row].stop = tp;
+#endif
+                    // Increment pointer into gf usage flags structure.
                     x->gf_active_ptr++;
 
                     // Increment the activity mask pointers.
@@ -239,23 +260,21 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
                     recon_yoffset += 16;
                     recon_uvoffset += 8;
 
-                    // Keep track of segment useage
+                    // Keep track of segment usage
                     segment_counts[xd->mode_info_context->mbmi.segment_id]++;
 
                     // skip to next mb
                     xd->mode_info_context++;
                     x->partition_info++;
                     xd->above_context++;
-
-                    cpi->mt_current_mb_col[mb_row] = mb_col;
                 }
 
-                //extend the recon for intra prediction
-                vp8_extend_mb_row(
-                    &cm->yv12_fb[dst_fb_idx],
-                    xd->dst.y_buffer + 16,
-                    xd->dst.u_buffer + 8,
-                    xd->dst.v_buffer + 8);
+                vp8_extend_mb_row( &cm->yv12_fb[dst_fb_idx],
+                                    xd->dst.y_buffer + 16,
+                                    xd->dst.u_buffer + 8,
+                                    xd->dst.v_buffer + 8);
+
+                *current_mb_col = mb_col + nsync;
 
                 // this is to account for the border
                 xd->mode_info_context++;
@@ -271,7 +290,6 @@ THREAD_FUNCTION thread_encoding_proc(void *p_data)
 
                 if (mb_row == cm->mb_rows - 1)
                 {
-                    //SetEvent(cpi->h_event_main);
                     sem_post(&cpi->h_event_end_encoding); /* signal frame encoding end */
                 }
             }
@@ -304,8 +322,8 @@ static void setup_mbby_copy(MACROBLOCK *mbdst, MACROBLOCK *mbsrc)
     z->mv_row_max    = x->mv_row_max;
     */
 
-    z->vp8_short_fdct4x4     = x->vp8_short_fdct4x4;
-    z->vp8_short_fdct8x4     = x->vp8_short_fdct8x4;
+    z->short_fdct4x4     = x->short_fdct4x4;
+    z->short_fdct8x4     = x->short_fdct8x4;
     z->short_walsh4x4    = x->short_walsh4x4;
     z->quantize_b        = x->quantize_b;
     z->quantize_b_pair   = x->quantize_b_pair;
@@ -425,9 +443,6 @@ void vp8cx_init_mbrthread_data(VP8_COMP *cpi,
         mbd->subpixel_predict8x4     = xd->subpixel_predict8x4;
         mbd->subpixel_predict8x8     = xd->subpixel_predict8x8;
         mbd->subpixel_predict16x16   = xd->subpixel_predict16x16;
-#if CONFIG_RUNTIME_CPU_DETECT
-        mbd->rtcd                   = xd->rtcd;
-#endif
         mb->gf_active_ptr            = x->gf_active_ptr;
 
         vpx_memset(mbr_ei[i].segment_counts, 0, sizeof(mbr_ei[i].segment_counts));
@@ -439,9 +454,6 @@ void vp8cx_init_mbrthread_data(VP8_COMP *cpi,
         mbd->mode_info_stride  = cm->mode_info_stride;
 
         mbd->frame_type = cm->frame_type;
-
-        mbd->frames_since_golden = cm->frames_since_golden;
-        mbd->frames_till_alt_ref_frame = cm->frames_till_alt_ref_frame;
 
         mb->src = * cpi->Source;
         mbd->pre = cm->yv12_fb[cm->lst_fb_idx];
@@ -474,6 +486,7 @@ void vp8cx_create_encoder_threads(VP8_COMP *cpi)
 
     cpi->b_multi_threaded = 0;
     cpi->encoding_thread_count = 0;
+    cpi->b_lpf_running = 0;
 
     if (cm->processor_core_count > 1 && cpi->oxcf.multi_threaded > 1)
     {
@@ -532,7 +545,7 @@ void vp8cx_create_encoder_threads(VP8_COMP *cpi)
             sem_init(&cpi->h_event_end_lpf, 0, 0);
 
             lpfthd->ptr1 = (void *)cpi;
-            pthread_create(&cpi->h_filter_thread, 0, loopfilter_thread, lpfthd);
+            pthread_create(&cpi->h_filter_thread, 0, thread_loopfilter, lpfthd);
         }
     }
 

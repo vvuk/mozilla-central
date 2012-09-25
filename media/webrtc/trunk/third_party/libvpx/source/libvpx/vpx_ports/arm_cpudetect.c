@@ -52,7 +52,7 @@ int arm_cpu_caps(void)
      *  instructions via their assembled hex code.
      * All of these instructions should be essentially nops.
      */
-#if defined(HAVE_ARMV5TE)
+#if defined(HAVE_EDSP)
     if (mask & HAS_EDSP)
     {
         __try
@@ -66,7 +66,7 @@ int arm_cpu_caps(void)
             /*Ignore exception.*/
         }
     }
-#if defined(HAVE_ARMV6)
+#if defined(HAVE_MEDIA)
     if (mask & HAS_MEDIA)
         __try
         {
@@ -79,7 +79,7 @@ int arm_cpu_caps(void)
             /*Ignore exception.*/
         }
     }
-#if defined(HAVE_ARMV7)
+#if defined(HAVE_NEON)
     if (mask & HAS_NEON)
     {
         __try
@@ -100,6 +100,34 @@ int arm_cpu_caps(void)
 }
 
 #elif defined(__linux__)
+#if defined(__ANDROID__)
+#include <cpu-features.h>
+
+int arm_cpu_caps(void)
+{
+    int flags;
+    int mask;
+    uint64_t features;
+    if (!arm_cpu_env_flags(&flags))
+    {
+        return flags;
+    }
+    mask = arm_cpu_env_mask();
+    features = android_getCpuFeatures();
+
+#if defined(HAVE_EDSP)
+    flags |= HAS_EDSP;
+#endif
+#if defined(HAVE_MEDIA)
+    flags |= HAS_MEDIA;
+#endif
+#if defined(HAVE_NEON)
+    if (features & ANDROID_CPU_ARM_FEATURE_NEON)
+        flags |= HAS_NEON;
+#endif
+    return flags & mask;
+}
+#else // !defined(__ANDROID__)
 #include <stdio.h>
 
 int arm_cpu_caps(void)
@@ -125,17 +153,17 @@ int arm_cpu_caps(void)
         char buf[512];
         while (fgets(buf, 511, fin) != NULL)
         {
-#if defined(HAVE_ARMV5TE) || defined(HAVE_ARMV7)
+#if defined(HAVE_EDSP) || defined(HAVE_NEON)
             if (memcmp(buf, "Features", 8) == 0)
             {
                 char *p;
-#if defined(HAVE_ARMV5TE)
+#if defined(HAVE_EDSP)
                 p=strstr(buf, " edsp");
                 if (p != NULL && (p[5] == ' ' || p[5] == '\n'))
                 {
                     flags |= HAS_EDSP;
                 }
-#if defined(HAVE_ARMV7)
+#if defined(HAVE_NEON)
                 p = strstr(buf, " neon");
                 if (p != NULL && (p[5] == ' ' || p[5] == '\n'))
                 {
@@ -145,7 +173,7 @@ int arm_cpu_caps(void)
 #endif
             }
 #endif
-#if defined(HAVE_ARMV6)
+#if defined(HAVE_MEDIA)
             if (memcmp(buf, "CPU architecture:",17) == 0){
                 int version;
                 version = atoi(buf+17);
@@ -160,7 +188,7 @@ int arm_cpu_caps(void)
     }
     return flags & mask;
 }
-
+#endif // defined(__linux__)
 #elif !CONFIG_RUNTIME_CPU_DETECT
 
 int arm_cpu_caps(void)
@@ -172,13 +200,13 @@ int arm_cpu_caps(void)
         return flags;
     }
     mask = arm_cpu_env_mask();
-#if defined(HAVE_ARMV5TE)
+#if defined(HAVE_EDSP)
     flags |= HAS_EDSP;
 #endif
-#if defined(HAVE_ARMV6)
+#if defined(HAVE_MEDIA)
     flags |= HAS_MEDIA;
 #endif
-#if defined(HAVE_ARMV7)
+#if defined(HAVE_NEON)
     flags |= HAS_NEON;
 #endif
     return flags & mask;

@@ -25,7 +25,7 @@ typedef struct
     int offset;
 } search_site;
 
-typedef struct
+typedef struct block
 {
     // 16 Y blocks, 4 U blocks, 4 V blocks each with 16 entries
     short *src_diff;
@@ -57,7 +57,7 @@ typedef struct
     } bmi[16];
 } PARTITION_INFO;
 
-typedef struct
+typedef struct macroblock
 {
     DECLARE_ALIGNED(16, short, src_diff[400]);       // 16x16 Y 8x8 U 8x8 V 4x4 2nd Y
     DECLARE_ALIGNED(16, short, coeff[400]);     // 16x16 Y 8x8 U 8x8 V 4x4 2nd Y
@@ -73,6 +73,8 @@ typedef struct
     PARTITION_INFO *partition_info; /* work pointer */
     PARTITION_INFO *pi;   /* Corresponds to upper left visible macroblock */
     PARTITION_INFO *pip;  /* Base of allocated array */
+
+    int ref_frame_cost[MAX_REF_FRAMES];
 
     search_site *ss;
     int ss_count;
@@ -105,7 +107,7 @@ typedef struct
 
     int skip;
 
-    int encode_breakout;
+    unsigned int encode_breakout;
 
     //char * gf_active_ptr;
     signed char *gf_active_ptr;
@@ -117,8 +119,18 @@ typedef struct
     int optimize;
     int q_index;
 
-    void (*vp8_short_fdct4x4)(short *input, short *output, int pitch);
-    void (*vp8_short_fdct8x4)(short *input, short *output, int pitch);
+#if CONFIG_TEMPORAL_DENOISING
+    MB_PREDICTION_MODE best_sse_inter_mode;
+    int_mv best_sse_mv;
+    MV_REFERENCE_FRAME best_reference_frame;
+    MV_REFERENCE_FRAME best_zeromv_reference_frame;
+    unsigned char need_to_clamp_best_mvs;
+#endif
+
+
+
+    void (*short_fdct4x4)(short *input, short *output, int pitch);
+    void (*short_fdct8x4)(short *input, short *output, int pitch);
     void (*short_walsh4x4)(short *input, short *output, int pitch);
     void (*quantize_b)(BLOCK *b, BLOCKD *d);
     void (*quantize_b_pair)(BLOCK *b1, BLOCK *b2, BLOCKD *d0, BLOCKD *d1);

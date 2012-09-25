@@ -1,6 +1,6 @@
 /*
  * libjingle
- * Copyright 2011, Google Inc.
+ * Copyright 2012, Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -44,7 +44,7 @@ namespace cricket {
 
 class VideoCapturer;
 class VideoRenderer;
-class MediaEngine;
+class VideoFrame;
 
 }  // namespace cricket
 
@@ -89,31 +89,31 @@ class MediaStreamTrackInterface : public talk_base::RefCountInterface,
   virtual bool set_state(TrackState new_state) = 0;
 };
 
-// Reference counted wrapper for a VideoRenderer.
-class VideoRendererWrapperInterface : public talk_base::RefCountInterface {
+// Interface for rendering VideoFrames from a VideoTrack
+class VideoRendererInterface {
  public:
-  virtual cricket::VideoRenderer* renderer() = 0;
+  virtual void SetSize(int width, int height) = 0;
+  virtual void RenderFrame(const cricket::VideoFrame* frame) = 0;
 
  protected:
-  virtual ~VideoRendererWrapperInterface() {}
+  // The destructor is protected to prevent deletion via the interface.
+  // This is so that we allow reference counted classes, where the destructor
+  // should never be public, to implement the interface.
+  virtual ~VideoRendererInterface() {}
 };
-
-// Creates a reference counted object of type cricket::VideoRenderer.
-// webrtc::VideoRendererWrapperInterface take ownership of
-// cricket::VideoRenderer.
-talk_base::scoped_refptr<VideoRendererWrapperInterface> CreateVideoRenderer(
-    cricket::VideoRenderer* renderer);
 
 class VideoTrackInterface : public MediaStreamTrackInterface {
  public:
-  // Set the video renderer for a local or remote stream.
-  // This call will start decoding the received video stream and render it.
-  // The VideoRendererInterface is stored as a scoped_refptr. This means that
-  // it is not allowed to call delete renderer after this API has been called.
-  virtual void SetRenderer(VideoRendererWrapperInterface* renderer) = 0;
+  // Register a renderer that will render all frames received on this track.
+  virtual void AddRenderer(VideoRendererInterface* renderer) = 0;
+  // Deregister a renderer.
+  virtual void RemoveRenderer(VideoRendererInterface* renderer) = 0;
 
-  // Get the VideoRenderer associated with this track.
-  virtual VideoRendererWrapperInterface* GetRenderer() = 0;
+  // Gets a pointer to the frame input of this VideoTrack.
+  // The pointer is valid for the lifetime of this VideoTrack.
+  // VideoFrames rendered to the cricket::VideoRenderer will be rendered on all
+  // registered renderers.
+  virtual cricket::VideoRenderer* FrameInput() = 0;
 
  protected:
   virtual ~VideoTrackInterface() {}

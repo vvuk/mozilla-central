@@ -84,22 +84,49 @@ static const struct codec_item
 
 static void usage_exit();
 
+#define LOG_ERROR(label) do \
+{\
+    const char *l=label;\
+    va_list ap;\
+    va_start(ap, fmt);\
+    if(l)\
+        fprintf(stderr, "%s: ", l);\
+    vfprintf(stderr, fmt, ap);\
+    fprintf(stderr, "\n");\
+    va_end(ap);\
+} while(0)
+
 void die(const char *fmt, ...)
 {
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    LOG_ERROR(NULL);
     usage_exit();
 }
 
-static void ctx_exit_on_error(vpx_codec_ctx_t *ctx, const char *s)
+
+void fatal(const char *fmt, ...)
 {
+    LOG_ERROR("Fatal");
+    exit(EXIT_FAILURE);
+}
+
+
+void warn(const char *fmt, ...)
+{
+    LOG_ERROR("Warning");
+}
+
+
+static void ctx_exit_on_error(vpx_codec_ctx_t *ctx, const char *s, ...)
+{
+    va_list ap;
+
+    va_start(ap, s);
     if (ctx->err)
     {
         const char *detail = vpx_codec_error_detail(ctx);
 
-        fprintf(stderr, "%s: %s\n", s, vpx_codec_error(ctx));
+        vfprintf(stderr, s, ap);
+        fprintf(stderr, ": %s\n", vpx_codec_error(ctx));
 
         if (detail)
             fprintf(stderr, "    %s\n", detail);
@@ -153,10 +180,7 @@ int stats_open_file(stats_io_t *stats, const char *fpf, int pass)
         stats->file = fopen(fpf, "rb");
 
         if (fseek(stats->file, 0, SEEK_END))
-        {
-            fprintf(stderr, "First-pass stats file must be seekable!\n");
-            exit(EXIT_FAILURE);
-        }
+            fatal("First-pass stats file must be seekable!");
 
         stats->buf.sz = stats->buf_alloc_sz = ftell(stats->file);
         rewind(stats->file);
@@ -164,11 +188,8 @@ int stats_open_file(stats_io_t *stats, const char *fpf, int pass)
         stats->buf.buf = malloc(stats->buf_alloc_sz);
 
         if (!stats->buf.buf)
-        {
-            fprintf(stderr, "Failed to allocate first-pass stats buffer (%lu bytes)\n",
-                    (unsigned long)stats->buf_alloc_sz);
-            exit(EXIT_FAILURE);
-        }
+            fatal("Failed to allocate first-pass stats buffer (%lu bytes)",
+                  (unsigned long)stats->buf_alloc_sz);
 
         nbytes = fread(stats->buf.buf, 1, stats->buf.sz, stats->file);
         res = (nbytes == stats->buf.sz);
@@ -240,11 +261,7 @@ void stats_write(stats_io_t *stats, const void *pkt, size_t len)
                 stats->buf_alloc_sz = new_sz;
             }
             else
-            {
-                fprintf(stderr,
-                        "\nFailed to realloc firstpass stats buffer.\n");
-                exit(EXIT_FAILURE);
-            }
+                fatal("Failed to realloc firstpass stats buffer.");
         }
 
         memcpy(stats->buf_ptr, pkt, len);
@@ -282,10 +299,27 @@ struct detect_buffer {
 };
 
 
-#define IVF_FRAME_HDR_SZ (4+8) /* 4 byte size + 8 byte timestamp */
-static int read_frame(FILE *f, vpx_image_t *img, unsigned int file_type,
-                      y4m_input *y4m, struct detect_buffer *detect)
+struct input_state
 {
+    char                 *fn;
+    FILE                 *file;
+    y4m_input             y4m;
+    struct detect_buffer  detect;
+    enum video_file_type  file_type;
+    unsigned int          w;
+    unsigned int          h;
+    struct vpx_rational   framerate;
+    int                   use_i420;
+};
+
+
+#define IVF_FRAME_HDR_SZ (4+8) /* 4 byte size + 8 byte timestamp */
+static int read_frame(struct input_state *input, vpx_image_t *img)
+{
+    FILE *f = input->file;
+    enum video_file_type file_type = input->file_type;
+    y4m_input *y4m = &input->y4m;
+    struct detect_buffer *detect = &input->detect;
     int plane = 0;
     int shortread = 0;
 
@@ -369,14 +403,15 @@ unsigned int file_is_y4m(FILE      *infile,
 }
 
 #define IVF_FILE_HDR_SZ (32)
-unsigned int file_is_ivf(FILE *infile,
-                         unsigned int *fourcc,
-                         unsigned int *width,
-                         unsigned int *height,
-                         struct detect_buffer *detect)
+unsigned int file_is_ivf(struct input_state *input,
+                         unsigned int *fourcc)
 {
     char raw_hdr[IVF_FILE_HDR_SZ];
     int is_ivf = 0;
+    FILE *infile = input->file;
+    unsigned int *width = &input->w;
+    unsigned int *height = &input->h;
+    struct detect_buffer *detect = &input->detect;
 
     if(memcmp(detect->buf, "DKIF", 4) != 0)
         return 0;
@@ -391,8 +426,8 @@ unsigned int file_is_ivf(FILE *infile,
             is_ivf = 1;
 
             if (mem_get_le16(raw_hdr + 4) != 0)
-                fprintf(stderr, "Error: Unrecognized IVF version! This file may not"
-                        " decode properly.");
+                warn("Unrecognized IVF version! This file may not decode "
+                     "properly.");
 
             *fourcc = mem_get_le32(raw_hdr + 8);
         }
@@ -452,6 +487,13 @@ static void write_ivf_frame_header(FILE *outfile,
     mem_put_le32(header + 8, pts >> 32);
 
     if(fwrite(header, 1, 12, outfile));
+}
+
+static void write_ivf_frame_size(FILE *outfile, size_t size)
+{
+    char             header[4];
+    mem_put_le32(header, size);
+    fwrite(header, 1, 4, outfile);
 }
 
 
@@ -762,10 +804,7 @@ write_webm_block(EbmlGlobal                *glob,
             if(new_cue_list)
                 glob->cue_list = new_cue_list;
             else
-            {
-                fprintf(stderr, "\nFailed to realloc cue list.\n");
-                exit(EXIT_FAILURE);
-            }
+                fatal("Failed to realloc cue list.");
 
             cue = &glob->cue_list[glob->cues];
             cue->time = glob->cluster_timecode;
@@ -913,7 +952,6 @@ static double vp8_mse2psnr(double Samples, double Peak, double Mse)
 
 
 #include "args.h"
-
 static const arg_def_t debugmode = ARG_DEF("D", "debug", 0,
         "Debug mode (makes output deterministic)");
 static const arg_def_t outputfile = ARG_DEF("o", "output", 1,
@@ -948,6 +986,8 @@ static const arg_def_t framerate        = ARG_DEF(NULL, "fps", 1,
         "Stream frame rate (rate/scale)");
 static const arg_def_t use_ivf          = ARG_DEF(NULL, "ivf", 0,
         "Output IVF (default is WebM)");
+static const arg_def_t out_part = ARG_DEF("P", "output-partitions", 0,
+        "Makes encoder output partitions. Requires IVF output!");
 static const arg_def_t q_hist_n         = ARG_DEF(NULL, "q-hist", 1,
         "Show quantizer histogram (n-buckets)");
 static const arg_def_t rate_hist_n         = ARG_DEF(NULL, "rate-hist", 1,
@@ -957,7 +997,7 @@ static const arg_def_t *main_args[] =
     &debugmode,
     &outputfile, &codecarg, &passes, &pass_arg, &fpf_name, &limit, &deadline,
     &best_dl, &good_dl, &rt_dl,
-    &verbosearg, &psnrarg, &use_ivf, &q_hist_n, &rate_hist_n,
+    &verbosearg, &psnrarg, &use_ivf, &out_part, &q_hist_n, &rate_hist_n,
     NULL
 };
 
@@ -1445,58 +1485,91 @@ static void show_rate_histogram(struct rate_hist          *hist,
 #define NELEMENTS(x) (sizeof(x)/sizeof(x[0]))
 #define ARG_CTRL_CNT_MAX NELEMENTS(vp8_arg_ctrl_map)
 
-int main(int argc, const char **argv_)
+
+/* Configuration elements common to all streams */
+struct global_config
 {
-    vpx_codec_ctx_t        encoder;
-    const char                  *in_fn = NULL, *out_fn = NULL, *stats_fn = NULL;
-    int                    i;
-    FILE                  *infile, *outfile;
-    vpx_codec_enc_cfg_t    cfg;
-    vpx_codec_err_t        res;
-    int                    pass, one_pass_only = 0;
-    stats_io_t             stats;
-    vpx_image_t            raw;
-    const struct codec_item  *codec = codecs;
-    int                    frame_avail, got_data;
-
-    struct arg               arg;
-    char                   **argv, **argi, **argj;
-    int                      arg_usage = 0, arg_passes = 1, arg_deadline = 0;
-    int                      arg_ctrls[ARG_CTRL_CNT_MAX][2], arg_ctrl_cnt = 0;
-    int                      arg_limit = 0;
-    static const arg_def_t **ctrl_args = no_args;
-    static const int        *ctrl_args_map = NULL;
-    int                      verbose = 0, show_psnr = 0;
-    int                      arg_use_i420 = 1;
-    unsigned long            cx_time = 0;
-    unsigned int             file_type, fourcc;
-    y4m_input                y4m;
-    struct vpx_rational      arg_framerate = {30, 1};
-    int                      arg_have_framerate = 0;
-    int                      write_webm = 1;
-    EbmlGlobal               ebml = {0};
-    uint32_t                 hash = 0;
-    uint64_t                 psnr_sse_total = 0;
-    uint64_t                 psnr_samples_total = 0;
-    double                   psnr_totals[4] = {0, 0, 0, 0};
-    int                      psnr_count = 0;
-    stereo_format_t          stereo_fmt = STEREO_FORMAT_MONO;
-    int                      counts[64]={0};
-    int                      show_q_hist_buckets=0;
-    int                      show_rate_hist_buckets=0;
-    struct rate_hist         rate_hist={0};
-
-    exec_name = argv_[0];
-    ebml.last_pts_ms = -1;
-
-    if (argc < 3)
-        usage_exit();
+    const struct codec_item  *codec;
+    int                       passes;
+    int                       pass;
+    int                       usage;
+    int                       deadline;
+    int                       use_i420;
+    int                       verbose;
+    int                       limit;
+    int                       show_psnr;
+    int                       have_framerate;
+    struct vpx_rational       framerate;
+    int                       out_part;
+    int                       debug;
+    int                       show_q_hist_buckets;
+    int                       show_rate_hist_buckets;
+};
 
 
-    /* First parse the codec and usage values, because we want to apply other
-     * parameters on top of the default configuration provided by the codec.
-     */
-    argv = argv_dup(argc - 1, argv_ + 1);
+/* Per-stream configuration */
+struct stream_config
+{
+    struct vpx_codec_enc_cfg  cfg;
+    const char               *out_fn;
+    const char               *stats_fn;
+    stereo_format_t           stereo_fmt;
+    int                       arg_ctrls[ARG_CTRL_CNT_MAX][2];
+    int                       arg_ctrl_cnt;
+    int                       write_webm;
+    int                       have_kf_max_dist;
+};
+
+
+struct stream_state
+{
+    int                       index;
+    struct stream_state      *next;
+    struct stream_config      config;
+    FILE                     *file;
+    struct rate_hist          rate_hist;
+    EbmlGlobal                ebml;
+    uint32_t                  hash;
+    uint64_t                  psnr_sse_total;
+    uint64_t                  psnr_samples_total;
+    double                    psnr_totals[4];
+    int                       psnr_count;
+    int                       counts[64];
+    vpx_codec_ctx_t           encoder;
+    unsigned int              frames_out;
+    uint64_t                  cx_time;
+    size_t                    nbytes;
+    stats_io_t                stats;
+};
+
+
+void validate_positive_rational(const char          *msg,
+                                struct vpx_rational *rat)
+{
+    if (rat->den < 0)
+    {
+        rat->num *= -1;
+        rat->den *= -1;
+    }
+
+    if (rat->num < 0)
+        die("Error: %s must be positive\n", msg);
+
+    if (!rat->den)
+        die("Error: %s has zero denominator\n", msg);
+}
+
+
+static void parse_global_config(struct global_config *global, char **argv)
+{
+    char       **argi, **argj;
+    struct arg   arg;
+
+    /* Initialize default parameters */
+    memset(global, 0, sizeof(*global));
+    global->codec = codecs;
+    global->passes = 1;
+    global->use_i420 = 1;
 
     for (argi = argj = argv; (*argj = *argi); argi += arg.argv_step)
     {
@@ -1511,7 +1584,7 @@ int main(int argc, const char **argv_)
                     k = j;
 
             if (k >= 0)
-                codec = codecs + k;
+                global->codec = codecs + k;
             else
                 die("Error: Unrecognized argument (%s) to --codec\n",
                     arg.val);
@@ -1519,234 +1592,782 @@ int main(int argc, const char **argv_)
         }
         else if (arg_match(&arg, &passes, argi))
         {
-            arg_passes = arg_parse_uint(&arg);
+            global->passes = arg_parse_uint(&arg);
 
-            if (arg_passes < 1 || arg_passes > 2)
-                die("Error: Invalid number of passes (%d)\n", arg_passes);
+            if (global->passes < 1 || global->passes > 2)
+                die("Error: Invalid number of passes (%d)\n", global->passes);
         }
         else if (arg_match(&arg, &pass_arg, argi))
         {
-            one_pass_only = arg_parse_uint(&arg);
+            global->pass = arg_parse_uint(&arg);
 
-            if (one_pass_only < 1 || one_pass_only > 2)
-                die("Error: Invalid pass selected (%d)\n", one_pass_only);
+            if (global->pass < 1 || global->pass > 2)
+                die("Error: Invalid pass selected (%d)\n",
+                    global->pass);
         }
-        else if (arg_match(&arg, &fpf_name, argi))
-            stats_fn = arg.val;
         else if (arg_match(&arg, &usage, argi))
-            arg_usage = arg_parse_uint(&arg);
+            global->usage = arg_parse_uint(&arg);
         else if (arg_match(&arg, &deadline, argi))
-            arg_deadline = arg_parse_uint(&arg);
+            global->deadline = arg_parse_uint(&arg);
         else if (arg_match(&arg, &best_dl, argi))
-            arg_deadline = VPX_DL_BEST_QUALITY;
+            global->deadline = VPX_DL_BEST_QUALITY;
         else if (arg_match(&arg, &good_dl, argi))
-            arg_deadline = VPX_DL_GOOD_QUALITY;
+            global->deadline = VPX_DL_GOOD_QUALITY;
         else if (arg_match(&arg, &rt_dl, argi))
-            arg_deadline = VPX_DL_REALTIME;
+            global->deadline = VPX_DL_REALTIME;
         else if (arg_match(&arg, &use_yv12, argi))
-        {
-            arg_use_i420 = 0;
-        }
+            global->use_i420 = 0;
         else if (arg_match(&arg, &use_i420, argi))
-        {
-            arg_use_i420 = 1;
-        }
+            global->use_i420 = 1;
         else if (arg_match(&arg, &verbosearg, argi))
-            verbose = 1;
+            global->verbose = 1;
         else if (arg_match(&arg, &limit, argi))
-            arg_limit = arg_parse_uint(&arg);
+            global->limit = arg_parse_uint(&arg);
         else if (arg_match(&arg, &psnrarg, argi))
-            show_psnr = 1;
+            global->show_psnr = 1;
         else if (arg_match(&arg, &framerate, argi))
         {
-            arg_framerate = arg_parse_rational(&arg);
-            arg_have_framerate = 1;
+            global->framerate = arg_parse_rational(&arg);
+            validate_positive_rational(arg.name, &global->framerate);
+            global->have_framerate = 1;
         }
-        else if (arg_match(&arg, &use_ivf, argi))
-            write_webm = 0;
-        else if (arg_match(&arg, &outputfile, argi))
-            out_fn = arg.val;
+        else if (arg_match(&arg,&out_part, argi))
+            global->out_part = 1;
         else if (arg_match(&arg, &debugmode, argi))
-            ebml.debug = 1;
+            global->debug = 1;
         else if (arg_match(&arg, &q_hist_n, argi))
-            show_q_hist_buckets = arg_parse_uint(&arg);
+            global->show_q_hist_buckets = arg_parse_uint(&arg);
         else if (arg_match(&arg, &rate_hist_n, argi))
-            show_rate_hist_buckets = arg_parse_uint(&arg);
+            global->show_rate_hist_buckets = arg_parse_uint(&arg);
         else
             argj++;
     }
 
-    /* Ensure that --passes and --pass are consistent. If --pass is set and --passes=2,
-     * ensure --fpf was set.
-     */
-    if (one_pass_only)
+    /* Validate global config */
+
+    if (global->pass)
     {
         /* DWIM: Assume the user meant passes=2 if pass=2 is specified */
-        if (one_pass_only > arg_passes)
+        if (global->pass > global->passes)
         {
-            fprintf(stderr, "Warning: Assuming --pass=%d implies --passes=%d\n",
-                   one_pass_only, one_pass_only);
-            arg_passes = one_pass_only;
+            warn("Assuming --pass=%d implies --passes=%d\n",
+                 global->pass, global->pass);
+            global->passes = global->pass;
         }
-
-        if (arg_passes == 2 && !stats_fn)
-            die("Must specify --fpf when --pass=%d and --passes=2\n", one_pass_only);
     }
+}
 
-    /* Populate encoder configuration */
-    res = vpx_codec_enc_config_default(codec->iface, &cfg, arg_usage);
 
-    if (res)
-    {
-        fprintf(stderr, "Failed to get config: %s\n",
-                vpx_codec_err_to_string(res));
-        return EXIT_FAILURE;
-    }
+void open_input_file(struct input_state *input)
+{
+    unsigned int fourcc;
 
-    /* Change the default timebase to a high enough value so that the encoder
-     * will always create strictly increasing timestamps.
+    /* Parse certain options from the input file, if possible */
+    input->file = strcmp(input->fn, "-") ? fopen(input->fn, "rb")
+                                         : set_binary_mode(stdin);
+
+    if (!input->file)
+        fatal("Failed to open input file");
+
+    /* For RAW input sources, these bytes will applied on the first frame
+     *  in read_frame().
      */
-    cfg.g_timebase.den = 1000;
+    input->detect.buf_read = fread(input->detect.buf, 1, 4, input->file);
+    input->detect.position = 0;
 
-    /* Never use the library's default resolution, require it be parsed
-     * from the file or set on the command line.
-     */
-    cfg.g_w = 0;
-    cfg.g_h = 0;
-
-    /* Now parse the remainder of the parameters. */
-    for (argi = argj = argv; (*argj = *argi); argi += arg.argv_step)
+    if (input->detect.buf_read == 4
+        && file_is_y4m(input->file, &input->y4m, input->detect.buf))
     {
-        arg.argv_step = 1;
-
-        if (0);
-        else if (arg_match(&arg, &threads, argi))
-            cfg.g_threads = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &profile, argi))
-            cfg.g_profile = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &width, argi))
-            cfg.g_w = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &height, argi))
-            cfg.g_h = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &stereo_mode, argi))
-            stereo_fmt = arg_parse_enum_or_int(&arg);
-        else if (arg_match(&arg, &timebase, argi))
-            cfg.g_timebase = arg_parse_rational(&arg);
-        else if (arg_match(&arg, &error_resilient, argi))
-            cfg.g_error_resilient = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &lag_in_frames, argi))
-            cfg.g_lag_in_frames = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &dropframe_thresh, argi))
-            cfg.rc_dropframe_thresh = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &resize_allowed, argi))
-            cfg.rc_resize_allowed = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &resize_up_thresh, argi))
-            cfg.rc_resize_up_thresh = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &resize_down_thresh, argi))
-            cfg.rc_resize_down_thresh = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &resize_down_thresh, argi))
-            cfg.rc_resize_down_thresh = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &end_usage, argi))
-            cfg.rc_end_usage = arg_parse_enum_or_int(&arg);
-        else if (arg_match(&arg, &target_bitrate, argi))
-            cfg.rc_target_bitrate = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &min_quantizer, argi))
-            cfg.rc_min_quantizer = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &max_quantizer, argi))
-            cfg.rc_max_quantizer = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &undershoot_pct, argi))
-            cfg.rc_undershoot_pct = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &overshoot_pct, argi))
-            cfg.rc_overshoot_pct = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &buf_sz, argi))
-            cfg.rc_buf_sz = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &buf_initial_sz, argi))
-            cfg.rc_buf_initial_sz = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &buf_optimal_sz, argi))
-            cfg.rc_buf_optimal_sz = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &bias_pct, argi))
+        if (y4m_input_open(&input->y4m, input->file, input->detect.buf, 4) >= 0)
         {
-            cfg.rc_2pass_vbr_bias_pct = arg_parse_uint(&arg);
-
-            if (arg_passes < 2)
-                fprintf(stderr,
-                        "Warning: option %s ignored in one-pass mode.\n",
-                        arg.name);
+            input->file_type = FILE_TYPE_Y4M;
+            input->w = input->y4m.pic_w;
+            input->h = input->y4m.pic_h;
+            input->framerate.num = input->y4m.fps_n;
+            input->framerate.den = input->y4m.fps_d;
+            input->use_i420 = 0;
         }
-        else if (arg_match(&arg, &minsection_pct, argi))
-        {
-            cfg.rc_2pass_vbr_minsection_pct = arg_parse_uint(&arg);
-
-            if (arg_passes < 2)
-                fprintf(stderr,
-                        "Warning: option %s ignored in one-pass mode.\n",
-                        arg.name);
-        }
-        else if (arg_match(&arg, &maxsection_pct, argi))
-        {
-            cfg.rc_2pass_vbr_maxsection_pct = arg_parse_uint(&arg);
-
-            if (arg_passes < 2)
-                fprintf(stderr,
-                        "Warning: option %s ignored in one-pass mode.\n",
-                        arg.name);
-        }
-        else if (arg_match(&arg, &kf_min_dist, argi))
-            cfg.kf_min_dist = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &kf_max_dist, argi))
-            cfg.kf_max_dist = arg_parse_uint(&arg);
-        else if (arg_match(&arg, &kf_disabled, argi))
-            cfg.kf_mode = VPX_KF_DISABLED;
         else
-            argj++;
+            fatal("Unsupported Y4M stream.");
     }
+    else if (input->detect.buf_read == 4 && file_is_ivf(input, &fourcc))
+    {
+        input->file_type = FILE_TYPE_IVF;
+        switch (fourcc)
+        {
+        case 0x32315659:
+            input->use_i420 = 0;
+            break;
+        case 0x30323449:
+            input->use_i420 = 1;
+            break;
+        default:
+            fatal("Unsupported fourcc (%08x) in IVF", fourcc);
+        }
+    }
+    else
+    {
+        input->file_type = FILE_TYPE_RAW;
+    }
+}
+
+
+static void close_input_file(struct input_state *input)
+{
+    fclose(input->file);
+    if (input->file_type == FILE_TYPE_Y4M)
+        y4m_input_close(&input->y4m);
+}
+
+static struct stream_state *new_stream(struct global_config *global,
+                                       struct stream_state  *prev)
+{
+    struct stream_state *stream;
+
+    stream = calloc(1, sizeof(*stream));
+    if(!stream)
+        fatal("Failed to allocate new stream.");
+    if(prev)
+    {
+        memcpy(stream, prev, sizeof(*stream));
+        stream->index++;
+        prev->next = stream;
+    }
+    else
+    {
+        vpx_codec_err_t  res;
+
+        /* Populate encoder configuration */
+        res = vpx_codec_enc_config_default(global->codec->iface,
+                                           &stream->config.cfg,
+                                           global->usage);
+        if (res)
+            fatal("Failed to get config: %s\n", vpx_codec_err_to_string(res));
+
+        /* Change the default timebase to a high enough value so that the
+         * encoder will always create strictly increasing timestamps.
+         */
+        stream->config.cfg.g_timebase.den = 1000;
+
+        /* Never use the library's default resolution, require it be parsed
+         * from the file or set on the command line.
+         */
+        stream->config.cfg.g_w = 0;
+        stream->config.cfg.g_h = 0;
+
+        /* Initialize remaining stream parameters */
+        stream->config.stereo_fmt = STEREO_FORMAT_MONO;
+        stream->config.write_webm = 1;
+        stream->ebml.last_pts_ms = -1;
+
+        /* Allows removal of the application version from the EBML tags */
+        stream->ebml.debug = global->debug;
+    }
+
+    /* Output files must be specified for each stream */
+    stream->config.out_fn = NULL;
+
+    stream->next = NULL;
+    return stream;
+}
+
+
+static int parse_stream_params(struct global_config *global,
+                               struct stream_state  *stream,
+                               char **argv)
+{
+    char                   **argi, **argj;
+    struct arg               arg;
+    static const arg_def_t **ctrl_args = no_args;
+    static const int        *ctrl_args_map = NULL;
+    struct stream_config    *config = &stream->config;
+    int                      eos_mark_found = 0;
 
     /* Handle codec specific options */
-#if CONFIG_VP8_ENCODER
-
-    if (codec->iface == &vpx_codec_vp8_cx_algo)
+    if (global->codec->iface == &vpx_codec_vp8_cx_algo)
     {
         ctrl_args = vp8_args;
         ctrl_args_map = vp8_arg_ctrl_map;
     }
 
-#endif
-
     for (argi = argj = argv; (*argj = *argi); argi += arg.argv_step)
     {
-        int match = 0;
-
         arg.argv_step = 1;
 
-        for (i = 0; ctrl_args[i]; i++)
+        /* Once we've found an end-of-stream marker (--) we want to continue
+         * shifting arguments but not consuming them.
+         */
+        if (eos_mark_found)
         {
-            if (arg_match(&arg, ctrl_args[i], argi))
-            {
-                int j;
-                match = 1;
-
-                /* Point either to the next free element or the first
-                * instance of this control.
-                */
-                for(j=0; j<arg_ctrl_cnt; j++)
-                    if(arg_ctrls[j][0] == ctrl_args_map[i])
-                        break;
-
-                /* Update/insert */
-                assert(j < ARG_CTRL_CNT_MAX);
-                if (j < ARG_CTRL_CNT_MAX)
-                {
-                    arg_ctrls[j][0] = ctrl_args_map[i];
-                    arg_ctrls[j][1] = arg_parse_enum_or_int(&arg);
-                    if(j == arg_ctrl_cnt)
-                        arg_ctrl_cnt++;
-                }
-
-            }
+            argj++;
+            continue;
+        }
+        else if (!strcmp(*argj, "--"))
+        {
+            eos_mark_found = 1;
+            continue;
         }
 
-        if (!match)
-            argj++;
+        if (0);
+        else if (arg_match(&arg, &outputfile, argi))
+            config->out_fn = arg.val;
+        else if (arg_match(&arg, &fpf_name, argi))
+            config->stats_fn = arg.val;
+        else if (arg_match(&arg, &use_ivf, argi))
+            config->write_webm = 0;
+        else if (arg_match(&arg, &threads, argi))
+            config->cfg.g_threads = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &profile, argi))
+            config->cfg.g_profile = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &width, argi))
+            config->cfg.g_w = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &height, argi))
+            config->cfg.g_h = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &stereo_mode, argi))
+            config->stereo_fmt = arg_parse_enum_or_int(&arg);
+        else if (arg_match(&arg, &timebase, argi))
+        {
+            config->cfg.g_timebase = arg_parse_rational(&arg);
+            validate_positive_rational(arg.name, &config->cfg.g_timebase);
+        }
+        else if (arg_match(&arg, &error_resilient, argi))
+            config->cfg.g_error_resilient = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &lag_in_frames, argi))
+            config->cfg.g_lag_in_frames = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &dropframe_thresh, argi))
+            config->cfg.rc_dropframe_thresh = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &resize_allowed, argi))
+            config->cfg.rc_resize_allowed = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &resize_up_thresh, argi))
+            config->cfg.rc_resize_up_thresh = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &resize_down_thresh, argi))
+            config->cfg.rc_resize_down_thresh = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &end_usage, argi))
+            config->cfg.rc_end_usage = arg_parse_enum_or_int(&arg);
+        else if (arg_match(&arg, &target_bitrate, argi))
+            config->cfg.rc_target_bitrate = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &min_quantizer, argi))
+            config->cfg.rc_min_quantizer = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &max_quantizer, argi))
+            config->cfg.rc_max_quantizer = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &undershoot_pct, argi))
+            config->cfg.rc_undershoot_pct = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &overshoot_pct, argi))
+            config->cfg.rc_overshoot_pct = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &buf_sz, argi))
+            config->cfg.rc_buf_sz = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &buf_initial_sz, argi))
+            config->cfg.rc_buf_initial_sz = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &buf_optimal_sz, argi))
+            config->cfg.rc_buf_optimal_sz = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &bias_pct, argi))
+        {
+            config->cfg.rc_2pass_vbr_bias_pct = arg_parse_uint(&arg);
+
+            if (global->passes < 2)
+                warn("option %s ignored in one-pass mode.\n", arg.name);
+        }
+        else if (arg_match(&arg, &minsection_pct, argi))
+        {
+            config->cfg.rc_2pass_vbr_minsection_pct = arg_parse_uint(&arg);
+
+            if (global->passes < 2)
+                warn("option %s ignored in one-pass mode.\n", arg.name);
+        }
+        else if (arg_match(&arg, &maxsection_pct, argi))
+        {
+            config->cfg.rc_2pass_vbr_maxsection_pct = arg_parse_uint(&arg);
+
+            if (global->passes < 2)
+                warn("option %s ignored in one-pass mode.\n", arg.name);
+        }
+        else if (arg_match(&arg, &kf_min_dist, argi))
+            config->cfg.kf_min_dist = arg_parse_uint(&arg);
+        else if (arg_match(&arg, &kf_max_dist, argi))
+        {
+            config->cfg.kf_max_dist = arg_parse_uint(&arg);
+            config->have_kf_max_dist = 1;
+        }
+        else if (arg_match(&arg, &kf_disabled, argi))
+            config->cfg.kf_mode = VPX_KF_DISABLED;
+        else
+        {
+            int i, match = 0;
+
+            for (i = 0; ctrl_args[i]; i++)
+            {
+                if (arg_match(&arg, ctrl_args[i], argi))
+                {
+                    int j;
+                    match = 1;
+
+                    /* Point either to the next free element or the first
+                    * instance of this control.
+                    */
+                    for(j=0; j<config->arg_ctrl_cnt; j++)
+                        if(config->arg_ctrls[j][0] == ctrl_args_map[i])
+                            break;
+
+                    /* Update/insert */
+                    assert(j < ARG_CTRL_CNT_MAX);
+                    if (j < ARG_CTRL_CNT_MAX)
+                    {
+                        config->arg_ctrls[j][0] = ctrl_args_map[i];
+                        config->arg_ctrls[j][1] = arg_parse_enum_or_int(&arg);
+                        if(j == config->arg_ctrl_cnt)
+                            config->arg_ctrl_cnt++;
+                    }
+
+                }
+            }
+
+            if (!match)
+                argj++;
+        }
+    }
+
+    return eos_mark_found;
+}
+
+
+#define FOREACH_STREAM(func)\
+do\
+{\
+    struct stream_state  *stream;\
+\
+    for(stream = streams; stream; stream = stream->next)\
+        func;\
+}while(0)
+
+
+static void validate_stream_config(struct stream_state *stream)
+{
+    struct stream_state *streami;
+
+    if(!stream->config.cfg.g_w || !stream->config.cfg.g_h)
+        fatal("Stream %d: Specify stream dimensions with --width (-w) "
+              " and --height (-h)", stream->index);
+
+    for(streami = stream; streami; streami = streami->next)
+    {
+        /* All streams require output files */
+        if(!streami->config.out_fn)
+            fatal("Stream %d: Output file is required (specify with -o)",
+                  streami->index);
+
+        /* Check for two streams outputting to the same file */
+        if(streami != stream)
+        {
+            const char *a = stream->config.out_fn;
+            const char *b = streami->config.out_fn;
+            if(!strcmp(a,b) && strcmp(a, "/dev/null") && strcmp(a, ":nul"))
+                fatal("Stream %d: duplicate output file (from stream %d)",
+                      streami->index, stream->index);
+        }
+
+        /* Check for two streams sharing a stats file. */
+        if(streami != stream)
+        {
+            const char *a = stream->config.stats_fn;
+            const char *b = streami->config.stats_fn;
+            if(a && b && !strcmp(a,b))
+                fatal("Stream %d: duplicate stats file (from stream %d)",
+                      streami->index, stream->index);
+        }
+    }
+}
+
+
+static void set_stream_dimensions(struct stream_state *stream,
+                                  unsigned int w,
+                                  unsigned int h)
+{
+    if ((stream->config.cfg.g_w && stream->config.cfg.g_w != w)
+        ||(stream->config.cfg.g_h && stream->config.cfg.g_h != h))
+        fatal("Stream %d: Resizing not yet supported", stream->index);
+    stream->config.cfg.g_w = w;
+    stream->config.cfg.g_h = h;
+}
+
+
+static void set_default_kf_interval(struct stream_state  *stream,
+                                    struct global_config *global)
+{
+    /* Use a max keyframe interval of 5 seconds, if none was
+     * specified on the command line.
+     */
+    if (!stream->config.have_kf_max_dist)
+    {
+        double framerate = (double)global->framerate.num/global->framerate.den;
+        if (framerate > 0.0)
+            stream->config.cfg.kf_max_dist = 5.0*framerate;
+    }
+}
+
+
+static void show_stream_config(struct stream_state  *stream,
+                               struct global_config *global,
+                               struct input_state   *input)
+{
+
+#define SHOW(field) \
+    fprintf(stderr, "    %-28s = %d\n", #field, stream->config.cfg.field)
+
+    if(stream->index == 0)
+    {
+        fprintf(stderr, "Codec: %s\n",
+                vpx_codec_iface_name(global->codec->iface));
+        fprintf(stderr, "Source file: %s Format: %s\n", input->fn,
+                input->use_i420 ? "I420" : "YV12");
+    }
+    if(stream->next || stream->index)
+        fprintf(stderr, "\nStream Index: %d\n", stream->index);
+    fprintf(stderr, "Destination file: %s\n", stream->config.out_fn);
+    fprintf(stderr, "Encoder parameters:\n");
+
+    SHOW(g_usage);
+    SHOW(g_threads);
+    SHOW(g_profile);
+    SHOW(g_w);
+    SHOW(g_h);
+    SHOW(g_timebase.num);
+    SHOW(g_timebase.den);
+    SHOW(g_error_resilient);
+    SHOW(g_pass);
+    SHOW(g_lag_in_frames);
+    SHOW(rc_dropframe_thresh);
+    SHOW(rc_resize_allowed);
+    SHOW(rc_resize_up_thresh);
+    SHOW(rc_resize_down_thresh);
+    SHOW(rc_end_usage);
+    SHOW(rc_target_bitrate);
+    SHOW(rc_min_quantizer);
+    SHOW(rc_max_quantizer);
+    SHOW(rc_undershoot_pct);
+    SHOW(rc_overshoot_pct);
+    SHOW(rc_buf_sz);
+    SHOW(rc_buf_initial_sz);
+    SHOW(rc_buf_optimal_sz);
+    SHOW(rc_2pass_vbr_bias_pct);
+    SHOW(rc_2pass_vbr_minsection_pct);
+    SHOW(rc_2pass_vbr_maxsection_pct);
+    SHOW(kf_mode);
+    SHOW(kf_min_dist);
+    SHOW(kf_max_dist);
+}
+
+
+static void open_output_file(struct stream_state *stream,
+                             struct global_config *global)
+{
+    const char *fn = stream->config.out_fn;
+
+    stream->file = strcmp(fn, "-") ? fopen(fn, "wb") : set_binary_mode(stdout);
+
+    if (!stream->file)
+        fatal("Failed to open output file");
+
+    if(stream->config.write_webm && fseek(stream->file, 0, SEEK_CUR))
+        fatal("WebM output to pipes not supported.");
+
+    if(stream->config.write_webm)
+    {
+        stream->ebml.stream = stream->file;
+        write_webm_file_header(&stream->ebml, &stream->config.cfg,
+                               &global->framerate,
+                               stream->config.stereo_fmt);
+    }
+    else
+        write_ivf_file_header(stream->file, &stream->config.cfg,
+                              global->codec->fourcc, 0);
+}
+
+
+static void close_output_file(struct stream_state *stream,
+                              unsigned int         fourcc)
+{
+    if(stream->config.write_webm)
+    {
+        write_webm_file_footer(&stream->ebml, stream->hash);
+        free(stream->ebml.cue_list);
+        stream->ebml.cue_list = NULL;
+    }
+    else
+    {
+        if (!fseek(stream->file, 0, SEEK_SET))
+            write_ivf_file_header(stream->file, &stream->config.cfg,
+                                  fourcc,
+                                  stream->frames_out);
+    }
+
+    fclose(stream->file);
+}
+
+
+static void setup_pass(struct stream_state  *stream,
+                       struct global_config *global,
+                       int                   pass)
+{
+    if (stream->config.stats_fn)
+    {
+        if (!stats_open_file(&stream->stats, stream->config.stats_fn,
+                             pass))
+            fatal("Failed to open statistics store");
+    }
+    else
+    {
+        if (!stats_open_mem(&stream->stats, pass))
+            fatal("Failed to open statistics store");
+    }
+
+    stream->config.cfg.g_pass = global->passes == 2
+        ? pass ? VPX_RC_LAST_PASS : VPX_RC_FIRST_PASS
+        : VPX_RC_ONE_PASS;
+    if (pass)
+        stream->config.cfg.rc_twopass_stats_in = stats_get(&stream->stats);
+
+    stream->cx_time = 0;
+    stream->nbytes = 0;
+    stream->frames_out = 0;
+}
+
+
+static void initialize_encoder(struct stream_state  *stream,
+                               struct global_config *global)
+{
+    int i;
+    int flags = 0;
+
+    flags |= global->show_psnr ? VPX_CODEC_USE_PSNR : 0;
+    flags |= global->out_part ? VPX_CODEC_USE_OUTPUT_PARTITION : 0;
+
+    /* Construct Encoder Context */
+    vpx_codec_enc_init(&stream->encoder, global->codec->iface,
+                        &stream->config.cfg, flags);
+    ctx_exit_on_error(&stream->encoder, "Failed to initialize encoder");
+
+    /* Note that we bypass the vpx_codec_control wrapper macro because
+     * we're being clever to store the control IDs in an array. Real
+     * applications will want to make use of the enumerations directly
+     */
+    for (i = 0; i < stream->config.arg_ctrl_cnt; i++)
+    {
+        int ctrl = stream->config.arg_ctrls[i][0];
+        int value = stream->config.arg_ctrls[i][1];
+        if (vpx_codec_control_(&stream->encoder, ctrl, value))
+            fprintf(stderr, "Error: Tried to set control %d = %d\n",
+                    ctrl, value);
+
+        ctx_exit_on_error(&stream->encoder, "Failed to control codec");
+    }
+}
+
+
+static void encode_frame(struct stream_state  *stream,
+                         struct global_config *global,
+                         struct vpx_image     *img,
+                         unsigned int          frames_in)
+{
+    vpx_codec_pts_t frame_start, next_frame_start;
+    struct vpx_codec_enc_cfg *cfg = &stream->config.cfg;
+    struct vpx_usec_timer timer;
+
+    frame_start = (cfg->g_timebase.den * (int64_t)(frames_in - 1)
+                  * global->framerate.den)
+                  / cfg->g_timebase.num / global->framerate.num;
+    next_frame_start = (cfg->g_timebase.den * (int64_t)(frames_in)
+                        * global->framerate.den)
+                        / cfg->g_timebase.num / global->framerate.num;
+    vpx_usec_timer_start(&timer);
+    vpx_codec_encode(&stream->encoder, img, frame_start,
+                     next_frame_start - frame_start,
+                     0, global->deadline);
+    vpx_usec_timer_mark(&timer);
+    stream->cx_time += vpx_usec_timer_elapsed(&timer);
+    ctx_exit_on_error(&stream->encoder, "Stream %d: Failed to encode frame",
+                      stream->index);
+}
+
+
+static void update_quantizer_histogram(struct stream_state *stream)
+{
+    if(stream->config.cfg.g_pass != VPX_RC_FIRST_PASS)
+    {
+        int q;
+
+        vpx_codec_control(&stream->encoder, VP8E_GET_LAST_QUANTIZER_64, &q);
+        ctx_exit_on_error(&stream->encoder, "Failed to read quantizer");
+        stream->counts[q]++;
+    }
+}
+
+
+static void get_cx_data(struct stream_state  *stream,
+                        struct global_config *global,
+                        int                  *got_data)
+{
+    const vpx_codec_cx_pkt_t *pkt;
+    const struct vpx_codec_enc_cfg *cfg = &stream->config.cfg;
+    vpx_codec_iter_t iter = NULL;
+
+    while ((pkt = vpx_codec_get_cx_data(&stream->encoder, &iter)))
+    {
+        static size_t fsize = 0;
+        static off_t ivf_header_pos = 0;
+
+        *got_data = 1;
+
+        switch (pkt->kind)
+        {
+        case VPX_CODEC_CX_FRAME_PKT:
+            if (!(pkt->data.frame.flags & VPX_FRAME_IS_FRAGMENT))
+            {
+                stream->frames_out++;
+            }
+            fprintf(stderr, " %6luF",
+                    (unsigned long)pkt->data.frame.sz);
+
+            update_rate_histogram(&stream->rate_hist, cfg, pkt);
+            if(stream->config.write_webm)
+            {
+                /* Update the hash */
+                if(!stream->ebml.debug)
+                    stream->hash = murmur(pkt->data.frame.buf,
+                                          pkt->data.frame.sz, stream->hash);
+
+                write_webm_block(&stream->ebml, cfg, pkt);
+            }
+            else
+            {
+                if (pkt->data.frame.partition_id <= 0)
+                {
+                    ivf_header_pos = ftello(stream->file);
+                    fsize = pkt->data.frame.sz;
+
+                    write_ivf_frame_header(stream->file, pkt);
+                }
+                else
+                {
+                    fsize += pkt->data.frame.sz;
+
+                    if (!(pkt->data.frame.flags & VPX_FRAME_IS_FRAGMENT))
+                    {
+                        off_t currpos = ftello(stream->file);
+                        fseeko(stream->file, ivf_header_pos, SEEK_SET);
+                        write_ivf_frame_size(stream->file, fsize);
+                        fseeko(stream->file, currpos, SEEK_SET);
+                    }
+                }
+
+                fwrite(pkt->data.frame.buf, 1,
+                       pkt->data.frame.sz, stream->file);
+            }
+            stream->nbytes += pkt->data.raw.sz;
+            break;
+        case VPX_CODEC_STATS_PKT:
+            stream->frames_out++;
+            fprintf(stderr, " %6luS",
+                   (unsigned long)pkt->data.twopass_stats.sz);
+            stats_write(&stream->stats,
+                        pkt->data.twopass_stats.buf,
+                        pkt->data.twopass_stats.sz);
+            stream->nbytes += pkt->data.raw.sz;
+            break;
+        case VPX_CODEC_PSNR_PKT:
+
+            if (global->show_psnr)
+            {
+                int i;
+
+                stream->psnr_sse_total += pkt->data.psnr.sse[0];
+                stream->psnr_samples_total += pkt->data.psnr.samples[0];
+                for (i = 0; i < 4; i++)
+                {
+                    fprintf(stderr, "%.3lf ", pkt->data.psnr.psnr[i]);
+                    stream->psnr_totals[i] += pkt->data.psnr.psnr[i];
+                }
+                stream->psnr_count++;
+            }
+
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+
+static void show_psnr(struct stream_state  *stream)
+{
+    int i;
+    double ovpsnr;
+
+    if (!stream->psnr_count)
+        return;
+
+    fprintf(stderr, "Stream %d PSNR (Overall/Avg/Y/U/V)", stream->index);
+    ovpsnr = vp8_mse2psnr(stream->psnr_samples_total, 255.0,
+                          stream->psnr_sse_total);
+    fprintf(stderr, " %.3lf", ovpsnr);
+
+    for (i = 0; i < 4; i++)
+    {
+        fprintf(stderr, " %.3lf", stream->psnr_totals[i]/stream->psnr_count);
+    }
+    fprintf(stderr, "\n");
+}
+
+
+float usec_to_fps(uint64_t usec, unsigned int frames)
+{
+    return usec > 0 ? (float)frames * 1000000.0 / (float)usec : 0;
+}
+
+
+int main(int argc, const char **argv_)
+{
+    int                    pass;
+    vpx_image_t            raw;
+    int                    frame_avail, got_data;
+
+    struct input_state       input = {0};
+    struct global_config     global;
+    struct stream_state     *streams = NULL;
+    char                   **argv, **argi;
+    unsigned long            cx_time = 0;
+    int                      stream_cnt = 0;
+
+    exec_name = argv_[0];
+
+    if (argc < 3)
+        usage_exit();
+
+    /* Setup default input stream settings */
+    input.framerate.num = 30;
+    input.framerate.den = 1;
+    input.use_i420 = 1;
+
+    /* First parse the global configuration values, because we want to apply
+     * other parameters on top of the default configuration provided by the
+     * codec.
+     */
+    argv = argv_dup(argc - 1, argv_ + 1);
+    parse_global_config(&global, argv);
+
+    {
+        /* Now parse each stream's parameters. Using a local scope here
+         * due to the use of 'stream' as loop variable in FOREACH_STREAM
+         * loops
+         */
+        struct stream_state *stream = NULL;
+
+        do
+        {
+            stream = new_stream(&global, stream);
+            stream_cnt++;
+            if(!streams)
+                streams = stream;
+        } while(parse_stream_params(&global, stream, argv));
     }
 
     /* Check for unrecognized options */
@@ -1755,389 +2376,169 @@ int main(int argc, const char **argv_)
             die("Error: Unrecognized option %s\n", *argi);
 
     /* Handle non-option arguments */
-    in_fn = argv[0];
+    input.fn = argv[0];
 
-    if (!in_fn)
+    if (!input.fn)
         usage_exit();
 
-    if(!out_fn)
-        die("Error: Output file is required (specify with -o)\n");
-
-    memset(&stats, 0, sizeof(stats));
-
-    for (pass = one_pass_only ? one_pass_only - 1 : 0; pass < arg_passes; pass++)
+    for (pass = global.pass ? global.pass - 1 : 0; pass < global.passes; pass++)
     {
-        int frames_in = 0, frames_out = 0;
-        int64_t nbytes = 0;
-        struct detect_buffer detect;
+        int frames_in = 0;
 
-        /* Parse certain options from the input file, if possible */
-        infile = strcmp(in_fn, "-") ? fopen(in_fn, "rb")
-                                    : set_binary_mode(stdin);
+        open_input_file(&input);
 
-        if (!infile)
-        {
-            fprintf(stderr, "Failed to open input file\n");
-            return EXIT_FAILURE;
-        }
-
-        /* For RAW input sources, these bytes will applied on the first frame
-         *  in read_frame().
+        /* If the input file doesn't specify its w/h (raw files), try to get
+         * the data from the first stream's configuration.
          */
-        detect.buf_read = fread(detect.buf, 1, 4, infile);
-        detect.position = 0;
-
-        if (detect.buf_read == 4 && file_is_y4m(infile, &y4m, detect.buf))
-        {
-            if (y4m_input_open(&y4m, infile, detect.buf, 4) >= 0)
-            {
-                file_type = FILE_TYPE_Y4M;
-                cfg.g_w = y4m.pic_w;
-                cfg.g_h = y4m.pic_h;
-
-                /* Use the frame rate from the file only if none was specified
-                 * on the command-line.
-                 */
-                if (!arg_have_framerate)
+        if(!input.w || !input.h)
+            FOREACH_STREAM({
+                if(stream->config.cfg.g_w && stream->config.cfg.g_h)
                 {
-                    arg_framerate.num = y4m.fps_n;
-                    arg_framerate.den = y4m.fps_d;
+                    input.w = stream->config.cfg.g_w;
+                    input.h = stream->config.cfg.g_h;
+                    break;
                 }
+            });
 
-                arg_use_i420 = 0;
-            }
-            else
-            {
-                fprintf(stderr, "Unsupported Y4M stream.\n");
-                return EXIT_FAILURE;
-            }
-        }
-        else if (detect.buf_read == 4 &&
-                 file_is_ivf(infile, &fourcc, &cfg.g_w, &cfg.g_h, &detect))
-        {
-            file_type = FILE_TYPE_IVF;
-            switch (fourcc)
-            {
-            case 0x32315659:
-                arg_use_i420 = 0;
-                break;
-            case 0x30323449:
-                arg_use_i420 = 1;
-                break;
-            default:
-                fprintf(stderr, "Unsupported fourcc (%08x) in IVF\n", fourcc);
-                return EXIT_FAILURE;
-            }
-        }
-        else
-        {
-            file_type = FILE_TYPE_RAW;
-        }
+        /* Update stream configurations from the input file's parameters */
+        FOREACH_STREAM(set_stream_dimensions(stream, input.w, input.h));
+        FOREACH_STREAM(validate_stream_config(stream));
 
-        if(!cfg.g_w || !cfg.g_h)
-        {
-            fprintf(stderr, "Specify stream dimensions with --width (-w) "
-                            " and --height (-h).\n");
-            return EXIT_FAILURE;
-        }
+        /* Ensure that --passes and --pass are consistent. If --pass is set and
+         * --passes=2, ensure --fpf was set.
+         */
+        if (global.pass && global.passes == 2)
+            FOREACH_STREAM({
+                if(!stream->config.stats_fn)
+                    die("Stream %d: Must specify --fpf when --pass=%d"
+                        " and --passes=2\n", stream->index, global.pass);
+            });
 
-#define SHOW(field) fprintf(stderr, "    %-28s = %d\n", #field, cfg.field)
 
-        if (verbose && pass == 0)
-        {
-            fprintf(stderr, "Codec: %s\n", vpx_codec_iface_name(codec->iface));
-            fprintf(stderr, "Source file: %s Format: %s\n", in_fn,
-                    arg_use_i420 ? "I420" : "YV12");
-            fprintf(stderr, "Destination file: %s\n", out_fn);
-            fprintf(stderr, "Encoder parameters:\n");
+        /* Use the frame rate from the file only if none was specified
+         * on the command-line.
+         */
+        if (!global.have_framerate)
+            global.framerate = input.framerate;
 
-            SHOW(g_usage);
-            SHOW(g_threads);
-            SHOW(g_profile);
-            SHOW(g_w);
-            SHOW(g_h);
-            SHOW(g_timebase.num);
-            SHOW(g_timebase.den);
-            SHOW(g_error_resilient);
-            SHOW(g_pass);
-            SHOW(g_lag_in_frames);
-            SHOW(rc_dropframe_thresh);
-            SHOW(rc_resize_allowed);
-            SHOW(rc_resize_up_thresh);
-            SHOW(rc_resize_down_thresh);
-            SHOW(rc_end_usage);
-            SHOW(rc_target_bitrate);
-            SHOW(rc_min_quantizer);
-            SHOW(rc_max_quantizer);
-            SHOW(rc_undershoot_pct);
-            SHOW(rc_overshoot_pct);
-            SHOW(rc_buf_sz);
-            SHOW(rc_buf_initial_sz);
-            SHOW(rc_buf_optimal_sz);
-            SHOW(rc_2pass_vbr_bias_pct);
-            SHOW(rc_2pass_vbr_minsection_pct);
-            SHOW(rc_2pass_vbr_maxsection_pct);
-            SHOW(kf_mode);
-            SHOW(kf_min_dist);
-            SHOW(kf_max_dist);
-        }
+        FOREACH_STREAM(set_default_kf_interval(stream, &global));
 
-        if(pass == (one_pass_only ? one_pass_only - 1 : 0)) {
-            if (file_type == FILE_TYPE_Y4M)
+        /* Show configuration */
+        if (global.verbose && pass == 0)
+            FOREACH_STREAM(show_stream_config(stream, &global, &input));
+
+        if(pass == (global.pass ? global.pass - 1 : 0)) {
+            if (input.file_type == FILE_TYPE_Y4M)
                 /*The Y4M reader does its own allocation.
                   Just initialize this here to avoid problems if we never read any
                    frames.*/
                 memset(&raw, 0, sizeof(raw));
             else
-                vpx_img_alloc(&raw, arg_use_i420 ? VPX_IMG_FMT_I420 : VPX_IMG_FMT_YV12,
-                              cfg.g_w, cfg.g_h, 1);
+                vpx_img_alloc(&raw,
+                              input.use_i420 ? VPX_IMG_FMT_I420
+                                             : VPX_IMG_FMT_YV12,
+                              input.w, input.h, 1);
 
-            init_rate_histogram(&rate_hist, &cfg, &arg_framerate);
+            FOREACH_STREAM(init_rate_histogram(&stream->rate_hist,
+                                               &stream->config.cfg,
+                                               &global.framerate));
         }
 
-        outfile = strcmp(out_fn, "-") ? fopen(out_fn, "wb")
-                                      : set_binary_mode(stdout);
-
-        if (!outfile)
-        {
-            fprintf(stderr, "Failed to open output file\n");
-            return EXIT_FAILURE;
-        }
-
-        if(write_webm && fseek(outfile, 0, SEEK_CUR))
-        {
-            fprintf(stderr, "WebM output to pipes not supported.\n");
-            return EXIT_FAILURE;
-        }
-
-        if (stats_fn)
-        {
-            if (!stats_open_file(&stats, stats_fn, pass))
-            {
-                fprintf(stderr, "Failed to open statistics store\n");
-                return EXIT_FAILURE;
-            }
-        }
-        else
-        {
-            if (!stats_open_mem(&stats, pass))
-            {
-                fprintf(stderr, "Failed to open statistics store\n");
-                return EXIT_FAILURE;
-            }
-        }
-
-        cfg.g_pass = arg_passes == 2
-                     ? pass ? VPX_RC_LAST_PASS : VPX_RC_FIRST_PASS
-                 : VPX_RC_ONE_PASS;
-#if VPX_ENCODER_ABI_VERSION > (1 + VPX_CODEC_ABI_VERSION)
-
-        if (pass)
-        {
-            cfg.rc_twopass_stats_in = stats_get(&stats);
-        }
-
-#endif
-
-        if(write_webm)
-        {
-            ebml.stream = outfile;
-            write_webm_file_header(&ebml, &cfg, &arg_framerate, stereo_fmt);
-        }
-        else
-            write_ivf_file_header(outfile, &cfg, codec->fourcc, 0);
-
-
-        /* Construct Encoder Context */
-        vpx_codec_enc_init(&encoder, codec->iface, &cfg,
-                           show_psnr ? VPX_CODEC_USE_PSNR : 0);
-        ctx_exit_on_error(&encoder, "Failed to initialize encoder");
-
-        /* Note that we bypass the vpx_codec_control wrapper macro because
-         * we're being clever to store the control IDs in an array. Real
-         * applications will want to make use of the enumerations directly
-         */
-        for (i = 0; i < arg_ctrl_cnt; i++)
-        {
-            if (vpx_codec_control_(&encoder, arg_ctrls[i][0], arg_ctrls[i][1]))
-                fprintf(stderr, "Error: Tried to set control %d = %d\n",
-                        arg_ctrls[i][0], arg_ctrls[i][1]);
-
-            ctx_exit_on_error(&encoder, "Failed to control codec");
-        }
+        FOREACH_STREAM(open_output_file(stream, &global));
+        FOREACH_STREAM(setup_pass(stream, &global, pass));
+        FOREACH_STREAM(initialize_encoder(stream, &global));
 
         frame_avail = 1;
         got_data = 0;
 
         while (frame_avail || got_data)
         {
-            vpx_codec_iter_t iter = NULL;
-            const vpx_codec_cx_pkt_t *pkt;
             struct vpx_usec_timer timer;
-            int64_t frame_start, next_frame_start;
 
-            if (!arg_limit || frames_in < arg_limit)
+            if (!global.limit || frames_in < global.limit)
             {
-                frame_avail = read_frame(infile, &raw, file_type, &y4m,
-                                         &detect);
+                frame_avail = read_frame(&input, &raw);
 
                 if (frame_avail)
                     frames_in++;
 
-                fprintf(stderr,
-                        "\rPass %d/%d frame %4d/%-4d %7"PRId64"B \033[K",
-                        pass + 1, arg_passes, frames_in, frames_out, nbytes);
+                if(stream_cnt == 1)
+                    fprintf(stderr,
+                            "\rPass %d/%d frame %4d/%-4d %7"PRId64"B \033[K",
+                            pass + 1, global.passes, frames_in,
+                            streams->frames_out, (int64_t)streams->nbytes);
+                else
+                    fprintf(stderr,
+                            "\rPass %d/%d frame %4d %7lu %s (%.2f fps)\033[K",
+                            pass + 1, global.passes, frames_in,
+                            cx_time > 9999999 ? cx_time / 1000 : cx_time,
+                            cx_time > 9999999 ? "ms" : "us",
+                            usec_to_fps(cx_time, frames_in));
+
             }
             else
                 frame_avail = 0;
 
             vpx_usec_timer_start(&timer);
-
-            frame_start = (cfg.g_timebase.den * (int64_t)(frames_in - 1)
-                          * arg_framerate.den) / cfg.g_timebase.num / arg_framerate.num;
-            next_frame_start = (cfg.g_timebase.den * (int64_t)(frames_in)
-                                * arg_framerate.den)
-                                / cfg.g_timebase.num / arg_framerate.num;
-            vpx_codec_encode(&encoder, frame_avail ? &raw : NULL, frame_start,
-                             next_frame_start - frame_start,
-                             0, arg_deadline);
+            FOREACH_STREAM(encode_frame(stream, &global,
+                                        frame_avail ? &raw : NULL,
+                                        frames_in));
             vpx_usec_timer_mark(&timer);
             cx_time += vpx_usec_timer_elapsed(&timer);
-            ctx_exit_on_error(&encoder, "Failed to encode frame");
 
-            if(cfg.g_pass != VPX_RC_FIRST_PASS)
-            {
-                int q;
-
-                vpx_codec_control(&encoder, VP8E_GET_LAST_QUANTIZER_64, &q);
-                ctx_exit_on_error(&encoder, "Failed to read quantizer");
-                counts[q]++;
-            }
+            FOREACH_STREAM(update_quantizer_histogram(stream));
 
             got_data = 0;
-
-            while ((pkt = vpx_codec_get_cx_data(&encoder, &iter)))
-            {
-                got_data = 1;
-
-                switch (pkt->kind)
-                {
-                case VPX_CODEC_CX_FRAME_PKT:
-                    frames_out++;
-                    fprintf(stderr, " %6luF",
-                            (unsigned long)pkt->data.frame.sz);
-
-                    update_rate_histogram(&rate_hist, &cfg, pkt);
-                    if(write_webm)
-                    {
-                        /* Update the hash */
-                        if(!ebml.debug)
-                            hash = murmur(pkt->data.frame.buf,
-                                          pkt->data.frame.sz, hash);
-
-                        write_webm_block(&ebml, &cfg, pkt);
-                    }
-                    else
-                    {
-                        write_ivf_frame_header(outfile, pkt);
-                        if(fwrite(pkt->data.frame.buf, 1,
-                                  pkt->data.frame.sz, outfile));
-                    }
-                    nbytes += pkt->data.raw.sz;
-                    break;
-                case VPX_CODEC_STATS_PKT:
-                    frames_out++;
-                    fprintf(stderr, " %6luS",
-                           (unsigned long)pkt->data.twopass_stats.sz);
-                    stats_write(&stats,
-                                pkt->data.twopass_stats.buf,
-                                pkt->data.twopass_stats.sz);
-                    nbytes += pkt->data.raw.sz;
-                    break;
-                case VPX_CODEC_PSNR_PKT:
-
-                    if (show_psnr)
-                    {
-                        int i;
-
-                        psnr_sse_total += pkt->data.psnr.sse[0];
-                        psnr_samples_total += pkt->data.psnr.samples[0];
-                        for (i = 0; i < 4; i++)
-                        {
-                            fprintf(stderr, "%.3lf ", pkt->data.psnr.psnr[i]);
-                            psnr_totals[i] += pkt->data.psnr.psnr[i];
-                        }
-                        psnr_count++;
-                    }
-
-                    break;
-                default:
-                    break;
-                }
-            }
+            FOREACH_STREAM(get_cx_data(stream, &global, &got_data));
 
             fflush(stdout);
         }
 
-        fprintf(stderr,
-               "\rPass %d/%d frame %4d/%-4d %7"PRId64"B %7lub/f %7"PRId64"b/s"
-               " %7lu %s (%.2f fps)\033[K", pass + 1,
-               arg_passes, frames_in, frames_out, nbytes,
-               frames_in ? (unsigned long)(nbytes * 8 / frames_in) : 0,
-               frames_in ? nbytes * 8 *(int64_t)arg_framerate.num / arg_framerate.den / frames_in : 0,
-               cx_time > 9999999 ? cx_time / 1000 : cx_time,
-               cx_time > 9999999 ? "ms" : "us",
-               cx_time > 0 ? (float)frames_in * 1000000.0 / (float)cx_time : 0);
+        if(stream_cnt > 1)
+            fprintf(stderr, "\n");
 
-        if ( (show_psnr) && (psnr_count>0) )
-        {
-            int i;
-            double ovpsnr = vp8_mse2psnr(psnr_samples_total, 255.0,
-                                         psnr_sse_total);
+        FOREACH_STREAM(fprintf(
+            stderr,
+            "\rPass %d/%d frame %4d/%-4d %7"PRId64"B %7lub/f %7"PRId64"b/s"
+            " %7"PRId64" %s (%.2f fps)\033[K\n", pass + 1,
+            global.passes, frames_in, stream->frames_out, (int64_t)stream->nbytes,
+            frames_in ? (unsigned long)(stream->nbytes * 8 / frames_in) : 0,
+            frames_in ? (int64_t)stream->nbytes * 8
+                        * (int64_t)global.framerate.num / global.framerate.den
+                        / frames_in
+                      : 0,
+            stream->cx_time > 9999999 ? stream->cx_time / 1000 : stream->cx_time,
+            stream->cx_time > 9999999 ? "ms" : "us",
+            usec_to_fps(stream->cx_time, frames_in));
+        );
 
-            fprintf(stderr, "\nPSNR (Overall/Avg/Y/U/V)");
+        if (global.show_psnr)
+            FOREACH_STREAM(show_psnr(stream));
 
-            fprintf(stderr, " %.3lf", ovpsnr);
-            for (i = 0; i < 4; i++)
-            {
-                fprintf(stderr, " %.3lf", psnr_totals[i]/psnr_count);
-            }
-        }
+        FOREACH_STREAM(vpx_codec_destroy(&stream->encoder));
 
-        vpx_codec_destroy(&encoder);
+        close_input_file(&input);
 
-        fclose(infile);
-        if (file_type == FILE_TYPE_Y4M)
-            y4m_input_close(&y4m);
+        FOREACH_STREAM(close_output_file(stream, global.codec->fourcc));
 
-        if(write_webm)
-        {
-            write_webm_file_footer(&ebml, hash);
-            free(ebml.cue_list);
-            ebml.cue_list = NULL;
-        }
-        else
-        {
-            if (!fseek(outfile, 0, SEEK_SET))
-                write_ivf_file_header(outfile, &cfg, codec->fourcc, frames_out);
-        }
+        FOREACH_STREAM(stats_close(&stream->stats, global.passes-1));
 
-        fclose(outfile);
-        stats_close(&stats, arg_passes-1);
-        fprintf(stderr, "\n");
-
-        if (one_pass_only)
+        if (global.pass)
             break;
     }
 
-    if (show_q_hist_buckets)
-        show_q_histogram(counts, show_q_hist_buckets);
+    if (global.show_q_hist_buckets)
+        FOREACH_STREAM(show_q_histogram(stream->counts,
+                                        global.show_q_hist_buckets));
 
-    if (show_rate_hist_buckets)
-        show_rate_histogram(&rate_hist, &cfg, show_rate_hist_buckets);
-    destroy_rate_histogram(&rate_hist);
+    if (global.show_rate_hist_buckets)
+        FOREACH_STREAM(show_rate_histogram(&stream->rate_hist,
+                                           &stream->config.cfg,
+                                           global.show_rate_hist_buckets));
+    FOREACH_STREAM(destroy_rate_histogram(&stream->rate_hist));
 
     vpx_img_free(&raw);
     free(argv);
+    free(streams);
     return EXIT_SUCCESS;
 }

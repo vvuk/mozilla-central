@@ -68,6 +68,7 @@
 #define WEBRTC_VOICE_ENGINE_RTP_RTCP_API
 #define WEBRTC_VOICE_ENGINE_VIDEO_SYNC_API
 #define WEBRTC_VOICE_ENGINE_VOLUME_CONTROL_API
+#define WEBRTC_VOICE_ENGINE_FILE_API
 
 #ifndef WEBRTC_CHROMIUM_BUILD
 #define WEBRTC_VOICE_ENGINE_CALL_REPORT_API
@@ -94,9 +95,8 @@
 #define WEBRTC_VIDEO_ENGINE_RTP_RTCP_API
 // #define WEBRTC_VIDEO_ENGINE_EXTERNAL_CODEC_API
 
-#ifndef WEBRTC_CHROMIUM_BUILD
-#define WEBRTC_VIDEO_ENGINE_FILE_API
-#endif
+// Now handled by gyp:
+// WEBRTC_VIDEO_ENGINE_FILE_API
 
 // ============================================================================
 //                       Platform specific configurations

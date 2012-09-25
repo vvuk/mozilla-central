@@ -42,6 +42,8 @@
 #include "talk/p2p/base/teststunserver.h"
 #include "talk/p2p/client/basicportallocator.h"
 
+using cricket::kDefaultPortAllocatorFlags;
+using cricket::PORTALLOCATOR_ENABLE_SHARED_UFRAG;
 using talk_base::SocketAddress;
 
 static const int kDefaultTimeout = 1000;
@@ -82,7 +84,17 @@ static const SocketAddress kRelayTcpExtAddr("99.99.99.3", 5003);
 static const SocketAddress kRelaySslTcpIntAddr("99.99.99.2", 5004);
 static const SocketAddress kRelaySslTcpExtAddr("99.99.99.3", 5005);
 
-static const int kDefaultChannelsPerEndpoint = 2;
+// Based on ICE_UFRAG_LENGTH
+static const char* kIceUfrag[4] = {"TESTICEUFRAG0000", "TESTICEUFRAG0001",
+                                    "TESTICEUFRAG0002", "TESTICEUFRAG0003"};
+// Based on ICE_PWD_LENGTH
+static const char* kIcePwd[4] = {"TESTICEPWD00000000000000",
+                                 "TESTICEPWD00000000000001",
+                                 "TESTICEPWD00000000000002",
+                                 "TESTICEPWD00000000000003"};
+
+static const int kTiebreaker1 = 11111;
+static const int kTiebreaker2 = 22222;
 
 // This test simulates 2 P2P endpoints that want to establish connectivity
 // with each other over various network topologies and conditions, which can be
@@ -100,6 +112,7 @@ static const int kDefaultChannelsPerEndpoint = 2;
 // Note that this class is a base class for use by other tests, who will provide
 // specialized test behavior.
 class P2PTransportChannelTestBase : public testing::Test,
+                                    public talk_base::MessageHandler,
                                     public sigslot::has_slots<> {
  public:
   P2PTransportChannelTestBase()
@@ -117,6 +130,8 @@ class P2PTransportChannelTestBase : public testing::Test,
                        ss_.get(), kSocksProxyAddrs[0]),
         socks_server2_(ss_.get(), kSocksProxyAddrs[1],
                        ss_.get(), kSocksProxyAddrs[1]) {
+    ep1_.role_ = cricket::ROLE_CONTROLLING;
+    ep2_.role_ = cricket::ROLE_CONTROLLED;
     ep1_.allocator_.reset(new cricket::BasicPortAllocator(
         &ep1_.network_manager_, kStunAddr, kRelayUdpIntAddr,
         kRelayTcpIntAddr, kRelaySslTcpIntAddr));
@@ -179,6 +194,8 @@ class P2PTransportChannelTestBase : public testing::Test,
   };
 
   struct Endpoint {
+    Endpoint() : signaling_delay_(0), tiebreaker_(0),
+        role_conflict_(false), protocol_type_(cricket::ICEPROTO_GOOGLE) {}
     bool HasChannel(cricket::TransportChannel* ch) {
       return (ch == cd1_.ch_.get() || ch == cd2_.ch_.get());
     }
@@ -189,10 +206,36 @@ class P2PTransportChannelTestBase : public testing::Test,
       else
         return &cd2_;
     }
+    void SetSignalingDelay(int delay) { signaling_delay_ = delay; }
+
+    void SetRole(cricket::TransportRole role) { role_ = role; }
+    cricket::TransportRole role() { return role_; }
+    void SetIceProtocolType(cricket::IceProtocolType type) {
+      protocol_type_ = type;
+    }
+    cricket::IceProtocolType protocol_type() { return protocol_type_; }
+    void SetTiebreaker(uint64 tiebreaker) { tiebreaker_ = tiebreaker; }
+    uint64 GetTiebreaker() { return tiebreaker_; }
+    void OnRoleConflict(bool role_conflict) { role_conflict_ = role_conflict; }
+    bool role_conflict() { return role_conflict_; }
+
     talk_base::FakeNetworkManager network_manager_;
     talk_base::scoped_ptr<cricket::PortAllocator> allocator_;
     ChannelData cd1_;
     ChannelData cd2_;
+    int signaling_delay_;
+    cricket::TransportRole role_;
+    uint64 tiebreaker_;
+    bool role_conflict_;
+    cricket::IceProtocolType protocol_type_;
+  };
+
+  struct CandidateData : public talk_base::MessageData {
+    CandidateData(cricket::TransportChannel* ch, const cricket::Candidate& c)
+        : channel(ch), candidate(c) {
+    }
+    cricket::TransportChannel* channel;
+    cricket::Candidate candidate;
   };
 
   ChannelData* GetChannelData(cricket::TransportChannel* channel) {
@@ -202,23 +245,41 @@ class P2PTransportChannelTestBase : public testing::Test,
       return ep2_.GetChannelData(channel);
   }
 
-  void CreateChannels() {
-    ep1_.cd1_.ch_.reset(CreateChannel(0, "a", "unittest"));
-    ep2_.cd1_.ch_.reset(CreateChannel(1, "a", "unittest"));
-    ep1_.cd2_.ch_.reset(CreateChannel(0, "b", "unittest"));
-    ep2_.cd2_.ch_.reset(CreateChannel(1, "b", "unittest"));
+  void CreateChannels(int num) {
+    ep1_.cd1_.ch_.reset(CreateChannel(
+        0, cricket::ICE_CANDIDATE_COMPONENT_DEFAULT,
+        kIceUfrag[0], kIcePwd[0]));
+    ep2_.cd1_.ch_.reset(CreateChannel(
+        1, cricket::ICE_CANDIDATE_COMPONENT_DEFAULT,
+        kIceUfrag[1], kIcePwd[1]));
+    if (num == 2) {
+      ep1_.cd2_.ch_.reset(CreateChannel(
+          0, cricket::ICE_CANDIDATE_COMPONENT_DEFAULT,
+          kIceUfrag[2], kIcePwd[2]));
+      ep2_.cd2_.ch_.reset(CreateChannel(
+          1, cricket::ICE_CANDIDATE_COMPONENT_DEFAULT,
+          kIceUfrag[3], kIcePwd[3]));
+    }
   }
   cricket::P2PTransportChannel* CreateChannel(int endpoint,
-                                              const std::string& name,
-                                              const std::string& content_type) {
+                                              int component,
+                                              const std::string& ice_ufrag,
+                                              const std::string& ice_pwd) {
     cricket::P2PTransportChannel* channel = new cricket::P2PTransportChannel(
-        name, content_type, NULL, GetAllocator(endpoint));
+        "test content name", component, NULL, GetAllocator(endpoint));
     channel->SignalRequestSignaling.connect(
         this, &P2PTransportChannelTestBase::OnChannelRequestSignaling);
     channel->SignalCandidateReady.connect(this,
         &P2PTransportChannelTestBase::OnCandidate);
     channel->SignalReadPacket.connect(
         this, &P2PTransportChannelTestBase::OnReadPacket);
+    channel->SignalRoleConflict.connect(
+        this, &P2PTransportChannelTestBase::OnRoleConflict);
+    channel->SetIceProtocolType(GetEndpoint(endpoint)->protocol_type());
+    channel->SetIceUfrag(ice_ufrag);
+    channel->SetIcePwd(ice_pwd);
+    channel->SetRole(GetEndpoint(endpoint)->role());
+    channel->SetTiebreaker(GetEndpoint(endpoint)->GetTiebreaker());
     channel->Connect();
     return channel;
   }
@@ -249,18 +310,23 @@ class P2PTransportChannelTestBase : public testing::Test,
   talk_base::NATSocketServer* nat() { return nss_.get(); }
   talk_base::FirewallSocketServer* fw() { return ss_.get(); }
 
+  Endpoint* GetEndpoint(int endpoint) {
+    if (endpoint == 0) {
+      return &ep1_;
+    } else if (endpoint == 1) {
+      return &ep2_;
+    } else {
+      return NULL;
+    }
+  }
   cricket::PortAllocator* GetAllocator(int endpoint) {
-    return (endpoint == 0) ? ep1_.allocator_.get() : ep2_.allocator_.get();
+    return GetEndpoint(endpoint)->allocator_.get();
   }
   void AddAddress(int endpoint, const SocketAddress& addr) {
-    talk_base::FakeNetworkManager& manager = (endpoint == 0) ?
-        ep1_.network_manager_ : ep2_.network_manager_;
-    manager.AddInterface(addr);
+    GetEndpoint(endpoint)->network_manager_.AddInterface(addr);
   }
   void RemoveAddress(int endpoint, const SocketAddress& addr) {
-    talk_base::FakeNetworkManager& manager = (endpoint == 0) ?
-        ep1_.network_manager_ : ep2_.network_manager_;
-    manager.RemoveInterface(addr);
+    GetEndpoint(endpoint)->network_manager_.RemoveInterface(addr);
   }
   void SetProxy(int endpoint, talk_base::ProxyType type) {
     talk_base::ProxyInfo info;
@@ -272,12 +338,27 @@ class P2PTransportChannelTestBase : public testing::Test,
   void SetAllocatorFlags(int endpoint, int flags) {
     GetAllocator(endpoint)->set_flags(flags);
   }
+  void SetSignalingDelay(int endpoint, int delay) {
+    GetEndpoint(endpoint)->SetSignalingDelay(delay);
+  }
+  void SetIceProtocol(int endpoint, cricket::IceProtocolType type) {
+    GetEndpoint(endpoint)->SetIceProtocolType(type);
+  }
+  void SetIceRole(int endpoint, cricket::TransportRole role) {
+    GetEndpoint(endpoint)->SetRole(role);
+  }
+  void SetTiebreaker(int endpoint, uint64 tiebreaker) {
+    GetEndpoint(endpoint)->SetTiebreaker(tiebreaker);
+  }
+  bool GetRoleConflict(int endpoint) {
+    return GetEndpoint(endpoint)->role_conflict();
+  }
 
   void Test(const Result& expected) {
     int32 connect_start = talk_base::Time(), connect_time;
 
     // Create the channels and wait for them to connect.
-    CreateChannels();
+    CreateChannels(1);
     EXPECT_TRUE_WAIT_MARGIN(ep1_ch1() != NULL &&
                             ep2_ch1() != NULL &&
                             ep1_ch1()->readable() &&
@@ -314,22 +395,24 @@ class P2PTransportChannelTestBase : public testing::Test,
       EXPECT_EQ(expected.remote_type, RemoteCandidate(ep1_ch1())->type());
       EXPECT_EQ(expected.remote_proto, RemoteCandidate(ep1_ch1())->protocol());
 
-      /* TODO - Enable ep2 candidates check.
-      // Checking for best connection candidates information at remote.
-      EXPECT_TRUE_WAIT_MARGIN(
-          LocalCandidate(ep2_ch1())->type() == expected.local_type2 &&
-          LocalCandidate(ep2_ch1())->protocol() == expected.local_proto2 &&
-          RemoteCandidate(ep2_ch1())->type() == expected.remote_type2 &&
-          RemoteCandidate(ep2_ch1())->protocol() == expected.remote_proto2,
-          converge_wait - talk_base::TimeSince(converge_start),
-          converge_wait - talk_base::TimeSince(converge_start));
-
-      // For verbose
-      EXPECT_EQ(expected.local_type2, LocalCandidate(ep2_ch1())->type());
-      EXPECT_EQ(expected.local_proto2, LocalCandidate(ep2_ch1())->protocol());
-      EXPECT_EQ(expected.remote_type2, RemoteCandidate(ep2_ch1())->type());
-      EXPECT_EQ(expected.remote_proto2, RemoteCandidate(ep2_ch1())->protocol());
-      */
+      // TODO: Enable below check when USE-CANDIDATE is ready.
+      /*if (ep2_.protocol_type_ == cricket::ICEPROTO_RFC5245) {
+        // Checking for best connection candidates information at remote.
+        EXPECT_TRUE_WAIT_MARGIN(
+            LocalCandidate(ep2_ch1())->type() == expected.local_type2 &&
+            LocalCandidate(ep2_ch1())->protocol() == expected.local_proto2 &&
+            RemoteCandidate(ep2_ch1())->type() == expected.remote_type2 &&
+            RemoteCandidate(ep2_ch1())->protocol() == expected.remote_proto2,
+            converge_wait - talk_base::TimeSince(converge_start),
+            converge_wait - talk_base::TimeSince(converge_start));
+      
+        // For verbose
+        EXPECT_EQ(expected.local_type2, LocalCandidate(ep2_ch1())->type());
+        EXPECT_EQ(expected.local_proto2, LocalCandidate(ep2_ch1())->protocol());
+        EXPECT_EQ(expected.remote_type2, RemoteCandidate(ep2_ch1())->type());
+        EXPECT_EQ(expected.remote_proto2,
+                  RemoteCandidate(ep2_ch1())->protocol());
+      }*/
 
       converge_time = talk_base::TimeSince(converge_start);
       if (converge_time < converge_wait) {
@@ -340,7 +423,7 @@ class P2PTransportChannelTestBase : public testing::Test,
       }
     }
     // Try sending some data to other end.
-    TestSendRecv(kDefaultChannelsPerEndpoint);
+    TestSendRecv(1);
 
     // Destroy the channels, and wait for them to be fully cleaned up.
     DestroyChannels();
@@ -355,7 +438,7 @@ class P2PTransportChannelTestBase : public testing::Test,
       EXPECT_TRUE_WAIT(CheckDataOnChannel(ep2_ch1(), data, len), 1000);
       EXPECT_EQ_WAIT(len, SendData(ep2_ch1(), data, len), 1000);
       EXPECT_TRUE_WAIT(CheckDataOnChannel(ep1_ch1(), data, len), 1000);
-      if (channels == kDefaultChannelsPerEndpoint) {
+      if (channels == 2 && ep1_ch2() && ep2_ch2()) {
         // local_channel2 <==> remote_channel2
         EXPECT_EQ_WAIT(len, SendData(ep1_ch2(), data, len), 1000);
         EXPECT_TRUE_WAIT(CheckDataOnChannel(ep2_ch2(), data, len), 1000);
@@ -371,21 +454,35 @@ class P2PTransportChannelTestBase : public testing::Test,
   // We pass the candidates directly to the other side.
   void OnCandidate(cricket::TransportChannelImpl* ch,
                    const cricket::Candidate& c) {
-    cricket::P2PTransportChannel* rch = GetRemoteChannel(ch);
-    LOG(LS_INFO) << "Candidate(" << ch->name() << "->" << rch->name() << "): "
-                 << c.type() << ", " << c.protocol()
+    main_->PostDelayed(GetEndpoint(ch)->signaling_delay_, this, 0,
+                       new CandidateData(ch, c));
+  }
+  void OnMessage(talk_base::Message* msg) {
+    talk_base::scoped_ptr<CandidateData> data(
+        static_cast<CandidateData*>(msg->pdata));
+    cricket::P2PTransportChannel* rch = GetRemoteChannel(data->channel);
+    const cricket::Candidate& c = data->candidate;
+    LOG(LS_INFO) << "Candidate(" << data->channel->component() << "->"
+                 << rch->component() << "): " << c.type() << ", " << c.protocol()
                  << ", " << c.address().ToString() << ", " << c.username()
                  << ", " << c.generation();
     rch->OnCandidate(c);
   }
   void OnReadPacket(cricket::TransportChannel* channel, const char* data,
-                    size_t len) {
+                    size_t len, int flags) {
     std::list<std::string>& packets = GetPacketList(channel);
     packets.push_front(std::string(data, len));
   }
+  void OnRoleConflict(cricket::TransportChannelImpl* channel) {
+    GetEndpoint(channel)->OnRoleConflict(true);
+    cricket::TransportRole new_role =
+        GetEndpoint(channel)->role() == cricket::ROLE_CONTROLLING ?
+            cricket::ROLE_CONTROLLED : cricket::ROLE_CONTROLLING;
+    channel->SetRole(new_role);
+  }
   int SendData(cricket::TransportChannel* channel,
                const char* data, size_t len) {
-    return channel->SendPacket(data, len);
+    return channel->SendPacket(data, len, 0);
   }
   bool CheckDataOnChannel(cricket::TransportChannel* channel,
                           const char* data, int len) {
@@ -400,6 +497,15 @@ class P2PTransportChannelTestBase : public testing::Test,
       cricket::P2PTransportChannel* ch) {
     return (ch && ch->best_connection()) ?
         &ch->best_connection()->remote_candidate() : NULL;
+  }
+  Endpoint* GetEndpoint(cricket::TransportChannel* ch) {
+    if (ep1_.HasChannel(ch)) {
+      return &ep1_;
+    } else if (ep2_.HasChannel(ch)) {
+      return &ep2_;
+    } else {
+      return NULL;
+    }
   }
   cricket::P2PTransportChannel* GetRemoteChannel(
       cricket::TransportChannel* ch) {
@@ -458,9 +564,16 @@ const P2PTransportChannelTestBase::Result P2PTransportChannelTestBase::
 class P2PTransportChannelTest : public P2PTransportChannelTestBase {
  protected:
   static const Result* kMatrix[NUM_CONFIGS][NUM_CONFIGS];
-  void ConfigureEndpoints(Config config1, Config config2) {
+  static const Result* kMatrixSharedUfrag[NUM_CONFIGS][NUM_CONFIGS];
+  void ConfigureEndpoints(Config config1, Config config2,
+      int allocator_flags1, int allocator_flags2,
+      cricket::IceProtocolType type) {
     ConfigureEndpoint(0, config1);
+    SetIceProtocol(0, type);
     ConfigureEndpoint(1, config2);
+    SetIceProtocol(1, type);
+    SetAllocatorFlags(0, allocator_flags1);
+    SetAllocatorFlags(1, allocator_flags2);
   }
   void ConfigureEndpoint(int endpoint, Config config) {
     switch (config) {
@@ -543,19 +656,66 @@ class P2PTransportChannelTest : public P2PTransportChannelTestBase {
 #define LSRS NULL
 
 // Test matrix. Originator behavior defined by rows, receiever by columns.
+
+// Currently the p2ptransportchannel.cc (specifically the
+// P2PTransportChannel::OnUnknownAddress) operates in 2 modes depend on the
+// remote candidates - ufrag per port or shared ufrag.
+// For example, if the remote candidates have the shared ufrag, for the unknown
+// address reaches the OnUnknownAddress, we will try to find the matched
+// remote candidate based on the address and protocol, if not found, a new
+// remote candidate will be created for this address. But if the remote
+// candidates have different ufrags, we will try to find the matched remote
+// candidate by comparing the ufrag. If not found, an error will be returned.
+// Because currently the shared ufrag feature is under the experiment and will
+// be rolled out gradually. We want to test the different combinations of peers
+// with/without the shared ufrag enabled. And those different combinations have
+// different expectation of the best connection. For example in the OpenToCONE
+// case, an unknown address will be updated to a "host" remote candidate if the
+// remote peer uses different ufrag per port. But in the shared ufrag case,
+// a "stun" (should be peer-reflexive eventually) candidate will be created for
+// that. So the expected best candidate will be LUSU instead of LULU.
+// With all these, we have to keep 2 test matrixes for the tests:
+// kMatrix - for the tests that the remote peer uses different ufrag per port.
+// kMatrixSharedUfrag - for the tests that remote peer uses shared ufrag.
+// The different between the two matrixes are on:
+// OPToCONE, OPTo2CON,
+// COToCONE, COToADDR, COToPORT, COToSYMM, COTo2CON, COToSCON,
+// ADToCONE, ADToADDR, ADTo2CON,
+// POToADDR,
+// SYToADDR,
+// 2CToCONE, 2CToADDR, 2CToPORT, 2CToSYMM, 2CTo2CON, 2CToSCON,
+// SCToADDR,
+
 // TODO: Fix NULLs caused by lack of TCP support in NATSocket.
 // TODO: Fix NULLs caused by no HTTP proxy support.
 // TODO: Rearrange rows/columns from best to worst.
+// TODO(ronghuawu): Keep only one test matrix once the shared ufrag is enabled.
 const P2PTransportChannelTest::Result*
     P2PTransportChannelTest::kMatrix[NUM_CONFIGS][NUM_CONFIGS] = {
 //      OPEN  CONE  ADDR  PORT  SYMM  2CON  SCON  !UDP  !TCP  HTTP  PRXH  PRXS
 /*OP*/ {LULU, LULU, LULU, LULU, LULU, LULU, LULU, LTLT, LTLT, LSRS, NULL, LTLT},
-/*CO*/ {LULU, LUSU, LUSU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
-/*AD*/ {LULU, LUSU, LULU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
+/*CO*/ {LULU, LULU, LULU, SULU, SULU, LULU, SULU, NULL, NULL, LSRS, NULL, LTRT},
+/*AD*/ {LULU, LULU, LULU, SUSU, SUSU, LULU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
 /*PO*/ {LULU, LUSU, SUSU, SUSU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
 /*SY*/ {LULU, LUSU, SUSU, LURU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
-/*2C*/ {LULU, LUSU, LUSU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
+/*2C*/ {LULU, LULU, LULU, SULU, SULU, LULU, SULU, NULL, NULL, LSRS, NULL, LTRT},
 /*SC*/ {LULU, LUSU, SUSU, LURU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
+/*!U*/ {LTLT, NULL, NULL, NULL, NULL, NULL, NULL, LTLT, LTLT, LSRS, NULL, LTRT},
+/*!T*/ {LTRT, NULL, NULL, NULL, NULL, NULL, NULL, LTLT, LTRT, LSRS, NULL, LTRT},
+/*HT*/ {LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, NULL, LSRS},
+/*PR*/ {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+/*PR*/ {LTRT, LTRT, LTRT, LTRT, LTRT, LTRT, LTRT, LTRT, LTRT, LSRS, NULL, LTRT},
+};
+const P2PTransportChannelTest::Result*
+    P2PTransportChannelTest::kMatrixSharedUfrag[NUM_CONFIGS][NUM_CONFIGS] = {
+//      OPEN  CONE  ADDR  PORT  SYMM  2CON  SCON  !UDP  !TCP  HTTP  PRXH  PRXS
+/*OP*/ {LULU, LUSU, LULU, LULU, LULU, LUSU, LULU, LTLT, LTLT, LSRS, NULL, LTLT},
+/*CO*/ {LULU, LUSU, LUSU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
+/*AD*/ {LULU, LUSU, LUSU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
+/*PO*/ {LULU, LUSU, LUSU, SUSU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
+/*SY*/ {LULU, LUSU, LUSU, LURU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
+/*2C*/ {LULU, LUSU, LUSU, SUSU, SUSU, LUSU, SUSU, NULL, NULL, LSRS, NULL, LTRT},
+/*SC*/ {LULU, LUSU, LUSU, LURU, LURU, LUSU, LURU, NULL, NULL, LSRS, NULL, LTRT},
 /*!U*/ {LTLT, NULL, NULL, NULL, NULL, NULL, NULL, LTLT, LTLT, LSRS, NULL, LTRT},
 /*!T*/ {LTRT, NULL, NULL, NULL, NULL, NULL, NULL, LTLT, LTRT, LSRS, NULL, LTRT},
 /*HT*/ {LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, LSRS, NULL, LSRS},
@@ -565,20 +725,63 @@ const P2PTransportChannelTest::Result*
 
 // The actual tests that exercise all the various configurations.
 // Test names are of the form P2PTransportChannelTest_TestOPENToNAT_FULL_CONE
+// Same test case is run in both GICE and ICE mode.
 #define P2P_TEST_DECLARATION(x, y, z) \
-  TEST_F(P2PTransportChannelTest, z##Test##x##To##y) { \
-    ConfigureEndpoints(x, y); \
+  TEST_F(P2PTransportChannelTest, z##Test##x##To##y##AsGiceNoneSharedUfrag) { \
+    ConfigureEndpoints(x, y, kDefaultPortAllocatorFlags, \
+                       kDefaultPortAllocatorFlags, cricket::ICEPROTO_GOOGLE); \
+    if (kMatrix[x][y] != NULL) \
+      Test(*kMatrix[x][y]); \
+    else \
+      LOG(LS_WARNING) << "Not yet implemented"; \
+  } \
+  TEST_F(P2PTransportChannelTest, z##Test##x##To##y##AsGiceP0SharedUfrag) { \
+    ConfigureEndpoints(x, y, PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       kDefaultPortAllocatorFlags, cricket::ICEPROTO_GOOGLE); \
     if (kMatrix[x][y] != NULL) \
       Test(*kMatrix[x][y]); \
     else \
       LOG(LS_WARNING) << "Not yet implemented"; \
   }
 
+#define P2P_TEST_DECLARATION_SHARED_UFRAG(x, y, z) \
+  TEST_F(P2PTransportChannelTest, z##Test##x##To##y##AsGiceP1SharedUfrag) { \
+    ConfigureEndpoints(x, y, kDefaultPortAllocatorFlags, \
+                       PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       cricket::ICEPROTO_GOOGLE); \
+    if (kMatrixSharedUfrag[x][y] != NULL) \
+      Test(*kMatrixSharedUfrag[x][y]); \
+    else \
+      LOG(LS_WARNING) << "Not yet implemented"; \
+  } \
+  TEST_F(P2PTransportChannelTest, z##Test##x##To##y##AsGiceBothSharedUfrag) { \
+    ConfigureEndpoints(x, y, PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       cricket::ICEPROTO_GOOGLE); \
+    if (kMatrixSharedUfrag[x][y] != NULL) \
+      Test(*kMatrixSharedUfrag[x][y]); \
+    else \
+      LOG(LS_WARNING) << "Not yet implemented"; \
+  } \
+  TEST_F(P2PTransportChannelTest, z##Test##x##To##y##AsIce) { \
+    ConfigureEndpoints(x, y, PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       PORTALLOCATOR_ENABLE_SHARED_UFRAG, \
+                       cricket::ICEPROTO_RFC5245); \
+    if (kMatrixSharedUfrag[x][y] != NULL) \
+      Test(*kMatrixSharedUfrag[x][y]); \
+    else \
+    LOG(LS_WARNING) << "Not yet implemented"; \
+  }
+
 #define P2P_TEST(x, y) \
   P2P_TEST_DECLARATION(x, y,)
 
+// TODO(ronghuawu): Figure out why those tests are flaky.
 #define FLAKY_P2P_TEST(x, y) \
   P2P_TEST_DECLARATION(x, y, DISABLED_)
+
+#define P2P_TEST_SHARED_UFRAG(x, y) \
+  P2P_TEST_DECLARATION_SHARED_UFRAG(x, y,)
 
 #define P2P_TEST_SET(x) \
   P2P_TEST(x, OPEN) \
@@ -608,6 +811,20 @@ const P2PTransportChannelTest::Result*
   P2P_TEST(x, PROXY_HTTPS) \
   P2P_TEST(x, PROXY_SOCKS)
 
+#define P2P_TEST_SET_SHARED_UFRAG(x) \
+  P2P_TEST_SHARED_UFRAG(x, OPEN) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_FULL_CONE) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_ADDR_RESTRICTED) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_PORT_RESTRICTED) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_SYMMETRIC) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_DOUBLE_CONE) \
+  P2P_TEST_SHARED_UFRAG(x, NAT_SYMMETRIC_THEN_CONE) \
+  P2P_TEST_SHARED_UFRAG(x, BLOCK_UDP) \
+  P2P_TEST_SHARED_UFRAG(x, BLOCK_UDP_AND_INCOMING_TCP) \
+  P2P_TEST_SHARED_UFRAG(x, BLOCK_ALL_BUT_OUTGOING_HTTP) \
+  P2P_TEST_SHARED_UFRAG(x, PROXY_HTTPS) \
+  P2P_TEST_SHARED_UFRAG(x, PROXY_SOCKS)
+
 P2P_TEST_SET(OPEN)
 P2P_TEST_SET(NAT_FULL_CONE)
 FLAKY_P2P_TEST_SET(NAT_ADDR_RESTRICTED)
@@ -621,16 +838,79 @@ P2P_TEST_SET(BLOCK_ALL_BUT_OUTGOING_HTTP)
 P2P_TEST_SET(PROXY_HTTPS)
 P2P_TEST_SET(PROXY_SOCKS)
 
+P2P_TEST_SET_SHARED_UFRAG(OPEN)
+P2P_TEST_SET_SHARED_UFRAG(NAT_FULL_CONE)
+P2P_TEST_SET_SHARED_UFRAG(NAT_ADDR_RESTRICTED)
+P2P_TEST_SET_SHARED_UFRAG(NAT_PORT_RESTRICTED)
+P2P_TEST_SET_SHARED_UFRAG(NAT_SYMMETRIC)
+P2P_TEST_SET_SHARED_UFRAG(NAT_DOUBLE_CONE)
+P2P_TEST_SET_SHARED_UFRAG(NAT_SYMMETRIC_THEN_CONE)
+P2P_TEST_SET_SHARED_UFRAG(BLOCK_UDP)
+P2P_TEST_SET_SHARED_UFRAG(BLOCK_UDP_AND_INCOMING_TCP)
+P2P_TEST_SET_SHARED_UFRAG(BLOCK_ALL_BUT_OUTGOING_HTTP)
+P2P_TEST_SET_SHARED_UFRAG(PROXY_HTTPS)
+P2P_TEST_SET_SHARED_UFRAG(PROXY_SOCKS)
+
+// Test the operation of GetStats.
+TEST_F(P2PTransportChannelTest, GetStats) {
+  ConfigureEndpoints(OPEN, OPEN,
+                     kDefaultPortAllocatorFlags,
+                     kDefaultPortAllocatorFlags,
+                     cricket::ICEPROTO_GOOGLE);
+  CreateChannels(1);
+  EXPECT_TRUE_WAIT_MARGIN(ep1_ch1()->readable() && ep1_ch1()->writable() &&
+                          ep2_ch1()->readable() && ep2_ch1()->writable(),
+                          1000, 1000);
+  TestSendRecv(1);
+  cricket::ConnectionInfos infos;
+  ASSERT_TRUE(ep1_ch1()->GetStats(&infos));
+  ASSERT_EQ(1U, infos.size());
+  EXPECT_TRUE(infos[0].new_connection);
+  EXPECT_TRUE(infos[0].best_connection);
+  EXPECT_TRUE(infos[0].readable);
+  EXPECT_TRUE(infos[0].writable);
+  EXPECT_FALSE(infos[0].timeout);
+  EXPECT_EQ(10 * 36U, infos[0].sent_total_bytes);
+  EXPECT_EQ(10 * 36U, infos[0].recv_total_bytes);
+  EXPECT_GT(infos[0].rtt, 0U);
+  DestroyChannels();
+}
+
+// Test that we properly handle getting a STUN error due to slow signaling.
+TEST_F(P2PTransportChannelTest, SlowSignaling) {
+  ConfigureEndpoints(OPEN, NAT_SYMMETRIC,
+                     kDefaultPortAllocatorFlags,
+                     kDefaultPortAllocatorFlags,
+                     cricket::ICEPROTO_GOOGLE);
+  // Make signaling from the callee take 500ms, so that the initial STUN pings
+  // from the callee beat the signaling, and so the caller responds with a
+  // unknown username error. We should just eat that and carry on; mishandling
+  // this will instead cause all the callee's connections to be discarded.
+  SetSignalingDelay(1, 1000);
+  CreateChannels(1);
+  const cricket::Connection* best_connection = NULL;
+  // Wait until the callee's connections are created.
+  WAIT((best_connection = ep2_ch1()->best_connection()) != NULL, 1000);
+  // Wait to see if they get culled; they shouldn't.
+  WAIT(ep2_ch1()->best_connection() != best_connection, 1000);
+  EXPECT_TRUE(ep2_ch1()->best_connection() == best_connection);
+  DestroyChannels();
+}
+
 // Test that a host behind NAT cannot be reached when incoming_only
 // is set to true.
 TEST_F(P2PTransportChannelTest, IncomingOnlyBlocked) {
-  ConfigureEndpoints(NAT_FULL_CONE, OPEN);
+  ConfigureEndpoints(NAT_FULL_CONE, OPEN,
+                     kDefaultPortAllocatorFlags,
+                     kDefaultPortAllocatorFlags,
+                     cricket::ICEPROTO_GOOGLE);
 
-  CreateChannels();
+  SetAllocatorFlags(0, kOnlyLocalPorts);
+  CreateChannels(1);
   ep1_ch1()->set_incoming_only(true);
 
-  // Sleep for 1 second and verify that the channels are not connected.
-  talk_base::Thread::SleepMs(1000);
+  // Pump for 1 second and verify that the channels are not connected.
+  talk_base::Thread::Current()->ProcessMessages(1000);
 
   EXPECT_FALSE(ep1_ch1()->readable());
   EXPECT_FALSE(ep1_ch1()->writable());
@@ -643,9 +923,13 @@ TEST_F(P2PTransportChannelTest, IncomingOnlyBlocked) {
 // Test that a peer behind NAT can connect to a peer that has
 // incoming_only flag set.
 TEST_F(P2PTransportChannelTest, IncomingOnlyOpen) {
-  ConfigureEndpoints(OPEN, NAT_FULL_CONE);
+  ConfigureEndpoints(OPEN, NAT_FULL_CONE,
+                     kDefaultPortAllocatorFlags,
+                     kDefaultPortAllocatorFlags,
+                     cricket::ICEPROTO_GOOGLE);
 
-  CreateChannels();
+  SetAllocatorFlags(0, kOnlyLocalPorts);
+  CreateChannels(1);
   ep1_ch1()->set_incoming_only(true);
 
   EXPECT_TRUE_WAIT_MARGIN(ep1_ch1() != NULL && ep2_ch1() != NULL &&
@@ -714,7 +998,7 @@ TEST_F(P2PTransportChannelMultihomedTest, TestFailover) {
   SetAllocatorFlags(1, kOnlyLocalPorts);
 
   // Create channels and let them go writable, as usual.
-  CreateChannels();
+  CreateChannels(1);
   EXPECT_TRUE_WAIT(ep1_ch1()->readable() && ep1_ch1()->writable() &&
                    ep2_ch1()->readable() && ep2_ch1()->writable(),
                    1000);
@@ -751,7 +1035,7 @@ TEST_F(P2PTransportChannelMultihomedTest, TestDrain) {
   SetAllocatorFlags(1, kOnlyLocalPorts);
 
   // Create channels and let them go writable, as usual.
-  CreateChannels();
+  CreateChannels(1);
   EXPECT_TRUE_WAIT(ep1_ch1()->readable() && ep1_ch1()->writable() &&
                    ep2_ch1()->readable() && ep2_ch1()->writable(),
                    1000);
@@ -784,7 +1068,7 @@ TEST_F(P2PTransportChannelTest, TestBundleAllocatorToBundleAllocator) {
   SetAllocatorFlags(0, cricket::PORTALLOCATOR_ENABLE_BUNDLE);
   SetAllocatorFlags(1, cricket::PORTALLOCATOR_ENABLE_BUNDLE);
 
-  CreateChannels();
+  CreateChannels(2);
 
   EXPECT_TRUE_WAIT(ep1_ch1()->readable() &&
                    ep1_ch1()->writable() &&
@@ -809,7 +1093,7 @@ TEST_F(P2PTransportChannelTest, TestBundleAllocatorToNonBundleAllocator) {
   // Enable BUNDLE flag at one side.
   SetAllocatorFlags(0, cricket::PORTALLOCATOR_ENABLE_BUNDLE);
 
-  CreateChannels();
+  CreateChannels(2);
 
   EXPECT_TRUE_WAIT(ep1_ch1()->readable() &&
                    ep1_ch1()->writable() &&
@@ -829,4 +1113,32 @@ TEST_F(P2PTransportChannelTest, TestBundleAllocatorToNonBundleAllocator) {
 
   TestSendRecv(2);
   DestroyChannels();
+}
+
+TEST_F(P2PTransportChannelTest, TestIceRoleConflict) {
+  AddAddress(0, kPublicAddrs[0]);
+  AddAddress(1, kPublicAddrs[1]);
+
+  SetIceProtocol(0, cricket::ICEPROTO_RFC5245);
+  SetTiebreaker(0, kTiebreaker1);  // Default EP1 is in controlling state.
+  SetIceProtocol(1, cricket::ICEPROTO_RFC5245);
+  SetIceRole(1, cricket::ROLE_CONTROLLING);
+  SetTiebreaker(1, kTiebreaker2);
+
+  // Creating channels with both channels role set to CONTROLLING.
+  CreateChannels(1);
+  // Since both the channels initiated with controlling state and channel2
+  // has higher tiebreaker value, channel1 should receive SignalRoleConflict.
+  EXPECT_TRUE_WAIT(GetRoleConflict(0), 1000);
+
+  EXPECT_TRUE_WAIT(ep1_ch1()->readable() &&
+                   ep1_ch1()->writable() &&
+                   ep2_ch1()->readable() &&
+                   ep2_ch1()->writable(),
+                   1000);
+
+  EXPECT_TRUE(ep1_ch1()->best_connection() &&
+              ep2_ch1()->best_connection());
+
+  TestSendRecv(1);
 }

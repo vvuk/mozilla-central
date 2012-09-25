@@ -35,6 +35,7 @@
 #include "talk/base/network.h"
 #include "talk/base/scoped_ptr.h"
 #include "talk/base/thread.h"
+#include "talk/p2p/base/port.h"
 #include "talk/p2p/base/portallocator.h"
 
 namespace cricket {
@@ -70,13 +71,16 @@ class BasicPortAllocator : public PortAllocator {
     return relay_address_ssl_;
   }
 
-  // Returns the best (highest preference) phase that has produced a port that
+  // Returns the best (highest priority) phase that has produced a port that
   // produced a writable connection.  If no writable connections have been
   // produced, this returns -1.
   int best_writable_phase() const;
 
-  virtual PortAllocatorSession* CreateSession(const std::string& name,
-                                              const std::string& session_type);
+  virtual PortAllocatorSession* CreateSessionInternal(
+      const std::string& content_name,
+      int component,
+      const std::string& ice_ufrag,
+      const std::string& ice_pwd);
 
   // Called whenever a connection becomes writable with the argument being the
   // phase that the corresponding port was created in.
@@ -109,8 +113,10 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
                                   public talk_base::MessageHandler {
  public:
   BasicPortAllocatorSession(BasicPortAllocator* allocator,
-                            const std::string& name,
-                            const std::string& session_type);
+                            const std::string& content_name,
+                            int component,
+                            const std::string& ice_ufrag,
+                            const std::string& ice_pwd);
   ~BasicPortAllocatorSession();
 
   virtual BasicPortAllocator* allocator() { return allocator_; }
@@ -143,11 +149,11 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
   void OnAllocationSequenceObjectsCreated();
   void DisableEquivalentPhases(talk_base::Network* network,
       PortConfiguration* config, uint32* flags);
-  void AddAllocatedPort(Port* port, AllocationSequence* seq, float pref,
+  void AddAllocatedPort(Port* port, AllocationSequence* seq, uint32 priority,
       bool prepare_address = true);
   void OnAddressReady(Port* port);
   void OnProtocolEnabled(AllocationSequence* seq, ProtocolType proto);
-  void OnPortDestroyed(Port* port);
+  void OnPortDestroyed(PortInterface* port);
   void OnAddressError(Port* port);
   void OnConnectionCreated(Port* port, Connection* conn);
   void OnConnectionStateChange(Connection* conn);
@@ -184,13 +190,12 @@ struct PortConfiguration : public talk_base::MessageData {
   talk_base::SocketAddress stun_address;
   std::string username;
   std::string password;
-  std::string magic_cookie;
 
   typedef std::vector<ProtocolAddress> PortList;
   struct RelayServer {
     PortList ports;
-    float pref_modifier;  // added to the protocol modifier to get the
-                          // preference for this particular server
+    int priority_modifier;  // added to the protocol modifier to get the
+                            // priority for this particular server
   };
 
   typedef std::vector<RelayServer> RelayList;
@@ -198,13 +203,10 @@ struct PortConfiguration : public talk_base::MessageData {
 
   PortConfiguration(const talk_base::SocketAddress& stun_address,
                     const std::string& username,
-                    const std::string& password,
-                    const std::string& magic_cookie);
+                    const std::string& password);
 
   // Adds another relay server, with the given ports and modifier, to the list.
-  void AddRelay(const PortList& ports, float pref_modifier);
-
-  bool ResolveStunAddress();
+  void AddRelay(const PortList& ports, int priority_modifier);
 
   // Determines whether the given relay server supports the given protocol.
   static bool SupportsProtocol(const PortConfiguration::RelayServer& relay,

@@ -1,6 +1,6 @@
 /*
  * libjingle
- * Copyright 2011, Google Inc.
+ * Copyright 2012, Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -43,14 +43,18 @@ namespace {
 
 // This is our magical hangup signal.
 const char kByeMessage[] = "BYE";
+// Delay between server connection retries, in milliseconds
+const int kReconnectDelay = 2000;
 
-talk_base::AsyncSocket* CreateClientSocket() {
+talk_base::AsyncSocket* CreateClientSocket(int family) {
 #ifdef WIN32
-  return new talk_base::Win32Socket();
+  talk_base::Win32Socket* sock = new talk_base::Win32Socket();
+  sock->CreateT(family, SOCK_STREAM);
+  return sock;
 #elif defined(POSIX)
   talk_base::Thread* thread = talk_base::Thread::Current();
   ASSERT(thread != NULL);
-  return thread->socketserver()->CreateAsyncSocket(SOCK_STREAM);
+  return thread->socketserver()->CreateAsyncSocket(family, SOCK_STREAM);
 #else
 #error Platform not supported.
 #endif
@@ -60,10 +64,17 @@ talk_base::AsyncSocket* CreateClientSocket() {
 
 PeerConnectionClient::PeerConnectionClient()
   : callback_(NULL),
-    control_socket_(CreateClientSocket()),
-    hanging_get_(CreateClientSocket()),
+    resolver_(NULL),
     state_(NOT_CONNECTED),
     my_id_(-1) {
+}
+
+PeerConnectionClient::~PeerConnectionClient() {
+}
+
+void PeerConnectionClient::InitSocketSignals() {
+  ASSERT(control_socket_.get() != NULL);
+  ASSERT(hanging_get_.get() != NULL);
   control_socket_->SignalCloseEvent.connect(this,
       &PeerConnectionClient::OnClose);
   hanging_get_->SignalCloseEvent.connect(this,
@@ -76,9 +87,6 @@ PeerConnectionClient::PeerConnectionClient()
       &PeerConnectionClient::OnRead);
   hanging_get_->SignalReadEvent.connect(this,
       &PeerConnectionClient::OnHangingGetRead);
-}
-
-PeerConnectionClient::~PeerConnectionClient() {
 }
 
 int PeerConnectionClient::id() const {
@@ -99,7 +107,7 @@ void PeerConnectionClient::RegisterObserver(
   callback_ = callback;
 }
 
-bool PeerConnectionClient::Connect(const std::string& server, int port,
+void PeerConnectionClient::Connect(const std::string& server, int port,
                                    const std::string& client_name) {
   ASSERT(!server.empty());
   ASSERT(!client_name.empty());
@@ -107,43 +115,61 @@ bool PeerConnectionClient::Connect(const std::string& server, int port,
   if (state_ != NOT_CONNECTED) {
     LOG(WARNING)
         << "The client must not be connected before you can call Connect()";
-    return false;
+    callback_->OnServerConnectionFailure();
+    return;
   }
 
-  if (server.empty() || client_name.empty())
-    return false;
+  if (server.empty() || client_name.empty()) {
+    callback_->OnServerConnectionFailure();
+    return;
+  }
 
   if (port <= 0)
     port = kDefaultServerPort;
 
   server_address_.SetIP(server);
   server_address_.SetPort(port);
+  client_name_ = client_name;
 
   if (server_address_.IsUnresolved()) {
-    int errcode = 0;
-    hostent* h = talk_base::SafeGetHostByName(
-          server_address_.IPAsString().c_str(), &errcode);
-    if (!h) {
-      LOG(LS_ERROR) << "Failed to resolve host name: "
-                    << server_address_.IPAsString();
-      return false;
-    } else {
-      server_address_.SetResolvedIP(
-          ntohl(*reinterpret_cast<uint32*>(h->h_addr_list[0])));
-      talk_base::FreeHostEnt(h);
-    }
+    state_ = RESOLVING;
+    resolver_ = new talk_base::AsyncResolver();
+    resolver_->SignalWorkDone.connect(this,
+                                      &PeerConnectionClient::OnResolveResult);
+    resolver_->set_address(server_address_);
+    resolver_->Start();
+  } else {
+    DoConnect();
   }
+}
 
+void PeerConnectionClient::OnResolveResult(talk_base::SignalThread *t) {
+  if (resolver_->error() != 0) {
+    callback_->OnServerConnectionFailure();
+    resolver_->Destroy(false);
+    resolver_ = NULL;
+    state_ = NOT_CONNECTED;
+  } else {
+    server_address_ = resolver_->address();
+    DoConnect();
+  }
+}
+
+void PeerConnectionClient::DoConnect() {
+  control_socket_.reset(CreateClientSocket(server_address_.ipaddr().family()));
+  hanging_get_.reset(CreateClientSocket(server_address_.ipaddr().family()));
+  InitSocketSignals();
   char buffer[1024];
   sprintfn(buffer, sizeof(buffer),
-           "GET /sign_in?%s HTTP/1.0\r\n\r\n", client_name.c_str());
+           "GET /sign_in?%s HTTP/1.0\r\n\r\n", client_name_.c_str());
   onconnect_data_ = buffer;
 
   bool ret = ConnectControlSocket();
   if (ret)
     state_ = SIGNING_IN;
-
-  return ret;
+  if (!ret) {
+    callback_->OnServerConnectionFailure();
+  }
 }
 
 bool PeerConnectionClient::SendToPeer(int peer_id, const std::string& message) {
@@ -208,6 +234,10 @@ void PeerConnectionClient::Close() {
   hanging_get_->Close();
   onconnect_data_.clear();
   peers_.clear();
+  if (resolver_ != NULL) {
+    resolver_->Destroy(false);
+    resolver_ = NULL;
+  }
   my_id_ = -1;
   state_ = NOT_CONNECTED;
 }
@@ -282,8 +312,6 @@ bool PeerConnectionClient::GetHeaderValue(const std::string& data, size_t eoh,
 bool PeerConnectionClient::ReadIntoBuffer(talk_base::AsyncSocket* socket,
                                           std::string* data,
                                           size_t* content_length) {
-  LOG(INFO) << __FUNCTION__;
-
   char buffer[0xffff];
   do {
     int bytes = socket->Recv(buffer, sizeof(buffer));
@@ -297,7 +325,6 @@ bool PeerConnectionClient::ReadIntoBuffer(talk_base::AsyncSocket* socket,
   if (i != std::string::npos) {
     LOG(INFO) << "Headers received";
     if (GetHeaderValue(*data, i, "\r\nContent-Length: ", content_length)) {
-      LOG(INFO) << "Expecting " << *content_length << " bytes.";
       size_t total_response_size = (i + 4) + *content_length;
       if (data->length() >= total_response_size) {
         ret = true;
@@ -321,7 +348,6 @@ bool PeerConnectionClient::ReadIntoBuffer(talk_base::AsyncSocket* socket,
 }
 
 void PeerConnectionClient::OnRead(talk_base::AsyncSocket* socket) {
-  LOG(INFO) << __FUNCTION__;
   size_t content_length = 0;
   if (ReadIntoBuffer(socket, &control_data_, &content_length)) {
     size_t peer_id = 0, eoh = 0;
@@ -448,8 +474,6 @@ bool PeerConnectionClient::ParseServerResponse(const std::string& response,
                                                size_t content_length,
                                                size_t* peer_id,
                                                size_t* eoh) {
-  LOG(INFO) << response;
-
   int status = GetResponseStatus(response.c_str());
   if (status != 200) {
     LOG(LS_ERROR) << "Received error from server";
@@ -484,7 +508,6 @@ void PeerConnectionClient::OnClose(talk_base::AsyncSocket* socket, int err) {
 #endif
     if (socket == hanging_get_.get()) {
       if (state_ == CONNECTED) {
-        LOG(INFO) << "Issuing  a new hanging get";
         hanging_get_->Close();
         hanging_get_->Connect(server_address_);
       }
@@ -492,8 +515,17 @@ void PeerConnectionClient::OnClose(talk_base::AsyncSocket* socket, int err) {
       callback_->OnMessageSent(err);
     }
   } else {
-    LOG(WARNING) << "Failed to connect to the server";
-    Close();
-    callback_->OnDisconnected();
+    if (socket == control_socket_.get()) {
+      LOG(WARNING) << "Connection refused; retrying in 2 seconds";
+      talk_base::Thread::Current()->PostDelayed(kReconnectDelay, this, 0);
+    } else {
+      Close();
+      callback_->OnDisconnected();
+    }
   }
+}
+
+void PeerConnectionClient::OnMessage(talk_base::Message* msg) {
+  // ignore msg; there is currently only one supported message ("retry")
+  DoConnect();
 }

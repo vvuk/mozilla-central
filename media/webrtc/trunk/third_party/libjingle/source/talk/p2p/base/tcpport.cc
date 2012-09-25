@@ -85,6 +85,10 @@ Connection* TCPPort::CreateConnection(const Candidate& address,
   if ((address.protocol() == "ssltcp") && (origin == ORIGIN_THIS_PORT))
     return NULL;
 
+  if (!IsCompatibleAddress(address.address())) {
+    return NULL;
+  }
+
   TCPConnection* conn = NULL;
   if (talk_base::AsyncPacketSocket* socket =
       GetIncoming(address.address(), true)) {
@@ -105,12 +109,14 @@ void TCPPort::PrepareAddress() {
     LOG(LS_ERROR) << socket_->GetState();
     if (socket_->GetState() == talk_base::AsyncPacketSocket::STATE_BOUND ||
         socket_->GetState() == talk_base::AsyncPacketSocket::STATE_CLOSED)
-      AddAddress(socket_->GetLocalAddress(), "tcp", true);
+      AddAddress(socket_->GetLocalAddress(), socket_->GetLocalAddress(),
+                 "tcp", true);
   } else {
     LOG_J(LS_INFO, this) << "Not listening due to firewall restrictions.";
     // Note: We still add the address, since otherwise the remote side won't
     // recognize our incoming TCP connections.
-    AddAddress(talk_base::SocketAddress(ip(), 0), "tcp", true);
+    AddAddress(talk_base::SocketAddress(ip(), 0),
+               talk_base::SocketAddress(ip(), 0), "tcp", true);
   }
 }
 
@@ -189,12 +195,12 @@ talk_base::AsyncPacketSocket* TCPPort::GetIncoming(
 void TCPPort::OnReadPacket(talk_base::AsyncPacketSocket* socket,
                            const char* data, size_t size,
                            const talk_base::SocketAddress& remote_addr) {
-  Port::OnReadPacket(data, size, remote_addr);
+  Port::OnReadPacket(data, size, remote_addr, PROTO_TCP);
 }
 
 void TCPPort::OnAddressReady(talk_base::AsyncPacketSocket* socket,
                              const talk_base::SocketAddress& address) {
-  AddAddress(address, "tcp", true);
+  AddAddress(address, address, "tcp", true);
 }
 
 TCPConnection::TCPConnection(TCPPort* port, const Candidate& candidate,
@@ -205,7 +211,7 @@ TCPConnection::TCPConnection(TCPPort* port, const Candidate& candidate,
     // TODO: Handle failures here (unlikely since TCP).
 
     socket_ = port->socket_factory()->CreateClientTcpSocket(
-        talk_base::SocketAddress(port_->network()->ip(), 0),
+        talk_base::SocketAddress(port_->Network()->ip(), 0),
         candidate.address(), port->proxy(), port->user_agent(),
         candidate.protocol() == "ssltcp");
     if (socket_) {

@@ -391,6 +391,8 @@ LDFLAGS = ${LDFLAGS}
 ASFLAGS = ${ASFLAGS}
 extralibs = ${extralibs}
 AS_SFX    = ${AS_SFX:-.asm}
+EXE_SFX   = ${EXE_SFX}
+RTCD_OPTIONS = ${RTCD_OPTIONS}
 EOF
 
     if enabled rvct; then cat >> $1 << EOF
@@ -454,8 +456,24 @@ process_common_cmdline() {
         ;;
         --enable-?*|--disable-?*)
         eval `echo "$opt" | sed 's/--/action=/;s/-/ option=/;s/-/_/g'`
-        echo "${CMDLINE_SELECT} ${ARCH_EXT_LIST}" | grep "^ *$option\$" >/dev/null || die_unknown $opt
+        if echo "${ARCH_EXT_LIST}" | grep "^ *$option\$" >/dev/null; then
+            [ $action = "disable" ] && RTCD_OPTIONS="${RTCD_OPTIONS}${opt} "
+        elif [ $action = "disable" ] && ! disabled $option ; then
+          echo "${CMDLINE_SELECT}" | grep "^ *$option\$" >/dev/null ||
+            die_unknown $opt
+        elif [ $action = "enable" ] && ! enabled $option ; then
+          echo "${CMDLINE_SELECT}" | grep "^ *$option\$" >/dev/null ||
+            die_unknown $opt
+        fi
         $action $option
+        ;;
+        --require-?*)
+        eval `echo "$opt" | sed 's/--/action=/;s/-/ option=/;s/-/_/g'`
+        if echo "${ARCH_EXT_LIST}" none | grep "^ *$option\$" >/dev/null; then
+            RTCD_OPTIONS="${RTCD_OPTIONS}${opt} "
+        else
+            die_unknown $opt
+        fi
         ;;
         --force-enable-?*|--force-disable-?*)
         eval `echo "$opt" | sed 's/--force-/action=/;s/-/ option=/;s/-/_/g'`
@@ -477,7 +495,11 @@ process_common_cmdline() {
         --libdir=*)
         libdir="${optval}"
         ;;
-        --libc|--as|--prefix|--libdir)
+        --sdk-path=*)
+        [ -d "${optval}" ] || die "Not a directory: ${optval}"
+        sdk_path="${optval}"
+        ;;
+        --libc|--as|--prefix|--libdir|--sdk-path)
         die "Option ${opt} requires argument"
         ;;
         --help|-h) show_help
@@ -522,6 +544,7 @@ setup_gnu_toolchain() {
     STRIP=${STRIP:-${CROSS}strip}
     NM=${NM:-${CROSS}nm}
         AS_SFX=.s
+        EXE_SFX=
 }
 
 process_common_toolchain() {
@@ -565,6 +588,10 @@ process_common_toolchain() {
                 tgt_isa=x86_64
                 tgt_os=darwin11
                 ;;
+            *darwin12*)
+                tgt_isa=x86_64
+                tgt_os=darwin12
+                ;;
             *mingw32*|*cygwin*)
                 [ -z "$tgt_isa" ] && tgt_isa=x86
                 tgt_os=win32
@@ -574,6 +601,9 @@ process_common_toolchain() {
                 ;;
             *solaris2.10)
                 tgt_os=solaris
+                ;;
+            *os2*)
+                tgt_os=os2
                 ;;
         esac
 
@@ -612,43 +642,50 @@ process_common_toolchain() {
 
     # Handle darwin variants. Newer SDKs allow targeting older
     # platforms, so find the newest SDK available.
-    if [ -d "/Developer/SDKs/MacOSX10.4u.sdk" ]; then
-        osx_sdk_dir="/Developer/SDKs/MacOSX10.4u.sdk"
-    fi
-    if [ -d "/Developer/SDKs/MacOSX10.5.sdk" ]; then
-        osx_sdk_dir="/Developer/SDKs/MacOSX10.5.sdk"
-    fi
-    if [ -d "/Developer/SDKs/MacOSX10.6.sdk" ]; then
-        osx_sdk_dir="/Developer/SDKs/MacOSX10.6.sdk"
-    fi
-    if [ -d "/Developer/SDKs/MacOSX10.7.sdk" ]; then
-        osx_sdk_dir="/Developer/SDKs/MacOSX10.7.sdk"
+    case ${toolchain} in
+        *-darwin*)
+            if [ -z "${DEVELOPER_DIR}" ]; then
+                DEVELOPER_DIR=`xcode-select -print-path 2> /dev/null`
+                [ $? -ne 0 ] && OSX_SKIP_DIR_CHECK=1
+            fi
+            if [ -z "${OSX_SKIP_DIR_CHECK}" ]; then
+                OSX_SDK_ROOTS="${DEVELOPER_DIR}/SDKs"
+                OSX_SDK_VERSIONS="MacOSX10.4u.sdk MacOSX10.5.sdk MacOSX10.6.sdk"
+                OSX_SDK_VERSIONS="${OSX_SDK_VERSIONS} MacOSX10.7.sdk"
+                for v in ${OSX_SDK_VERSIONS}; do
+                    if [ -d "${OSX_SDK_ROOTS}/${v}" ]; then
+                        osx_sdk_dir="${OSX_SDK_ROOTS}/${v}"
+                    fi
+                done
+            fi
+            ;;
+    esac
+
+    if [ -d "${osx_sdk_dir}" ]; then
+        add_cflags  "-isysroot ${osx_sdk_dir}"
+        add_ldflags "-isysroot ${osx_sdk_dir}"
     fi
 
     case ${toolchain} in
         *-darwin8-*)
-            add_cflags  "-isysroot ${osx_sdk_dir}"
             add_cflags  "-mmacosx-version-min=10.4"
-            add_ldflags "-isysroot ${osx_sdk_dir}"
             add_ldflags "-mmacosx-version-min=10.4"
             ;;
         *-darwin9-*)
-            add_cflags  "-isysroot ${osx_sdk_dir}"
             add_cflags  "-mmacosx-version-min=10.5"
-            add_ldflags "-isysroot ${osx_sdk_dir}"
             add_ldflags "-mmacosx-version-min=10.5"
             ;;
         *-darwin10-*)
-            add_cflags  "-isysroot ${osx_sdk_dir}"
             add_cflags  "-mmacosx-version-min=10.6"
-            add_ldflags "-isysroot ${osx_sdk_dir}"
             add_ldflags "-mmacosx-version-min=10.6"
             ;;
         *-darwin11-*)
-            add_cflags  "-isysroot ${osx_sdk_dir}"
             add_cflags  "-mmacosx-version-min=10.7"
-            add_ldflags "-isysroot ${osx_sdk_dir}"
             add_ldflags "-mmacosx-version-min=10.7"
+            ;;
+        *-darwin12-*)
+            add_cflags  "-mmacosx-version-min=10.8"
+            add_ldflags "-mmacosx-version-min=10.8"
             ;;
     esac
 
@@ -667,10 +704,22 @@ process_common_toolchain() {
     case ${toolchain} in
     arm*)
         # on arm, isa versions are supersets
-        enabled armv7a && soft_enable armv7 ### DEBUG
-        enabled armv7 && soft_enable armv6
-        enabled armv7 || enabled armv6 && soft_enable armv5te
-        enabled armv7 || enabled armv6 && soft_enable fast_unaligned
+        case ${tgt_isa} in
+        armv7)
+            soft_enable neon
+            soft_enable media
+            soft_enable edsp
+            soft_enable fast_unaligned
+            ;;
+        armv6)
+            soft_enable media
+            soft_enable edsp
+            soft_enable fast_unaligned
+            ;;
+        armv5te)
+            soft_enable edsp
+            ;;
+        esac
 
         asm_conversion_cmd="cat"
 
@@ -683,10 +732,14 @@ process_common_toolchain() {
             arch_int=${arch_int%%te}
             check_add_asflags --defsym ARCHITECTURE=${arch_int}
             tune_cflags="-mtune="
-            if enabled armv7
-            then
-                check_add_cflags -march=armv7-a -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp  #-ftree-vectorize
-                check_add_asflags -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp  #-march=armv7-a
+            if [ ${tgt_isa} == "armv7" ]; then
+                if enabled neon
+                then
+                    check_add_cflags -mfpu=neon #-ftree-vectorize
+                    check_add_asflags -mfpu=neon
+                fi
+                check_add_cflags -march=armv7-a -mcpu=cortex-a8 -mfloat-abi=softfp
+                check_add_asflags -mcpu=cortex-a8 -mfloat-abi=softfp  #-march=armv7-a
             else
                 check_add_cflags -march=${tgt_isa}
                 check_add_asflags -march=${tgt_isa}
@@ -704,10 +757,14 @@ process_common_toolchain() {
             tune_cflags="--cpu="
             tune_asflags="--cpu="
             if [ -z "${tune_cpu}" ]; then
-            if enabled armv7
-                then
-                    check_add_cflags --cpu=Cortex-A8 --fpu=softvfp+vfpv3
-                    check_add_asflags --cpu=Cortex-A8 --fpu=softvfp+vfpv3
+                if [ ${tgt_isa} == "armv7" ]; then
+                    if enabled neon
+                    then
+                        check_add_cflags --fpu=softvfp+vfpv3
+                        check_add_asflags --fpu=softvfp+vfpv3
+                    fi
+                    check_add_cflags --cpu=Cortex-A8
+                    check_add_asflags --cpu=Cortex-A8
                 else
                     check_add_cflags --cpu=${tgt_isa##armv}
                     check_add_asflags --cpu=${tgt_isa##armv}
@@ -728,8 +785,47 @@ process_common_toolchain() {
             disable multithread
             disable os_support
             ;;
+
+        android*)
+            SDK_PATH=${sdk_path}
+            COMPILER_LOCATION=`find "${SDK_PATH}" \
+                               -name "arm-linux-androideabi-gcc*" -print -quit`
+            TOOLCHAIN_PATH=${COMPILER_LOCATION%/*}/arm-linux-androideabi-
+            CC=${TOOLCHAIN_PATH}gcc
+            AR=${TOOLCHAIN_PATH}ar
+            LD=${TOOLCHAIN_PATH}gcc
+            AS=${TOOLCHAIN_PATH}as
+            STRIP=${TOOLCHAIN_PATH}strip
+            NM=${TOOLCHAIN_PATH}nm
+
+            if [ -z "${alt_libc}" ]; then
+                alt_libc=`find "${SDK_PATH}" -name arch-arm -print | \
+                          awk '{n = split($0,a,"/"); \
+                                split(a[n-1],b,"-"); \
+                                print $0 " " b[2]}' | \
+                          sort -g -k 2 | \
+                          awk '{ print $1 }' | tail -1`
+            fi
+
+            add_cflags "--sysroot=${alt_libc}"
+            add_ldflags "--sysroot=${alt_libc}"
+
+            add_cflags "-I${SDK_PATH}/sources/android/cpufeatures/"
+
+            enable pic
+            soft_enable realtime_only
+            if [ ${tgt_isa} == "armv7" ]; then
+                enable runtime_cpu_detect
+            fi
+          ;;
+
         darwin*)
-            SDK_PATH=/Developer/Platforms/iPhoneOS.platform/Developer
+            if [ -z "${sdk_path}" ]; then
+                SDK_PATH=`xcode-select -print-path 2> /dev/null`
+                SDK_PATH=${SDK_PATH}/Platforms/iPhoneOS.platform/Developer
+            else
+                SDK_PATH=${sdk_path}
+            fi
             TOOLCHAIN_PATH=${SDK_PATH}/usr/bin
             CC=${TOOLCHAIN_PATH}/gcc
             AR=${TOOLCHAIN_PATH}/ar
@@ -747,10 +843,11 @@ process_common_toolchain() {
             add_cflags -arch ${tgt_isa}
             add_ldflags -arch_only ${tgt_isa}
 
-            add_cflags  "-isysroot ${SDK_PATH}/SDKs/iPhoneOS5.0.sdk"
+            if [ -z "${alt_libc}" ]; then
+                alt_libc=${SDK_PATH}/SDKs/iPhoneOS5.1.sdk
+            fi
 
-            # This should be overridable
-            alt_libc=${SDK_PATH}/SDKs/iPhoneOS5.0.sdk
+            add_cflags  "-isysroot ${alt_libc}"
 
             # Add the paths for the alternate libc
             for d in usr/include; do
@@ -844,6 +941,9 @@ process_common_toolchain() {
                 LD=${LD:-${CROSS}gcc}
                 CROSS=${CROSS:-g}
                 ;;
+            os2)
+                AS=${AS:-nasm}
+                ;;
         esac
 
         AS="${alt_as:-${AS:-auto}}"
@@ -867,7 +967,7 @@ process_common_toolchain() {
                 esac
                 ;;
             gcc*)
-                add_cflags  -m${bits}
+                add_cflags -m${bits}
                 add_ldflags -m${bits}
                 link_with_cc=gcc
                 tune_cflags="-march="
@@ -913,6 +1013,11 @@ process_common_toolchain() {
                 # code that still relies on inline assembly.
                 # enabled icc && ! enabled pic && add_cflags -fno-pic -mdynamic-no-pic
                 enabled icc && ! enabled pic && add_cflags -fno-pic
+            ;;
+            os2)
+                add_asflags -f aout
+                enabled debug && add_asflags -g
+                EXE_SFX=.exe
             ;;
             *) log "Warning: Unknown os $tgt_os while setting up $AS flags"
             ;;
@@ -976,6 +1081,7 @@ EOF
     if enabled multithread; then
         case ${toolchain} in
             *-win*);;
+            *-android-gcc);;
             *) check_header pthread.h && add_extralibs -lpthread
         esac
     fi

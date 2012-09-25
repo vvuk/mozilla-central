@@ -8,37 +8,30 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "math.h"
-#include "limits.h"
+#include <math.h>
+#include <limits.h>
+#include <stdio.h>
+
 #include "block.h"
 #include "onyx_int.h"
-#include "variance.h"
+#include "vp8/common/variance.h"
 #include "encodeintra.h"
 #include "vp8/common/setupintrarecon.h"
+#include "vp8/common/systemdependent.h"
 #include "mcomp.h"
 #include "firstpass.h"
 #include "vpx_scale/vpxscale.h"
 #include "encodemb.h"
 #include "vp8/common/extend.h"
-#include "vp8/common/systemdependent.h"
-#include "vpx_scale/yv12extend.h"
 #include "vpx_mem/vpx_mem.h"
 #include "vp8/common/swapyv12buffer.h"
-#include <stdio.h>
 #include "rdopt.h"
 #include "vp8/common/quant_common.h"
 #include "encodemv.h"
+#include "encodeframe.h"
 
 //#define OUTPUT_FPF 1
 
-#if CONFIG_RUNTIME_CPU_DETECT
-#define IF_RTCD(x) (x)
-#else
-#define IF_RTCD(x) NULL
-#endif
-
-extern void vp8_build_block_offsets(MACROBLOCK *x);
-extern void vp8_setup_block_ptrs(MACROBLOCK *x);
 extern void vp8cx_frame_init_quantizer(VP8_COMP *cpi);
 extern void vp8_set_mbmode_and_mvs(MACROBLOCK *x, MB_PREDICTION_MODE mb, int_mv *mv);
 extern void vp8_alloc_compressor_data(VP8_COMP *cpi);
@@ -393,7 +386,11 @@ void vp8_end_first_pass(VP8_COMP *cpi)
     output_stats(cpi, cpi->output_pkt_list, &cpi->twopass.total_stats);
 }
 
-static void zz_motion_search( VP8_COMP *cpi, MACROBLOCK * x, YV12_BUFFER_CONFIG * recon_buffer, int * best_motion_err, int recon_yoffset )
+static void zz_motion_search( VP8_COMP *cpi, MACROBLOCK * x,
+                              YV12_BUFFER_CONFIG * raw_buffer,
+                              int * raw_motion_err,
+                              YV12_BUFFER_CONFIG * recon_buffer,
+                              int * best_motion_err, int recon_yoffset)
 {
     MACROBLOCKD * const xd = & x->e_mbd;
     BLOCK *b = &x->block[0];
@@ -401,15 +398,22 @@ static void zz_motion_search( VP8_COMP *cpi, MACROBLOCK * x, YV12_BUFFER_CONFIG 
 
     unsigned char *src_ptr = (*(b->base_src) + b->src);
     int src_stride = b->src_stride;
+    unsigned char *raw_ptr;
+    int raw_stride = raw_buffer->y_stride;
     unsigned char *ref_ptr;
-    int ref_stride=d->pre_stride;
+    int ref_stride = x->e_mbd.pre.y_stride;
+
+    // Set up pointers for this macro block raw buffer
+    raw_ptr = (unsigned char *)(raw_buffer->y_buffer + recon_yoffset
+                                + d->offset);
+    vp8_mse16x16 ( src_ptr, src_stride, raw_ptr, raw_stride,
+                   (unsigned int *)(raw_motion_err));
 
     // Set up pointers for this macro block recon buffer
     xd->pre.y_buffer = recon_buffer->y_buffer + recon_yoffset;
-
-    ref_ptr = (unsigned char *)(*(d->base_pre) + d->pre );
-
-    VARIANCE_INVOKE(IF_RTCD(&cpi->rtcd.variance), mse16x16) ( src_ptr, src_stride, ref_ptr, ref_stride, (unsigned int *)(best_motion_err));
+    ref_ptr = (unsigned char *)(xd->pre.y_buffer + d->offset );
+    vp8_mse16x16 ( src_ptr, src_stride, ref_ptr, ref_stride,
+                   (unsigned int *)(best_motion_err));
 }
 
 static void first_pass_motion_search(VP8_COMP *cpi, MACROBLOCK *x,
@@ -433,7 +437,7 @@ static void first_pass_motion_search(VP8_COMP *cpi, MACROBLOCK *x,
     int new_mv_mode_penalty = 256;
 
     // override the default variance function to use MSE
-    v_fn_ptr.vf    = VARIANCE_INVOKE(IF_RTCD(&cpi->rtcd.variance), mse16x16);
+    v_fn_ptr.vf    = vp8_mse16x16;
 
     // Set up pointers for this macro block recon buffer
     xd->pre.y_buffer = recon_buffer->y_buffer + recon_yoffset;
@@ -576,7 +580,7 @@ void vp8_first_pass(VP8_COMP *cpi)
             xd->left_available = (mb_col != 0);
 
             //Copy current mb to a buffer
-            RECON_INVOKE(&xd->rtcd->recon, copy16x16)(x->src.y_buffer, x->src.y_stride, x->thismb, 16);
+            vp8_copy_mem16x16(x->src.y_buffer, x->src.y_stride, x->thismb, 16);
 
             // do intra 16x16 prediction
             this_error = vp8_encode_intra(cpi, x, use_dc_pred);
@@ -601,11 +605,17 @@ void vp8_first_pass(VP8_COMP *cpi)
                 MV tmp_mv = {0, 0};
                 int tmp_err;
                 int motion_error = INT_MAX;
+                int raw_motion_error = INT_MAX;
 
                 // Simple 0,0 motion with no mv overhead
-                zz_motion_search( cpi, x, lst_yv12, &motion_error, recon_yoffset );
+                zz_motion_search( cpi, x, cpi->last_frame_unscaled_source,
+                                  &raw_motion_error, lst_yv12, &motion_error,
+                                  recon_yoffset );
                 d->bmi.mv.as_mv.row = 0;
                 d->bmi.mv.as_mv.col = 0;
+
+                if (raw_motion_error < cpi->oxcf.encode_breakout)
+                    goto skip_motion_search;
 
                 // Test last reference frame using the previous best mv as the
                 // starting point (best reference) for the search
@@ -654,6 +664,7 @@ void vp8_first_pass(VP8_COMP *cpi)
                     xd->pre.v_buffer = lst_yv12->v_buffer + recon_uvoffset;
                 }
 
+skip_motion_search:
                 /* Intra assumed best */
                 best_ref_mv.as_int = 0;
 
@@ -674,7 +685,7 @@ void vp8_first_pass(VP8_COMP *cpi)
                     d->bmi.mv.as_mv.col <<= 3;
                     this_error = motion_error;
                     vp8_set_mbmode_and_mvs(x, NEWMV, &d->bmi.mv);
-                    vp8_encode_inter16x16y(IF_RTCD(&cpi->rtcd), x);
+                    vp8_encode_inter16x16y(x);
                     sum_mvr += d->bmi.mv.as_mv.row;
                     sum_mvr_abs += abs(d->bmi.mv.as_mv.row);
                     sum_mvc += d->bmi.mv.as_mv.col;
@@ -816,7 +827,7 @@ void vp8_first_pass(VP8_COMP *cpi)
         (cpi->twopass.this_frame_stats.pcnt_inter > 0.20) &&
         ((cpi->twopass.this_frame_stats.intra_error / cpi->twopass.this_frame_stats.coded_error) > 2.0))
     {
-        vp8_yv12_copy_frame_ptr(lst_yv12, gld_yv12);
+        vp8_yv12_copy_frame(lst_yv12, gld_yv12);
     }
 
     // swap frame pointers so last frame refers to the frame we just compressed
@@ -826,7 +837,7 @@ void vp8_first_pass(VP8_COMP *cpi)
     // Special case for the first frame. Copy into the GF buffer as a second reference.
     if (cm->current_video_frame == 0)
     {
-        vp8_yv12_copy_frame_ptr(lst_yv12, gld_yv12);
+        vp8_yv12_copy_frame(lst_yv12, gld_yv12);
     }
 
 
@@ -857,7 +868,7 @@ extern const int vp8_bits_per_mb[2][QINDEX_RANGE];
 //
 
 
-double bitcost( double prob )
+static double bitcost( double prob )
 {
     return -(log( prob ) / log( 2.0 ));
 }
@@ -2301,11 +2312,8 @@ void vp8_second_pass(VP8_COMP *cpi)
     FIRSTPASS_STATS this_frame = {0};
     FIRSTPASS_STATS this_frame_copy;
 
-    double this_frame_error;
     double this_frame_intra_error;
     double this_frame_coded_error;
-
-    FIRSTPASS_STATS *start_pos;
 
     int overhead_bits;
 
@@ -2319,11 +2327,8 @@ void vp8_second_pass(VP8_COMP *cpi)
     if (EOF == input_stats(cpi, &this_frame))
         return;
 
-    this_frame_error = this_frame.ssim_weighted_pred_err;
     this_frame_intra_error = this_frame.intra_error;
     this_frame_coded_error = this_frame.coded_error;
-
-    start_pos = cpi->twopass.stats_in;
 
     // keyframe and section processing !
     if (cpi->twopass.frames_to_key == 0)
@@ -2959,10 +2964,26 @@ static void find_next_key_frame(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
 
         // We do three calculations for kf size.
         // The first is based on the error score for the whole kf group.
-        // The second (optionaly) on the key frames own error if this is smaller than the average for the group.
-        // The final one insures that the frame receives at least the allocation it would have received based on its own error score vs the error score remaining
-
-        allocation_chunks = ((cpi->twopass.frames_to_key - 1) * 100) + kf_boost;           // cpi->twopass.frames_to_key-1 because key frame itself is taken care of by kf_boost
+        // The second (optionaly) on the key frames own error if this is
+        // smaller than the average for the group.
+        // The final one insures that the frame receives at least the
+        // allocation it would have received based on its own error score vs
+        // the error score remaining
+        // Special case if the sequence appears almost totaly static
+        // as measured by the decay accumulator. In this case we want to
+        // spend almost all of the bits on the key frame.
+        // cpi->twopass.frames_to_key-1 because key frame itself is taken
+        // care of by kf_boost.
+        if ( decay_accumulator >= 0.99 )
+        {
+            allocation_chunks =
+                ((cpi->twopass.frames_to_key - 1) * 10) + kf_boost;
+        }
+        else
+        {
+            allocation_chunks =
+                ((cpi->twopass.frames_to_key - 1) * 100) + kf_boost;
+        }
 
         // Normalize Altboost and allocations chunck down to prevent overflow
         while (kf_boost > 1000)

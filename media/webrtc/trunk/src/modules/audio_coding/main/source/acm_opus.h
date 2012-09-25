@@ -64,11 +64,8 @@ protected:
 
     void InternalDestructEncoderInst(void* ptrInst);
 
-    WebRtc_Word16 UnregisterFromNetEqSafe(
-        ACMNetEQ* netEq,
-        WebRtc_Word16   payloadType);
-
-    WebRtc_Word16 SetBitRateSafe(const WebRtc_Word32 rate);
+    WebRtc_Word16 SetBitRateSafe(
+        const WebRtc_Word32 rate);
 
     OpusEncInst* _encoderInstPtr;
     OpusDecInst* _decoderInstPtr;

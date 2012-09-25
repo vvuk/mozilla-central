@@ -26,19 +26,25 @@ _int64 context_counters[BLOCK_TYPES] [COEF_BANDS] [PREV_COEF_CONTEXTS] [MAX_ENTR
 void vp8_stuff_mb(VP8_COMP *cpi, MACROBLOCKD *x, TOKENEXTRA **t) ;
 void vp8_fix_contexts(MACROBLOCKD *x);
 
-static TOKENVALUE dct_value_tokens[DCT_MAX_VALUE*2];
-const TOKENVALUE *vp8_dct_value_tokens_ptr;
-static int dct_value_cost[DCT_MAX_VALUE*2];
-const int *vp8_dct_value_cost_ptr;
+#include "dct_value_tokens.h"
+#include "dct_value_cost.h"
+
+const TOKENVALUE *const vp8_dct_value_tokens_ptr = dct_value_tokens +
+        DCT_MAX_VALUE;
+const short *const vp8_dct_value_cost_ptr = dct_value_cost + DCT_MAX_VALUE;
+
 #if 0
 int skip_true_count = 0;
 int skip_false_count = 0;
 #endif
+
+/* function used to generate dct_value_tokens and dct_value_cost tables */
+/*
 static void fill_value_tokens()
 {
 
-    TOKENVALUE *const t = dct_value_tokens + DCT_MAX_VALUE;
-    vp8_extra_bit_struct *const e = vp8_extra_bits;
+    TOKENVALUE *t = dct_value_tokens + DCT_MAX_VALUE;
+    const vp8_extra_bit_struct *e = vp8_extra_bits;
 
     int i = -DCT_MAX_VALUE;
     int sign = 1;
@@ -70,7 +76,7 @@ static void fill_value_tokens()
         // initialize the cost for extra bits for all possible coefficient value.
         {
             int cost = 0;
-            vp8_extra_bit_struct *p = vp8_extra_bits + t[i].Token;
+            const vp8_extra_bit_struct *p = vp8_extra_bits + t[i].Token;
 
             if (p->base_val)
             {
@@ -80,7 +86,7 @@ static void fill_value_tokens()
                 if (Length)
                     cost += vp8_treed_cost(p->tree, p->prob, extra >> 1, Length);
 
-                cost += vp8_cost_bit(vp8_prob_half, extra & 1); /* sign */
+                cost += vp8_cost_bit(vp8_prob_half, extra & 1); // sign
                 dct_value_cost[i + DCT_MAX_VALUE] = cost;
             }
 
@@ -92,6 +98,7 @@ static void fill_value_tokens()
     vp8_dct_value_tokens_ptr = dct_value_tokens + DCT_MAX_VALUE;
     vp8_dct_value_cost_ptr   = dct_value_cost + DCT_MAX_VALUE;
 }
+*/
 
 static void tokenize2nd_order_b
 (
@@ -378,30 +385,27 @@ void vp8_tokenize_mb(VP8_COMP *cpi, MACROBLOCKD *x, TOKENEXTRA **t)
     x->mode_info_context->mbmi.mb_skip_coeff = mb_is_skippable(x, has_y2_block);
     if (x->mode_info_context->mbmi.mb_skip_coeff)
     {
-        cpi->skip_true_count++;
-
         if (!cpi->common.mb_no_coeff_skip)
-            vp8_stuff_mb(cpi, x, t) ;
+        {
+            vp8_stuff_mb(cpi, x, t);
+        }
         else
         {
             vp8_fix_contexts(x);
+            cpi->skip_true_count++;
         }
 
         return;
     }
-
-    cpi->skip_false_count++;
 
     plane_type = 3;
     if(has_y2_block)
     {
         tokenize2nd_order_b(x, t, cpi);
         plane_type = 0;
-
     }
 
     tokenize1st_order_b(x, t, plane_type, cpi);
-
 }
 
 
@@ -479,13 +483,7 @@ void print_context_counters()
 #endif
 
 
-void vp8_tokenize_initialize()
-{
-    fill_value_tokens();
-}
-
-
-static __inline void stuff2nd_order_b
+static void stuff2nd_order_b
 (
     TOKENEXTRA **tp,
     ENTROPY_CONTEXT *a,
@@ -509,7 +507,7 @@ static __inline void stuff2nd_order_b
 
 }
 
-static __inline void stuff1st_order_b
+static void stuff1st_order_b
 (
     TOKENEXTRA **tp,
     ENTROPY_CONTEXT *a,
@@ -533,7 +531,7 @@ static __inline void stuff1st_order_b
     *a = *l = pt;
 
 }
-static __inline
+static
 void stuff1st_order_buv
 (
     TOKENEXTRA **tp,
