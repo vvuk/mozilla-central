@@ -11,6 +11,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "vpx_rtcd.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vp8dx.h"
 #include "vpx/internal/vpx_codec_internal.h"
@@ -186,6 +187,8 @@ static vpx_codec_err_t vp8_init(vpx_codec_ctx_t *ctx,
 {
     vpx_codec_err_t        res = VPX_CODEC_OK;
     (void) data;
+
+    vpx_rtcd();
 
     /* This function only allocates space for the vpx_codec_alg_priv_t
      * structure. More memory may be required at the time the stream
@@ -390,8 +393,6 @@ static vpx_codec_err_t vp8_decode(vpx_codec_alg_priv_t  *ctx,
         {
             VP8D_CONFIG oxcf;
             struct VP8D_COMP* optr;
-
-            vp8dx_initialize();
 
             oxcf.Width = ctx->si.w;
             oxcf.Height = ctx->si.h;
@@ -700,7 +701,7 @@ static vpx_codec_err_t vp8_get_last_ref_updates(vpx_codec_alg_priv_t *ctx,
         return VPX_CODEC_INVALID_PARAM;
 }
 
-extern int vp8_references_buffer( VP8_COMMON *oci, int ref_frame );
+extern int vp8dx_references_buffer( VP8_COMMON *oci, int ref_frame );
 static vpx_codec_err_t vp8_get_last_ref_frame(vpx_codec_alg_priv_t *ctx,
                                               int ctrl_id,
                                               va_list args)
@@ -712,9 +713,9 @@ static vpx_codec_err_t vp8_get_last_ref_frame(vpx_codec_alg_priv_t *ctx,
     if (ref_info)
     {
         *ref_info =
-            (vp8_references_buffer( oci, ALTREF_FRAME )?VP8_ALTR_FRAME:0) |
-            (vp8_references_buffer( oci, GOLDEN_FRAME )?VP8_GOLD_FRAME:0) |
-            (vp8_references_buffer( oci, LAST_FRAME )?VP8_LAST_FRAME:0);
+            (vp8dx_references_buffer( oci, ALTREF_FRAME )?VP8_ALTR_FRAME:0) |
+            (vp8dx_references_buffer( oci, GOLDEN_FRAME )?VP8_GOLD_FRAME:0) |
+            (vp8dx_references_buffer( oci, LAST_FRAME )?VP8_LAST_FRAME:0);
 
         return VPX_CODEC_OK;
     }
@@ -752,6 +753,7 @@ vpx_codec_ctrl_fn_map_t vp8_ctf_maps[] =
     {VP8_SET_DBG_DISPLAY_MV,        vp8_set_dbg_options},
     {VP8D_GET_LAST_REF_UPDATES,     vp8_get_last_ref_updates},
     {VP8D_GET_FRAME_CORRUPTED,      vp8_get_frame_corrupted},
+    {VP8D_GET_LAST_REF_USED,        vp8_get_last_ref_frame},
     { -1, NULL},
 };
 
@@ -765,36 +767,6 @@ CODEC_INTERFACE(vpx_codec_vp8_dx) =
     VPX_CODEC_INTERNAL_ABI_VERSION,
     VPX_CODEC_CAP_DECODER | VP8_CAP_POSTPROC | VP8_CAP_ERROR_CONCEALMENT |
     VPX_CODEC_CAP_INPUT_FRAGMENTS,
-    /* vpx_codec_caps_t          caps; */
-    vp8_init,         /* vpx_codec_init_fn_t       init; */
-    vp8_destroy,      /* vpx_codec_destroy_fn_t    destroy; */
-    vp8_ctf_maps,     /* vpx_codec_ctrl_fn_map_t  *ctrl_maps; */
-    vp8_xma_get_mmap, /* vpx_codec_get_mmap_fn_t   get_mmap; */
-    vp8_xma_set_mmap, /* vpx_codec_set_mmap_fn_t   set_mmap; */
-    {
-        vp8_peek_si,      /* vpx_codec_peek_si_fn_t    peek_si; */
-        vp8_get_si,       /* vpx_codec_get_si_fn_t     get_si; */
-        vp8_decode,       /* vpx_codec_decode_fn_t     decode; */
-        vp8_get_frame,    /* vpx_codec_frame_get_fn_t  frame_get; */
-    },
-    { /* encoder functions */
-        NOT_IMPLEMENTED,
-        NOT_IMPLEMENTED,
-        NOT_IMPLEMENTED,
-        NOT_IMPLEMENTED,
-        NOT_IMPLEMENTED,
-        NOT_IMPLEMENTED
-    }
-};
-
-/*
- * BEGIN BACKWARDS COMPATIBILITY SHIM.
- */
-vpx_codec_iface_t vpx_codec_vp8_algo =
-{
-    "WebM Project VP8 Decoder (Deprecated API)" VERSION_STRING,
-    VPX_CODEC_INTERNAL_ABI_VERSION,
-    VPX_CODEC_CAP_DECODER | VP8_CAP_POSTPROC | VP8_CAP_ERROR_CONCEALMENT,
     /* vpx_codec_caps_t          caps; */
     vp8_init,         /* vpx_codec_init_fn_t       init; */
     vp8_destroy,      /* vpx_codec_destroy_fn_t    destroy; */

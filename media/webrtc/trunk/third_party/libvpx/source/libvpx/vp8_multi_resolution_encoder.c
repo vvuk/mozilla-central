@@ -212,7 +212,10 @@ int main(int argc, char **argv)
     double               psnr_totals[NUM_ENCODERS][4] = {{0,0}};
     int                  psnr_count[NUM_ENCODERS] = {0};
 
-    /* Set the required target bitrates for each resolution level. */
+    /* Set the required target bitrates for each resolution level.
+     * If target bitrate for highest-resolution level is set to 0,
+     * (i.e. target_bitrate[0]=0), we skip encoding at that level.
+     */
     unsigned int         target_bitrate[NUM_ENCODERS]={1400, 500, 100};
     /* Enter the frame rate of the input video */
     int                  framerate = 30;
@@ -241,6 +244,12 @@ int main(int argc, char **argv)
     /* Open output file for each encoder to output bitstreams */
     for (i=0; i< NUM_ENCODERS; i++)
     {
+        if(!target_bitrate[i])
+        {
+            outfile[i] = NULL;
+            continue;
+        }
+
         if(!(outfile[i] = fopen(argv[i+4], "wb")))
             die("Failed to open %s for writing", argv[i+4]);
     }
@@ -322,7 +331,8 @@ int main(int argc, char **argv)
         read_frame_p = read_frame_by_row;
 
     for (i=0; i< NUM_ENCODERS; i++)
-        write_ivf_file_header(outfile[i], &cfg[i], 0);
+        if(outfile[i])
+            write_ivf_file_header(outfile[i], &cfg[i], 0);
 
     /* Initialize multi-encoder */
     if(vpx_codec_enc_init_multi(&codec[0], interface, &cfg[0], NUM_ENCODERS,
@@ -428,10 +438,9 @@ int main(int argc, char **argv)
 
     fclose(infile);
 
+    printf("Processed %ld frames.\n",(long int)frame_cnt-1);
     for (i=0; i< NUM_ENCODERS; i++)
     {
-        printf("Processed %ld frames.\n",(long int)frame_cnt-1);
-
         /* Calculate PSNR and print it out */
         if ( (show_psnr) && (psnr_count[i]>0) )
         {
@@ -451,13 +460,17 @@ int main(int argc, char **argv)
         if(vpx_codec_destroy(&codec[i]))
             die_codec(&codec[i], "Failed to destroy codec");
 
+        vpx_img_free(&raw[i]);
+
+        if(!outfile[i])
+            continue;
+
         /* Try to rewrite the file header with the actual frame count */
         if(!fseek(outfile[i], 0, SEEK_SET))
             write_ivf_file_header(outfile[i], &cfg[i], frame_cnt-1);
         fclose(outfile[i]);
-
-        vpx_img_free(&raw[i]);
     }
+    printf("\n");
 
     return EXIT_SUCCESS;
 }

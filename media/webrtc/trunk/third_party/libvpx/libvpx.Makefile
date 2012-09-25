@@ -3,4 +3,4 @@
 export builddir_name ?= trunk/third_party/libvpx/out
 .PHONY: all
 all:
-	$(MAKE) -C ../.. libvpx
+	$(MAKE) -C ../.. libvpx_obj_int_extract libvpx_asm_offsets gen_asm_offsets libvpx

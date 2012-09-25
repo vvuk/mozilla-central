@@ -30,6 +30,7 @@
 #include <deque>
 #include <map>
 
+#include "talk/base/base64.h"
 #include "talk/base/basicpacketsocketfactory.h"
 #include "talk/base/common.h"
 #include "talk/base/gunit.h"
@@ -168,12 +169,23 @@ std::string GingleDescriptionXml(const std::string& content_type) {
 }
 
 std::string P2pCandidateXml(const std::string& name, int port_index) {
+  // Port will update the rtcp username by +1 on the last character. So we need
+  // to compensate here. See Port::username_fragment() for detail.
+  std::string username = GetUsername(port_index);
+  // TODO: Use the component id instead of the channel name to
+  // determinte if we need to covert the username here.
+  if (name == "rtcp" || name == "video_rtp" || name == "chanb") {
+    char next_ch = username[username.size() - 1];
+    ASSERT(username.size() > 0);
+    talk_base::Base64::GetNextBase64Char(next_ch, &next_ch);
+    username[username.size() - 1] = next_ch;
+  }
   return "<candidate"
       " name=\"" + name + "\""
       " address=\"127.0.0.1\""
       " port=\"" + GetPortString(port_index) + "\""
       " preference=\"1\""
-      " username=\"" + GetUsername(port_index) + "\""
+      " username=\"" + username + "\""
       " protocol=\"udp\""
       " generation=\"0\""
       " password=\"" + GetPassword(port_index) + "\""
@@ -588,10 +600,12 @@ std::string RedirectXml(SignalingProtocol protocol,
 // TODO: Break out and join with fakeportallocator.h
 class TestPortAllocatorSession : public cricket::PortAllocatorSession {
  public:
-  TestPortAllocatorSession(const std::string& name,
-                           const std::string& session_type,
+  TestPortAllocatorSession(const std::string& content_name,
+                           int component,
+                           const std::string& ice_ufrag,
+                           const std::string& ice_pwd,
                            const int port_offset)
-      : PortAllocatorSession(name, session_type, 0),
+      : PortAllocatorSession(content_name, component, ice_ufrag, ice_pwd, 0),
         port_offset_(port_offset),
         ports_(kNumPorts),
         address_("127.0.0.1", 0),
@@ -624,8 +638,8 @@ class TestPortAllocatorSession : public cricket::PortAllocatorSession {
   virtual bool IsGettingAllPorts() { return running_; }
 
   void AddPort(cricket::Port* port) {
-    port->set_name(name_);
-    port->set_preference(1.0);
+    port->set_component(component_);
+    port->SetPriority(2130706432U);  // pref = 1.0
     port->set_generation(0);
     port->SignalDestroyed.connect(
         this, &TestPortAllocatorSession::OnPortDestroyed);
@@ -635,7 +649,7 @@ class TestPortAllocatorSession : public cricket::PortAllocatorSession {
     SignalPortReady(this, port);
   }
 
-  void OnPortDestroyed(cricket::Port* port) {
+  void OnPortDestroyed(cricket::PortInterface* port) {
     for (size_t i = 0; i < ports_.size(); i++) {
       if (ports_[i] == port)
         ports_[i] = NULL;
@@ -643,7 +657,7 @@ class TestPortAllocatorSession : public cricket::PortAllocatorSession {
   }
 
   void OnAddressReady(cricket::Port* port) {
-    SignalCandidatesReady(this, port->candidates());
+    SignalCandidatesReady(this, port->Candidates());
   }
 
  private:
@@ -661,10 +675,14 @@ class TestPortAllocator : public cricket::PortAllocator {
   TestPortAllocator() : port_offset_(0) {}
 
   virtual cricket::PortAllocatorSession*
-  CreateSession(const std::string &name,
-                const std::string &content_type) {
+  CreateSessionInternal(
+                const std::string& content_name,
+                int component,
+                const std::string& ice_ufrag,
+                const std::string& ice_pwd) {
     port_offset_ += 2;
-    return new TestPortAllocatorSession(name, content_type, port_offset_ - 2);
+    return new TestPortAllocatorSession(content_name, component,
+                                        ice_ufrag, ice_pwd, port_offset_ - 2);
   }
 
   int port_offset_;
@@ -723,7 +741,7 @@ struct TestSessionClient: public cricket::SessionClient,
 
   virtual bool ParseContent(SignalingProtocol protocol,
                             const buzz::XmlElement* elem,
-                            const cricket::ContentDescription** content,
+                            cricket::ContentDescription** content,
                             cricket::ParseError* error) {
     std::string content_type;
     std::string gingle_content_type;
@@ -786,7 +804,7 @@ struct ChannelHandler : sigslot::has_slots<> {
   }
 
   void OnReadPacket(cricket::TransportChannel* p, const char* buf,
-                    size_t size) {
+                    size_t size, int flags) {
     if (memcmp(buf, name.c_str(), name.size()) != 0)
       return;  // drop packet if packet doesn't belong to this channel. This
                // can happen when transport channels are muxed together.
@@ -802,7 +820,8 @@ struct ChannelHandler : sigslot::has_slots<> {
   void Send(const char* data, size_t size) {
     std::string data_with_id(name);
     data_with_id += data;
-    int result = channel->SendPacket(data_with_id.c_str(), data_with_id.size());
+    int result = channel->SendPacket(data_with_id.c_str(), data_with_id.size(),
+                                     0);
     EXPECT_EQ(static_cast<int>(data_with_id.size()), result);
   }
 
@@ -821,6 +840,7 @@ void PrintStanza(const std::string& message,
 
 class TestClient : public sigslot::has_slots<> {
  public:
+  // TODO: Add channel_component_a/b as inputs to the ctor.
   TestClient(cricket::PortAllocator* port_allocator,
              int* next_message_id,
              const std::string& local_name,
@@ -948,17 +968,17 @@ class TestClient : public sigslot::has_slots<> {
   }
 
   bool HasChannel(const std::string& content_name,
-                  const std::string& channel_name) const {
+                  int component) const {
     ASSERT(session != NULL);
     const cricket::TransportChannel* channel =
-        session->GetChannel(content_name, channel_name);
-    return channel != NULL && (channel_name == channel->name());
+        session->GetChannel(content_name, component);
+    return channel != NULL && (component == channel->component());
   }
 
   cricket::TransportChannel* GetChannel(const std::string& content_name,
-                                        const std::string& channel_name) const {
+                                        int component) const {
     ASSERT(session != NULL);
-    return session->GetChannel(content_name, channel_name);
+    return session->GetChannel(content_name, component);
   }
 
   void OnSessionCreate(cricket::Session* created_session, bool initiate) {
@@ -966,7 +986,6 @@ class TestClient : public sigslot::has_slots<> {
 
     session = created_session;
     session->set_current_protocol(start_protocol);
-    session->set_allow_local_ips(true);
     session->SignalState.connect(this, &TestClient::OnSessionState);
     session->SignalError.connect(this, &TestClient::OnSessionError);
     session->SignalRemoteDescriptionUpdate.connect(
@@ -1040,9 +1059,11 @@ class TestClient : public sigslot::has_slots<> {
   void CreateChannels() {
     ASSERT(session != NULL);
     chan_a = new ChannelHandler(
-        session->CreateChannel(content_name_a, channel_name_a), channel_name_a);
+        session->CreateChannel(content_name_a, channel_name_a, 1),
+        channel_name_a);
     chan_b = new ChannelHandler(
-        session->CreateChannel(content_name_b, channel_name_b), channel_name_b);
+        session->CreateChannel(content_name_b, channel_name_b, 2),
+        channel_name_b);
   }
 
   int* next_message_id;
@@ -1165,9 +1186,9 @@ class SessionTest : public testing::Test {
               initiator->session_state());
 
     EXPECT_TRUE(initiator->HasTransport(content_name_a));
-    EXPECT_TRUE(initiator->HasChannel(content_name_a, channel_name_a));
+    EXPECT_TRUE(initiator->HasChannel(content_name_a, 1));
     EXPECT_TRUE(initiator->HasTransport(content_name_b));
-    EXPECT_TRUE(initiator->HasChannel(content_name_b, channel_name_b));
+    EXPECT_TRUE(initiator->HasChannel(content_name_b, 2));
 
     // Initiate and expect initiate message sent.
     cricket::SessionDescription* offer = NewTestSessionDescription(
@@ -1208,9 +1229,9 @@ class SessionTest : public testing::Test {
               responder->session_state());
 
     EXPECT_TRUE(responder->HasTransport(content_name_a));
-    EXPECT_TRUE(responder->HasChannel(content_name_a, channel_name_a));
+    EXPECT_TRUE(responder->HasChannel(content_name_a, 1));
     EXPECT_TRUE(responder->HasTransport(content_name_b));
-    EXPECT_TRUE(responder->HasChannel(content_name_b, channel_name_b));
+    EXPECT_TRUE(responder->HasChannel(content_name_b, 2));
 
     // Expect transport-info message from initiator.
     // But don't send candidates until initiate ack is received.
@@ -1436,9 +1457,9 @@ class SessionTest : public testing::Test {
     std::string content_name = "main";
     std::string content_type = "http://oink.splat/session";
     std::string content_name_a = content_name;
-    std::string channel_name_a = "rtcp";
+    std::string channel_name_a = "rtp";
     std::string content_name_b = content_name;
-    std::string channel_name_b = "rtp";
+    std::string channel_name_b = "rtcp";
     std::string initiate_xml = InitiateXml(
         initiator_protocol,
         content_name_a, content_type);
@@ -1475,8 +1496,8 @@ class SessionTest : public testing::Test {
     std::string gingle_content_type = cricket::NS_GINGLE_AUDIO;
     std::string content_name = cricket::CN_AUDIO;
     std::string content_type = cricket::NS_JINGLE_RTP;
-    std::string channel_name_a = "rtcp";
-    std::string channel_name_b = "rtp";
+    std::string channel_name_a = "rtp";
+    std::string channel_name_b = "rtcp";
     std::string initiate_xml = InitiateXml(
         initiator_protocol,
         gingle_content_type,
@@ -1518,7 +1539,7 @@ class SessionTest : public testing::Test {
     std::string content_type = cricket::NS_JINGLE_RTP;
     std::string gingle_content_type = cricket::NS_GINGLE_VIDEO;
     std::string content_name_a = cricket::CN_AUDIO;
-    std::string channel_name_a = "rtcp";
+    std::string channel_name_a = "rtp";
     std::string content_name_b = cricket::CN_VIDEO;
     std::string channel_name_b = "video_rtp";
 
@@ -1601,8 +1622,8 @@ class SessionTest : public testing::Test {
     EXPECT_EQ(cricket::BaseSession::STATE_INIT,
               initiator->session_state());
 
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_a));
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_b));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 1));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 2));
 
     // Initiate and expect initiate message sent.
     cricket::SessionDescription* offer = NewTestSessionDescription(
@@ -1683,8 +1704,8 @@ class SessionTest : public testing::Test {
     EXPECT_EQ(cricket::BaseSession::STATE_INIT,
               initiator->session_state());
 
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_a));
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_b));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 1));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 2));
 
     // Initiate and expect initiate message sent.
     cricket::SessionDescription* offer = NewTestSessionDescription(
@@ -1738,8 +1759,8 @@ class SessionTest : public testing::Test {
     EXPECT_EQ(cricket::BaseSession::STATE_RECEIVEDINITIATE,
               responder->session_state());
 
-    EXPECT_TRUE(responder->HasChannel(content_name, channel_name_a));
-    EXPECT_TRUE(responder->HasChannel(content_name, channel_name_b));
+    EXPECT_TRUE(responder->HasChannel(content_name, 1));
+    EXPECT_TRUE(responder->HasChannel(content_name, 2));
 
     // Deliver transport-info and expect ack.
     responder->DeliverStanza(
@@ -1798,8 +1819,8 @@ class SessionTest : public testing::Test {
   void TestCandidatesInInitiateAndAccept(const std::string& test_name) {
     std::string content_name = "main";
     std::string content_type = "http://oink.splat/session";
-    std::string channel_name_a = "rtcp";
-    std::string channel_name_b = "rtp";
+    std::string channel_name_a = "rtp";
+    std::string channel_name_b = "rtcp";
     cricket::SignalingProtocol protocol = PROTOCOL_JINGLE;
 
     talk_base::scoped_ptr<cricket::PortAllocator> allocator(
@@ -1823,9 +1844,9 @@ class SessionTest : public testing::Test {
     // Create Session and check channels and state.
     initiator->CreateSession();
     EXPECT_TRUE(initiator->HasTransport(content_name));
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_a));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 1));
     EXPECT_TRUE(initiator->HasTransport(content_name));
-    EXPECT_TRUE(initiator->HasChannel(content_name, channel_name_b));
+    EXPECT_TRUE(initiator->HasChannel(content_name, 2));
 
     // Initiate and expect initiate message sent.
     cricket::SessionDescription* offer = NewTestSessionDescription(
@@ -1861,9 +1882,9 @@ class SessionTest : public testing::Test {
               responder->session_state());
 
     EXPECT_TRUE(responder->HasTransport(content_name));
-    EXPECT_TRUE(responder->HasChannel(content_name, channel_name_a));
+    EXPECT_TRUE(responder->HasChannel(content_name, 1));
     EXPECT_TRUE(responder->HasTransport(content_name));
-    EXPECT_TRUE(responder->HasChannel(content_name, channel_name_b));
+    EXPECT_TRUE(responder->HasChannel(content_name, 2));
 
     // Expect transport-info message from initiator.
     // But don't send candidates until initiate ack is received.
@@ -2035,7 +2056,7 @@ class SessionTest : public testing::Test {
     std::string content_type = cricket::NS_JINGLE_RTP;
     std::string gingle_content_type = cricket::NS_GINGLE_VIDEO;
     std::string content_name_a = cricket::CN_AUDIO;
-    std::string channel_name_a = "rtcp";
+    std::string channel_name_a = "rtp";
     std::string content_name_b = cricket::CN_VIDEO;
     std::string channel_name_b = "video_rtp";
 
@@ -2129,7 +2150,6 @@ TEST_F(SessionTest, GingleToGingleVideoContents) {
   TestVideoContents(PROTOCOL_GINGLE, PROTOCOL_GINGLE, PROTOCOL_GINGLE);
 }
 
-
 // Jingle => Jingle = Jingle (with other content)
 TEST_F(SessionTest, JingleToJingleOtherContent) {
   TestOtherContent(PROTOCOL_JINGLE, PROTOCOL_JINGLE, PROTOCOL_JINGLE);
@@ -2144,7 +2164,6 @@ TEST_F(SessionTest, JingleToJingleAudioContent) {
 TEST_F(SessionTest, JingleToJingleVideoContents) {
   TestVideoContents(PROTOCOL_JINGLE, PROTOCOL_JINGLE, PROTOCOL_JINGLE);
 }
-
 
 // Hybrid => Hybrid = Jingle (with other content)
 TEST_F(SessionTest, HybridToHybridOtherContent) {
@@ -2161,7 +2180,6 @@ TEST_F(SessionTest, HybridToHybridVideoContents) {
   TestVideoContents(PROTOCOL_HYBRID, PROTOCOL_HYBRID, PROTOCOL_JINGLE);
 }
 
-
 // Gingle => Hybrid = Gingle (with other content)
 TEST_F(SessionTest, GingleToHybridOtherContent) {
   TestOtherContent(PROTOCOL_GINGLE, PROTOCOL_HYBRID, PROTOCOL_GINGLE);
@@ -2176,7 +2194,6 @@ TEST_F(SessionTest, GingleToHybridAudioContent) {
 TEST_F(SessionTest, GingleToHybridVideoContents) {
   TestVideoContents(PROTOCOL_GINGLE, PROTOCOL_HYBRID, PROTOCOL_GINGLE);
 }
-
 
 // Jingle => Hybrid = Jingle (with other content)
 TEST_F(SessionTest, JingleToHybridOtherContent) {
@@ -2193,7 +2210,6 @@ TEST_F(SessionTest, JingleToHybridVideoContents) {
   TestVideoContents(PROTOCOL_JINGLE, PROTOCOL_HYBRID, PROTOCOL_JINGLE);
 }
 
-
 // Hybrid => Gingle = Gingle (with other content)
 TEST_F(SessionTest, HybridToGingleOtherContent) {
   TestOtherContent(PROTOCOL_HYBRID, PROTOCOL_GINGLE, PROTOCOL_GINGLE);
@@ -2209,7 +2225,6 @@ TEST_F(SessionTest, HybridToGingleVideoContents) {
   TestVideoContents(PROTOCOL_HYBRID, PROTOCOL_GINGLE, PROTOCOL_GINGLE);
 }
 
-
 // Hybrid => Jingle = Jingle (with other content)
 TEST_F(SessionTest, HybridToJingleOtherContent) {
   TestOtherContent(PROTOCOL_HYBRID, PROTOCOL_JINGLE, PROTOCOL_JINGLE);
@@ -2224,7 +2239,6 @@ TEST_F(SessionTest, HybridToJingleAudioContent) {
 TEST_F(SessionTest, HybridToJingleVideoContents) {
   TestVideoContents(PROTOCOL_HYBRID, PROTOCOL_JINGLE, PROTOCOL_JINGLE);
 }
-
 
 TEST_F(SessionTest, GingleEarlyTerminationFromInitiator) {
   TestEarlyTerminationFromInitiator(PROTOCOL_GINGLE);

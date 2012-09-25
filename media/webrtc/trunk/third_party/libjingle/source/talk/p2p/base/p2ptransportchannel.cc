@@ -29,18 +29,19 @@
 
 #include <set>
 #include "talk/base/common.h"
+#include "talk/base/crc32.h"
 #include "talk/base/logging.h"
 #include "talk/p2p/base/common.h"
 #include "talk/p2p/base/relayport.h"  // For RELAY_PORT_TYPE.
 #include "talk/p2p/base/stunport.h"  // For STUN_PORT_TYPE.
-#include "talk/p2p/client/basicportallocator.h"  // For PREF_LOCAL_STUN.
 
 namespace {
 
 // messages for queuing up work for ourselves
-const uint32 MSG_SORT = 1;
-const uint32 MSG_PING = 2;
-const uint32 MSG_ALLOCATE = 3;
+enum {
+  MSG_SORT = 1,
+  MSG_PING,
+};
 
 // When the socket is unwritable, we will use 10 Kbps (ignoring IP+UDP headers)
 // for pinging.  When the socket is writable, we will use only 1 Kbps because
@@ -58,30 +59,20 @@ static const uint32 MAX_CURRENT_WRITABLE_DELAY = 900;  // 2*WRITABLE_DELAY - bit
 // The minimum improvement in RTT that justifies a switch.
 static const double kMinImprovement = 10;
 
-// Amount of time that we wait when *losing* writability before we try doing
-// another allocation.
-static const int kAllocateDelay = 1 * 1000;  // 1 second
-
-// We will try creating a new allocator from scratch after a delay of this
-// length without becoming writable (or timing out).
-static const int kAllocatePeriod = 20 * 1000;  // 20 seconds
-
-cricket::Port::CandidateOrigin GetOrigin(cricket::Port* port,
-                                         cricket::Port* origin_port) {
+cricket::PortInterface::CandidateOrigin GetOrigin(cricket::PortInterface* port,
+                                         cricket::PortInterface* origin_port) {
   if (!origin_port)
-    return cricket::Port::ORIGIN_MESSAGE;
+    return cricket::PortInterface::ORIGIN_MESSAGE;
   else if (port == origin_port)
-    return cricket::Port::ORIGIN_THIS_PORT;
+    return cricket::PortInterface::ORIGIN_THIS_PORT;
   else
-    return cricket::Port::ORIGIN_OTHER_PORT;
+    return cricket::PortInterface::ORIGIN_OTHER_PORT;
 }
 
 // Compares two connections based only on static information about them.
 int CompareConnectionCandidates(cricket::Connection* a,
                                 cricket::Connection* b) {
   // Combine local and remote preferences
-  ASSERT(a->local_candidate().preference() == a->port()->preference());
-  ASSERT(b->local_candidate().preference() == b->port()->preference());
   double a_pref = a->local_candidate().preference()
                 * a->remote_candidate().preference();
   double b_pref = b->local_candidate().preference()
@@ -164,11 +155,11 @@ bool ShouldSwitch(cricket::Connection* a_conn, cricket::Connection* b_conn) {
 
 namespace cricket {
 
-P2PTransportChannel::P2PTransportChannel(const std::string &name,
-                                         const std::string &content_type,
+P2PTransportChannel::P2PTransportChannel(const std::string& content_name,
+                                         int component,
                                          P2PTransport* transport,
                                          PortAllocator *allocator) :
-    TransportChannelImpl(name, content_type),
+    TransportChannelImpl(content_name, component),
     transport_(transport),
     allocator_(allocator),
     worker_thread_(talk_base::Thread::Current()),
@@ -176,10 +167,12 @@ P2PTransportChannel::P2PTransportChannel(const std::string &name,
     waiting_for_signaling_(false),
     error_(0),
     best_connection_(NULL),
-    pinging_started_(false),
     sort_dirty_(false),
     was_writable_(false),
-    was_timed_out_(true) {
+    was_timed_out_(true),
+    protocol_type_(ICEPROTO_GOOGLE),
+    role_(ROLE_UNKNOWN),
+    tiebreaker_(0) {
 }
 
 P2PTransportChannel::~P2PTransportChannel() {
@@ -206,14 +199,36 @@ void P2PTransportChannel::AddAllocatorSession(PortAllocatorSession* session) {
   session->SignalCandidatesAllocationDone.connect(
       this, &P2PTransportChannel::OnCandidatesAllocationDone);
   session->GetInitialPorts();
-  if (pinging_started_)
-    session->StartGetAllPorts();
+  session->StartGetAllPorts();
+}
+
+void P2PTransportChannel::SetRole(TransportRole role) {
+  role_ = role;
+  for (std::vector<PortInterface *>::iterator it = ports_.begin();
+       it != ports_.end(); ++it) {
+    (*it)->SetRole(role_);
+  }
+  // TODO - Recompute the priorites for the connections.
+}
+
+void P2PTransportChannel::SetIceUfrag(const std::string& ice_ufrag) {
+  ice_ufrag_ = ice_ufrag;
+}
+
+void P2PTransportChannel::SetIcePwd(const std::string& ice_pwd) {
+  ice_pwd_ = ice_pwd;
 }
 
 // Go into the state of processing candidates, and running in general
 void P2PTransportChannel::Connect() {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
-
+  if (ice_ufrag_.empty() || ice_pwd_.empty()) {
+    // TODO: Fix all the cases that reach here and return error.
+    LOG(LS_WARNING) << "P2PTransportChannel::Connect: The ice_ufrag_ and the "
+                    << "ice_pwd_ were not set. Will generate one.";
+    ice_ufrag_ = talk_base::CreateRandomString(ICE_UFRAG_LENGTH);
+    ice_pwd_ = talk_base::CreateRandomString(ICE_PWD_LENGTH);
+  }
   // Kick off an allocator session
   Allocate();
 
@@ -243,7 +258,6 @@ void P2PTransportChannel::Reset() {
 
   // Reinitialize the rest of our state.
   waiting_for_signaling_ = false;
-  pinging_started_ = false;
   sort_dirty_ = false;
   was_writable_ = false;
   was_timed_out_ = true;
@@ -259,7 +273,7 @@ void P2PTransportChannel::Reset() {
 
 // A new port is available, attempt to make connections for it
 void P2PTransportChannel::OnPortReady(PortAllocatorSession *session,
-                                      Port* port) {
+                                      PortInterface* port) {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
 
   // Set in-effect options on the new port
@@ -278,10 +292,15 @@ void P2PTransportChannel::OnPortReady(PortAllocatorSession *session,
   // The session will handle this, and send an initiate/accept/modify message
   // if one is pending.
 
+  port->SetIceProtocolType(protocol_type_);
+  port->SetRole(role_);
+  port->SetTiebreaker(tiebreaker_);
   ports_.push_back(port);
   port->SignalUnknownAddress.connect(
       this, &P2PTransportChannel::OnUnknownAddress);
   port->SignalDestroyed.connect(this, &P2PTransportChannel::OnPortDestroyed);
+  port->SignalRoleConflict.connect(
+      this, &P2PTransportChannel::OnRoleConflict);
 
   // Attempt to create a connection from this new port to all of the remote
   // candidates that we were given so far.
@@ -298,6 +317,7 @@ void P2PTransportChannel::OnPortReady(PortAllocatorSession *session,
 // A new candidate is available, let listeners know
 void P2PTransportChannel::OnCandidatesReady(
     PortAllocatorSession *session, const std::vector<Candidate>& candidates) {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
   for (size_t i = 0; i < candidates.size(); ++i) {
     SignalCandidateReady(this, candidates[i]);
   }
@@ -305,27 +325,46 @@ void P2PTransportChannel::OnCandidatesReady(
 
 void P2PTransportChannel::OnCandidatesAllocationDone(
     PortAllocatorSession* session) {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
   SignalCandidatesAllocationDone(this);
 }
 
 // Handle stun packets
 void P2PTransportChannel::OnUnknownAddress(
-    Port *port, const talk_base::SocketAddress &address, StunMessage *stun_msg,
-    const std::string &remote_username, bool port_muxed) {
+    PortInterface* port,
+    const talk_base::SocketAddress& address, ProtocolType proto,
+    IceMessage* stun_msg, const std::string &remote_username,
+    bool port_muxed) {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
 
   // Port has received a valid stun packet from an address that no Connection
   // is currently available for. See if we already have a candidate with the
   // address. If it isn't we need to create new candidate for it.
+
+  // Determine if the remote candidates use shared ufrag.
+  bool ufrag_per_port = false;
+  std::vector<RemoteCandidate>::iterator it;
+  if (remote_candidates_.size() > 0) {
+    it = remote_candidates_.begin();
+    std::string username = it->username();
+    for (; it != remote_candidates_.end(); ++it) {
+      if (it->username() != username) {
+        ufrag_per_port = true;
+        break;
+      }
+    }
+  }
+
   const Candidate* candidate = NULL;
   bool known_username = false;
   std::string remote_password;
-  std::vector<RemoteCandidate>::iterator it;
   for (it = remote_candidates_.begin(); it != remote_candidates_.end(); ++it) {
-    if ((*it).username() == remote_username) {
-      remote_password = (*it).password();
+    if (it->username() == remote_username) {
+      remote_password = it->password();
       known_username = true;
-      if ((*it).address() == address) {
+      if (ufrag_per_port ||
+          (it->address() == address &&
+           it->protocol() == ProtoToString(proto))) {
         candidate = &(*it);
         break;
       }
@@ -346,13 +385,15 @@ void P2PTransportChannel::OnUnknownAddress(
     // message.  It is totally valid; the retry state machine will try again.
     port->SendBindingErrorResponse(stun_msg, address,
         STUN_ERROR_STALE_CREDENTIALS, STUN_ERROR_REASON_STALE_CREDENTIALS);
-    delete stun_msg;
     return;
   }
 
   Candidate new_remote_candidate;
   if (candidate != NULL) {
     new_remote_candidate = *candidate;
+    if (ufrag_per_port) {
+      new_remote_candidate.set_address(address);
+    }
   } else {
     // Create a new candidate with this address.
 
@@ -362,21 +403,18 @@ void P2PTransportChannel::OnUnknownAddress(
     // TODO: Fix this by adding a new type as peer-reflexive
     // candidate. So that all the new candidates created here will be the
     // peer-reflexive candidate.
-    std::string type = port->type();
+    std::string type = port->Type();
     if (type == RELAY_PORT_TYPE) {
       type = STUN_PORT_TYPE;
-    }
-    // TODO: Figure out the proper way to determine the protocol.
-    ProtocolType protocol = PROTO_UDP;
-    if (port->preference() == PREF_LOCAL_TCP) {
-      protocol = PROTO_TCP;
     }
     // TODO: Change the preference to the preference of
     // the peer-reflexive candidate when it's ready.
     // For now just default to a STUN preference.
-    new_remote_candidate = Candidate(name(), ProtoToString(protocol),
-        address, PREF_LOCAL_STUN, remote_username, remote_password, type,
-        port->network()->name(), 0);
+    std::string id = talk_base::CreateRandomString(8);
+    new_remote_candidate = Candidate(
+        id, component(), ProtoToString(proto),
+        address, PRIORITY_LOCAL_STUN, remote_username, remote_password, type,
+        port->Network()->name(), 0U, talk_base::ComputeCrc32(id));
   }
 
   // Check for connectivity to this address. Create connections
@@ -397,8 +435,21 @@ void P2PTransportChannel::OnUnknownAddress(
     port->SendBindingErrorResponse(stun_msg, address, STUN_ERROR_SERVER_ERROR,
         STUN_ERROR_REASON_SERVER_ERROR);
   }
+}
 
-  delete stun_msg;
+void P2PTransportChannel::OnRoleConflict() {
+  SignalRoleConflict(this);  // STUN ping will be sent when SetRole is called
+                             // from Transport.
+}
+
+// When the signalling channel is ready, we can really kick off the allocator
+void P2PTransportChannel::OnSignalingReady() {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
+  if (waiting_for_signaling_) {
+    waiting_for_signaling_ = false;
+    AddAllocatorSession(allocator_->CreateSession(
+        SessionId(), content_name(), component(), ice_ufrag_, ice_pwd_));
+  }
 }
 
 void P2PTransportChannel::OnCandidate(const Candidate& candidate) {
@@ -415,7 +466,7 @@ void P2PTransportChannel::OnCandidate(const Candidate& candidate) {
 // remote candidate.  The return value is true if we created a connection from
 // the origin port.
 bool P2PTransportChannel::CreateConnections(const Candidate &remote_candidate,
-                                            Port* origin_port,
+                                            PortInterface* origin_port,
                                             bool readable) {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
 
@@ -427,7 +478,7 @@ bool P2PTransportChannel::CreateConnections(const Candidate &remote_candidate,
 
   bool created = false;
 
-  std::vector<Port *>::reverse_iterator it;
+  std::vector<PortInterface *>::reverse_iterator it;
   for (it = ports_.rbegin(); it != ports_.rend(); ++it) {
     if (CreateConnection(*it, remote_candidate, origin_port, readable)) {
       if (*it == origin_port)
@@ -449,9 +500,9 @@ bool P2PTransportChannel::CreateConnections(const Candidate &remote_candidate,
 
 // Setup a connection object for the local and remote candidate combination.
 // And then listen to connection object for changes.
-bool P2PTransportChannel::CreateConnection(Port* port,
+bool P2PTransportChannel::CreateConnection(PortInterface* port,
                                            const Candidate& remote_candidate,
-                                           Port* origin_port,
+                                           PortInterface* origin_port,
                                            bool readable) {
   // Look for an existing connection with this remote address.  If one is not
   // found, then we can create a new connection for this address.
@@ -464,11 +515,11 @@ bool P2PTransportChannel::CreateConnection(Port* port,
       return false;
     }
   } else {
-    Port::CandidateOrigin origin = GetOrigin(port, origin_port);
+    PortInterface::CandidateOrigin origin = GetOrigin(port, origin_port);
 
     // Don't create connection if this is a candidate we received in a
     // message and we are not allowed to make outgoing connections.
-    if (origin == cricket::Port::ORIGIN_MESSAGE && incoming_only_)
+    if (origin == cricket::PortInterface::ORIGIN_MESSAGE && incoming_only_)
       return false;
 
     connection = port->CreateConnection(remote_candidate, origin);
@@ -504,7 +555,7 @@ bool P2PTransportChannel::FindConnection(
 
 // Maintain our remote candidate list, adding this new remote one.
 void P2PTransportChannel::RememberRemoteCandidate(
-    const Candidate& remote_candidate, Port* origin_port) {
+    const Candidate& remote_candidate, PortInterface* origin_port) {
   // Remove any candidates whose generation is older than this one.  The
   // presence of a new generation indicates that the old ones are not useful.
   uint32 i = 0;
@@ -529,24 +580,43 @@ void P2PTransportChannel::RememberRemoteCandidate(
 
   // Try this candidate for all future ports.
   remote_candidates_.push_back(RemoteCandidate(remote_candidate, origin_port));
-
-  // We have some candidates from the other side, we are now serious about
-  // this connection.  Let's do the StartGetAllPorts thing.
-  if (!pinging_started_) {
-    pinging_started_ = true;
-    for (size_t i = 0; i < allocator_sessions_.size(); ++i) {
-      if (!allocator_sessions_[i]->IsGettingAllPorts())
-        allocator_sessions_[i]->StartGetAllPorts();
-    }
-  }
 }
 
-// Send data to the other side, using our best connection
-int P2PTransportChannel::SendPacket(const char *data, size_t len) {
-  // This can get called on any thread that is convenient to write from!
+
+// Set options on ourselves is simply setting options on all of our available
+// port objects.
+int P2PTransportChannel::SetOption(talk_base::Socket::Option opt, int value) {
+  OptionMap::iterator it = options_.find(opt);
+  if (it == options_.end()) {
+    options_.insert(std::make_pair(opt, value));
+  } else if (it->second == value) {
+    return 0;
+  } else {
+    it->second = value;
+  }
+
+  for (uint32 i = 0; i < ports_.size(); ++i) {
+    int val = ports_[i]->SetOption(opt, value);
+    if (val < 0) {
+      // Because this also occurs deferred, probably no point in reporting an
+      // error
+      LOG(WARNING) << "SetOption(" << opt << ", " << value << ") failed: "
+                   << ports_[i]->GetError();
+    }
+  }
+  return 0;
+}
+
+// Send data to the other side, using our best connection.
+int P2PTransportChannel::SendPacket(const char *data, size_t len, int flags) {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
+  if (flags != 0) {
+    error_ = EINVAL;
+    return -1;
+  }
   if (best_connection_ == NULL) {
     error_ = EWOULDBLOCK;
-    return SOCKET_ERROR;
+    return -1;
   }
   int sent = best_connection_->Send(data, len);
   if (sent <= 0) {
@@ -556,21 +626,47 @@ int P2PTransportChannel::SendPacket(const char *data, size_t len) {
   return sent;
 }
 
+bool P2PTransportChannel::GetStats(ConnectionInfos *infos) {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
+  // Gather connection infos.
+  infos->clear();
+
+  std::vector<Connection *>::const_iterator it;
+  for (it = connections_.begin(); it != connections_.end(); ++it) {
+    Connection *connection = *it;
+    ConnectionInfo info;
+    info.best_connection = (best_connection_ == connection);
+    info.readable =
+        (connection->read_state() == Connection::STATE_READABLE);
+    info.writable =
+        (connection->write_state() == Connection::STATE_WRITABLE);
+    info.timeout =
+        (connection->write_state() == Connection::STATE_WRITE_TIMEOUT);
+    info.new_connection = !connection->reported();
+    connection->set_reported(true);
+    info.rtt = connection->rtt();
+    info.sent_total_bytes = connection->sent_total_bytes();
+    info.sent_bytes_second = connection->sent_bytes_second();
+    info.recv_total_bytes = connection->recv_total_bytes();
+    info.recv_bytes_second = connection->recv_bytes_second();
+    info.local_candidate = connection->local_candidate();
+    info.remote_candidate = connection->remote_candidate();
+    info.key = connection;
+    infos->push_back(info);
+  }
+
+  return true;
+}
+
 // Begin allocate (or immediately re-allocate, if MSG_ALLOCATE pending)
 void P2PTransportChannel::Allocate() {
-  CancelPendingAllocate();
   // Time for a new allocator, lets make sure we have a signalling channel
   // to communicate candidates through first.
   waiting_for_signaling_ = true;
   SignalRequestSignaling(this);
 }
 
-// Cancels the pending allocate, if any.
-void P2PTransportChannel::CancelPendingAllocate() {
-  thread()->Clear(this, MSG_ALLOCATE);
-}
-
-// Monitor connection states
+// Monitor connection states.
 void P2PTransportChannel::UpdateConnectionStates() {
   uint32 now = talk_base::Time();
 
@@ -580,7 +676,7 @@ void P2PTransportChannel::UpdateConnectionStates() {
     connections_[i]->UpdateState(now);
 }
 
-// Prepare for best candidate sorting
+// Prepare for best candidate sorting.
 void P2PTransportChannel::RequestSort() {
   if (!sort_dirty_) {
     worker_thread_->Post(this, MSG_SORT);
@@ -604,7 +700,7 @@ void P2PTransportChannel::SortConnections() {
   // Get a list of the networks that we are using.
   std::set<talk_base::Network*> networks;
   for (uint32 i = 0; i < connections_.size(); ++i)
-    networks.insert(connections_[i]->port()->network());
+    networks.insert(connections_[i]->port()->Network());
 
   // Find the best alternative connection by sorting.  It is important to note
   // that amongst equal preference, writable connections, this will choose the
@@ -640,7 +736,7 @@ void P2PTransportChannel::SortConnections() {
 
     for (uint32 i = 0; i < connections_.size(); ++i) {
       if ((connections_[i] != primier) &&
-          (connections_[i]->port()->network() == *network) &&
+          (connections_[i]->port()->Network() == *network) &&
           (CompareConnectionCandidates(primier, connections_[i]) >= 0)) {
         connections_[i]->Prune();
       }
@@ -680,9 +776,6 @@ void P2PTransportChannel::SortConnections() {
   // Update the state of this channel.  This method is called whenever the
   // state of any connection changes, so this is a good place to do this.
   UpdateChannelState();
-
-  // Notify of connection state change
-  SignalConnectionMonitor(this);
 }
 
 // Track the best connection, and let listeners know
@@ -700,6 +793,7 @@ void P2PTransportChannel::SwitchBestConnectionTo(Connection* conn) {
     LOG_J(LS_INFO, this) << "New best connection: "
                          << best_connection_->ToString();
     SignalRouteChange(this, best_connection_->remote_candidate());
+    NominateBestConnection();
   } else {
     LOG_J(LS_INFO, this) << "No best connection";
   }
@@ -726,6 +820,7 @@ void P2PTransportChannel::UpdateChannelState() {
 // We checked the status of our connections and we had at least one that
 // was writable, go into the writable state.
 void P2PTransportChannel::HandleWritable() {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
   //
   // One or more connections writable!
   //
@@ -735,9 +830,6 @@ void P2PTransportChannel::HandleWritable() {
         allocator_sessions_[i]->StopGetAllPorts();
       }
     }
-
-    // Stop further allocations.
-    CancelPendingAllocate();
   }
 
   // We're writable, obviously we aren't timed out
@@ -750,6 +842,7 @@ void P2PTransportChannel::HandleWritable() {
 // were writable, go into the connecting state (kick off a new allocator
 // session).
 void P2PTransportChannel::HandleNotWritable() {
+  ASSERT(worker_thread_ == talk_base::Thread::Current());
   //
   // No connections are writable but not timed out!
   //
@@ -790,28 +883,48 @@ void P2PTransportChannel::HandleAllTimedOut() {
 Connection* P2PTransportChannel::GetBestConnectionOnNetwork(
     talk_base::Network* network) {
   // If the best connection is on this network, then it wins.
-  if (best_connection_ && (best_connection_->port()->network() == network))
+  if (best_connection_ && (best_connection_->port()->Network() == network))
     return best_connection_;
 
   // Otherwise, we return the top-most in sorted order.
   for (uint32 i = 0; i < connections_.size(); ++i) {
-    if (connections_[i]->port()->network() == network)
+    if (connections_[i]->port()->Network() == network)
       return connections_[i];
   }
 
   return NULL;
 }
 
+void P2PTransportChannel::NominateBestConnection() {
+  // If we have best possible connection, which may not be in writable state
+  // yet, that means we can cease connection checks and time to send stun ping
+  // with USE-CANDIDATE.
+  // As per RFC 5245 we should't do any further connection checks,
+  // but libjingle may send new connection requests if candidates are still
+  // trickling down from the remote. Final candidate pair should be decided on
+  // the priority, but until we have priorities for candidates we will stick
+  // with best_connection.
+  if ((best_connection_ != NULL) &&
+      (best_connection_->port()->IceProtocol() == ICEPROTO_RFC5245) &&
+      (role_ == ROLE_CONTROLLING)) {
+    best_connection_->set_nominated(true);
+    best_connection_->Ping(talk_base::Time());
+  }
+}
+
 // Handle any queued up requests
 void P2PTransportChannel::OnMessage(talk_base::Message *pmsg) {
-  if (pmsg->message_id == MSG_SORT)
-    OnSort();
-  else if (pmsg->message_id == MSG_PING)
-    OnPing();
-  else if (pmsg->message_id == MSG_ALLOCATE)
-    Allocate();
-  else
-    ASSERT(false);
+  switch (pmsg->message_id) {
+    case MSG_SORT:
+      OnSort();
+      break;
+    case MSG_PING:
+      OnPing();
+      break;
+    default:
+      ASSERT(false);
+      break;
+  }
 }
 
 // Handle queued up sort request
@@ -884,11 +997,11 @@ Connection* P2PTransportChannel::FindNextPingableConnection() {
 }
 
 // return the number of "pingable" connections
-uint32 P2PTransportChannel::NumPingableConnections() {
-  uint32 count = 0;
-  for (uint32 i = 0; i < connections_.size(); ++i) {
+int P2PTransportChannel::NumPingableConnections() {
+  int count = 0;
+  for (size_t i = 0; i < connections_.size(); ++i) {
     if (IsPingable(connections_[i]))
-      count += 1;
+      ++count;
   }
   return count;
 }
@@ -933,11 +1046,11 @@ void P2PTransportChannel::OnConnectionDestroyed(Connection *connection) {
 
 // When a port is destroyed remove it from our list of ports to use for
 // connection attempts.
-void P2PTransportChannel::OnPortDestroyed(Port* port) {
+void P2PTransportChannel::OnPortDestroyed(PortInterface* port) {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
 
   // Remove this port from the list (if we didn't drop it already).
-  std::vector<Port*>::iterator iter =
+  std::vector<PortInterface*>::iterator iter =
       std::find(ports_.begin(), ports_.end(), port);
   if (iter != ports_.end())
     ports_.erase(iter);
@@ -947,8 +1060,8 @@ void P2PTransportChannel::OnPortDestroyed(Port* port) {
 }
 
 // We data is available, let listeners know
-void P2PTransportChannel::OnReadPacket(Connection *connection,
-                                       const char *data, size_t len) {
+void P2PTransportChannel::OnReadPacket(Connection *connection, const char *data,
+                                       size_t len) {
   ASSERT(worker_thread_ == talk_base::Thread::Current());
 
   // Do not deliver, if packet doesn't belong to the correct transport channel.
@@ -956,41 +1069,7 @@ void P2PTransportChannel::OnReadPacket(Connection *connection,
     return;
 
   // Let the client know of an incoming packet
-  SignalReadPacket(this, data, len);
-}
-
-// Set options on ourselves is simply setting options on all of our available
-// port objects.
-int P2PTransportChannel::SetOption(talk_base::Socket::Option opt, int value) {
-  OptionMap::iterator it = options_.find(opt);
-  if (it == options_.end()) {
-    options_.insert(std::make_pair(opt, value));
-  } else if (it->second == value) {
-    return 0;
-  } else {
-    it->second = value;
-  }
-
-  for (uint32 i = 0; i < ports_.size(); ++i) {
-    int val = ports_[i]->SetOption(opt, value);
-    if (val < 0) {
-      // Because this also occurs deferred, probably no point in reporting an
-      // error
-      LOG(WARNING) << "SetOption(" << opt << ", " << value << ") failed: "
-                   << ports_[i]->GetError();
-    }
-  }
-  return 0;
-}
-
-// When the signalling channel is ready, we can really kick off the allocator
-void P2PTransportChannel::OnSignalingReady() {
-  if (waiting_for_signaling_) {
-    waiting_for_signaling_ = false;
-    AddAllocatorSession(allocator_->CreateSession(
-        session_id(), name(), content_type()));
-    thread()->PostDelayed(kAllocatePeriod, this, MSG_ALLOCATE);
-  }
+  SignalReadPacket(this, data, len, 0);
 }
 
 }  // namespace cricket

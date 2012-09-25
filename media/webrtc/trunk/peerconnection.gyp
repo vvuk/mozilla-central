@@ -7,29 +7,10 @@
 # be found in the AUTHORS file in the root of the source tree.
 
 {
-  'includes': [ 'src/build/common.gypi', ],
+  'includes': [ 'third_party/webrtc/build/common.gypi', ],
   'variables': {
     'peerconnection_sample': 'third_party/libjingle/source/talk/examples/peerconnection',
   },  
-
-  'targets': [
-    {
-      'target_name': 'peerconnection_server',
-      'type': 'executable',
-      'sources': [
-        '<(peerconnection_sample)/server/data_socket.cc',
-        '<(peerconnection_sample)/server/data_socket.h',
-        '<(peerconnection_sample)/server/main.cc',
-        '<(peerconnection_sample)/server/peer_channel.cc',
-        '<(peerconnection_sample)/server/peer_channel.h',
-        '<(peerconnection_sample)/server/utils.cc',
-        '<(peerconnection_sample)/server/utils.h',
-      ],
-      'include_dirs': [
-        'third_party/libjingle/source',
-      ],
-    },
-  ],
   'conditions': [
     ['OS=="win"', {
       'targets': [
@@ -55,7 +36,7 @@
             },
           },
           'dependencies': [
-            'third_party/libjingle/libjingle.gyp:libjingle_app',
+            'third_party/libjingle/libjingle.gyp:libjingle_peerconnection',
           ],
           'include_dirs': [
             'src',
@@ -82,14 +63,13 @@
             '<(peerconnection_sample)/client/peer_connection_client.h',
           ],
           'dependencies': [
-            'third_party/libjingle/libjingle.gyp:libjingle_app',
+            'third_party/jsoncpp/jsoncpp.gyp:jsoncpp',
+            'third_party/libjingle/libjingle.gyp:libjingle_peerconnection',
             # TODO(tommi): Switch to this and remove specific gtk dependency
             # sections below for cflags and link_settings.
             # '<(DEPTH)/build/linux/system.gyp:gtk',
           ],
           'include_dirs': [
-            'src',
-            'src/modules/interface',
             'third_party/libjingle/source',
           ],
           'cflags': [
@@ -109,5 +89,4 @@
       ],  # targets
     }, ],  # OS="linux"
   ],
-
 }

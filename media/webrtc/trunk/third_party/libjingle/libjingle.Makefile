@@ -3,4 +3,4 @@
 export builddir_name ?= trunk/third_party/libjingle/out
 .PHONY: all
 all:
-	$(MAKE) -C ../.. libjingle libjingle_p2p libjingle_app
+	$(MAKE) -C ../.. libjingle libjingle_p2p libjingle_peerconnection

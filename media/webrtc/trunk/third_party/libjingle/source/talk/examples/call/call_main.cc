@@ -35,24 +35,24 @@
 #include "talk/base/flags.h"
 #include "talk/base/logging.h"
 #ifdef OSX
-#include "talk/base/macsocketserver.h"
+#include "talk/base/maccocoasocketserver.h"
 #endif
 #include "talk/base/pathutils.h"
-#include "talk/base/stream.h"
 #include "talk/base/ssladapter.h"
+#include "talk/base/stream.h"
 #include "talk/base/win32socketserver.h"
-#include "talk/examples/login/xmppthread.h"
-#include "talk/examples/login/xmppauth.h"
-#include "talk/examples/login/xmpppump.h"
 #include "talk/examples/call/callclient.h"
 #include "talk/examples/call/console.h"
 #include "talk/examples/call/mediaenginefactory.h"
+#include "talk/examples/login/xmppauth.h"
+#include "talk/examples/login/xmpppump.h"
+#include "talk/examples/login/xmppthread.h"
 #include "talk/p2p/base/constants.h"
 #ifdef ANDROID
-#include "talk/session/phone/androidmediaengine.h"
+#include "talk/media/other/androidmediaengine.h"
 #endif
-#include "talk/session/phone/mediasessionclient.h"
-#include "talk/session/phone/srtpfilter.h"
+#include "talk/session/media/mediasessionclient.h"
+#include "talk/session/media/srtpfilter.h"
 #include "talk/xmpp/xmppclientsettings.h"
 
 class DebugLog : public sigslot::has_slots<> {
@@ -210,6 +210,7 @@ int main(int argc, char **argv) {
   // define options
   DEFINE_bool(a, false, "Turn on auto accept.");
   DEFINE_bool(d, false, "Turn on debugging.");
+  DEFINE_string(log, "", "Turn on debugging to a file.");
   DEFINE_string(protocol, "hybrid",
       "Initial signaling protocol to use: jingle, gingle, or hybrid.");
   DEFINE_string(secure, "enable",
@@ -218,6 +219,7 @@ int main(int argc, char **argv) {
       "Disable or enable tls: disable, enable, require.");
   DEFINE_bool(allowplain, false, "Allow plain authentication");
   DEFINE_bool(testserver, false, "Use test server");
+  DEFINE_string(oauth, "", "OAuth2 access token.");
   DEFINE_int(portallocator, 0, "Filter out unwanted connection types.");
   DEFINE_string(filterhost, NULL, "Filter out the host from all candidates.");
   DEFINE_string(pmuc, "groupchat.google.com", "The persistant muc domain.");
@@ -244,10 +246,12 @@ int main(int argc, char **argv) {
 
   bool auto_accept = FLAG_a;
   bool debug = FLAG_d;
+  std::string log = FLAG_log;
   std::string protocol = FLAG_protocol;
   bool test_server = FLAG_testserver;
   bool allow_plain = FLAG_allowplain;
   std::string tls = FLAG_tls;
+  std::string oauth_token = FLAG_oauth;
   int32 portallocator_flags = FLAG_portallocator;
   std::string pmuc_domain = FLAG_pmuc;
   std::string server = FLAG_s;
@@ -297,8 +301,20 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (debug)
+  if (debug) {
     talk_base::LogMessage::LogToDebug(talk_base::LS_VERBOSE);
+  }
+
+  if (!log.empty()) {
+    talk_base::StreamInterface* stream =
+        talk_base::Filesystem::OpenFile(log, "a");
+    if (stream) {
+      talk_base::LogMessage::LogToStream(stream, talk_base::LS_VERBOSE);
+    } else {
+      Print(("Cannot open debug log " + log + "\n").c_str());
+      return 1;
+    }
+  }
 
   if (username.empty()) {
     Print("JID: ");
@@ -312,7 +328,7 @@ int main(int argc, char **argv) {
     Print("Invalid JID. JIDs should be in the form user@domain\n");
     return 1;
   }
-  if (pass.password().empty() && !test_server) {
+  if (pass.password().empty() && !test_server && oauth_token.empty()) {
     Console::SetEcho(false);
     Print("Password: ");
     std::cin >> pass.password();
@@ -344,6 +360,9 @@ int main(int argc, char **argv) {
     xcs.set_test_server_domain("google.com");
   }
   xcs.set_pass(talk_base::CryptString(pass));
+  if (!oauth_token.empty()) {
+    xcs.set_auth_token(buzz::AUTH_MECHANISM_OAUTH2, oauth_token);
+  }
 
   std::string host;
   int port;
@@ -373,7 +392,7 @@ int main(int argc, char **argv) {
 #endif
   talk_base::Thread* main_thread = talk_base::Thread::Current();
 #ifdef OSX
-  talk_base::MacCarbonAppSocketServer ss;
+  talk_base::MacCocoaSocketServer ss;
   talk_base::SocketServerScope ss_scope(&ss);
 #endif
 
@@ -407,7 +426,7 @@ int main(int argc, char **argv) {
     pump.client()->SignalLogOutput.connect(&debug_log_, &DebugLog::Output);
   }
 
-  pump.DoLogin(xcs, new XmppSocket(buzz::TLS_REQUIRED), NULL);
+  pump.DoLogin(xcs, new XmppSocket(buzz::TLS_REQUIRED), new XmppAuth());
   main_thread->Run();
   pump.DoDisconnect();
 

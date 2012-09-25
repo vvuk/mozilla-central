@@ -87,7 +87,8 @@ public:
   //! server policy supports this action.
   //! There will be different methods for creating/configuring a "Reserved Room"
   //! Async callback for this method is ChatroomEnteredStatus
-  virtual XmppReturnStatus RequestEnterChatroom(const std::string& password) = 0;
+  virtual XmppReturnStatus RequestEnterChatroom(const std::string& password,
+      const std::string& client_version) = 0;
 
   //! Requests that the user exit a chatroom
   //! Async callback for this method is ChatroomExitedStatus
@@ -96,8 +97,8 @@ public:
   //! Requests a status change
   //! status is the standard XMPP status code
   //! extended_status is the extended status when status is XMPP_PRESENCE_XA
-  virtual XmppReturnStatus RequestStatusChange(XmppPresenceShow status,
-                                               const std::string& extended_status) = 0;
+  virtual XmppReturnStatus RequestConnectionStatusChange(
+      XmppPresenceConnectionStatus connection_status) = 0;
 
   //! Returns the number of members in the room
   virtual size_t GetChatroomMemberCount() = 0;
@@ -109,7 +110,7 @@ public:
   virtual XmppReturnStatus CreateMemberEnumerator(XmppChatroomMemberEnumerator** enumerator) = 0;
 
   //! Gets the subject of the chatroom
-  virtual const std::string& subject() = 0;
+  virtual const std::string subject() = 0;
 
   //! Returns the current state of the user with respect to the chatroom
   virtual XmppChatroomState state() = 0;
@@ -189,6 +190,13 @@ enum XmppChatroomEnteredStatus
   XMPP_CHATROOM_ENTERED_FAILURE_MAX_USERS          = 6,
   //! The room has been locked by an administrator
   XMPP_CHATROOM_ENTERED_FAILURE_ROOM_LOCKED        = 7,
+  //! Someone in the room has blocked you
+  XMPP_CHATROOM_ENTERED_FAILURE_MEMBER_BLOCKED     = 8,
+  //! You have blocked someone in the room
+  XMPP_CHATROOM_ENTERED_FAILURE_MEMBER_BLOCKING    = 9,
+  //! Client is old. User must upgrade to a more recent version for
+  // hangouts to work.
+  XMPP_CHATROOM_ENTERED_FAILURE_OUTDATED_CLIENT    = 10,
   //! Some other reason
   XMPP_CHATROOM_ENTERED_FAILURE_UNSPECIFIED        = 2000,
 };
@@ -222,6 +230,7 @@ public:
   //! XMPP_CHATROOM_SUCCESS represents success.
   //! Other status codes are for errors
   virtual void ChatroomEnteredStatus(XmppChatroomModule* room,
+                                     const XmppPresence* presence,
                                      XmppChatroomEnteredStatus status) = 0;
 
 
@@ -232,6 +241,7 @@ public:
                                     XmppChatroomExitedStatus status) = 0;
 
   //! Indicates a member entered the room.
+  //! It can be called before ChatroomEnteredStatus.
   virtual void MemberEntered(XmppChatroomModule* room,
                                   const XmppChatroomMember* entered_member) = 0;
 
@@ -242,7 +252,7 @@ public:
   //! Indicates that the data for the member has changed
   //! (such as the nickname or presence)
   virtual void MemberChanged(XmppChatroomModule* room,
-                              size_t index) = 0;
+                             const XmppChatroomMember* changed_member) = 0;
 
   //! Indicates a new message has been received
   //! message is the message -

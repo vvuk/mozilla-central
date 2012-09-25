@@ -35,7 +35,7 @@
 #include "talk/base/sigslot.h"
 #include "talk/base/thread.h"
 #include "talk/p2p/base/session.h"
-#include "talk/session/phone/mediasession.h"
+#include "talk/session/media/mediasession.h"
 
 namespace cricket {
 
@@ -52,7 +52,8 @@ namespace webrtc {
 class MediaStreamSignaling;
 
 class WebRtcSession : public cricket::BaseSession,
-                      public MediaProviderInterface,
+                      public AudioProviderInterface,
+                      public VideoProviderInterface,
                       public JsepInterface {
  public:
   WebRtcSession(cricket::ChannelManager* channel_manager,
@@ -89,14 +90,13 @@ class WebRtcSession : public cricket::BaseSession,
   virtual SessionDescriptionInterface* CreateAnswer(
       const MediaHints& hints,
       const SessionDescriptionInterface* offer);
-  virtual bool StartIce(IceOptions options);
+  virtual bool StartIce(IceOptions options) { return true;}
   virtual bool SetLocalDescription(Action action,
                                    SessionDescriptionInterface* desc);
 
   virtual bool SetRemoteDescription(Action action,
                                     SessionDescriptionInterface* desc);
-
-  virtual bool ProcessIceMessage(const IceCandidateInterface* candidate);
+  virtual bool ProcessIceMessage(const IceCandidateInterface* ice_candidate);
   virtual const SessionDescriptionInterface* local_description() const {
     return local_desc_.get();
   }
@@ -104,50 +104,109 @@ class WebRtcSession : public cricket::BaseSession,
     return remote_desc_.get();
   }
 
- private:
-  virtual void OnMessage(talk_base::Message* msg);
+  // TODO(ronghuawu): Implement below functions to replace the deprecated ones.
+  virtual void CreateOffer(CreateSessionDescriptionObserver* observer,
+                           const MediaConstraintsInterface* constraints) {}
+  virtual void CreateAnswer(CreateSessionDescriptionObserver* observer,
+                            const MediaConstraintsInterface* constraints) {}
+  virtual void SetLocalDescription(SetSessionDescriptionObserver* observer,
+                                   SessionDescriptionInterface* desc) {}
+  virtual void SetRemoteDescription(SetSessionDescriptionObserver* observer,
+                                    SessionDescriptionInterface* desc) {}
+  virtual bool UpdateIce(const IceServers& configuration,
+                         const MediaConstraintsInterface* constraints) {
+    return false;
+  }
+  virtual bool AddIceCandidate(const IceCandidateInterface* candidate) {
+    return false;
+  }
 
-  // Implements MediaProviderInterface.
+  // AudioMediaProviderInterface implementation.
+  virtual void SetAudioPlayout(const std::string& name, bool enable);
+  virtual void SetAudioSend(const std::string& name, bool enable);
+
+  // Implements VideoMediaProviderInterface.
   virtual bool SetCaptureDevice(const std::string& name,
                                 cricket::VideoCapturer* camera);
-  virtual void SetLocalRenderer(const std::string& name,
-                                cricket::VideoRenderer* renderer);
-  virtual void SetRemoteRenderer(const std::string& name,
-                                 cricket::VideoRenderer* renderer);
+  virtual void SetVideoPlayout(const std::string& name,
+                               bool enable,
+                               cricket::VideoRenderer* renderer);
+  virtual void SetVideoSend(const std::string& name, bool enable);
+
+ private:
+  // Invokes ConnectChannels() on transport proxies, which initiates ice
+  // candidates allocation.
+  bool StartCandidatesAllocation();
+
+  virtual void OnMessage(talk_base::Message* msg);
+
 
   // Transport related callbacks, override from cricket::BaseSession.
   virtual void OnTransportRequestSignaling(cricket::Transport* transport);
   virtual void OnTransportConnecting(cricket::Transport* transport);
   virtual void OnTransportWritable(cricket::Transport* transport);
-  virtual void OnTransportCandidatesReady(
-      cricket::Transport* transport,
+  virtual void OnTransportProxyCandidatesReady(
+      cricket::TransportProxy* proxy,
       const cricket::Candidates& candidates);
-  bool CreateChannels();  // Creates channels for voice and video.
-  void EnableChannels();  // Enables sending of media.
+  virtual void OnCandidatesAllocationDone();
+
+  // Check if a call to SetLocalDescription is acceptable with |action|.
+  bool ExpectSetLocalDescription(Action action);
+  // Check if a call to SetRemoteDescription is acceptable with |action|.
+  bool ExpectSetRemoteDescription(Action action);
+  // Creates local session description with audio and video contents.
+  bool CreateDefaultLocalDescription();
+  // Enables media channels to allow sending of media.
+  void EnableChannels();
   // Creates a JsepIceCandidate and adds it to the local session description
   // and notify observers. Called when a new local candidate have been found.
   void ProcessNewLocalCandidate(const std::string& content_name,
                                 const cricket::Candidates& candidates);
-  // Returns a label for a local ice candidate given the content name.
+  // Returns the media index for a local ice candidate given the content name.
   // Returns false if the local session description does not have a media
   // content called  |content_name|.
-  bool GetLocalCandidateLabel(const std::string& content_name,
-                              std::string* label);
+  bool GetLocalCandidateMediaIndex(const std::string& content_name,
+                                   int* sdp_mline_index);
   // Uses all remote candidates in |remote_desc| in this session.
   bool UseCandidatesInSessionDescription(
       const SessionDescriptionInterface* remote_desc);
-  // Uses |candidate| in the this session.
+  // Uses |candidate| in this session.
   bool UseCandidate(const IceCandidateInterface* candidate);
+  void RemoveUnusedChannelsAndTransports(
+      const cricket::SessionDescription* desc);
+
+  // This method will create media channel and transport proxy when a local
+  // or remote session description is applied. It also updates the content
+  // name for channel and transport proxy if session description has different
+  // from the original. But update "MUST" happen only when session is in INIT
+  // state.
+  bool MaybeUpdateChannelsAndTransports(
+      const cricket::SessionDescription* sdesc);
+
+  // Allocated candidates are not given to the observer if local
+  // description is not set in the session. This method sends any unsent
+  // allocated candidates to the provider.
+  void MaybeSendAllUnsentCandidates();
+  // Allocates media channels based on the |desc|. If |desc| doesn't have
+  // the BUNDLE option, this method will disable BUNDLE in PortAllocator.
+  // This method will also delete any existing media channels before creating.
+  bool CreateChannels(const cricket::SessionDescription* desc);
+
+  // Helper methods to create media channels.
+  bool CreateVoiceChannel(const cricket::SessionDescription* desc);
+  bool CreateVideoChannel(const cricket::SessionDescription* desc);
 
   talk_base::scoped_ptr<cricket::VoiceChannel> voice_channel_;
   talk_base::scoped_ptr<cricket::VideoChannel> video_channel_;
   cricket::ChannelManager* channel_manager_;
   cricket::MediaSessionDescriptionFactory session_desc_factory_;
-  bool ice_started_;  // True if StartIce have been called.
+  bool allocation_complete_;
   MediaStreamSignaling* mediastream_signaling_;
   IceCandidateObserver * ice_observer_;
   talk_base::scoped_ptr<SessionDescriptionInterface> local_desc_;
   talk_base::scoped_ptr<SessionDescriptionInterface> remote_desc_;
+  std::string session_id_;
+  uint64 session_version_;
 };
 
 }  // namespace webrtc

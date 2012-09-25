@@ -32,14 +32,14 @@
 #include <string>
 #include <vector>
 
+#include "talk/examples/call/console.h"
+#include "talk/examples/call/status.h"
+#include "talk/media/base/mediachannel.h"
 #include "talk/p2p/base/session.h"
-#include "talk/session/phone/mediachannel.h"
-#include "talk/session/phone/mediamessages.h"
-#include "talk/session/phone/mediasessionclient.h"
+#include "talk/session/media/mediamessages.h"
+#include "talk/session/media/mediasessionclient.h"
 #include "talk/xmpp/hangoutpubsubclient.h"
 #include "talk/xmpp/xmppclient.h"
-#include "talk/examples/call/status.h"
-#include "talk/examples/call/console.h"
 
 namespace buzz {
 class PresencePushTask;
@@ -170,6 +170,8 @@ class CallClient: public sigslot::has_slots<> {
 
   void InitMedia();
   void InitPresence();
+  void StartXmppPing();
+  void OnPingTimeout();
   void OnRequestSignaling();
   void OnSessionCreate(cricket::Session* session, bool initiate);
   void OnCallCreate(cricket::Call* call);
@@ -240,6 +242,8 @@ class CallClient: public sigslot::has_slots<> {
   void PrintRoster();
   void MakeCallTo(const std::string& name, const cricket::CallOptions& options);
   void PlaceCall(const buzz::Jid& jid, const cricket::CallOptions& options);
+  void PrintCalls();
+  void SwitchToCall(uint32 call_id);
   void Accept(const cricket::CallOptions& options);
   void Reject();
   void Quit();
