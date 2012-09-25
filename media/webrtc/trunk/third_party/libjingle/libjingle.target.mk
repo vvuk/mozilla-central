@@ -2,42 +2,52 @@
 
 TOOLSET := target
 TARGET := libjingle
-DEFS_Debug := '-DFEATURE_ENABLE_SSL' \
-	'-DFEATURE_ENABLE_VOICEMAIL' \
-	'-D_USE_32BIT_TIME_T' \
-	'-DSAFE_TO_DEFINE_TALK_BASE_LOGGING_MACROS' \
+DEFS_Debug := \
 	'-DEXPAT_RELATIVE_PATH' \
-	'-DJSONCPP_RELATIVE_PATH' \
-	'-DWEBRTC_RELATIVE_PATH' \
-	'-DHAVE_WEBRTC' \
+	'-DFEATURE_ENABLE_SSL' \
+	'-DGTEST_RELATIVE_PATH' \
+	'-DHAVE_SRTP' \
 	'-DHAVE_WEBRTC_VIDEO' \
 	'-DHAVE_WEBRTC_VOICE' \
-	'-DHAVE_SRTP' \
+	'-DJSONCPP_RELATIVE_PATH' \
+	'-DLOGGING_INSIDE_LIBJINGLE' \
+	'-DNO_MAIN_THREAD_WRAPPING' \
+	'-DNO_SOUND_SYSTEM' \
 	'-DSRTP_RELATIVE_PATH' \
+	'-D_USE_32BIT_TIME_T' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DLINUX' \
 	'-DPOSIX' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -51,57 +61,71 @@ CFLAGS_Debug := -pthread \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := -Ithird_party/libyuv/include \
-	-Isrc \
+INCS_Debug := \
+	-Ithird_party/libjingle/overrides \
 	-Ithird_party/libjingle/source \
-	-Ithird_party/expat/files \
+	-Itesting/gtest/include \
+	-Ithird_party/libyuv/include \
+	-Ithird_party/webrtc \
+	-I. \
 	-Ithird_party/jsoncpp/overrides/include \
 	-Ithird_party/jsoncpp/source/include
 
-DEFS_Release := '-DFEATURE_ENABLE_SSL' \
-	'-DFEATURE_ENABLE_VOICEMAIL' \
-	'-D_USE_32BIT_TIME_T' \
-	'-DSAFE_TO_DEFINE_TALK_BASE_LOGGING_MACROS' \
+DEFS_Release := \
 	'-DEXPAT_RELATIVE_PATH' \
-	'-DJSONCPP_RELATIVE_PATH' \
-	'-DWEBRTC_RELATIVE_PATH' \
-	'-DHAVE_WEBRTC' \
+	'-DFEATURE_ENABLE_SSL' \
+	'-DGTEST_RELATIVE_PATH' \
+	'-DHAVE_SRTP' \
 	'-DHAVE_WEBRTC_VIDEO' \
 	'-DHAVE_WEBRTC_VOICE' \
-	'-DHAVE_SRTP' \
+	'-DJSONCPP_RELATIVE_PATH' \
+	'-DLOGGING_INSIDE_LIBJINGLE' \
+	'-DNO_MAIN_THREAD_WRAPPING' \
+	'-DNO_SOUND_SYSTEM' \
 	'-DSRTP_RELATIVE_PATH' \
+	'-D_USE_32BIT_TIME_T' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DLINUX' \
 	'-DPOSIX' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -117,22 +141,27 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := -Ithird_party/libyuv/include \
-	-Isrc \
+INCS_Release := \
+	-Ithird_party/libjingle/overrides \
 	-Ithird_party/libjingle/source \
-	-Ithird_party/expat/files \
+	-Itesting/gtest/include \
+	-Ithird_party/libyuv/include \
+	-Ithird_party/webrtc \
+	-I. \
 	-Ithird_party/jsoncpp/overrides/include \
 	-Ithird_party/jsoncpp/source/include
 
-OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.o \
+OBJS := \
+	$(obj).target/$(TARGET)/third_party/libjingle/overrides/talk/base/logging.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/asyncfile.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/asynchttprequest.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/asyncsocket.o \
@@ -144,6 +173,7 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/bytebuffer.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/checks.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/common.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/crc32.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/diskcache.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/event.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/fileutils.o \
@@ -157,8 +187,8 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/httprequest.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/ipaddress.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/json.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/logging.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/md5c.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/md5.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/messagedigest.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/messagehandler.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/messagequeue.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/nethelpers.o \
@@ -167,7 +197,9 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/physicalsocketserver.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/proxydetect.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/proxyinfo.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/ratelimiter.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/ratetracker.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/sha1.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/signalthread.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/socketadapters.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/socketaddress.o \
@@ -176,17 +208,19 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/socketstream.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/ssladapter.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/sslsocketfactory.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/sslstreamadapter.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/stream.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/stringdigest.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/stringencode.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/stringutils.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/task.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/taskparent.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/taskrunner.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/thread.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/time.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/timeutils.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/timing.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/urlencode.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/worker.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/xmlbuilder.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/xmlconstants.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/xmlelement.o \
@@ -195,7 +229,6 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/xmlprinter.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/constants.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/jid.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/ratelimitmanager.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/saslmechanism.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/xmppclient.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/xmppengineimpl.o \
@@ -203,25 +236,15 @@ OBJS := $(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmllite/qname.
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/xmpplogintask.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/xmppstanzaparser.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/xmpp/xmpptask.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/platformsoundsystem.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/platformsoundsystemfactory.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/soundsysteminterface.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/soundsystemproxy.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/alsasoundsystem.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/alsasymboltable.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/linuxsoundsystem.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/pulseaudiosoundsystem.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/sound/pulseaudiosymboltable.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/latebindingsymboltable.o \
-	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/sslstreamadapter.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/unixfilesystem.o \
+	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/latebindingsymboltable.o \
 	$(obj).target/$(TARGET)/third_party/libjingle/source/talk/base/linux.o
 
 # Add to the list of files we specially track dependencies for.
 all_deps += $(OBJS)
 
 # Make sure our dependencies are built before any of us.
-$(OBJS): | $(obj).target/third_party/expat/expat.stamp
+$(OBJS): | $(obj).target/base/base.stamp $(obj).target/net/net.stamp $(obj).target/third_party/expat/expat.stamp
 
 # CFLAGS et al overrides must be target-local.
 # See "Target-specific Variable Values" in the GNU Make manual.
@@ -234,39 +257,39 @@ $(OBJS): GYP_CXXFLAGS := $(DEFS_$(BUILDTYPE)) $(INCS_$(BUILDTYPE))  $(CFLAGS_$(B
 $(obj).$(TOOLSET)/$(TARGET)/%.o: $(srcdir)/%.cc FORCE_DO_CMD
 	@$(call do_cmd,cxx,1)
 
-$(obj).$(TOOLSET)/$(TARGET)/%.o: $(srcdir)/%.c FORCE_DO_CMD
-	@$(call do_cmd,cc,1)
-
 # Try building from generated source, too.
 
 $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj).$(TOOLSET)/%.cc FORCE_DO_CMD
 	@$(call do_cmd,cxx,1)
 
-$(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj).$(TOOLSET)/%.c FORCE_DO_CMD
-	@$(call do_cmd,cc,1)
-
 $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.cc FORCE_DO_CMD
 	@$(call do_cmd,cxx,1)
 
-$(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.c FORCE_DO_CMD
-	@$(call do_cmd,cc,1)
-
 # End of this set of suffix rules
 ### Rules for final target.
-LDFLAGS_Debug := -pthread \
+LDFLAGS_Debug := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
-	-B$(builddir)/../../third_party/gold
-
-LDFLAGS_Release := -pthread \
-	-Wl,-z,noexecstack \
-	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none
+
+LDFLAGS_Release := \
+	-pthread \
+	-Wl,-z,noexecstack \
+	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
+	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none \
 	-Wl,-O1 \
 	-Wl,--as-needed \
 	-Wl,--gc-sections
 
-LIBS := 
+LIBS := \
+	
 
 $(obj).target/third_party/libjingle/libjingle.a: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE))
 $(obj).target/third_party/libjingle/libjingle.a: LIBS := $(LIBS)

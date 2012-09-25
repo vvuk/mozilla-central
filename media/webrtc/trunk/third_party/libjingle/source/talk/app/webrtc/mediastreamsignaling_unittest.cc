@@ -31,7 +31,7 @@
 #include "talk/app/webrtc/audiotrack.h"
 #include "talk/app/webrtc/mediastream.h"
 #include "talk/app/webrtc/mediastreamsignaling.h"
-#include "talk/app/webrtc/streamcollectionimpl.h"
+#include "talk/app/webrtc/streamcollection.h"
 #include "talk/app/webrtc/videotrack.h"
 #include "talk/base/gunit.h"
 #include "talk/base/scoped_ptr.h"
@@ -55,7 +55,7 @@ using webrtc::StreamCollectionInterface;
 static const char kSdpString1[] =
     "v=0\r\n"
     "o=- 0 0 IN IP4 127.0.0.1\r\n"
-    "s=\r\n"
+    "s=-\r\n"
     "t=0 0\r\n"
     "m=audio 1 RTP/AVPF 103\r\n"
     "a=mid:audio\r\n"
@@ -75,7 +75,7 @@ static const char kSdpString1[] =
 static const char kSdpString2[] =
     "v=0\r\n"
     "o=- 0 0 IN IP4 127.0.0.1\r\n"
-    "s=\r\n"
+    "s=-\r\n"
     "t=0 0\r\n"
     "m=audio 1 RTP/AVPF 103\r\n"
     "a=mid:audio\r\n"

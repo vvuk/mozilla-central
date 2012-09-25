@@ -69,7 +69,7 @@ class StunPortBindingRequest : public StunRequest {
       LOG(LS_ERROR) << "Binding address has bad family";
     } else {
       talk_base::SocketAddress addr(addr_attr->ipaddr(), addr_attr->port());
-      port_->AddAddress(addr, "udp", true);
+      port_->AddAddress(addr, port_->socket_->GetLocalAddress(), "udp", true);
     }
 
     // We will do a keep-alive regardless of whether this request suceeds.
@@ -87,7 +87,7 @@ class StunPortBindingRequest : public StunRequest {
       LOG(LS_ERROR) << "Bad allocate response error code";
     } else {
       LOG(LS_ERROR) << "Binding error response:"
-                 << " class=" << attr->error_class()
+                 << " class=" << attr->eclass()
                  << " number=" << attr->number()
                  << " reason='" << attr->reason() << "'";
     }
@@ -105,7 +105,7 @@ class StunPortBindingRequest : public StunRequest {
   virtual void OnTimeout() {
     LOG(LS_ERROR) << "Binding request timed out from "
       << port_->GetLocalAddress().ToString()
-      << " (" << port_->network()->name() << ")";
+      << " (" << port_->Network()->name() << ")";
 
     port_->SignalAddressError(port_);
 
@@ -149,6 +149,7 @@ bool StunPort::Init() {
     LOG_J(LS_WARNING, this) << "UDP socket creation failed";
     return false;
   }
+  socket_->SignalAddressReady.connect(this, &StunPort::OnAddressReady);
   socket_->SignalReadPacket.connect(this, &StunPort::OnReadPacket);
   return true;
 }
@@ -161,18 +162,24 @@ StunPort::~StunPort() {
 }
 
 void StunPort::PrepareAddress() {
+  ASSERT(requests_.empty());
+
   // We will keep pinging the stun server to make sure our NAT pin-hole stays
   // open during the call.
+  // TODO: Support multiple stun servers, or make ResolveStunAddress find a
+  // server with the correct family, or something similar.
   if (server_addr_.IsUnresolved()) {
     ResolveStunAddress();
-  } else {
-    requests_.Send(new StunPortBindingRequest(this, true, server_addr_));
+  } else if (socket_->GetState() == talk_base::AsyncPacketSocket::STATE_BOUND) {
+    if (server_addr_.family() == ip().family()) {
+      requests_.Send(new StunPortBindingRequest(this, true, server_addr_));
+    }
   }
 }
 
 void StunPort::PrepareSecondaryAddress() {
   // DNS resolution of the secondary address is not currently supported.
-  ASSERT(!server_addr2_.IsAny());
+  ASSERT(!server_addr2_.IsNil());
   requests_.Send(new StunPortBindingRequest(this, false, server_addr2_));
 }
 
@@ -180,6 +187,10 @@ Connection* StunPort::CreateConnection(const Candidate& address,
                                        CandidateOrigin origin) {
   if (address.protocol() != "udp")
     return NULL;
+
+  if (!IsCompatibleAddress(address.address())) {
+    return NULL;
+  }
 
   Connection* conn = new ProxyConnection(this, 0, address);
   AddConnection(conn);
@@ -205,6 +216,11 @@ int StunPort::GetError() {
   return error_;
 }
 
+void StunPort::OnAddressReady(talk_base::AsyncPacketSocket* socket,
+                              const talk_base::SocketAddress& address) {
+  PrepareAddress();
+}
+
 void StunPort::OnReadPacket(talk_base::AsyncPacketSocket* socket,
                             const char* data, size_t size,
                             const talk_base::SocketAddress& remote_addr) {
@@ -223,7 +239,7 @@ void StunPort::OnReadPacket(talk_base::AsyncPacketSocket* socket,
   if (Connection* conn = GetConnection(remote_addr)) {
     conn->OnReadPacket(data, size);
   } else {
-    Port::OnReadPacket(data, size, remote_addr);
+    Port::OnReadPacket(data, size, remote_addr, PROTO_UDP);
   }
 }
 

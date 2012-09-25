@@ -3,84 +3,95 @@
 TOOLSET := host
 TARGET := generate_files
 ### Rules for action "generate_x86_insn":
-quiet_cmd_generate_files_generate_x86_insn = ACTION Running source/patched-yasm/modules/arch/x86/gen_x86_insn.py. $@
-cmd_generate_files_generate_x86_insn = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; python source/patched-yasm/modules/arch/x86/gen_x86_insn.py "$(obj)/gen/third_party/yasm"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn = ACTION Running source/patched-yasm/modules/arch/x86/gen_x86_insn.py. $@
+cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; python source/patched-yasm/modules/arch/x86/gen_x86_insn.py "$(obj)/gen/third_party/yasm"
 
 $(obj)/gen/third_party/yasm/x86insns.c: obj := $(abs_obj)
 $(obj)/gen/third_party/yasm/x86insns.c: builddir := $(abs_builddir)
 $(obj)/gen/third_party/yasm/x86insns.c: TOOLSET := $(TOOLSET)
 $(obj)/gen/third_party/yasm/x86insns.c: third_party/yasm/source/patched-yasm/modules/arch/x86/gen_x86_insn.py FORCE_DO_CMD
-	$(call do_cmd,generate_files_generate_x86_insn)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn)
 $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(obj)/gen/third_party/yasm/x86insn_nasm.gperf: $(obj)/gen/third_party/yasm/x86insns.c
 $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(obj)/gen/third_party/yasm/x86insn_nasm.gperf: ;
 
 all_deps += $(obj)/gen/third_party/yasm/x86insns.c $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(obj)/gen/third_party/yasm/x86insn_nasm.gperf
-action_generate_files_generate_x86_insn_outputs := $(obj)/gen/third_party/yasm/x86insns.c $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(obj)/gen/third_party/yasm/x86insn_nasm.gperf
+action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn_outputs := $(obj)/gen/third_party/yasm/x86insns.c $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(obj)/gen/third_party/yasm/x86insn_nasm.gperf
 
 ### Rules for action "generate_version":
-quiet_cmd_generate_files_generate_version = ACTION Generating yasm version file: $(obj)/gen/third_party/yasm/version.mac. $@
-cmd_generate_files_generate_version = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genversion" "$(obj)/gen/third_party/yasm/version.mac"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version = ACTION Generating yasm version file: $(obj)/gen/third_party/yasm/version.mac. $@
+cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genversion" "$(obj)/gen/third_party/yasm/version.mac"
 
 $(obj)/gen/third_party/yasm/version.mac: obj := $(abs_obj)
 $(obj)/gen/third_party/yasm/version.mac: builddir := $(abs_builddir)
 $(obj)/gen/third_party/yasm/version.mac: TOOLSET := $(TOOLSET)
 $(obj)/gen/third_party/yasm/version.mac: $(builddir)/genversion FORCE_DO_CMD
-	$(call do_cmd,generate_files_generate_version)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version)
 
 all_deps += $(obj)/gen/third_party/yasm/version.mac
-action_generate_files_generate_version_outputs := $(obj)/gen/third_party/yasm/version.mac
+action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version_outputs := $(obj)/gen/third_party/yasm/version.mac
 
 
-### Generated for rule generate_files_generate_gperf:
+### Generated for rule trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf:
 $(obj)/gen/third_party/yasm/x86cpu.c: obj := $(abs_obj)
 $(obj)/gen/third_party/yasm/x86cpu.c: builddir := $(abs_builddir)
 $(obj)/gen/third_party/yasm/x86cpu.c: TOOLSET := $(TOOLSET)
 $(obj)/gen/third_party/yasm/x86cpu.c: third_party/yasm/source/patched-yasm/modules/arch/x86/x86cpu.gperf $(builddir)/genperf FORCE_DO_CMD
-	$(call do_cmd,generate_files_generate_gperf_0)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_0)
 
 all_deps += $(obj)/gen/third_party/yasm/x86cpu.c
-cmd_generate_files_generate_gperf_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj)/gen/third_party/yasm/x86cpu.c"
-quiet_cmd_generate_files_generate_gperf_0 = RULE generate_files_generate_gperf_0 $@
+cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj)/gen/third_party/yasm/x86cpu.c"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_0 = RULE trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_0 $@
 
 $(obj)/gen/third_party/yasm/x86regtmod.c: obj := $(abs_obj)
 $(obj)/gen/third_party/yasm/x86regtmod.c: builddir := $(abs_builddir)
 $(obj)/gen/third_party/yasm/x86regtmod.c: TOOLSET := $(TOOLSET)
 $(obj)/gen/third_party/yasm/x86regtmod.c: third_party/yasm/source/patched-yasm/modules/arch/x86/x86regtmod.gperf $(builddir)/genperf FORCE_DO_CMD
-	$(call do_cmd,generate_files_generate_gperf_1)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_1)
 
 all_deps += $(obj)/gen/third_party/yasm/x86regtmod.c
-cmd_generate_files_generate_gperf_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj)/gen/third_party/yasm/x86regtmod.c"
-quiet_cmd_generate_files_generate_gperf_1 = RULE generate_files_generate_gperf_1 $@
+cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj)/gen/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj)/gen/third_party/yasm/x86regtmod.c"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_1 = RULE trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_1 $@
 
-rule_generate_files_generate_gperf_outputs := $(obj)/gen/third_party/yasm/x86cpu.c \
+rule_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_outputs := \
+	$(obj)/gen/third_party/yasm/x86cpu.c \
 	$(obj)/gen/third_party/yasm/x86regtmod.c
 
-### Finished generating for rule: generate_files_generate_gperf
+### Finished generating for rule: trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf
 
 ### Finished generating for all rules
 
-DEFS_Debug := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Debug := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -94,38 +105,49 @@ CFLAGS_Debug := -pthread \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := 
+INCS_Debug :=
 
-DEFS_Release := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Release := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -141,17 +163,18 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := 
+INCS_Release :=
 
-OBJS := 
+OBJS :=
 
 # Add to the list of files we specially track dependencies for.
 all_deps += $(OBJS)
@@ -160,15 +183,15 @@ all_deps += $(OBJS)
 $(OBJS): | $(builddir)/genperf $(builddir)/genversion
 
 # Make sure our actions/rules run before any of us.
-$(OBJS): | $(action_generate_files_generate_x86_insn_outputs) $(action_generate_files_generate_version_outputs) $(rule_generate_files_generate_gperf_outputs)
+$(OBJS): | $(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn_outputs) $(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_outputs)
 
 
 ### Rules for final target.
 # Build our special outputs first.
-$(obj).host/third_party/yasm/generate_files.stamp: | $(action_generate_files_generate_x86_insn_outputs) $(action_generate_files_generate_version_outputs) $(rule_generate_files_generate_gperf_outputs)
+$(obj).host/third_party/yasm/generate_files.stamp: | $(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn_outputs) $(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_outputs)
 
 # Preserve order dependency of special output on deps.
-$(action_generate_files_generate_x86_insn_outputs): | $(builddir)/genperf $(builddir)/genversion
+$(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_x86_insn_outputs) $(action_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_version_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_generate_files_host_generate_gperf_outputs): | $(builddir)/genperf $(builddir)/genversion
 
 $(obj).host/third_party/yasm/generate_files.stamp: TOOLSET := $(TOOLSET)
 $(obj).host/third_party/yasm/generate_files.stamp: $(builddir)/genperf $(builddir)/genversion FORCE_DO_CMD

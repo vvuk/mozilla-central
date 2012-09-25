@@ -3,4 +3,4 @@
 export builddir_name ?= trunk/third_party/protobuf/out
 .PHONY: all
 all:
-	$(MAKE) -C ../.. protobuf_lite protobuf_lite protobuf_full_do_not_use protoc
+	$(MAKE) -C ../.. protobuf_lite protobuf_full_do_not_use protobuf_lite protoc

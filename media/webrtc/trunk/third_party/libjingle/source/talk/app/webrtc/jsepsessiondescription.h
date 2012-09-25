@@ -45,28 +45,46 @@ namespace webrtc {
 
 class JsepSessionDescription : public SessionDescriptionInterface {
  public:
-  JsepSessionDescription();
-  // Takes ownership of |description|.
-  explicit JsepSessionDescription(
-      cricket::SessionDescription* description);
-  ~JsepSessionDescription();
+  explicit JsepSessionDescription(const std::string& type);
+  virtual ~JsepSessionDescription();
+
+  bool Initialize(const std::string& sdp);
 
   // Takes ownership of |description|.
-  void SetDescription(cricket::SessionDescription* description);
-  bool Initialize(const std::string& sdp);
+  bool Initialize(cricket::SessionDescription* description,
+      const std::string& session_id,
+      const std::string& session_version);
 
   virtual const cricket::SessionDescription* description() const {
     return description_.get();
   }
+  virtual std::string session_id() const {
+    return session_id_;
+  }
+  virtual std::string session_version() const {
+    return session_version_;
+  }
+  virtual std::string type() const {
+    return type_;
+  }
   virtual bool AddCandidate(const IceCandidateInterface* candidate);
   virtual size_t number_of_mediasections() const;
-  virtual const IceCandidateColletion* candidates(
+  virtual const IceCandidateCollection* candidates(
       size_t mediasection_index) const;
   virtual bool ToString(std::string* out) const;
 
+  // TODO(perkj): Remove this once webrtcsession is updated to jsep01.
+  static JsepInterface::Action GetAction(const std::string& type);
+
  private:
   talk_base::scoped_ptr<cricket::SessionDescription> description_;
-  std::vector<JsepCandidateColletion> candidate_collection_;
+  std::string session_id_;
+  std::string session_version_;
+  std::string type_;
+  std::vector<JsepCandidateCollection> candidate_collection_;
+
+  bool GetMediasectionIndex(const IceCandidateInterface* candidate,
+                            size_t* index);
 
   DISALLOW_COPY_AND_ASSIGN(JsepSessionDescription);
 };

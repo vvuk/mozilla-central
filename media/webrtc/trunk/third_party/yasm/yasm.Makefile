@@ -3,4 +3,4 @@
 export builddir_name ?= trunk/third_party/yasm/out
 .PHONY: all
 all:
-	$(MAKE) -C ../.. config_sources genmacro genperf_libs genversion genmodule genstring re2c genperf generate_files yasm
+	$(MAKE) -C ../.. config_sources genmodule genstring genperf_libs re2c genmacro genversion genperf generate_files yasm

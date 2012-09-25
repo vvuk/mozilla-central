@@ -40,17 +40,17 @@ class DtlsTransport : public Base {
  public:
   DtlsTransport(talk_base::Thread* signaling_thread,
                 talk_base::Thread* worker_thread,
+                const std::string& content_name,
                 PortAllocator* allocator)
-      : Base(signaling_thread, worker_thread, allocator) {
+      : Base(signaling_thread, worker_thread, content_name, allocator) {
   }
   ~DtlsTransport() {
     Base::DestroyAllChannels();
   }
 
-  virtual DtlsTransportChannelWrapper* CreateTransportChannel(
-      const std::string& name, const std::string& content_type) {
+  virtual DtlsTransportChannelWrapper* CreateTransportChannel(int component) {
     return new DtlsTransportChannelWrapper(this,
-        Base::CreateTransportChannel(name, content_type));
+        Base::CreateTransportChannel(component));
   }
   virtual void DestroyTransportChannel(TransportChannelImpl* channel) {
     // Kind of ugly, but this lets us do the exact inverse of the create.
