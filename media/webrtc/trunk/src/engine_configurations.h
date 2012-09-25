@@ -30,8 +30,11 @@
 #define WEBRTC_CODEC_OPUS
 
 #ifndef WEBRTC_MOZILLA_BUILD
+#ifdef WEBRTC_ARCH_ARM
+#define WEBRTC_CODEC_ISACFX     // fix-point iSAC implementation
+#else
 #define WEBRTC_CODEC_ISAC       // floating-point iSAC implementation (default)
-// #define WEBRTC_CODEC_ISACFX  // fix-point iSAC implementation
+#endif
 #endif
 #define WEBRTC_CODEC_AVT
 
@@ -81,6 +84,7 @@
 #define WEBRTC_VOICE_ENGINE_RTP_RTCP_API
 #define WEBRTC_VOICE_ENGINE_VIDEO_SYNC_API
 #define WEBRTC_VOICE_ENGINE_VOLUME_CONTROL_API
+#define WEBRTC_VOICE_ENGINE_FILE_API
 
 #ifndef WEBRTC_CHROMIUM_BUILD
 #define WEBRTC_VOICE_ENGINE_CALL_REPORT_API
@@ -107,9 +111,8 @@
 #define WEBRTC_VIDEO_ENGINE_RTP_RTCP_API
 // #define WEBRTC_VIDEO_ENGINE_EXTERNAL_CODEC_API
 
-#ifndef WEBRTC_CHROMIUM_BUILD
-#define WEBRTC_VIDEO_ENGINE_FILE_API
-#endif
+// Now handled by gyp:
+// WEBRTC_VIDEO_ENGINE_FILE_API
 
 // ============================================================================
 //                       Platform specific configurations

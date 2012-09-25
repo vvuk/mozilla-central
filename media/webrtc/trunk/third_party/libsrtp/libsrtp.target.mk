@@ -2,7 +2,8 @@
 
 TOOLSET := target
 TARGET := libsrtp
-DEFS_Debug := '-DHAVE_STDLIB_H' \
+DEFS_Debug := \
+	'-DHAVE_STDLIB_H' \
 	'-DHAVE_STRING_H' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DCPU_CISC' \
@@ -10,27 +11,37 @@ DEFS_Debug := '-DHAVE_STDLIB_H' \
 	'-DSIZEOF_UNSIGNED_LONG_LONG=8' \
 	'-DHAVE_STDINT_H' \
 	'-DHAVE_INTTYPES_H' \
+	'-DHAVE_NETINET_IN_H' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -44,19 +55,22 @@ CFLAGS_Debug := -pthread \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := -Ithird_party/libsrtp/config \
+INCS_Debug := \
+	-Ithird_party/libsrtp/config \
 	-Ithird_party/libsrtp/srtp/include \
 	-Ithird_party/libsrtp/srtp/crypto/include
 
-DEFS_Release := '-DHAVE_STDLIB_H' \
+DEFS_Release := \
+	'-DHAVE_STDLIB_H' \
 	'-DHAVE_STRING_H' \
 	'-D_FILE_OFFSET_BITS=64' \
 	'-DCPU_CISC' \
@@ -64,27 +78,37 @@ DEFS_Release := '-DHAVE_STDLIB_H' \
 	'-DSIZEOF_UNSIGNED_LONG_LONG=8' \
 	'-DHAVE_STDINT_H' \
 	'-DHAVE_INTTYPES_H' \
+	'-DHAVE_NETINET_IN_H' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -100,19 +124,22 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := -Ithird_party/libsrtp/config \
+INCS_Release := \
+	-Ithird_party/libsrtp/config \
 	-Ithird_party/libsrtp/srtp/include \
 	-Ithird_party/libsrtp/srtp/crypto/include
 
-OBJS := $(obj).target/$(TARGET)/third_party/libsrtp/srtp/srtp/ekt.o \
+OBJS := \
+	$(obj).target/$(TARGET)/third_party/libsrtp/srtp/srtp/ekt.o \
 	$(obj).target/$(TARGET)/third_party/libsrtp/srtp/srtp/srtp.o \
 	$(obj).target/$(TARGET)/third_party/libsrtp/srtp/crypto/cipher/aes.o \
 	$(obj).target/$(TARGET)/third_party/libsrtp/srtp/crypto/cipher/aes_cbc.o \
@@ -161,20 +188,29 @@ $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.c FORCE_DO_CMD
 
 # End of this set of suffix rules
 ### Rules for final target.
-LDFLAGS_Debug := -pthread \
+LDFLAGS_Debug := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
-	-B$(builddir)/../../third_party/gold
-
-LDFLAGS_Release := -pthread \
-	-Wl,-z,noexecstack \
-	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none
+
+LDFLAGS_Release := \
+	-pthread \
+	-Wl,-z,noexecstack \
+	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
+	-B$(builddir)/../../third_party/gold \
+	-Wl,--icf=none \
 	-Wl,-O1 \
 	-Wl,--as-needed \
 	-Wl,--gc-sections
 
-LIBS := 
+LIBS := \
+	
 
 $(obj).target/third_party/libsrtp/libsrtp.a: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE))
 $(obj).target/third_party/libsrtp/libsrtp.a: LIBS := $(LIBS)

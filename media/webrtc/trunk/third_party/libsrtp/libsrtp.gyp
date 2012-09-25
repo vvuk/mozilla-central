@@ -39,12 +39,13 @@
         'defines': [
           'HAVE_STDINT_H',
           'HAVE_INTTYPES_H',
+          'HAVE_NETINET_IN_H',
          ],
       }],
       ['OS=="win"', {
         'defines': [
-          'HAVE_WINSOCK2_H',
           'inline=__inline',
+          'HAVE_BYTESWAP_METHODS_H',
          ],
       }],
     ],
@@ -80,12 +81,13 @@
           'defines': [
             'HAVE_STDINT_H',
             'HAVE_INTTYPES_H',
+            'HAVE_NETINET_IN_H',
           ],
         }],
         ['OS=="win"', {
           'defines': [
-            'HAVE_WINSOCK2_H',
             'inline=__inline',
+            'HAVE_BYTESWAP_METHODS_H',
           ],
         }],
       ],

@@ -27,7 +27,7 @@
 
 #include "talk/app/webrtc/mediastreamtrackproxy.h"
 
-#include "talk/session/phone/videocapturer.h"
+#include "talk/media/base/videocapturer.h"
 
 namespace {
 
@@ -40,8 +40,9 @@ enum {
   MSG_STATE,
   MSG_GET_AUDIODEVICE,
   MSG_GET_VIDEODEVICE,
-  MSG_GET_VIDEORENDERER,
-  MSG_SET_VIDEORENDERER,
+  MSG_ADD_VIDEORENDERER,
+  MSG_REMOVE_VIDEORENDERER,
+  MSG_GET_VIDEOFRAMEINPUT,
 };
 
 typedef talk_base::TypedMessageData<std::string*> LabelMessageData;
@@ -50,6 +51,10 @@ typedef talk_base::TypedMessageData<webrtc::ObserverInterface*>
 typedef talk_base::TypedMessageData
     <webrtc::MediaStreamTrackInterface::TrackState> TrackStateMessageData;
 typedef talk_base::TypedMessageData<bool> EnableMessageData;
+typedef talk_base::TypedMessageData<webrtc::VideoRendererInterface*>
+    VideoRendererInterfaceMessageData;
+typedef talk_base::TypedMessageData<cricket::VideoRenderer*>
+    VideoFrameInputMessageData;
 
 
 class AudioDeviceMessageData : public talk_base::MessageData {
@@ -60,12 +65,6 @@ class AudioDeviceMessageData : public talk_base::MessageData {
 class VideoDeviceMessageData : public talk_base::MessageData {
  public:
   cricket::VideoCapturer* video_device_;
-};
-
-class VideoRendererMessageData : public talk_base::MessageData {
- public:
-  talk_base::scoped_refptr<webrtc::VideoRendererWrapperInterface>
-      video_renderer_;
 };
 
 }  // namespace anonymous
@@ -346,23 +345,31 @@ cricket::VideoCapturer* VideoTrackProxy::GetVideoCapture() {
   return video_track_->GetVideoCapture();
 }
 
-void VideoTrackProxy::SetRenderer(VideoRendererWrapperInterface* renderer) {
+void VideoTrackProxy::AddRenderer(VideoRendererInterface* renderer) {
   if (!signaling_thread_->IsCurrent()) {
-    VideoRendererMessageData msg;
-    msg.video_renderer_ = renderer;
-    Send(MSG_SET_VIDEORENDERER, &msg);
+    VideoRendererInterfaceMessageData msg(renderer);
+    Send(MSG_ADD_VIDEORENDERER, &msg);
     return;
   }
-  return video_track_->SetRenderer(renderer);
+  video_track_->AddRenderer(renderer);
 }
 
-VideoRendererWrapperInterface* VideoTrackProxy::GetRenderer() {
+void VideoTrackProxy::RemoveRenderer(VideoRendererInterface* renderer) {
   if (!signaling_thread_->IsCurrent()) {
-    VideoRendererMessageData msg;
-    Send(MSG_GET_VIDEORENDERER, &msg);
-    return msg.video_renderer_;
+    VideoRendererInterfaceMessageData msg(renderer);
+    Send(MSG_REMOVE_VIDEORENDERER, &msg);
+    return;
   }
-  return video_track_->GetRenderer();
+  video_track_->RemoveRenderer(renderer);
+}
+
+cricket::VideoRenderer* VideoTrackProxy::FrameInput() {
+  if (!signaling_thread_->IsCurrent()) {
+    VideoFrameInputMessageData msg(NULL);
+    Send(MSG_GET_VIDEOFRAMEINPUT, &msg);
+    return msg.data();
+  }
+  return video_track_->FrameInput();
 }
 
 void VideoTrackProxy::OnMessage(talk_base::Message* msg) {
@@ -374,16 +381,22 @@ void VideoTrackProxy::OnMessage(talk_base::Message* msg) {
         video_device->video_device_ = video_track_->GetVideoCapture();
         break;
       }
-      case MSG_GET_VIDEORENDERER: {
-        VideoRendererMessageData* video_renderer =
-            static_cast<VideoRendererMessageData*>(msg->pdata);
-        video_renderer->video_renderer_ = video_track_->GetRenderer();
+      case MSG_ADD_VIDEORENDERER: {
+        VideoRendererInterfaceMessageData* renderer =
+            static_cast<VideoRendererInterfaceMessageData*>(msg->pdata);
+        video_track_->AddRenderer(renderer->data());
         break;
       }
-      case MSG_SET_VIDEORENDERER: {
-        VideoRendererMessageData* video_renderer =
-            static_cast<VideoRendererMessageData*>(msg->pdata);
-        video_track_->SetRenderer(video_renderer->video_renderer_.get());
+      case MSG_REMOVE_VIDEORENDERER: {
+        VideoRendererInterfaceMessageData* message =
+            static_cast<VideoRendererInterfaceMessageData*>(msg->pdata);
+        video_track_->RemoveRenderer(message->data());
+        break;
+      }
+      case MSG_GET_VIDEOFRAMEINPUT: {
+        VideoFrameInputMessageData* message =
+            static_cast<VideoFrameInputMessageData*>(msg->pdata);
+        message->data() = video_track_->FrameInput();
         break;
       }
     default:

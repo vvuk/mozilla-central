@@ -3,174 +3,186 @@
 TOOLSET := host
 TARGET := yasm
 ### Rules for action "generate_nasm_macros":
-quiet_cmd_yasm_generate_nasm_macros = ACTION yasm genmacro for source/patched-yasm/modules/parsers/nasm/nasm-std.mac. $@
-cmd_yasm_generate_nasm_macros = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-macros.c" nasm_standard_mac source/patched-yasm/modules/parsers/nasm/nasm-std.mac
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros = ACTION yasm genmacro for source/patched-yasm/modules/parsers/nasm/nasm-std.mac. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-macros.c" nasm_standard_mac source/patched-yasm/modules/parsers/nasm/nasm-std.mac
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c: $(builddir)/genmacro third_party/yasm/source/patched-yasm/modules/parsers/nasm/nasm-std.mac FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_nasm_macros)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c
-action_yasm_generate_nasm_macros_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-macros.c
 
 ### Rules for action "generate_nasm_version":
-quiet_cmd_yasm_generate_nasm_version = ACTION yasm genmacro for $(obj)/gen/third_party/yasm/version.mac. $@
-cmd_yasm_generate_nasm_version = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-version.c" nasm_version_mac "$(obj)/gen/third_party/yasm/version.mac"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version = ACTION yasm genmacro for $(obj)/gen/third_party/yasm/version.mac. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-version.c" nasm_version_mac "$(obj)/gen/third_party/yasm/version.mac"
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c: $(builddir)/genmacro $(obj)/gen/third_party/yasm/version.mac FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_nasm_version)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c
-action_yasm_generate_nasm_version_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-version.c
 
 ### Rules for action "generate_win64_gas":
-quiet_cmd_yasm_generate_win64_gas = ACTION yasm genmacro for source/patched-yasm/modules/objfmts/coff/win64-gas.mac. $@
-cmd_yasm_generate_win64_gas = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/win64-gas.c" win64_gas_stdmac source/patched-yasm/modules/objfmts/coff/win64-gas.mac
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas = ACTION yasm genmacro for source/patched-yasm/modules/objfmts/coff/win64-gas.mac. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/win64-gas.c" win64_gas_stdmac source/patched-yasm/modules/objfmts/coff/win64-gas.mac
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c: $(builddir)/genmacro third_party/yasm/source/patched-yasm/modules/objfmts/coff/win64-gas.mac FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_win64_gas)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c
-action_yasm_generate_win64_gas_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-gas.c
 
 ### Rules for action "generate_win64_nasm":
-quiet_cmd_yasm_generate_win64_nasm = ACTION yasm genmacro for source/patched-yasm/modules/objfmts/coff/win64-nasm.mac. $@
-cmd_yasm_generate_win64_nasm = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/win64-nasm.c" win64_nasm_stdmac source/patched-yasm/modules/objfmts/coff/win64-nasm.mac
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm = ACTION yasm genmacro for source/patched-yasm/modules/objfmts/coff/win64-nasm.mac. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmacro" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/win64-nasm.c" win64_nasm_stdmac source/patched-yasm/modules/objfmts/coff/win64-nasm.mac
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c: $(builddir)/genmacro third_party/yasm/source/patched-yasm/modules/objfmts/coff/win64-nasm.mac FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_win64_nasm)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c
-action_yasm_generate_win64_nasm_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/win64-nasm.c
 
 ### Rules for action "generate_license":
-quiet_cmd_yasm_generate_license = ACTION Generating yasm embeddable license. $@
-cmd_yasm_generate_license = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genstring" license_msg "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/license.c" source/patched-yasm/COPYING
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license = ACTION Generating yasm embeddable license. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genstring" license_msg "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/license.c" source/patched-yasm/COPYING
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c: $(builddir)/genstring third_party/yasm/source/patched-yasm/COPYING FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_license)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c
-action_yasm_generate_license_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/license.c
 
 ### Rules for action "generate_lc3b_token":
-quiet_cmd_yasm_generate_lc3b_token = ACTION Generating yasm tokens for lc3b. $@
-cmd_yasm_generate_lc3b_token = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -s -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/lc3bid.c" source/patched-yasm/modules/arch/lc3b/lc3bid.re
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token = ACTION Generating yasm tokens for lc3b. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -s -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/lc3bid.c" source/patched-yasm/modules/arch/lc3b/lc3bid.re
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c: $(builddir)/re2c third_party/yasm/source/patched-yasm/modules/arch/lc3b/lc3bid.re FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_lc3b_token)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c
-action_yasm_generate_lc3b_token_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/lc3bid.c
 
 ### Rules for action "generate_module":
-quiet_cmd_yasm_generate_module = ACTION Generating yasm module information. $@
-cmd_yasm_generate_module = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmodule" source/patched-yasm/libyasm/module.in source/config/linux/Makefile "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/module.c"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module = ACTION Generating yasm module information. $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genmodule" source/patched-yasm/libyasm/module.in source/config/linux/Makefile "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/module.c"
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c: $(builddir)/genmodule third_party/yasm/source/patched-yasm/libyasm/module.in third_party/yasm/source/config/linux/Makefile FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_module)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c
-action_yasm_generate_module_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c
+action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/module.c
 
 
-### Generated for rule yasm_generate_gperf:
+### Generated for rule trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf:
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c: $(obj)/gen/third_party/yasm/x86insn_nasm.gperf $(builddir)/genperf FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_gperf_0)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_0)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c
-cmd_yasm_generate_gperf_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/x86insn_nasm.c"
-quiet_cmd_yasm_generate_gperf_0 = RULE yasm_generate_gperf_0 $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/x86insn_nasm.c"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_0 = RULE trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_0 $@
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c: $(obj)/gen/third_party/yasm/x86insn_gas.gperf $(builddir)/genperf FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_gperf_1)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_1)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c
-cmd_yasm_generate_gperf_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/x86insn_gas.c"
-quiet_cmd_yasm_generate_gperf_1 = RULE yasm_generate_gperf_1 $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/genperf" "$(abspath $<)" "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/x86insn_gas.c"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_1 = RULE trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_1 $@
 
-rule_yasm_generate_gperf_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c \
+rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_outputs := \
+	$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_nasm.c \
 	$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/x86insn_gas.c
 
-### Finished generating for rule: yasm_generate_gperf
+### Finished generating for rule: trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf
 
-### Generated for rule yasm_generate_re2c:
+### Generated for rule trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c:
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c: third_party/yasm/source/patched-yasm/modules/parsers/gas/gas-token.re $(builddir)/re2c FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_re2c_0)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_0)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c
-cmd_yasm_generate_re2c_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -b -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/gas-token.c" "$(abspath $<)"
-quiet_cmd_yasm_generate_re2c_0 = RULE yasm_generate_re2c_0 $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_0 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -b -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/gas-token.c" "$(abspath $<)"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_0 = RULE trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_0 $@
 
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c: obj := $(abs_obj)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c: builddir := $(abs_builddir)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c: TOOLSET := $(TOOLSET)
 $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c: third_party/yasm/source/patched-yasm/modules/parsers/nasm/nasm-token.re $(builddir)/re2c FORCE_DO_CMD
-	$(call do_cmd,yasm_generate_re2c_1)
+	$(call do_cmd,trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_1)
 
 all_deps += $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c
-cmd_yasm_generate_re2c_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -b -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-token.c" "$(abspath $<)"
-quiet_cmd_yasm_generate_re2c_1 = RULE yasm_generate_re2c_1 $@
+cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_1 = LD_LIBRARY_PATH=$(builddir)/lib.host:$(builddir)/lib.target:$$LD_LIBRARY_PATH; export LD_LIBRARY_PATH; cd third_party/yasm; mkdir -p $(obj).$(TOOLSET)/yasm/geni/third_party/yasm; "$(builddir)/re2c" -b -o "$(obj).$(TOOLSET)/yasm/geni/third_party/yasm/nasm-token.c" "$(abspath $<)"
+quiet_cmd_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_1 = RULE trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_1 $@
 
-rule_yasm_generate_re2c_outputs := $(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c \
+rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_outputs := \
+	$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/gas-token.c \
 	$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm/nasm-token.c
 
-### Finished generating for rule: yasm_generate_re2c
+### Finished generating for rule: trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c
 
 ### Finished generating for all rules
 
-DEFS_Debug := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Debug := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DHAVE_CONFIG_H' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=1' \
 	'-DWTF_USE_DYNAMIC_ANNOTATIONS=1' \
 	'-D_DEBUG'
 
 # Flags passed to all source files.
-CFLAGS_Debug := -pthread \
+CFLAGS_Debug := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -187,42 +199,54 @@ CFLAGS_Debug := -pthread \
 	-g
 
 # Flags passed to only C files.
-CFLAGS_C_Debug := 
+CFLAGS_C_Debug :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Debug := -fno-rtti \
+CFLAGS_CC_Debug := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Debug := -Ithird_party/yasm/source/config/linux \
+INCS_Debug := \
+	-Ithird_party/yasm/source/config/linux \
 	-Ithird_party/yasm/source/patched-yasm \
 	-I$(obj)/gen/third_party/yasm \
 	-I$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm
 
-DEFS_Release := '-D_FILE_OFFSET_BITS=64' \
+DEFS_Release := \
+	'-D_FILE_OFFSET_BITS=64' \
 	'-DCHROMIUM_BUILD' \
 	'-DUSE_NSS=1' \
-	'-DTOOLKIT_USES_GTK=1' \
+	'-DENABLE_ONE_CLICK_SIGNIN' \
 	'-DGTK_DISABLE_SINGLE_INCLUDES=1' \
 	'-DENABLE_REMOTING=1' \
-	'-DENABLE_P2P_APIS=1' \
+	'-DENABLE_WEBRTC=1' \
 	'-DENABLE_CONFIGURATION_POLICY' \
 	'-DENABLE_INPUT_SPEECH' \
 	'-DENABLE_NOTIFICATIONS' \
 	'-DENABLE_GPU=1' \
 	'-DENABLE_EGLIMAGE=1' \
 	'-DUSE_SKIA=1' \
-	'-DENABLE_REGISTER_PROTOCOL_HANDLER=1' \
+	'-DENABLE_TASK_MANAGER=1' \
 	'-DENABLE_WEB_INTENTS=1' \
+	'-DENABLE_EXTENSIONS=1' \
 	'-DENABLE_PLUGIN_INSTALLATION=1' \
+	'-DENABLE_PROTECTOR_SERVICE=1' \
+	'-DENABLE_SESSION_SERVICE=1' \
+	'-DENABLE_THEMES=1' \
+	'-DENABLE_BACKGROUND=1' \
+	'-DENABLE_AUTOMATION=1' \
+	'-DENABLE_PRINTING=1' \
+	'-DENABLE_CAPTIVE_PORTAL_DETECTION=1' \
 	'-DHAVE_CONFIG_H' \
 	'-DNDEBUG' \
 	'-DNVALGRIND' \
 	'-DDYNAMIC_ANNOTATIONS_ENABLED=0'
 
 # Flags passed to all source files.
-CFLAGS_Release := -pthread \
+CFLAGS_Release := \
+	-pthread \
 	-fno-exceptions \
 	-fno-strict-aliasing \
 	-Wno-unused-parameter \
@@ -241,20 +265,23 @@ CFLAGS_Release := -pthread \
 	-ffunction-sections
 
 # Flags passed to only C files.
-CFLAGS_C_Release := 
+CFLAGS_C_Release :=
 
 # Flags passed to only C++ files.
-CFLAGS_CC_Release := -fno-rtti \
+CFLAGS_CC_Release := \
+	-fno-rtti \
 	-fno-threadsafe-statics \
 	-fvisibility-inlines-hidden \
 	-Wno-deprecated
 
-INCS_Release := -Ithird_party/yasm/source/config/linux \
+INCS_Release := \
+	-Ithird_party/yasm/source/config/linux \
 	-Ithird_party/yasm/source/patched-yasm \
 	-I$(obj)/gen/third_party/yasm \
 	-I$(obj).$(TOOLSET)/$(TARGET)/geni/third_party/yasm
 
-OBJS := $(obj).host/$(TARGET)/third_party/yasm/source/patched-yasm/frontends/yasm/yasm-options.o \
+OBJS := \
+	$(obj).host/$(TARGET)/third_party/yasm/source/patched-yasm/frontends/yasm/yasm-options.o \
 	$(obj).host/$(TARGET)/third_party/yasm/source/patched-yasm/frontends/yasm/yasm.o \
 	$(obj).host/$(TARGET)/third_party/yasm/source/patched-yasm/libyasm/assocdat.o \
 	$(obj).host/$(TARGET)/third_party/yasm/source/patched-yasm/libyasm/bc-align.o \
@@ -334,7 +361,7 @@ all_deps += $(OBJS)
 $(OBJS): | $(obj).host/third_party/yasm/config_sources.stamp $(builddir)/genmacro $(builddir)/genmodule $(builddir)/genperf $(obj).host/third_party/yasm/libgenperf_libs.a $(obj).host/third_party/yasm/generate_files.stamp $(builddir)/genstring $(builddir)/re2c
 
 # Make sure our actions/rules run before any of us.
-$(OBJS): | $(action_yasm_generate_nasm_macros_outputs) $(action_yasm_generate_nasm_version_outputs) $(action_yasm_generate_win64_gas_outputs) $(action_yasm_generate_win64_nasm_outputs) $(action_yasm_generate_license_outputs) $(action_yasm_generate_lc3b_token_outputs) $(action_yasm_generate_module_outputs) $(rule_yasm_generate_gperf_outputs) $(rule_yasm_generate_re2c_outputs)
+$(OBJS): | $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_outputs)
 
 # CFLAGS et al overrides must be target-local.
 # See "Target-specific Variable Values" in the GNU Make manual.
@@ -358,25 +385,32 @@ $(obj).$(TOOLSET)/$(TARGET)/%.o: $(obj)/%.c FORCE_DO_CMD
 # End of this set of suffix rules
 ### Rules for final target.
 # Build our special outputs first.
-$(builddir)/yasm: | $(action_yasm_generate_nasm_macros_outputs) $(action_yasm_generate_nasm_version_outputs) $(action_yasm_generate_win64_gas_outputs) $(action_yasm_generate_win64_nasm_outputs) $(action_yasm_generate_license_outputs) $(action_yasm_generate_lc3b_token_outputs) $(action_yasm_generate_module_outputs) $(rule_yasm_generate_gperf_outputs) $(rule_yasm_generate_re2c_outputs)
+$(builddir)/yasm: | $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_outputs)
 
 # Preserve order dependency of special output on deps.
-$(action_yasm_generate_nasm_macros_outputs): | $(obj).host/third_party/yasm/config_sources.stamp $(builddir)/genmacro $(builddir)/genmodule $(builddir)/genperf $(obj).host/third_party/yasm/libgenperf_libs.a $(obj).host/third_party/yasm/generate_files.stamp $(builddir)/genstring $(builddir)/re2c
+$(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_macros_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_nasm_version_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_gas_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_win64_nasm_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_license_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_lc3b_token_outputs) $(action_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_module_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_gperf_outputs) $(rule_trunk_third_party_yasm_yasm_gyp_yasm_host_generate_re2c_outputs): | $(obj).host/third_party/yasm/config_sources.stamp $(builddir)/genmacro $(builddir)/genmodule $(builddir)/genperf $(obj).host/third_party/yasm/libgenperf_libs.a $(obj).host/third_party/yasm/generate_files.stamp $(builddir)/genstring $(builddir)/re2c
 
-LDFLAGS_Debug := -pthread \
+LDFLAGS_Debug := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold
 
-LDFLAGS_Release := -pthread \
+LDFLAGS_Release := \
+	-pthread \
 	-Wl,-z,noexecstack \
 	-fPIC \
+	-Wl,--threads \
+	-Wl,--thread-count=4 \
 	-B$(builddir)/../../third_party/gold \
 	-Wl,-O1 \
 	-Wl,--as-needed \
 	-Wl,--gc-sections
 
-LIBS := 
+LIBS := \
+	
 
 $(builddir)/yasm: GYP_LDFLAGS := $(LDFLAGS_$(BUILDTYPE))
 $(builddir)/yasm: LIBS := $(LIBS)

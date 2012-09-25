@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "talk/base/buffer.h"
 #include "talk/base/scoped_ptr.h"
 #include "talk/base/sslstreamadapter.h"
 #include "talk/base/stream.h"
@@ -98,12 +99,21 @@ class StreamInterfaceChannel : public talk_base::StreamInterface,
 //
 //   - Data written to DtlsTransportChannelWrapper is passed either to
 //      downward_ or directly to channel_, depending on whether DTLS is
-//     negotiated and whether dtls_data_bypass_ is set (true for SRTP).
+//     negotiated and whether the flags include PF_SRTP_BYPASS
 //
 //   - The SSLStreamAdapter writes to downward_->Write()
 //     which translates it into packet writes on channel_.
 class DtlsTransportChannelWrapper : public TransportChannelImpl {
  public:
+    enum State {
+      STATE_NONE,      // No state or rejected.
+      STATE_OFFERED,   // Our identity has been set.
+      STATE_ACCEPTED,  // The other side sent a fingerprint.
+      STATE_STARTED,   // We are negotiating.
+      STATE_OPEN,      // Negotiation complete.
+      STATE_CLOSED     // Connection closed.
+    };
+
   // The parameters here are:
   // transport -- the DtlsTransport that created us
   // channel -- the TransportChannel we are wrapping
@@ -111,61 +121,16 @@ class DtlsTransportChannelWrapper : public TransportChannelImpl {
                               TransportChannelImpl* channel);
   virtual ~DtlsTransportChannelWrapper();
 
-  // TODO: Call this from DtlsTransport.
-  // Setup the DTLS transport channel, supplying our certificate, the digest of
-  // the remote certificate (obtained via signaling), and whether we should act
-  // as a DTLS client or server.
-  // This function should be called as soon as we have the remote digest, from
-  // either the session-initiate, transport-info, or session-accept messages.
-  // If this function is not called before sending packets on this
-  // TransportChannel, those packets will be sent in the clear. (This is useful
-  // if you want to degrade gracefully to SDES-SRTP or plain-old-RTP.)
-  bool SetupDtls(talk_base::SSLIdentity* identity,
-                 talk_base::SSLRole role,
-                 const std::string& digest_alg,
-                 const uint8* digest,
-                 size_t digest_len);
-  // Whether SetupDtls has successfully been called.
-  bool IsDtlsSetup() const {
-    return dtls_.get() != NULL;
-  }
+  virtual void SetRole(TransportRole role);
+  virtual bool SetLocalIdentity(talk_base::SSLIdentity *identity);
 
-
-  // TODO: Hoist these to TransportChannel, so that Voice/VideoChannel
-  // can use them.
-  // Set up the ciphers to use for DTLS-SRTP. If this method is not called
-  // before DTLS starts, or |ciphers| is empty, SRTP keys won't be negotiated.
-  // This method should be called before SetupDtls.
-  bool SetSrtpCiphers(const std::vector<std::string>& ciphers) {
-    if (dtls_started_) {
-      return false;
-    }
-    srtp_ciphers_ = ciphers;
-    return true;
-  }
-  // Controls whether data sent over this channel should bypass DTLS encryption,
-  // and be sent in the "clear" (because it's been encrypted externally, as is
-  // the case for DTLS-SRTP).
-  bool SetBypassData(bool bypass) {
-    dtls_bypass_data_ = bypass;
-    return true;
-  }
-  // Once DTLS has established (i.e., this channel is writable), this method
-  // extracts the keys negotiated during the DTLS handshake, for use in external
-  // encryption. DTLS-SRTP uses this to extract the needed SRTP keys.
-  // See the SSLStreamAdapter documentation for info on the specific parameters.
-  bool ExportKeyingMaterial(const std::string& label,
-                            const uint8* context,
-                            size_t context_len,
-                            bool use_context,
-                            uint8* result,
-                            size_t result_len) {
-    return (dtls_.get()) ? dtls_->ExportKeyingMaterial(label, context,
-        context_len, use_context, result, result_len) : false;
-  }
+  virtual bool SetRemoteFingerprint(const std::string& digest_alg,
+                                    const uint8* digest,
+                                    size_t digest_len);
+  virtual bool IsDtlsActive() const { return dtls_state_ != STATE_NONE; }
 
   // Called to send a packet (via DTLS, if turned on).
-  virtual int SendPacket(const char* data, size_t size);
+  virtual int SendPacket(const char* data, size_t size, int flags);
 
   // TransportChannel calls that we forward to the wrapped transport.
   virtual int SetOption(talk_base::Socket::Option opt, int value) {
@@ -174,22 +139,57 @@ class DtlsTransportChannelWrapper : public TransportChannelImpl {
   virtual int GetError() {
     return channel_->GetError();
   }
-  virtual P2PTransportChannel* GetP2PChannel() {
-    return channel_->GetP2PChannel();
+  virtual bool GetStats(ConnectionInfos* infos) {
+    return channel_->GetStats(infos);
+  }
+  virtual void SetSessionId(const std::string& session_id) {
+    channel_->SetSessionId(session_id);
+  }
+  virtual const std::string& SessionId() const {
+    return channel_->SessionId();
+  }
+
+  // Set up the ciphers to use for DTLS-SRTP. If this method is not called
+  // before DTLS starts, or |ciphers| is empty, SRTP keys won't be negotiated.
+  // This method should be called before SetupDtls.
+  virtual bool SetSrtpCiphers(const std::vector<std::string>& ciphers);
+
+  // Find out which DTLS-SRTP cipher was negotiated
+  virtual bool GetSrtpCipher(std::string* cipher);
+
+  // Once DTLS has established (i.e., this channel is writable), this method
+  // extracts the keys negotiated during the DTLS handshake, for use in external
+  // encryption. DTLS-SRTP uses this to extract the needed SRTP keys.
+  // See the SSLStreamAdapter documentation for info on the specific parameters.
+  virtual bool ExportKeyingMaterial(const std::string& label,
+                                    const uint8* context,
+                                    size_t context_len,
+                                    bool use_context,
+                                    uint8* result,
+                                    size_t result_len) {
+    return (dtls_.get()) ? dtls_->ExportKeyingMaterial(label, context,
+                                                       context_len,
+                                                       use_context,
+                                                       result, result_len)
+        : false;
   }
 
   // TransportChannelImpl calls.
   virtual Transport* GetTransport() {
     return transport_;
   }
+  virtual void SetIceUfrag(const std::string& ice_ufrag) {
+    channel_->SetIceUfrag(ice_ufrag);
+  }
+  virtual void SetIcePwd(const std::string& ice_pwd) {
+    channel_->SetIcePwd(ice_pwd);
+  }
   virtual void Connect() {
     channel_->Connect();
   }
-  // TODO: Reset other dtls_ members here?
-  virtual void Reset() {
-    dtls_started_ = false;
-    channel_->Reset();
-  }
+
+  virtual void Reset();
+
   virtual void OnSignalingReady() {
     channel_->OnSignalingReady();
   }
@@ -203,25 +203,27 @@ class DtlsTransportChannelWrapper : public TransportChannelImpl {
  private:
   void OnReadableState(TransportChannel* channel);
   void OnWritableState(TransportChannel* channel);
-  void OnReadPacket(TransportChannel* channel, const char* data, size_t size);
+  void OnReadPacket(TransportChannel* channel, const char* data, size_t size,
+                    int flags);
   void OnDtlsEvent(talk_base::StreamInterface* stream_, int sig, int err);
+  bool SetupDtls();
   bool MaybeStartDtls();
   bool HandleDtlsPacket(const char* data, size_t size);
-
   void OnRequestSignaling(TransportChannelImpl* channel);
   void OnCandidateReady(TransportChannelImpl* channel, const Candidate& c);
   void OnCandidatesAllocationDone(TransportChannelImpl* channel);
   void OnRouteChange(TransportChannel* channel, const Candidate& candidate);
-
   Transport* transport_;  // The transport_ that created us.
   talk_base::Thread* worker_thread_;  // Everything should occur on this thread.
   TransportChannelImpl* channel_;  // Underlying channel, owned by transport_.
-  // The DTLS stream; this is created only after SetupDtls is called.
-  talk_base::scoped_ptr<talk_base::SSLStreamAdapter> dtls_;
+  talk_base::scoped_ptr<talk_base::SSLStreamAdapter> dtls_;  // The DTLS stream
   StreamInterfaceChannel* downward_;  // Wrapper for channel_, owned by dtls_.
-  bool dtls_started_;  // Whether the DTLS handshake has actually started.
   std::vector<std::string> srtp_ciphers_;  // SRTP ciphers to use with DTLS.
-  bool dtls_bypass_data_;  // Whether data transfer should skip DTLS (for SRTP).
+  State dtls_state_;
+  talk_base::SSLIdentity* local_identity_;
+  talk_base::SSLRole dtls_role_;
+  talk_base::Buffer remote_fingerprint_value_;
+  std::string remote_fingerprint_algorithm_;
 
   DISALLOW_COPY_AND_ASSIGN(DtlsTransportChannelWrapper);
 };

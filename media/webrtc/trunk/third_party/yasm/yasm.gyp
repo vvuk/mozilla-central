@@ -27,7 +27,7 @@
 # be a rule. The problem is that the correct invocation cannot be inferred
 # purely from the file name, or extension.  Nor is it obvious whether the
 # output should be processed as a source or not.  Thus, we are left with a
-# large amount of repetative code.
+# large amount of repetitive code.
 
 {
   'variables': {
@@ -71,6 +71,9 @@
         'genstring',
         're2c',
       ],
+      # Patch to fix posted upstream, but not yet merged.
+      # https://github.com/yasm/yasm/pull/64
+      'msvs_disabled_warnings': [ 4018, 4090 ],
       'sources': [
          'source/patched-yasm/frontends/yasm/yasm-options.c',
          'source/patched-yasm/frontends/yasm/yasm.c',
@@ -545,11 +548,11 @@
           'xcode_settings': {
             'WARNING_CFLAGS': [
               # re2c is missing CLOSEVOP from one switch.
-              '-Wno-switch-enum',
+              '-Wno-switch',
             ],
           },
           'cflags': [
-            '-Wno-switch-enum',
+            '-Wno-switch',
           ],
         }],
       ],

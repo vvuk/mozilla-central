@@ -106,14 +106,6 @@ void ACMOpus::InternalDestructEncoderInst(void* /* ptrInst */)
 }
 
 WebRtc_Word16
-ACMOpus::UnregisterFromNetEqSafe(
-    ACMNetEQ*     /* netEq       */,
-    WebRtc_Word16 /* payloadType */)
-{
-  return -1;
-}
-
-WebRtc_Word16
 ACMOpus::SetBitRateSafe(const WebRtc_Word32 /*rate*/)
 {
   return -1;
@@ -286,23 +278,9 @@ void ACMOpus::InternalDestructEncoderInst(
   return;
 }
 
-WebRtc_Word16 ACMOpus::UnregisterFromNetEqSafe(
-  ACMNetEQ*     netEq,
-  WebRtc_Word16 payloadType)
-{
-  if(payloadType != _decoderParams.codecInstant.pltype) {
-    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, _uniqueID,
-          "Cannot unregister codec: given payload-type does not match"
-          " the stored payload type",
-          _decoderParams.codecInstant.plname,
-          payloadType,
-          _decoderParams.codecInstant.pltype);
-    return -1;
-  }
-  return netEq->RemoveCodec(kDecoderOpus);
-}
-
-WebRtc_Word16 ACMOpus::SetBitRateSafe(const WebRtc_Word32 rate)
+WebRtc_Word16
+ACMOpus::SetBitRateSafe(
+    const WebRtc_Word32 rate)
 {
   if (rate < 6000 || rate > 510000) {
     WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceAudioCoding, _uniqueID,

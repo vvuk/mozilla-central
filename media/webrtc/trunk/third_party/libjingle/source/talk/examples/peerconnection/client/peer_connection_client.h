@@ -32,6 +32,8 @@
 #include <map>
 #include <string>
 
+#include "talk/base/nethelpers.h"
+#include "talk/base/signalthread.h"
 #include "talk/base/sigslot.h"
 #include "talk/base/physicalsocketserver.h"
 #include "talk/base/scoped_ptr.h"
@@ -45,15 +47,18 @@ struct PeerConnectionClientObserver {
   virtual void OnPeerDisconnected(int peer_id) = 0;
   virtual void OnMessageFromPeer(int peer_id, const std::string& message) = 0;
   virtual void OnMessageSent(int err) = 0;
+  virtual void OnServerConnectionFailure() = 0;
 
  protected:
   virtual ~PeerConnectionClientObserver() {}
 };
 
-class PeerConnectionClient : public sigslot::has_slots<> {
+class PeerConnectionClient : public sigslot::has_slots<>,
+                             public talk_base::MessageHandler {
  public:
   enum State {
     NOT_CONNECTED,
+    RESOLVING,
     SIGNING_IN,
     CONNECTED,
     SIGNING_OUT_WAITING,
@@ -69,7 +74,7 @@ class PeerConnectionClient : public sigslot::has_slots<> {
 
   void RegisterObserver(PeerConnectionClientObserver* callback);
 
-  bool Connect(const std::string& server, int port,
+  void Connect(const std::string& server, int port,
                const std::string& client_name);
 
   bool SendToPeer(int peer_id, const std::string& message);
@@ -78,8 +83,13 @@ class PeerConnectionClient : public sigslot::has_slots<> {
 
   bool SignOut();
 
+  // implements the MessageHandler interface
+  void OnMessage(talk_base::Message* msg);
+
  protected:
+  void DoConnect();
   void Close();
+  void InitSocketSignals();
   bool ConnectControlSocket();
   void OnConnect(talk_base::AsyncSocket* socket);
   void OnHangingGetConnect(talk_base::AsyncSocket* socket);
@@ -111,13 +121,17 @@ class PeerConnectionClient : public sigslot::has_slots<> {
 
   void OnClose(talk_base::AsyncSocket* socket, int err);
 
+  void OnResolveResult(talk_base::SignalThread *t);
+
   PeerConnectionClientObserver* callback_;
   talk_base::SocketAddress server_address_;
+  talk_base::AsyncResolver* resolver_;
   talk_base::scoped_ptr<talk_base::AsyncSocket> control_socket_;
   talk_base::scoped_ptr<talk_base::AsyncSocket> hanging_get_;
   std::string onconnect_data_;
   std::string control_data_;
   std::string notification_data_;
+  std::string client_name_;
   Peers peers_;
   State state_;
   int my_id_;

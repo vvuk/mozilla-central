@@ -60,19 +60,19 @@ extern "C"
         MODE_BESTQUALITY    = 0x2,
         MODE_FIRSTPASS      = 0x3,
         MODE_SECONDPASS     = 0x4,
-        MODE_SECONDPASS_BEST = 0x5,
+        MODE_SECONDPASS_BEST = 0x5
     } MODE;
 
     typedef enum
     {
         FRAMEFLAGS_KEY    = 1,
         FRAMEFLAGS_GOLDEN = 2,
-        FRAMEFLAGS_ALTREF = 4,
+        FRAMEFLAGS_ALTREF = 4
     } FRAMETYPE_FLAGS;
 
 
 #include <assert.h>
-    static __inline void Scale2Ratio(int mode, int *hr, int *hs)
+    static void Scale2Ratio(int mode, int *hr, int *hs)
     {
         switch (mode)
         {
@@ -106,7 +106,7 @@ extern "C"
         int Width;              // width of data passed to the compressor
         int Height;             // height of data passed to the compressor
         struct vpx_rational  timebase;
-        int target_bandwidth;    // bandwidth to be used in kilobits per second
+        unsigned int target_bandwidth;    // bandwidth to be used in kilobits per second
 
         int noise_sensitivity;   // parameter used for applying pre processing blur: recommendation 0
         int Sharpness;          // parameter used for sharpening output: recommendation 0:
@@ -207,10 +207,10 @@ extern "C"
 
         // Temporal scaling parameters
         unsigned int number_of_layers;
-        unsigned int target_bitrate[MAX_PERIODICITY];
-        unsigned int rate_decimator[MAX_PERIODICITY];
+        unsigned int target_bitrate[VPX_TS_MAX_PERIODICITY];
+        unsigned int rate_decimator[VPX_TS_MAX_PERIODICITY];
         unsigned int periodicity;
-        unsigned int layer_id[MAX_PERIODICITY];
+        unsigned int layer_id[VPX_TS_MAX_PERIODICITY];
 
 #if CONFIG_MULTI_RES_ENCODING
         /* Number of total resolutions encoded */

@@ -41,15 +41,10 @@ namespace cricket {
 
 struct ChannelParams {
   ChannelParams() : channel(NULL), candidate(NULL) {}
-  explicit ChannelParams(const std::string& name)
-      : name(name), channel(NULL), candidate(NULL) {}
-  ChannelParams(const std::string& name,
-                const std::string& content_type)
-      : name(name), content_type(content_type),
-        channel(NULL), candidate(NULL) {}
+  explicit ChannelParams(int component)
+      : component(component), channel(NULL), candidate(NULL) {}
   explicit ChannelParams(cricket::Candidate* candidate) :
       channel(NULL), candidate(candidate) {
-    name = candidate->name();
   }
 
   ~ChannelParams() {
@@ -57,7 +52,7 @@ struct ChannelParams {
   }
 
   std::string name;
-  std::string content_type;
+  int component;
   cricket::TransportChannelImpl* channel;
   cricket::Candidate* candidate;
 };
@@ -79,16 +74,26 @@ enum {
   MSG_ROUTECHANGE = 12,
   MSG_CONNECTING = 13,
   MSG_CANDIDATEALLOCATIONCOMPLETE = 14,
+  MSG_ROLECONFLICT = 15,
+  MSG_SETROLE = 16,
 };
 
 Transport::Transport(talk_base::Thread* signaling_thread,
                      talk_base::Thread* worker_thread,
+                     const std::string& content_name,
                      const std::string& type,
                      PortAllocator* allocator)
   : signaling_thread_(signaling_thread),
-    worker_thread_(worker_thread), type_(type), allocator_(allocator),
-    destroyed_(false), readable_(false), writable_(false),
-    connect_requested_(false), allow_local_ips_(false) {
+    worker_thread_(worker_thread),
+    content_name_(content_name),
+    type_(type),
+    allocator_(allocator),
+    destroyed_(false),
+    readable_(TRANSPORT_STATE_NONE),
+    writable_(TRANSPORT_STATE_NONE),
+    connect_requested_(false),
+    role_(ROLE_UNKNOWN),
+    tiebreaker_(0) {
 }
 
 Transport::~Transport() {
@@ -96,30 +101,44 @@ Transport::~Transport() {
   ASSERT(destroyed_);
 }
 
-TransportChannelImpl* Transport::CreateChannel(
-    const std::string& name, const std::string& content_type) {
-  ChannelMessage msg(new ChannelParams(name, content_type));
+void Transport::SetRole(TransportRole role) {
+  role_ = role;
+  worker_thread()->Send(this, MSG_SETROLE);
+}
+
+TransportChannelImpl* Transport::CreateChannel(int component) {
+  ChannelMessage msg(new ChannelParams(component));
   worker_thread()->Send(this, MSG_CREATECHANNEL, &msg);
   return msg.data()->channel;
 }
 
-TransportChannelImpl* Transport::CreateChannel_w(
-    const std::string& name, const std::string& content_type) {
+TransportChannelImpl* Transport::CreateChannel_w(int component) {
   ASSERT(worker_thread()->IsCurrent());
   TransportChannelImpl *impl;
   talk_base::CritScope cs(&crit_);
 
   // Create the entry if it does not exist
-  if (channels_.find(name) == channels_.end()) {
-    impl = CreateTransportChannel(name, content_type);
-    channels_[name] = ChannelMapEntry(impl);
+  bool impl_exists = false;
+  if (channels_.find(component) == channels_.end()) {
+    impl = CreateTransportChannel(component);
+    channels_[component] = ChannelMapEntry(impl);
   } else {
-    impl = channels_[name].get();
+    impl = channels_[component].get();
+    impl_exists = true;
   }
 
   // Increase the ref count
-  channels_[name].AddRef();
+  channels_[component].AddRef();
   destroyed_ = false;
+
+  if (impl_exists) {
+    // If this is an existing channel, we should just return it without
+    // connecting to all the signal again.
+    return impl;
+  }
+
+  impl->SetRole(role_);
+  impl->SetTiebreaker(tiebreaker_);
 
   impl->SignalReadableState.connect(this, &Transport::OnChannelReadableState);
   impl->SignalWritableState.connect(this, &Transport::OnChannelWritableState);
@@ -127,6 +146,9 @@ TransportChannelImpl* Transport::CreateChannel_w(
       this, &Transport::OnChannelRequestSignaling);
   impl->SignalCandidateReady.connect(this, &Transport::OnChannelCandidateReady);
   impl->SignalRouteChange.connect(this, &Transport::OnChannelRouteChange);
+  impl->SignalCandidatesAllocationDone.connect(
+      this, &Transport::OnChannelCandidatesAllocationDone);
+  impl->SignalRoleConflict.connect(this, &Transport::OnRoleConflict);
 
   if (connect_requested_) {
     impl->Connect();
@@ -139,9 +161,9 @@ TransportChannelImpl* Transport::CreateChannel_w(
   return impl;
 }
 
-TransportChannelImpl* Transport::GetChannel(const std::string& name) {
+TransportChannelImpl* Transport::GetChannel(int component) {
   talk_base::CritScope cs(&crit_);
-  ChannelMap::iterator iter = channels_.find(name);
+  ChannelMap::iterator iter = channels_.find(component);
   return (iter != channels_.end()) ? iter->second.get() : NULL;
 }
 
@@ -150,18 +172,18 @@ bool Transport::HasChannels() {
   return !channels_.empty();
 }
 
-void Transport::DestroyChannel(const std::string& name) {
-  ChannelMessage msg(new ChannelParams(name));
+void Transport::DestroyChannel(int component) {
+  ChannelMessage msg(new ChannelParams(component));
   worker_thread()->Send(this, MSG_DESTROYCHANNEL, &msg);
 }
 
-void Transport::DestroyChannel_w(const std::string& name) {
+void Transport::DestroyChannel_w(int component) {
   ASSERT(worker_thread()->IsCurrent());
 
   TransportChannelImpl* impl = NULL;
   {
     talk_base::CritScope cs(&crit_);
-    ChannelMap::iterator iter = channels_.find(name);
+    ChannelMap::iterator iter = channels_.find(component);
     if (iter == channels_.end())
       return;
 
@@ -196,6 +218,21 @@ void Transport::ConnectChannels_w() {
   connect_requested_ = true;
   signaling_thread()->Post(
       this, MSG_CANDIDATEREADY, NULL);
+  if (!local_transport_description_.ice_ufrag.empty() &&
+      !local_transport_description_.ice_pwd.empty()) {
+    // Set ufrag and pwd before Connect.
+    talk_base::CritScope cs(&crit_);
+    for (ChannelMap::iterator iter = channels_.begin();
+         iter != channels_.end();
+         ++iter) {
+      (iter->second.get())->SetIceUfrag(local_transport_description_.ice_ufrag);
+      (iter->second.get())->SetIcePwd(local_transport_description_.ice_pwd);
+    }
+  } else {
+    // TODO: Maybe ASSERT here.
+    LOG(LS_WARNING) << "Transport::ConnectChannels_w: The ice_ufrag and the "
+                    << "ice_pwd were not ready.";
+  }
   CallChannels_w(&TransportChannelImpl::Connect);
   if (!channels_.empty()) {
     signaling_thread()->Post(this, MSG_CONNECTING, NULL);
@@ -274,24 +311,24 @@ void Transport::CallChannels_w(TransportChannelFunc func) {
   }
 }
 
-bool Transport::VerifyCandidate(const Candidate& cand, ParseError* error) {
-  if (cand.address().IsLocalIP() && !allow_local_ips_)
-    return BadParse("candidate has local IP address", error);
-
+bool Transport::VerifyCandidate(const Candidate& cand, std::string* error) {
   // No address zero.
-  if (cand.address().IsAny()) {
-    return BadParse("candidate has address of zero", error);
+  if (cand.address().IsNil() || cand.address().IsAny()) {
+    *error = "candidate has address of zero";
+    return false;
   }
 
   // Disallow all ports below 1024, except for 80 and 443 on public addresses.
   int port = cand.address().port();
   if (port < 1024) {
-    if ((port != 80) && (port != 443))
-      return BadParse(
-          "candidate has port below 1024, but not 80 or 443", error);
+    if ((port != 80) && (port != 443)) {
+      *error = "candidate has port below 1024, but not 80 or 443";
+      return false;
+    }
+
     if (cand.address().IsPrivateIP()) {
-      return BadParse(
-          "candidate has port of 80 or 443 with private IP address", error);
+      *error = "candidate has port of 80 or 443 with private IP address";
+      return false;
     }
   }
 
@@ -309,9 +346,10 @@ void Transport::OnRemoteCandidates(const std::vector<Candidate>& candidates) {
 void Transport::OnRemoteCandidate(const Candidate& candidate) {
   ASSERT(signaling_thread()->IsCurrent());
   if (destroyed_) return;
-  if (!HasChannel(candidate.name())) {
-    LOG(LS_WARNING) << "Ignoring candidate for unknown channel "
-                    << candidate.name();
+
+  if (!HasChannel(candidate.component())) {
+    LOG(LS_WARNING) << "Ignoring candidate for unknown component "
+                    << candidate.component();
     return;
   }
 
@@ -322,7 +360,7 @@ void Transport::OnRemoteCandidate(const Candidate& candidate) {
 
 void Transport::OnRemoteCandidate_w(const Candidate& candidate) {
   ASSERT(worker_thread()->IsCurrent());
-  ChannelMap::iterator iter = channels_.find(candidate.name());
+  ChannelMap::iterator iter = channels_.find(candidate.component());
   // It's ok for a channel to go away while this message is in transit.
   if (iter != channels_.end()) {
     iter->second.get()->OnCandidate(candidate);
@@ -336,7 +374,7 @@ void Transport::OnChannelReadableState(TransportChannel* channel) {
 
 void Transport::OnChannelReadableState_s() {
   ASSERT(signaling_thread()->IsCurrent());
-  bool readable = GetTransportState_s(true);
+  TransportState readable = GetTransportState_s(true);
   if (readable_ != readable) {
     readable_ = readable;
     SignalReadableState(this);
@@ -350,40 +388,48 @@ void Transport::OnChannelWritableState(TransportChannel* channel) {
 
 void Transport::OnChannelWritableState_s() {
   ASSERT(signaling_thread()->IsCurrent());
-  bool writable = GetTransportState_s(false);
+  TransportState writable = GetTransportState_s(false);
   if (writable_ != writable) {
     writable_ = writable;
     SignalWritableState(this);
   }
 }
 
-bool Transport::GetTransportState_s(bool read) {
+TransportState Transport::GetTransportState_s(bool read) {
   ASSERT(signaling_thread()->IsCurrent());
-  bool result = false;
   talk_base::CritScope cs(&crit_);
+  bool any = false;
+  bool all = !channels_.empty();
   for (ChannelMap::iterator iter = channels_.begin();
        iter != channels_.end();
        ++iter) {
     bool b = (read ? iter->second.get()->readable() :
       iter->second.get()->writable());
-    result = result || b;
+    any = any || b;
+    all = all && b;
   }
-  return result;
+  if (all) {
+    return TRANSPORT_STATE_ALL;
+  } else if (any) {
+    return TRANSPORT_STATE_SOME;
+  } else {
+    return TRANSPORT_STATE_NONE;
+  }
 }
 
 void Transport::OnChannelRequestSignaling(TransportChannelImpl* channel) {
   ASSERT(worker_thread()->IsCurrent());
   ChannelMessage* msg = new ChannelMessage(
-      new ChannelParams(channel->name()));
+      new ChannelParams(channel->component()));
   signaling_thread()->Post(this, MSG_REQUESTSIGNALING, msg);
 }
 
-void Transport::OnChannelRequestSignaling_s(const std::string& name) {
+void Transport::OnChannelRequestSignaling_s(int component) {
   ASSERT(signaling_thread()->IsCurrent());
   // Resetting ICE state for the channel.
   {
     talk_base::CritScope cs(&crit_);
-    ChannelMap::iterator iter = channels_.find(name);
+    ChannelMap::iterator iter = channels_.find(component);
     if (iter != channels_.end())
       iter->second.set_candidates_allocated(false);
   }
@@ -424,19 +470,20 @@ void Transport::OnChannelRouteChange(TransportChannel* channel,
                                      const Candidate& remote_candidate) {
   ASSERT(worker_thread()->IsCurrent());
   ChannelParams* params = new ChannelParams(new Candidate(remote_candidate));
+  params->channel = static_cast<cricket::TransportChannelImpl*>(channel);
   signaling_thread()->Post(this, MSG_ROUTECHANGE, new ChannelMessage(params));
 }
 
-void Transport::OnChannelRouteChange_s(const std::string& name,
+void Transport::OnChannelRouteChange_s(const TransportChannel* channel,
                                        const Candidate& remote_candidate) {
   ASSERT(signaling_thread()->IsCurrent());
-  SignalRouteChange(this, name, remote_candidate);
+  SignalRouteChange(this, remote_candidate.component(), remote_candidate);
 }
 
 void Transport::OnChannelCandidatesAllocationDone(
     TransportChannelImpl* channel) {
   ASSERT(worker_thread()->IsCurrent());
-  ChannelMap::iterator iter = channels_.find(channel->name());
+  ChannelMap::iterator iter = channels_.find(channel->component());
   ASSERT(iter != channels_.end());
   iter->second.set_candidates_allocated(true);
 
@@ -450,20 +497,32 @@ void Transport::OnChannelCandidatesAllocationDone(
   signaling_thread_->Post(this, MSG_CANDIDATEALLOCATIONCOMPLETE);
 }
 
+void Transport::OnRoleConflict(TransportChannelImpl* channel) {
+  signaling_thread_->Post(this, MSG_ROLECONFLICT);
+}
+
+void Transport::SetRole_w() {
+  talk_base::CritScope cs(&crit_);
+  for (ChannelMap::iterator iter = channels_.begin();
+       iter != channels_.end(); ++iter) {
+    iter->second.get()->SetRole(role_);
+  }
+}
+
 void Transport::OnMessage(talk_base::Message* msg) {
   switch (msg->message_id) {
   case MSG_CREATECHANNEL:
     {
       ChannelParams* params =
           static_cast<ChannelMessage*>(msg->pdata)->data().get();
-      params->channel = CreateChannel_w(params->name, params->content_type);
+      params->channel = CreateChannel_w(params->component);
     }
     break;
   case MSG_DESTROYCHANNEL:
     {
       ChannelParams* params =
           static_cast<ChannelMessage*>(msg->pdata)->data().get();
-      DestroyChannel_w(params->name);
+      DestroyChannel_w(params->component);
     }
     break;
   case MSG_CONNECTCHANNELS:
@@ -498,7 +557,7 @@ void Transport::OnMessage(talk_base::Message* msg) {
     {
       ChannelParams* params =
           static_cast<ChannelMessage*>(msg->pdata)->data().get();
-      OnChannelRequestSignaling_s(params->name);
+      OnChannelRequestSignaling_s(params->component);
       delete params;
     }
     break;
@@ -509,12 +568,18 @@ void Transport::OnMessage(talk_base::Message* msg) {
     {
       ChannelMessage* channel_msg = static_cast<ChannelMessage*>(msg->pdata);
       ChannelParams* params = channel_msg->data().get();
-      OnChannelRouteChange_s(params->name, *params->candidate);
+      OnChannelRouteChange_s(params->channel, *params->candidate);
       delete channel_msg;
     }
     break;
   case MSG_CANDIDATEALLOCATIONCOMPLETE:
     SignalCandidatesAllocationDone(this);
+    break;
+  case MSG_ROLECONFLICT:
+    SignalRoleConflict();
+    break;
+  case MSG_SETROLE:
+    SetRole_w();
     break;
   }
 }

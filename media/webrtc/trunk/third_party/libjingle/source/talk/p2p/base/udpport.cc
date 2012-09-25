@@ -64,13 +64,18 @@ UDPPort::~UDPPort() {
 
 void UDPPort::PrepareAddress() {
   if (socket_->GetState() == talk_base::AsyncPacketSocket::STATE_BOUND)
-    AddAddress(socket_->GetLocalAddress(), "udp", true);
+    AddAddress(socket_->GetLocalAddress(), socket_->GetLocalAddress(),
+               "udp", true);
 }
 
 Connection* UDPPort::CreateConnection(const Candidate& address,
                                       CandidateOrigin origin) {
   if (address.protocol() != "udp")
     return NULL;
+
+  if (!IsCompatibleAddress(address.address())) {
+    return NULL;
+  }
 
   Connection* conn = new ProxyConnection(this, 0, address);
   AddConnection(conn);
@@ -98,7 +103,7 @@ int UDPPort::GetError() {
 
 void UDPPort::OnAddressReady(talk_base::AsyncPacketSocket* socket,
                              const talk_base::SocketAddress& address) {
-  AddAddress(address, "udp", true);
+  AddAddress(address, address, "udp", true);
 }
 
 void UDPPort::OnReadPacket(
@@ -108,7 +113,7 @@ void UDPPort::OnReadPacket(
   if (Connection* conn = GetConnection(remote_addr)) {
     conn->OnReadPacket(data, size);
   } else {
-    Port::OnReadPacket(data, size, remote_addr);
+    Port::OnReadPacket(data, size, remote_addr, PROTO_UDP);
   }
 }
 
