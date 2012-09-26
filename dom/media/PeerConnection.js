@@ -12,11 +12,76 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/identity/WebRTC.jsm", IDService);
 
 const PC_CONTRACT = "@mozilla.org/dom/peerconnection;1";
+const PC_ICE_CONTRACT = "@mozilla.org/dom/rtcicecandidate;1";
+const PC_SESSION_CONTRACT = "@mozilla.org/dom/rtcsessiondescription;1";
+
 const PC_CID = Components.ID("{7cb2b368-b1ce-4560-acac-8e0dbda7d3d0}");
+const PC_ICE_CID = Components.ID("{8c5dbd70-2c8e-4ecb-a5ad-2fc919099f01}");
+const PC_SESSION_CID = Components.ID("{5f21ffd9-b73f-4ba0-a685-56b4667aaf1c}");
+
+function IceCandidate() {
+  this.candidate = null;
+  this.sdpMid = null;
+  this.sdpMLineIndex = null;
+}
+IceCandidate.prototype = {
+  classID: PC_ICE_CID,
+
+  classInfo: XPCOMUtils.generateCI({classID: PC_ICE_CID,
+                                    contractID: PC_ICE_CONTRACT,
+                                    classDescription: "IceCandidate",
+                                    interfaces: [
+                                      Ci.nsIDOMRTCIceCandidate,
+                                      Ci.nsIDOMGlobalObjectConstructor
+                                    ],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
+
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsIDOMRTCIceCandidate, Ci.nsIDOMGlobalObjectConstructor
+  ]),
+
+  constructor: function(win, cand, mid, mline) {
+    this._win = win;
+    this.candidate = cand;
+    this.sdpMid = mid;
+    this.sdpMLineIndex = mline;
+  }
+};
+
+function SessionDescription() {
+  this.type = null;
+  this.sdp = null;
+}
+SessionDescription.prototype = {
+  classID: PC_SESSION_CID,
+
+  classInfo: XPCOMUtils.generateCI({classID: PC_SESSION_CID,
+                                    contractID: PC_SESSION_CONTRACT,
+                                    classDescription: "SessionDescription",
+                                    interfaces: [
+                                      Ci.nsIDOMRTCSessionDescription,
+                                      Ci.nsIDOMGlobalObjectConstructor
+                                    ],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
+
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsIDOMRTCSessionDescription, Ci.nsIDOMGlobalObjectConstructor
+  ]),
+
+  constructor: function(win, type, sdp) {
+    this._win = win;
+    this.type = type;
+    this.sdp = sdp;
+  },
+
+  toString: function() {
+    return JSON.stringify({
+      type: this.type, sdp: this.sdp
+    });
+  }
+};
 
 function PeerConnection() {
-  dump("!!! Real PeerConnection constructor called OMG !!!\n\n");
-
   this._queue = [];
 
   this._pc = null;
@@ -181,6 +246,11 @@ PeerConnection.prototype = {
         }
 
         if (val && (fprint[1] == val.message)) {
+          dump("!!! : got from verifyIdentity: " + JSON.stringify(val));
+          val.__exposedProps__ = {
+            aud: "rw", message: "rw", iss: "rw", exp: "rw", iat: "rw",
+            principal: "rw"
+          };
           self._onVerifyIdentitySuccess.onCallback(val);
           self._displayVerification(val.principal.email);
 
@@ -403,7 +473,7 @@ PeerConnection.prototype = {
     dump("!!! " + this._uniqId + " : close returned");
   },
 
-  onRemoteStreamAdded: null,
+  onaddstream: null,
   notifyDataChannel: null,
   notifyConnection: null,
   notifyClosedConnection: null,
@@ -436,7 +506,7 @@ PeerConnectionObserver.prototype = {
     if (!this._dompc._identity) {
       this._dompc._onCreateOfferSuccess.onCallback({
         type: "offer", sdp: offer,
-         __exposedProps__: { type: "rw", sdp: "rw" }
+        __exposedProps__: { type: "rw", sdp: "rw" }
       });
       this._dompc._executeNext();
       return;
@@ -563,8 +633,8 @@ PeerConnectionObserver.prototype = {
 
   onAddStream: function(stream, type) {
     dump("!!! " + this._dompc._uniqId + " : onAddStream called: " + stream + " :: " + type + "\n");
-    if (this._dompc.onRemoteStreamAdded) {
-      this._dompc.onRemoteStreamAdded.onCallback({
+    if (this._dompc.onaddstream) {
+      this._dompc.onaddstream.onCallback({
         stream: stream, type: type,
         __exposedProps__: { stream: "r", type: "r" }
       });
@@ -617,4 +687,6 @@ PeerConnectionObserver.prototype = {
   }
 };
 
-let NSGetFactory = XPCOMUtils.generateNSGetFactory([PeerConnection]);
+let NSGetFactory = XPCOMUtils.generateNSGetFactory(
+  [IceCandidate, SessionDescription, PeerConnection]
+);
