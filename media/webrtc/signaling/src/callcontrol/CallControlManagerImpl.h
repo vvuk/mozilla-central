@@ -79,8 +79,8 @@ namespace CSF
         virtual bool registerUser( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain );
 
         virtual bool startP2PMode(const std::string& user);
-        
-        virtual bool startSDPMode();   
+
+        virtual bool startSDPMode();
 
         virtual bool disconnect();
         virtual std::string getPreferredDeviceName();
@@ -105,7 +105,7 @@ namespace CSF
 	private: // Data Storage
 
         // Observers
-		LockNSPR m_lock;;
+		LockNSPR m_lock;
 		std::set<CC_Observer *> ccObservers;
 		std::set<ECC_Observer *> eccObservers;
 

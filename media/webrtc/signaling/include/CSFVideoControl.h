@@ -52,7 +52,7 @@ namespace CSF
 	{
 	public:
 		virtual ~VideoControl() {};
-		
+
 		virtual void setVideoMode( bool enable ) = 0;
 
 		// window type is platform-specific

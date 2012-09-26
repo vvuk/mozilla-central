@@ -345,20 +345,20 @@ namespace CSF
           @return int - the current call volume level, or -1 if it cannot be determined
         */
         virtual int getVolume() = 0;
-       
+
         /**
            get SDP from info object returned from JSEP functions 
            @param [in] handle - call info handle
            @return SDP string
-         */       
+         */
         virtual std::string getSDP() = 0;
-        
+
         /**
-           get status code 
+           get status code
            @param [in] handle - call info handle
            @return code
          */
-        virtual cc_int32_t getStatusCode() = 0;        
+        virtual cc_int32_t getStatusCode() = 0;
 
         /**
            get media streams

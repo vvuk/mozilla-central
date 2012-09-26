@@ -18,15 +18,15 @@ class LockNSPR {
   ~LockNSPR() {
     PR_DestroyLock(lock_);
   }
-  
+
   void Acquire() {
     PR_Lock(lock_);
   }
-  
+
   void Release() {
     PR_Unlock(lock_);
   }
-  
+
  private:
   PRLock *lock_;
 };
@@ -36,7 +36,7 @@ class AutoLockNSPR {
   AutoLockNSPR(LockNSPR& lock) : lock_(lock) {
     lock_.Acquire();
   }
-  ~AutoLockNSPR() { 
+  ~AutoLockNSPR() {
     lock_.Release();
   }
 
