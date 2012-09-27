@@ -10,7 +10,7 @@
 // Pull in sigslot from libjingle. If we remove libjingle, we will
 // need to either bring that in separately or refactor this code
 // to not use sigslot
-#include <talk/base/sigslot.h>
+#include "sigslot.h"
 
 #include "mozilla/RefPtr.h"
 

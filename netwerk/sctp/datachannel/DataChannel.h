@@ -18,7 +18,7 @@
 #include "nsITimer.h"
 #include "mozilla/Mutex.h"
 #include "DataChannelProtocol.h"
-#include "talk/base/sigslot.h"
+#include "mtransport/sigslot.h"
 #include "mtransport/transportflow.h"
 #include "mtransport/transportlayer.h"
 #include "mtransport/transportlayerprsock.h"

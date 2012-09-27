@@ -9,7 +9,7 @@
 
 #include <queue>
 
-#include <talk/base/sigslot.h>
+#include "sigslot.h"
 
 #include "nspr.h"
 #include "prio.h"

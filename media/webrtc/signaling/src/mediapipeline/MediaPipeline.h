@@ -8,7 +8,7 @@
 #define mediapipeline_h__
 
 #include <iostream>
-#include <talk/base/sigslot.h>
+#include "mtransport/sigslot.h"
 
 #ifdef USE_FAKE_MEDIA_STREAMS
 #include "FakeMediaStreams.h"

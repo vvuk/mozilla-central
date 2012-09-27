@@ -6,8 +6,7 @@
 
 #include <iostream>
 
-// From libjingle.
-#include <talk/base/sigslot.h>
+#include "sigslot.h"
 
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"

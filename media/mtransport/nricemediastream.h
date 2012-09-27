@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include <talk/base/sigslot.h>
+#include "sigslot.h"
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/Scoped.h"

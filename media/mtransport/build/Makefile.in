@@ -58,6 +58,7 @@ SRCS_IN_OBJDIR	= 1
 EXPORTS_NAMESPACES = mtransport
 
 EXPORTS_mtransport = \
+  ../sigslot.h \
   ../dtlsidentity.h \
   ../nricectx.h \
   ../nricemediastream.h \

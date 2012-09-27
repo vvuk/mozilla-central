@@ -8,8 +8,7 @@
 #include <string>
 #include <map>
 
-// From libjingle.
-#include <talk/base/sigslot.h>
+#include "sigslot.h"
 
 #include "nspr.h"
 #include "nss.h"
