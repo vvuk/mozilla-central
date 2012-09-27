@@ -8856,26 +8856,26 @@ if test -n "$MOZ_WEBRTC"; then
        AC_MSG_ERROR([failed to generate WebRTC/Signaling Makefiles])
      fi
 
-#     AC_MSG_RESULT("generating WebRTC/SignalingTest Makefiles...")
-#     $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
-#       $GYP_WEBRTC_OPTIONS \
-#       -D build_for_test=1 \
-#       --generator-output=${_objdir}/media/webrtc/signalingtest \
-#       ${srcdir}/media/webrtc/signaling/signaling.gyp
-#     if test "$?" != 0; then
-#       AC_MSG_ERROR([failed to generate WebRTC/SignalingTest Makefiles])
-#     fi
+     AC_MSG_RESULT("generating WebRTC/SignalingTest Makefiles...")
+     $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \
+       $GYP_WEBRTC_OPTIONS \
+       -D build_for_test=1 \
+       --generator-output=${_objdir}/media/webrtc/signalingtest \
+       ${srcdir}/media/webrtc/signaling/signaling.gyp
+     if test "$?" != 0; then
+       AC_MSG_ERROR([failed to generate WebRTC/SignalingTest Makefiles])
+     fi
    fi
 
-#   AC_MSG_RESULT("generating gtest Makefiles...")
-#   # Ok to pass some extra -D's that are ignored here
-#   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium \
-#     $GYP_WEBRTC_OPTIONS \
-#     --generator-output=${_objdir}/media/webrtc/trunk/testing/ \
-#     ${srcdir}/media/webrtc/trunk/testing/gtest.gyp
-#   if test "$?" != 0; then
-#      AC_MSG_ERROR([failed to generate gtest Makefiles])
-#   fi
+   AC_MSG_RESULT("generating gtest Makefiles...")
+   # Ok to pass some extra -D's that are ignored here
+   $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium \
+     $GYP_WEBRTC_OPTIONS \
+     --generator-output=${_objdir}/media/webrtc/trunk/testing/ \
+     ${srcdir}/media/webrtc/trunk/testing/gtest.gyp
+   if test "$?" != 0; then
+      AC_MSG_ERROR([failed to generate gtest Makefiles])
+   fi
 
    AC_MSG_RESULT("generating nrappkit Makefiles...")
    $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium --format=mozmake \

@@ -270,7 +270,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
 
   void StateChanged(TransportFlow *flow, TransportLayer::State state) {
-    if (state == TransportLayer::OPEN) {
+    if (state == TransportLayer::TS_OPEN) {
       std::cerr << "Now connected" << std::endl;
     }
   }
@@ -286,11 +286,11 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   bool connected() {
-    return flow_->state() == TransportLayer::OPEN;
+    return flow_->state() == TransportLayer::TS_OPEN;
   }
 
   bool failed() {
-    return flow_->state() == TransportLayer::ERROR;
+    return flow_->state() == TransportLayer::TS_ERROR;
   }
 
   size_t received() { return received_; }

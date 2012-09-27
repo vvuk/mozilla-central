@@ -70,7 +70,15 @@ LIBS += \
   $(NULL)
 endif
 
-DEFINES = -DUSE_FAKE_MEDIA_STREAMS
+DEFINES += \
+  -DUSE_FAKE_MEDIA_STREAMS \
+  $(NULL)
+
+ifeq ($(OS_ARCH),Darwin)
+DEFINES += \
+  -DGTEST_USE_OWN_TR1_TUPLE=1 \
+  $(NULL)
+endif
 
 LOCAL_INCLUDES += \
  -I. \
