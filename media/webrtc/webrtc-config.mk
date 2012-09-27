@@ -48,5 +48,4 @@ EXTRA_DEPS += $(topsrcdir)/media/webrtc/webrtc-config.mk
 
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/webrtc/trunk/src \
-  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source \
   $(NULL)

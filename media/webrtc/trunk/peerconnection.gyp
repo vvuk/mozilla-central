@@ -33,7 +33,7 @@
           'message': 'Generating scream',
         }, ],
         'dependencies': [
-	  'third_party/libjingle/libjingle.gyp:libjingle',
+#	  'third_party/libjingle/libjingle.gyp:libjingle',
 	
 ## allow building without libjingle
 ##	  'third_party/libjingle/libjingle.gyp:libjingle_app',

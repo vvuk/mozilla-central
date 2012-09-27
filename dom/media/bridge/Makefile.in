@@ -31,8 +31,7 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/webrtc/signaling/src/peerconnection \
   -I$(topsrcdir)/media/webrtc/signaling/src/mediapipeline \
   -I$(topsrcdir)/media/webrtc/signaling/src/media-conduit \
-  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
-  -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/talk \
+  -I$(topsrcdir)/ipc/chromium/src \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -60,7 +60,6 @@ LIBS		= $(EXTRA_DSO_LIBS) \
 
 LOCAL_INCLUDES += \
  -I. \
- -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
  -I$(topsrcdir)/media/webrtc/trunk/testing/gtest/include/ \
  -I$(topsrcdir)/media/mtransport/ \
  -I$(topsrcdir)/netwerk/sctp/src/ \
@@ -69,7 +68,6 @@ LOCAL_INCLUDES += \
 
 LOCAL_INCLUDES += \
  -I. \
- -I$(topsrcdir)/media/webrtc/trunk/third_party/libjingle/source/ \
  -I$(topsrcdir)/media/mtransport/third_party/ \
  -I$(topsrcdir)/media/mtransport/third_party/ \
  -I$(topsrcdir)/media/mtransport/third_party/nICEr/src/crypto \

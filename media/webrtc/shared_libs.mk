@@ -4,8 +4,6 @@
 
 # shared libs for webrtc
 WEBRTC_LIBS = \
-    $(call EXPAND_LIBNAME_PATH,jingle,$(DEPTH)/media/webrtc/trunk/third_party/libjingle/libjingle_libjingle) \
-    $(call EXPAND_LIBNAME_PATH,jsoncpp,$(DEPTH)/media/webrtc/trunk/third_party/jsoncpp/jsoncpp_jsoncpp) \
   $(call EXPAND_LIBNAME_PATH,video_capture_module,$(DEPTH)/media/webrtc/trunk/src/modules/modules_video_capture_module) \
   $(call EXPAND_LIBNAME_PATH,webrtc_utility,$(DEPTH)/media/webrtc/trunk/src/modules/modules_webrtc_utility) \
   $(call EXPAND_LIBNAME_PATH,audio_coding_module,$(DEPTH)/media/webrtc/trunk/src/modules/modules_audio_coding_module) \
@@ -42,7 +40,6 @@ WEBRTC_LIBS = \
   $(call EXPAND_LIBNAME_PATH,agc,$(DEPTH)/media/webrtc/trunk/src/modules/modules_agc) \
   $(call EXPAND_LIBNAME_PATH,ns,$(DEPTH)/media/webrtc/trunk/src/modules/modules_ns) \
   $(call EXPAND_LIBNAME_PATH,yuv,$(DEPTH)/media/webrtc/trunk/third_party/libyuv/libyuv_libyuv) \
-  $(call EXPAND_LIBNAME_PATH,expat,$(DEPTH)/media/webrtc/trunk/third_party/expat/expat_expat) \
   $(call EXPAND_LIBNAME_PATH,webrtc_jpeg,$(DEPTH)/media/webrtc/trunk/src/common_video/common_video_webrtc_jpeg) \
   $(call EXPAND_LIBNAME_PATH,nicer,$(DEPTH)/media/mtransport/third_party/nICEr/nicer_nicer) \
   $(call EXPAND_LIBNAME_PATH,nrappkit,$(DEPTH)/media/mtransport/third_party/nrappkit/nrappkit_nrappkit) \

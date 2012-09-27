@@ -51,9 +51,9 @@
         '../trunk/src/voice_engine/include',
         '../trunk/src/modules/interface',
         '../trunk/src/peerconnection',
-        '../trunk/third_party/libjingle/source',
         '$(DEPTH)/../netwerk/srtp/src/include',
         '$(DEPTH)/../netwerk/srtp/src/crypto/include',
+        '$(DEPTH)/../ipc/chromium/src',
       ],	
 	  
       #
