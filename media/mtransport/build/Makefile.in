@@ -77,9 +77,11 @@ CPPSRCS = \
 	$(MTRANSPORT_LCPPSRCS) \
 	$(NULL)
 
-# for stun.h
 ifeq (WINNT,$(OS_TARGET))
-DEFINES += -DWIN32
+DEFINES += \
+  -DWIN32 \
+  -DNOMINMAX \
+  $(NULL)
 else ifeq (Linux,$(OS_TARGET))
 DEFINES += -DLINUX
 endif

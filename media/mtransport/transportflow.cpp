@@ -51,7 +51,7 @@ TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
 }
 
 TransportLayer::State TransportFlow::state() {
-  return top() ? top()->state() : TransportLayer::NONE;
+  return top() ? top()->state() : TransportLayer::TS_NONE;
 }
 
 TransportResult TransportFlow::SendPacket(const unsigned char *data,

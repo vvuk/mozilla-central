@@ -5,7 +5,7 @@
 // Original author: ekr@rtfm.com
 
 #include <queue>
-
+#include <algorithm>
 
 #include "nspr.h"
 #include "nss.h"
@@ -373,7 +373,7 @@ nsresult TransportLayerDtls::InitInternal() {
 void TransportLayerDtls::WasInserted() {
   // Connect to the lower layers
   if (!Setup()) {
-    SetState(ERROR);
+    SetState(TS_ERROR);
   }
 };
 
@@ -535,7 +535,7 @@ bool TransportLayerDtls::Setup() {
   downward_->SignalStateChange.connect(this, &TransportLayerDtls::StateChange);
   downward_->SignalPacketReceived.connect(this, &TransportLayerDtls::PacketReceived);
 
-  if (downward_->state() == OPEN) {
+  if (downward_->state() == TS_OPEN) {
     Handshake();
   }
 
@@ -546,41 +546,41 @@ bool TransportLayerDtls::Setup() {
 void TransportLayerDtls::StateChange(TransportLayer *layer, State state) {
   if (state <= state_) {
     MLOG(PR_LOG_ERROR, "Lower layer state is going backwards from ours");
-    SetState(ERROR);
+    SetState(TS_ERROR);
     return;
   }
 
   switch (state) {
-    case NONE:
+    case TS_NONE:
       PR_ASSERT(false);  // Can't happen
       break;
 
-    case INIT:
+    case TS_INIT:
       MLOG(PR_LOG_ERROR, LAYER_INFO << "State change of lower layer to INIT forbidden");
-      SetState(ERROR);
+      SetState(TS_ERROR);
       break;
-    case CONNECTING:
+    case TS_CONNECTING:
       break;
 
-    case OPEN:
+    case TS_OPEN:
       MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now open; starting TLS");
       Handshake();
       break;
 
-    case CLOSED:
+    case TS_CLOSED:
       MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower is now closed");
-      SetState(CLOSED);
+      SetState(TS_CLOSED);
       break;
 
-    case ERROR:
+    case TS_ERROR:
       MLOG(PR_LOG_ERROR, LAYER_INFO << "Lower lower experienced an error");
-      SetState(ERROR);
+      SetState(TS_ERROR);
       break;
   }
 }
 
 void TransportLayerDtls::Handshake() {
-  SetState(CONNECTING);
+  SetState(TS_CONNECTING);
 
   // Clear the retransmit timer
   timer_->Cancel();
@@ -589,14 +589,14 @@ void TransportLayerDtls::Handshake() {
 
   if (rv == SECSuccess) {
     MLOG(PR_LOG_NOTICE, LAYER_INFO << "****** SSL handshake completed ******");
-    SetState(OPEN);
+    SetState(TS_OPEN);
   } else {
     PRInt32 err = PR_GetError();
     switch(err) {
       case SSL_ERROR_RX_MALFORMED_HANDSHAKE:
         if (mode_ != DGRAM) {
           MLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed TLS message");
-          SetState(ERROR);
+          SetState(TS_ERROR);
         } else {
           MLOG(PR_LOG_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
         }
@@ -620,7 +620,7 @@ void TransportLayerDtls::Handshake() {
         break;
       default:
         MLOG(PR_LOG_ERROR, LAYER_INFO << "SSL handshake error "<< err);
-        SetState(ERROR);
+        SetState(TS_ERROR);
         break;
     }
   }
@@ -631,7 +631,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
                                         size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
 
-  if (state_ != CONNECTING && state_ != OPEN) {
+  if (state_ != TS_CONNECTING && state_ != TS_OPEN) {
     MLOG(PR_LOG_DEBUG, LAYER_INFO << "Discarding packet in inappropriate state");
     return;
   }
@@ -639,12 +639,12 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
   helper_->PacketReceived(data, len);
 
   // If we're still connecting, try to handshake
-  if (state_ == CONNECTING) {
+  if (state_ == TS_CONNECTING) {
     Handshake();
   }
 
   // Now try a recv if we're open, since there might be data left
-  if (state_ == OPEN) {
+  if (state_ == TS_OPEN) {
     unsigned char buf[2000];
 
     PRInt32 rv = PR_Recv(ssl_fd_, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
@@ -653,7 +653,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
       MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes from NSS");
       SignalPacketReceived(this, buf, rv);
     } else if (rv == 0) {
-      SetState(CLOSED);
+      SetState(TS_CLOSED);
     } else {
       PRInt32 err = PR_GetError();
 
@@ -662,7 +662,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
         MLOG(PR_LOG_NOTICE, LAYER_INFO << "Would have blocked");
       } else {
         MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
-        SetState(ERROR);
+        SetState(TS_ERROR);
       }
     }
   }
@@ -670,7 +670,7 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
-  if (state_ != OPEN) {
+  if (state_ != TS_OPEN) {
     MLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
          << state_);
     return TE_ERROR;
@@ -685,7 +685,7 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
   }
 
   if (rv == 0) {
-    SetState(CLOSED);
+    SetState(TS_CLOSED);
     return 0;
   }
 
@@ -698,7 +698,7 @@ TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
   }
 
   MLOG(PR_LOG_NOTICE, LAYER_INFO << "NSS Error " << err);
-  SetState(ERROR);
+  SetState(TS_ERROR);
   return TE_ERROR;
 }
 

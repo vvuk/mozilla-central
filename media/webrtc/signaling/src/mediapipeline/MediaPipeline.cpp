@@ -50,7 +50,7 @@ nsresult MediaPipeline::Init() {
 
   // TODO(ekr@rtfm.com): Danger....
   // Look to see if the transport is ready
-  if (rtp_transport_->state() == TransportLayer::OPEN) {
+  if (rtp_transport_->state() == TransportLayer::TS_OPEN) {
     res = TransportReady(rtp_transport_);
     if (!NS_SUCCEEDED(res))
       return res;
@@ -59,7 +59,7 @@ nsresult MediaPipeline::Init() {
                                               &MediaPipeline::StateChange);
 
     if (!muxed_) {
-      if (rtcp_transport_->state() == TransportLayer::OPEN) {
+      if (rtcp_transport_->state() == TransportLayer::TS_OPEN) {
         res = TransportReady(rtcp_transport_);
         if (!NS_SUCCEEDED(res))
           return res;
@@ -86,11 +86,11 @@ void MediaPipeline::DetachTransport() {
 void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state) {
   // TODO(ekr@rtfm.com): check for double changes. This shouldn't happen,
   // but...
-  if (state == TransportLayer::OPEN) {
+  if (state == TransportLayer::TS_OPEN) {
     MLOG(PR_LOG_DEBUG, "Flow is ready");
     TransportReady(flow);
-  } else if (state == TransportLayer::CLOSED ||
-             state == TransportLayer::ERROR) {
+  } else if (state == TransportLayer::TS_CLOSED ||
+             state == TransportLayer::TS_ERROR) {
     TransportFailed(flow);
   }
 }
@@ -456,7 +456,7 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
 
   // Return early if we are not connected to avoid queueing stuff
   // up in the conduit
-  if (pipeline_->rtp_transport_->state() != TransportLayer::OPEN) {
+  if (pipeline_->rtp_transport_->state() != TransportLayer::TS_OPEN) {
     MLOG(PR_LOG_DEBUG, "Transport not ready yet, dropping packets");
     return;
   }

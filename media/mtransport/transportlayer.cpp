@@ -13,16 +13,16 @@
 MLOG_INIT("mtransport");
 
 nsresult TransportLayer::Init() {
-  if (state_ != NONE)
-    return state_ == ERROR ? NS_ERROR_FAILURE : NS_OK;
+  if (state_ != TS_NONE)
+    return state_ == TS_ERROR ? NS_ERROR_FAILURE : NS_OK;
 
   nsresult rv = InitInternal();
 
   if (!NS_SUCCEEDED(rv)) {
-    state_ = ERROR;
+    state_ = TS_ERROR;
     return rv;
   }
-  state_ = INIT;
+  state_ = TS_INIT;
 
   return NS_OK;
 }

@@ -16,9 +16,6 @@
 
 #include "m_cpp_utils.h"
 
-#pragma push_macro("ERROR")
-#undef ERROR
-
 class TransportFlow;
 
 typedef int TransportResult;
@@ -35,14 +32,15 @@ enum {
 class TransportLayer : public sigslot::has_slots<> {
  public:
   // The state of the transport flow
-  enum State { NONE, INIT, CONNECTING, OPEN, CLOSED, ERROR };
+  // We can't use "ERROR" because Windows has a macro named "ERROR"
+  enum State { TS_NONE, TS_INIT, TS_CONNECTING, TS_OPEN, TS_CLOSED, TS_ERROR };
   enum Mode { STREAM, DGRAM };
 
   // Is this a stream or datagram flow
 
   TransportLayer(Mode mode = STREAM) :
     mode_(mode),
-    state_(NONE),
+    state_(TS_NONE),
     flow_(NULL),
     downward_(NULL) {}
 
@@ -90,7 +88,5 @@ class TransportLayer : public sigslot::has_slots<> {
 };
 
 #define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "
-
-#pragma pop_macro("ERROR")
 
 #endif

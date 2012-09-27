@@ -53,7 +53,7 @@ nsresult TransportLayerLoopback::Init() {
 void TransportLayerLoopback::Connect(TransportLayerLoopback* peer) {
   peer_ = peer;
 
-  SetState(OPEN);
+  SetState(TS_OPEN);
 }
 
 TransportResult
@@ -105,7 +105,7 @@ void TransportLayerLoopback::DeliverPackets() {
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(TransportLayerLoopback::Deliverer,
-                              nsITimerCallback);
+                              nsITimerCallback)
 
 NS_IMETHODIMP TransportLayerLoopback::Deliverer::Notify(nsITimer *timer) {
   if (!layer_)

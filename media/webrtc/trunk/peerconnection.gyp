@@ -43,7 +43,7 @@
 #          'src/system_wrappers/source/system_wrappers.gyp:system_wrappers',
           'src/video_engine/video_engine.gyp:video_engine_core',
           'src/voice_engine/voice_engine.gyp:voice_engine_core',
-##          '<(DEPTH)/third_party/libsrtp/libsrtp.gyp:libsrtp',
+          '<(DEPTH)/third_party/libyuv/libyuv.gyp:libyuv',
         ],
       }, ],
     ],

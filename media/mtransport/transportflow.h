@@ -42,7 +42,7 @@ class TransportFlow : public sigslot::has_slots<> {
   sigslot::signal3<TransportFlow*, const unsigned char *, size_t>
     SignalPacketReceived;
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportFlow);
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportFlow)
 
  private:
   DISALLOW_COPY_ASSIGN(TransportFlow);

@@ -35,7 +35,7 @@ nsresult TransportLayerPrsock::InitInternal() {
 }
 
 void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
-  if (state_ != INIT) {
+  if (state_ != TS_INIT) {
     *result = NS_ERROR_NOT_INITIALIZED;
     return;
   }
@@ -50,14 +50,14 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
     return;
   }
   
-  SetState(OPEN);
+  SetState(TS_OPEN);
 
   *result = NS_OK;
 }
 
 int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
-  if (state_ != OPEN) {
+  if (state_ != TS_OPEN) {
     MLOG(PR_LOG_DEBUG, LAYER_INFO << "Can't send packet on closed interface");
     return TE_INTERNAL;
   }
@@ -77,7 +77,7 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
 
 
   MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write error; channel closed");
-  SetState(ERROR);
+  SetState(TS_ERROR);
   return TE_ERROR;
 }
 
@@ -97,13 +97,13 @@ void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
     SignalPacketReceived(this, buf, rv);
   } else if (rv == 0) {
     MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read 0 bytes; channel closed");
-    SetState(CLOSED);
+    SetState(TS_CLOSED);
   } else {
     PRErrorCode err = PR_GetError();
     
     if (err != PR_WOULD_BLOCK_ERROR) {
       MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read error; channel closed");
-      SetState(ERROR);
+      SetState(TS_ERROR);
     }
   }
 }
