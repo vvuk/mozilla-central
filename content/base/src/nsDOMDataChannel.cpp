@@ -39,6 +39,11 @@ extern PRLogModuleInfo* dataChannelLog;
 
 #include "DataChannel.h"
 
+#ifdef GetBinaryType
+// Windows apparently has a #define for GetBinaryType...
+#undef GetBinaryType
+#endif
+
 class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
@@ -209,8 +214,7 @@ nsDOMDataChannel::GetBufferedAmount(uint32_t* aBufferedAmount)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMDataChannel::GetBinaryType(nsAString& aBinaryType)
+NS_IMETHODIMP nsDOMDataChannel::GetBinaryType(nsAString & aBinaryType)
 {
   switch (mBinaryType) {
   case DC_BINARY_TYPE_ARRAYBUFFER:
