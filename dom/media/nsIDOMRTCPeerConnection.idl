@@ -8,7 +8,6 @@
 interface nsIDOMEventListener;
 interface nsIDOMDataChannel;
 
-/* Quick hack */
 [scriptable, function, uuid(eb9c563c-3b09-4565-9317-eca96ae0c538)]
 interface RTCPeerConnectionCallback : nsISupports
 {
@@ -21,11 +20,19 @@ interface RTCPeerConnectionCallbackVoid : nsISupports
   void onCallback();
 };
 
-[scriptable, uuid(c08575b6-7e82-4c5a-bbc5-dde755c35788)]
-interface RTCSessionDescription : nsISupports
+[scriptable, uuid(05d7375e-b024-4951-a570-c6642105ad35)]
+interface nsIDOMRTCSessionDescription : nsISupports
 {
-  attribute string sdp;
-  attribute string type;
+  attribute DOMString sdp;
+  attribute DOMString type;
+};
+
+[scriptable, uuid(df176474-e20a-4f42-a85b-b0414d634cf0)]
+interface nsIDOMRTCIceCandidate : nsISupports
+{
+  attribute DOMString candidate;
+  attribute DOMString sdpMid;
+  attribute unsigned short sdpMLineIndex;
 };
 
 /* If either maxRetransmitTime or maxRetransmitNum are set, it's
@@ -47,17 +54,17 @@ interface nsIDOMRTCPeerConnection : nsISupports
     [optional] in RTCPeerConnectionCallback failureCallback,
     [optional] in jsval constraints);
 
-  void createAnswer(in RTCSessionDescription offer,
+  void createAnswer(in nsIDOMRTCSessionDescription offer,
     in RTCPeerConnectionCallback successCallback,
     [optional] in RTCPeerConnectionCallback failureCallback,
     [optional] in jsval constraints,
     [optional] in bool createProvisionalAnswer);
 
-  void setLocalDescription(in RTCSessionDescription desc,
+  void setLocalDescription(in nsIDOMRTCSessionDescription desc,
     [optional] in RTCPeerConnectionCallback successCallback,
     [optional] in RTCPeerConnectionCallback failureCallback);
 
-  void setRemoteDescription(in RTCSessionDescription desc,
+  void setRemoteDescription(in nsIDOMRTCSessionDescription desc,
     [optional] in RTCPeerConnectionCallback successCallback,
     [optional] in RTCPeerConnectionCallback failureCallback);
 
@@ -65,13 +72,32 @@ interface nsIDOMRTCPeerConnection : nsISupports
     [optional] in jsval constraints,
     [optional] in bool restart);
 
-  void addIceCandidate(in jsval candidate);
+  void addIceCandidate(in nsIDOMRTCIceCandidate candidate);
 
   void addStream(in nsIDOMMediaStream stream,
     [optional] in jsval constraints);
 
   void removeStream(in nsIDOMMediaStream stream);
   void close();
+
+  /* Readonly attributes */
+  readonly attribute DOMString iceState;
+  readonly attribute DOMString iceGatheringState;
+
+  readonly attribute DOMString readyState;
+  readonly attribute jsval localDescription;
+  readonly attribute jsval remoteDescription;
+
+  readonly attribute jsval localStreams; // MediaStream[]
+  readonly attribute jsval remoteStreams; // MediaStream[]
+
+  /* Event handlers. TODO: Use real EventTarget */
+  attribute RTCPeerConnectionCallback onaddstream;
+  attribute RTCPeerConnectionCallback onremovestream;
+  attribute RTCPeerConnectionCallback onicecandidate;
+  attribute RTCPeerConnectionCallback onstatechange;
+  attribute RTCPeerConnectionCallback ongatheringchange;
+  attribute RTCPeerConnectionCallback onicechange;
 
   /* Identity */
   void selectIdentity(in RTCPeerConnectionCallback successCallback,
@@ -88,25 +114,14 @@ interface nsIDOMRTCPeerConnection : nsISupports
   attribute RTCPeerConnectionCallbackVoid onClosedConnection;
   attribute RTCPeerConnectionCallback onDataChannel;
 
-  readonly attribute DOMString iceState;
-  readonly attribute DOMString readyState;
-  readonly attribute jsval localDescription;
-  readonly attribute jsval remoteDescription;
-
-  readonly attribute jsval localStreams; // MediaStream[]
-  readonly attribute jsval remoteStreams; // MediaStream[]
-
-  /* TODO: Use real EventTarget */
-  attribute RTCPeerConnectionCallback onRemoteStreamAdded;
-
-  /* For testing only! Please remove later */
+  /* For purposes only! Remove in production */
   nsIDOMMediaStream createFakeMediaStream(in string type,
                                           [optional] in boolean mute
                                           );
 
   /* Bring up SCTP/DTLS/UDP connection */
   /* XXX remove */
-  void connectDataConnection(in unsigned short localport, in unsigned short remoteport, 
+  void connectDataConnection(in unsigned short localport, in unsigned short remoteport,
                              [optional] in unsigned short numstreams);
   void listen(in unsigned short port, [optional] in unsigned short numstreams);
   void connect(in DOMString addr, in unsigned short localport, in unsigned short remoteport,

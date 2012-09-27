@@ -75,12 +75,12 @@
     pc1 = new mozRTCPeerConnection();
     pc2 = new mozRTCPeerConnection();
 
-    pc1.onRemoteStreamAdded = function(obj) {
+    pc1.onaddstream = function(obj) {
       log("pc1 got remote stream from pc2 " + obj.type);
       pc2video.src = obj.stream;
       pc2video.play();
     }
-    pc2.onRemoteStreamAdded = function(obj) {
+    pc2.onaddstream = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
       pc1video.src = obj.stream;
       pc1video.play();
