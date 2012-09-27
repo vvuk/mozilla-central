@@ -17,6 +17,23 @@
 #include <stdint.h>  // for uintptr_t
 #endif
 
+#include "mozilla/StandardInteger.h"
+typedef uint64_t uint64;
+typedef int64_t  int64;
+#if defined(_MSC_VER)
+// nsprpub/pr/include/obsolete/protypes.h defines these weirdly
+typedef long int32;
+typedef unsigned long uint32;
+#else
+typedef uint32_t uint32;
+typedef int32_t  int32;
+#endif
+typedef uint16_t uint16;
+typedef int16_t  int16;
+typedef uint8_t  uint8;
+typedef int8_t   int8;
+#define INT_TYPES_DEFINED 1
+
 #ifndef INT_TYPES_DEFINED
 #define INT_TYPES_DEFINED
 #ifdef COMPILER_MSVC
