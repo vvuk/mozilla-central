@@ -260,6 +260,7 @@ jpeg_write_scanlines
 jpeg_write_raw_data
 jpeg_stdio_dest
 jpeg_abort
+jpeg_abort_decompress
 jpeg_read_raw_data
 #endif
 qcms_enable_iccv4
