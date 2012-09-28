@@ -326,7 +326,7 @@ nsresult
 PeerConnectionImpl::CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info)
 {
   MOZ_ASSERT(info);
-  
+
   nsIDOMMediaStream* stream;
 
   nsresult res;
@@ -479,21 +479,21 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
 
-   // Find the STS thread
-   mSTSThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
+  // Find the STS thread
+  mSTSThread = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
 
-   if (NS_FAILED(res)) {
+  if (NS_FAILED(res)) {
     CSFLogErrorS(logTag, __FUNCTION__ << ": do_GetService failed: " << res);
-     return res;
-   }
+    return res;
+  }
 
-  // Busy-wait until we are ready
-  // TODO(ekr@rtfm.com): This needs to be fixed with deferred operation
-  // in PeerConnection.js
+#ifndef MOZILLA_INTERNAL_API
+  // Busy-wait until we are ready, for C++ unit tests. Remove when tests are fixed.
   CSFLogDebugS(logTag, __FUNCTION__ << ": Sleeping until kStarted");
   while(PeerConnectionCtx::GetInstance()->sipcc_state() != kStarted) {
     PR_Sleep(100);
   }
+#endif
 
   return NS_OK;
 }
@@ -1034,7 +1034,7 @@ PeerConnectionImpl::DisconnectMediaStreams()
 }
 
 void
-PeerConnectionImpl::ShutdownMediaTransport() 
+PeerConnectionImpl::ShutdownMediaTransport()
 {
   mTransportFlows.clear();
   mIceStreams.clear();
