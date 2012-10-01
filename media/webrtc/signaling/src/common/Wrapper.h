@@ -74,7 +74,7 @@
 #include "SharedPtr.h"
 #include "base/lock.h"
 
-#include "AutoLockNSPR.h"
+#include "mozilla/Mutex.h"
 
 template <class T>
 class Wrapper
@@ -82,12 +82,14 @@ class Wrapper
 private:
     typedef std::map<typename T::Handle, typename T::Ptr>      	HandleMapType;
 	HandleMapType 	handleMap;
-	LockNSPR	handleMapMutex;
+	mozilla::Mutex   handleMapMutex;
 
 public:
+	Wrapper() : handleMapMutex("Wrapper") {}
+
 	typename T::Ptr wrap(typename T::Handle handle)
 	{
-		AutoLockNSPR lock(handleMapMutex);
+		mozilla::MutexAutoLock lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -103,7 +105,7 @@ public:
 
 	bool changeHandle(typename T::Handle oldHandle, typename T::Handle newHandle)
 	{
-		AutoLockNSPR lock(handleMapMutex);
+		mozilla::MutexAutoLock lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(oldHandle);
 		if(it != handleMap.end())
 		{
@@ -120,7 +122,7 @@ public:
 
 	bool release(typename T::Handle handle)
 	{
-		AutoLockNSPR lock(handleMapMutex);
+		mozilla::MutexAutoLock lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -135,7 +137,7 @@ public:
 
 	void reset()
 	{
-		AutoLockNSPR lock(handleMapMutex);
+		mozilla::MutexAutoLock lock(handleMapMutex);
 		handleMap.clear();
 	}
 };

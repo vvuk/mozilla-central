@@ -47,7 +47,7 @@
 #include <sstream>
 
 #include "common/Wrapper.h"
-#include "AutoLockNSPR.h"
+#include "mozilla/Mutex.h"
 #include "base/lock.h"
 
 namespace CSF
@@ -64,14 +64,23 @@ namespace CSF
     class CC_SIPCCCallMediaData
 	{
 	public:
-		CC_SIPCCCallMediaData(): remoteWindow(NULL), audioMuteState(false), videoMuteState(false), volume(-1){}
+		CC_SIPCCCallMediaData(): 
+          remoteWindow(NULL), 
+          streamMapMutex("CC_SIPCCCallMediaData"),
+          audioMuteState(false), 
+          videoMuteState(false), 
+          volume(-1){}
 		CC_SIPCCCallMediaData(VideoWindowHandle remoteWindow,
-            bool audioMuteState, bool videoMuteState, int volume): remoteWindow(remoteWindow),
-            audioMuteState(audioMuteState), videoMuteState(videoMuteState), volume(volume) {}
+            bool audioMuteState, bool videoMuteState, int volume): 
+          remoteWindow(remoteWindow),
+          streamMapMutex("CC_SIPCCCallMediaData"),
+          audioMuteState(audioMuteState), 
+          videoMuteState(videoMuteState), 
+          volume(volume) {}
         VideoWindowHandle remoteWindow; 
 		ExternalRendererHandle extRenderer;
 		VideoFormat videoFormat;	
-        LockNSPR streamMapMutex;
+        mozilla::Mutex streamMapMutex;
         StreamMapType streamMap;
         bool audioMuteState;
         bool videoMuteState; 
@@ -152,7 +161,7 @@ namespace CSF
         virtual bool setAudioMute(bool mute);
         virtual bool setVideoMute(bool mute);
 
-        LockNSPR m_lock;
+        mozilla::Mutex m_lock;
     };
 
 }

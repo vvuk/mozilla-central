@@ -63,7 +63,7 @@ extern "C" {
 
 #include <vector>
 #include <set>
-#include "AutoLockNSPR.h"
+#include "mozilla/Mutex.h"
 
 namespace CSF
 {
@@ -164,7 +164,7 @@ namespace CSF
 	    // SIPCC lifecycle
         bool bCreated;
         bool bStarted;
-        LockNSPR m_lock;
+        mozilla::Mutex m_lock;
 
         // Media Lifecycle
         VcmSIPCCBinding vcmMediaBridge;

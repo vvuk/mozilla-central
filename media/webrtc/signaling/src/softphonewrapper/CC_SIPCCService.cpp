@@ -346,7 +346,8 @@ CC_SIPCCService* CC_SIPCCService::_self = NULL;
 CC_SIPCCService::CC_SIPCCService()
 : loggingMask(0),
   bCreated(false),
-  bStarted(false),  
+  bStarted(false), 
+  m_lock("CC_SIPCCService"), 
   bUseConfig(false)
 {
 	// Only one instance allowed!
@@ -729,7 +730,7 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
 
 void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS( logTag, "NULL value for \"observer\" passed to addCCObserver().");
@@ -741,14 +742,14 @@ void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
 
 void CC_SIPCCService::removeCCObserver ( CC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     ccObservers.erase(observer);
 }
 
 //Notify Observers
 void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -758,7 +759,7 @@ void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType
 
 void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -768,7 +769,7 @@ void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventTyp
 
 void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -778,7 +779,7 @@ void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC
 
 void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -846,7 +847,7 @@ void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
     {
     	CC_SIPCCCallMediaDataPtr pMediaData = (*it)->getMediaData();
 
-    	AutoLockNSPR lock(pMediaData->streamMapMutex);
+    	mozilla::MutexAutoLock lock(pMediaData->streamMapMutex);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)
@@ -951,7 +952,7 @@ void CC_SIPCCService::onKeyFrameRequested( int stream )
     {
     	CC_SIPCCCallMediaDataPtr pMediaData = (*it)->getMediaData();
 
-    	AutoLockNSPR lock(pMediaData->streamMapMutex);
+    	mozilla::MutexAutoLock lock(pMediaData->streamMapMutex);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if ((entry->first==stream) && (entry->second.isVideo == true))

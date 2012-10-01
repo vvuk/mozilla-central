@@ -42,7 +42,7 @@
 #include "CallControlManager.h"
 #include "PhoneDetailsImpl.h"
 #include "CC_SIPCCService.h"
-#include "AutoLockNSPR.h"
+#include "mozilla/Mutex.h"
 
 
 #include <set>
@@ -105,7 +105,7 @@ namespace CSF
 	private: // Data Storage
 
         // Observers
-		LockNSPR m_lock;
+		mozilla::Mutex m_lock;
 		std::set<CC_Observer *> ccObservers;
 		std::set<ECC_Observer *> eccObservers;
 

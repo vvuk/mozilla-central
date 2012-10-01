@@ -48,7 +48,6 @@
 #include "CallControlManagerImpl.h"
 #include "CSFLogStream.h"
 #include "csf_common.h"
-#include "AutoLockNSPR.h"
 
 extern "C"
 {
@@ -67,7 +66,8 @@ namespace CSF
 
 
 CallControlManagerImpl::CallControlManagerImpl()
-: multiClusterMode(false),
+: m_lock("CallControlManagerImpl"),
+  multiClusterMode(false),
   sipccLoggingMask(0),
   authenticationStatus(AuthenticationStatusEnum::eNotAuthenticated),
   connectionState(ConnectionStatusEnum::eIdle)
@@ -95,7 +95,7 @@ bool CallControlManagerImpl::destroy()
 // Observers
 void CallControlManagerImpl::addCCObserver ( CC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addCCObserver().");
@@ -107,13 +107,13 @@ void CallControlManagerImpl::addCCObserver ( CC_Observer * observer )
 
 void CallControlManagerImpl::removeCCObserver ( CC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     ccObservers.erase(observer);
 }
 
 void CallControlManagerImpl::addECCObserver ( ECC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
         CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addECCObserver().");
@@ -125,7 +125,7 @@ void CallControlManagerImpl::addECCObserver ( ECC_Observer * observer )
 
 void CallControlManagerImpl::removeECCObserver ( ECC_Observer * observer )
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     eccObservers.erase(observer);
 }
 
@@ -495,7 +495,7 @@ void CallControlManagerImpl::onCallEvent(ccapi_call_event_e callEvent,     CC_Ca
 
 void CallControlManagerImpl::notifyDeviceEventObservers (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -505,7 +505,7 @@ void CallControlManagerImpl::notifyDeviceEventObservers (ccapi_device_event_e de
 
 void CallControlManagerImpl::notifyFeatureEventObservers (ccapi_device_event_e deviceEvent, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -515,7 +515,7 @@ void CallControlManagerImpl::notifyFeatureEventObservers (ccapi_device_event_e d
 
 void CallControlManagerImpl::notifyLineEventObservers (ccapi_line_event_e lineEvent, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -525,7 +525,7 @@ void CallControlManagerImpl::notifyLineEventObservers (ccapi_line_event_e lineEv
 
 void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEvent, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<CC_Observer*>::const_iterator it = ccObservers.begin();
     for ( ; it != ccObservers.end(); it++ )
     {
@@ -536,7 +536,7 @@ void CallControlManagerImpl::notifyCallEventObservers (ccapi_call_event_e callEv
 void CallControlManagerImpl::notifyAvailablePhoneEvent (AvailablePhoneEventType::AvailablePhoneEvent event,
         const PhoneDetailsPtr availablePhoneDetails)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
@@ -546,7 +546,7 @@ void CallControlManagerImpl::notifyAvailablePhoneEvent (AvailablePhoneEventType:
 
 void CallControlManagerImpl::notifyAuthenticationStatusChange (AuthenticationStatusEnum::AuthenticationStatus status)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
@@ -556,7 +556,7 @@ void CallControlManagerImpl::notifyAuthenticationStatusChange (AuthenticationSta
 
 void CallControlManagerImpl::notifyConnectionStatusChange(ConnectionStatusEnum::ConnectionStatus status)
 {
-	AutoLockNSPR lock(m_lock);
+	mozilla::MutexAutoLock lock(m_lock);
     set<ECC_Observer*>::const_iterator it = eccObservers.begin();
     for ( ; it != eccObservers.end(); it++ )
     {
