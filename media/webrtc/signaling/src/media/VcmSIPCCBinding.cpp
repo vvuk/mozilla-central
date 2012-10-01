@@ -118,11 +118,8 @@ static mozilla::RefPtr<TransportFlow> vcmCreateTransportFlow(sipcc::PeerConnecti
                                                              const char *fingerprint
                                                              );
 
-// The media provider passsed in here will be owned by VcmSIPCCBinding, and so it destroys
-// it later.
-VcmSIPCCBinding::VcmSIPCCBinding (MediaProvider *mp)
-  : pMediaProvider(mp),
-    streamObserver(NULL)
+VcmSIPCCBinding::VcmSIPCCBinding ()
+  : streamObserver(NULL)
 {
     delete _pSelf;//delete is NULL safe, so I don't need to check if it's NULL
     _pSelf = this;
@@ -131,9 +128,6 @@ VcmSIPCCBinding::VcmSIPCCBinding (MediaProvider *mp)
 VcmSIPCCBinding::~VcmSIPCCBinding ()
 {
     assert(_pSelf != NULL);
-    pMediaProvider->shutdown();
-    delete pMediaProvider;
-    pMediaProvider = NULL;
     _pSelf = NULL;
 }
 
@@ -191,34 +185,20 @@ int VcmSIPCCBinding::getVideoCodecs()
 /* static */
 AudioTermination * VcmSIPCCBinding::getAudioTermination()
 {
-    if ((_pSelf == NULL) || (_pSelf->pMediaProvider == NULL))
-    {
-        return NULL;
-    }
-
-    return _pSelf->pMediaProvider->getAudioTermination();
+    // commenting as part of media provider removal
+    return NULL;
 }
 
 /* static */
 VideoTermination * VcmSIPCCBinding::getVideoTermination()
 {
-    if ((_pSelf == NULL) || (_pSelf->pMediaProvider == NULL))
-    {
-        return NULL;
-    }
-
-    return _pSelf->pMediaProvider->getVideoTermination();
+    // commenting as part of media provider removal
+    return NULL;
 }
 
 /* static */
 AudioControl * VcmSIPCCBinding::getAudioControl()
 {
-    if ((_pSelf == NULL) || (_pSelf->pMediaProvider == NULL))
-    {
-        return NULL;
-    }
-
-    // <emannion> return _pSelf->pMediaProvider->getAudioControl();
     // commenting as part of media provider removal
     return NULL;
 }
@@ -226,12 +206,6 @@ AudioControl * VcmSIPCCBinding::getAudioControl()
 /* static */
 VideoControl * VcmSIPCCBinding::getVideoControl()
 {
-    if ((_pSelf == NULL) || (_pSelf->pMediaProvider == NULL))
-    {
-        return NULL;
-    }
-
-    // <emannion> return _pSelf->pMediaProvider->getVideoControl();
     // commenting as part of media provider removal
     return NULL;
 }

@@ -65,7 +65,7 @@ namespace CSF
     class VcmSIPCCBinding
     {
     public:
-        VcmSIPCCBinding (MediaProvider *mp);
+        VcmSIPCCBinding ();
         virtual ~VcmSIPCCBinding();
 
 
@@ -90,7 +90,6 @@ namespace CSF
 
     private:
         static VcmSIPCCBinding * _pSelf;
-        MediaProvider * pMediaProvider;
         StreamObserver* streamObserver;
         MediaProviderObserver *mediaProviderObserver;
         static int mAudioCodecMask;

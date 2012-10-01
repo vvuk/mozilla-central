@@ -347,7 +347,6 @@ CC_SIPCCService::CC_SIPCCService()
 : loggingMask(0),
   bCreated(false),
   bStarted(false),  
-  vcmMediaBridge(MediaProvider::create()),
   bUseConfig(false)
 {
 	// Only one instance allowed!
