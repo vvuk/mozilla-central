@@ -7,9 +7,8 @@
 #define AUDIO_SESSION_H_
 
 #include "mozilla/Attributes.h"
- 
+
 #include "MediaConduitInterface.h"
-#include "MediaEngineWrapper.h"
 
 // Audio Engine Includes
 #include "common_types.h"
@@ -33,26 +32,25 @@
 namespace mozilla {
 
 /**
- * Concrete class for Audio session. Hooks up  
- *  - media-source and target to external transport 
+ * Concrete class for Audio session. Hooks up
+ *  - media-source and target to external transport
  */
-class WebrtcAudioConduit  : public AudioSessionConduit			
-	      		              , public webrtc::Transport
+class WebrtcAudioConduit:public AudioSessionConduit
+	      		            ,public webrtc::Transport
 {
-
 public:
   //VoiceEngine defined constant for Payload Name Size.
   static const unsigned int CODEC_PLNAME_SIZE;
-  
+
   /**
    * APIs used by the registered external transport to this Conduit to
-   * feed in received RTP Frames to the VoiceEngine for decoding 
+   * feed in received RTP Frames to the VoiceEngine for decoding
    */
  virtual MediaConduitErrorCode ReceivedRTPPacket(const void *data, int len);
 
   /**
    * APIs used by the registered external transport to this Conduit to
-   * feed in received RTCP Frames to the VoiceEngine for decoding 
+   * feed in received RTCP Frames to the VoiceEngine for decoding
    */
  virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len);
 
@@ -90,7 +88,7 @@ public:
    * @param audioData [in]: Pointer to array containing a frame of audio
    * @param lengthSamples [in]: Length of audio frame in samples in multiple of 10 milliseconds
    *                             Ex: Frame length is 160, 320, 440 for 16, 32, 44 kHz sampling rates
-                                    respectively. 
+                                    respectively.
                                     audioData[] should be of lengthSamples in size
                                     say, for 16kz sampling rate, audioData[] should contain 160
                                     samples of 16-bits each for a 10m audio frame.
@@ -109,7 +107,7 @@ public:
   /**
    * Function to grab a decoded audio-sample from the media engine for rendering
    * / playoutof length 10 milliseconds.
-   * 
+   *
    * @param speechData [in]: Pointer to a array to which a 10ms frame of audio will be copied
    * @param samplingFreqHz [in]: Frequency of the sampling for playback in Hertz (16000, 32000,..)
    * @param capture_delay [in]: Estimated Time between reading of the samples to rendering/playback
@@ -121,13 +119,13 @@ public:
    * NOTE: ConfigureRecvMediaCodec() SHOULD be called before this function can be invoked
    *       This ensures the decoded samples are ready for reading and playout is enabled.
    *
-   */  
+   */
    virtual MediaConduitErrorCode GetAudioFrame(int16_t speechData[],
                                               int32_t samplingFreqHz,
                                               int32_t capture_delay,
                                               int& lengthSamples);
 
-  
+
   /**
    * Webrtc transport implementation to send and receive RTP packet.
    * AudioConduit registers itself as ExternalTransport to the VoiceEngine
@@ -140,8 +138,8 @@ public:
    */
   virtual int SendRTCPPacket(int channel, const void *data, int len) ;
 
-	
-	
+
+
   WebrtcAudioConduit():
                       mVoiceEngine(NULL),
                       mTransport(NULL),
@@ -153,7 +151,7 @@ public:
   }
 
   virtual ~WebrtcAudioConduit();
-  
+
   MediaConduitErrorCode Init();
 
 private:
@@ -167,34 +165,32 @@ private:
   bool CodecConfigToWebRTCCodec(const AudioCodecConfig* codecInfo,
                                 webrtc::CodecInst& cinst);
 
-  //Checks if given sampling frequency is supported 
+  //Checks if given sampling frequency is supported
   bool IsSamplingFreqSupported(int freq) const;
-  
+
   //Generate block size in sample lenght for a given sampling frequency
   unsigned int GetNum10msSamplesForFrequency(int samplingFreqHz) const;
-  
+
   // Function to copy a codec structure to Conduit's database
   bool CopyCodecToDB(const AudioCodecConfig* codecInfo);
-  
-  // Functions to verify if the codec passed is already in 
+
+  // Functions to verify if the codec passed is already in
   // conduits database
-  bool CheckCodecForMatch(const AudioCodecConfig* codecInfo);
+  bool CheckCodecForMatch(const AudioCodecConfig* codecInfo) const;
   bool CheckCodecsForMatch(const AudioCodecConfig* curCodecConfig,
                            const AudioCodecConfig* codecInfo) const;
-  
+  //Checks the codec to be applied
+  MediaConduitErrorCode ValidateCodecConfig(const AudioCodecConfig* codecInfo, bool send) const;
+
   //Utility function to dump recv codec database
   void DumpCodecDB() const;
 
-  
-  
-  webrtc::VoiceEngine* mVoiceEngine; 
-
+  webrtc::VoiceEngine* mVoiceEngine;
   mozilla::RefPtr<TransportInterface> mTransport;
-
-  ScopedCustomReleasePtr<webrtc::VoENetwork>  mPtrVoENetwork;
-  ScopedCustomReleasePtr<webrtc::VoEBase>     mPtrVoEBase;
-  ScopedCustomReleasePtr<webrtc::VoECodec>    mPtrVoECodec;
-  ScopedCustomReleasePtr<webrtc::VoEExternalMedia> mPtrVoEXmedia;
+  webrtc::VoENetwork*  mPtrVoENetwork;
+  webrtc::VoEBase*     mPtrVoEBase;
+  webrtc::VoECodec*    mPtrVoECodec;
+  webrtc::VoEExternalMedia* mPtrVoEXmedia;
 
   //engine states of our interets
   bool mEngineTransmitting; // If true => VoiceEngine Send-subsystem is up
@@ -204,7 +200,6 @@ private:
   int mChannel;
   RecvCodecList    mRecvCodecList;
   AudioCodecConfig* mCurSendCodecConfig;
-
 };
 
 } // end namespace

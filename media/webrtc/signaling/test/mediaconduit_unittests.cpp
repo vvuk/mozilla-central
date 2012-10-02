@@ -15,8 +15,6 @@ using namespace std;
 #include "nsStaticComponents.h"
 #include "FakeMediaStreamsImpl.h"
 
-#include "resource_mgr.h"
-
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
@@ -27,8 +25,18 @@ MtransportTestUtils test_utils;
 //Video Frame Color
 const int COLOR = 0x80; //Gray
 
+//MWC RNG of George Marsaglia
+//taken from xiph.org
+static int32_t Rz, Rw;
+static inline int32_t fast_rand(void)
+{
+  Rz=36969*(Rz&65535)+(Rz>>16);
+  Rw=18000*(Rw&65535)+(Rw>>16);
+  return (Rz<<16)+Rw;
+}
+
 /**
-  * Global structure to stor video test results.
+  * Global structure to store video test results.
   */
 struct VideoTestStats
 {
@@ -41,11 +49,11 @@ VideoTestStats vidStatsGlobal={0,0,0};
 
 
 /**
- * A Dummy Video Conduit Tester. 
- * The test-case inserts a 640*480 grey imagerevery 33 milliseconds 
- * to the video-conduit for encoding and transporting. 
+ * A Dummy Video Conduit Tester.
+ * The test-case inserts a 640*480 grey imagerevery 33 milliseconds
+ * to the video-conduit for encoding and transporting.
  */
- 
+
 class VideoSendAndReceive
 {
 public:
@@ -64,7 +72,7 @@ public:
   }
   void GenerateAndReadSamples()
   {
-    
+
     int len = ((width * height) * 3 / 2);
     PRUint8* frame = (PRUint8*) PR_MALLOC(len);
     int numFrames = 121;
@@ -77,7 +85,7 @@ public:
                                 width,
                                 height,
                                 mozilla::kVideoI420,
-                                0);  
+                                0);
       PR_Sleep(PR_MillisecondsToInterval(33));
       vidStatsGlobal.numRawFramesInserted++;
       numFrames--;
@@ -94,10 +102,10 @@ int width, height;
 
 /**
  * A Dummy AudioConduit Tester
- * The test reads PCM samples of a standard test file and 
- * passws to audio-conduit for encoding, RTPfication and 
+ * The test reads PCM samples of a standard test file and
+ * passws to audio-conduit for encoding, RTPfication and
  * decoding ebery 10 milliseconds.
- * This decoded samples are read-off the conduit for writing 
+ * This decoded samples are read-off the conduit for writing
  * into output audio file in PCM format.
  */
 class AudioSendAndReceive
@@ -114,19 +122,19 @@ public:
   {
   }
 
- void Init(mozilla::RefPtr<mozilla::AudioSessionConduit> aSession, 
+ void Init(mozilla::RefPtr<mozilla::AudioSessionConduit> aSession,
            mozilla::RefPtr<mozilla::AudioSessionConduit> aOtherSession,
            std::string fileIn, std::string fileOut)
   {
-   
-    mSession = aSession;  
-    mOtherSession = aOtherSession;  
+
+    mSession = aSession;
+    mOtherSession = aOtherSession;
     iFile = fileIn;
     oFile = fileOut;
  }
 
   //Kick start the test
-  void GenerateAndReadSamples();  
+  void GenerateAndReadSamples();
 
 private:
 
@@ -137,6 +145,7 @@ private:
 
   int WriteWaveHeader(int rate, int channels, FILE* outFile);
   int FinishWaveHeader(FILE* outFile);
+  void GenerateMusic(int16_t* buf, int len);
 };
 
 const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_FREQUENCY = 16000;
@@ -219,67 +228,96 @@ int AudioSendAndReceive::FinishWaveHeader(FILE* outFile)
   return 0;
 }
 
+//Code from xiph.org to generate music of predefined length
+void AudioSendAndReceive::GenerateMusic(int16_t* buf, int len)
+{
+  int32_t a1,a2,b1,b2;
+  int32_t c1,c2,d1,d2;
+  int32_t i,j;
+  a1=b1=a2=b2=0;
+  c1=c2=d1=d2=0;
+  j=0;
+  /*60ms silence */
+  for(i=0;i<2880;i++)
+  {
+    buf[i*2]=buf[i*2+1]=0;
+  }
+  for(i=2880;i<len;i++)
+  {
+    int32_t r;
+    int32_t v1,v2;
+    v1=v2=(((j*((j>>12)^((j>>10|j>>12)&26&j>>7)))&128)+128)<<15;
+    r=fast_rand();v1+=r&65535;v1-=r>>16;
+    r=fast_rand();v2+=r&65535;v2-=r>>16;
+    b1=v1-a1+((b1*61+32)>>6);a1=v1;
+    b2=v2-a2+((b2*61+32)>>6);a2=v2;
+    c1=(30*(c1+b1+d1)+32)>>6;d1=b1;
+    c2=(30*(c2+b2+d2)+32)>>6;d2=b2;
+    v1=(c1+128)>>8;
+    v2=(c2+128)>>8;
+    buf[i*2]=v1>32767?32767:(v1<-32768?-32768:v1);
+    buf[i*2+1]=v2>32767?32767:(v2<-32768?-32768:v2);
+    if(i%6==0)j++;
+  }
+}
+
 //Hardcoded for 16 bit samples for now
 void AudioSendAndReceive::GenerateAndReadSamples()
 {
-   int16_t audioInput[PLAYOUT_SAMPLE_LENGTH]; 
+   int16_t audioInput[PLAYOUT_SAMPLE_LENGTH];
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
+   int16_t* inbuf;
    int sampleLengthDecoded = 0;
-
+   int SAMPLES = PLAYOUT_SAMPLE_FREQUENCY * 10; //10 milliseconds
+   int CHANNELS = 1; //mono audio
    int sampleLengthInBytes = PLAYOUT_SAMPLE_LENGTH * sizeof(short);
-
+   //generated audio buffer
+   inbuf = (short *)moz_xmalloc(sizeof(short)*SAMPLES*CHANNELS);
    memset(audioInput,0,sampleLengthInBytes);
    memset(audioOutput,0,sampleLengthInBytes);
 
-   FILE* inFile    = fopen( iFile.c_str(), "rb");
-   FILE* outFile   = fopen( oFile.c_str(), "wb");
+   FILE* inFile    = fopen( iFile.c_str(), "wb+");
+   FILE* outFile   = fopen( oFile.c_str(), "wb+");
+   //Create input file with the music
+   WriteWaveHeader(PLAYOUT_SAMPLE_FREQUENCY, 1, inFile);
+   GenerateMusic(inbuf, SAMPLES);
+   fwrite(inbuf,1,SAMPLES*sizeof(inbuf[0])*CHANNELS,inFile);
+   FinishWaveHeader(inFile);
+   fclose(inFile);
 
    WriteWaveHeader(PLAYOUT_SAMPLE_FREQUENCY, 1, outFile);
-
-   bool finish = false;
-   //loop thru the samples for 6 seconds
-   int t = 0;
+   int numSamplesReadFromInput = 0;
    do
    {
-     int read_ = fread(audioInput,1,sampleLengthInBytes,inFile);
+    if(!memcpy(audioInput, inbuf, sampleLengthInBytes))
+    {
+      return;
+    }
 
-     if(read_ != sampleLengthInBytes)
-      {
-        finish = true;
-        printf("\n Couldn't read %d bytes.. Exiting ", sampleLengthInBytes);
-        break;
-      }
+    numSamplesReadFromInput += PLAYOUT_SAMPLE_LENGTH;
+    inbuf += PLAYOUT_SAMPLE_LENGTH;
 
-      mSession->SendAudioFrame(audioInput,
-                               PLAYOUT_SAMPLE_LENGTH,
-                               PLAYOUT_SAMPLE_FREQUENCY,10);
+    mSession->SendAudioFrame(audioInput,
+                             PLAYOUT_SAMPLE_LENGTH,
+                             PLAYOUT_SAMPLE_FREQUENCY,10);
 
-      PR_Sleep(PR_MillisecondsToInterval(10));
-      mOtherSession->GetAudioFrame(audioOutput, PLAYOUT_SAMPLE_FREQUENCY,
-                                   10, sampleLengthDecoded);
-      if(sampleLengthDecoded == 0)
-      {
-        cerr << " Zero length Sample " << endl;
-      }
+    PR_Sleep(PR_MillisecondsToInterval(10));
+    mOtherSession->GetAudioFrame(audioOutput, PLAYOUT_SAMPLE_FREQUENCY,
+                                 10, sampleLengthDecoded);
+    if(sampleLengthDecoded == 0)
+    {
+      cerr << " Zero length Sample " << endl;
+    }
 
-      int wrote_  = fwrite (audioOutput, 1 , sampleLengthInBytes, outFile);
-      if(wrote_ != sampleLengthInBytes)
-      {
-        finish = true;
-        printf("\n Couldn't Write  %d bytes.. Exiting ", sampleLengthInBytes);
-        cerr << "Couldn't Write " << sampleLengthInBytes << "bytes" << endl;
-        break; 
-      }
+    int wrote_  = fwrite (audioOutput, 1 , sampleLengthInBytes, outFile);
+    if(wrote_ != sampleLengthInBytes)
+    {
+      cerr << "Couldn't Write " << sampleLengthInBytes << "bytes" << endl;
+      break;
+    }
+   }while(numSamplesReadFromInput <= (SAMPLES));
 
-      t += 10;   
-      if(t > 6000)
-        break; 
-
-   }while(finish == false);
-  
    FinishWaveHeader(outFile);
-
-   fclose(inFile);
    fclose(outFile);
 }
 
@@ -320,8 +358,8 @@ public:
  {
     //do nothing
  }
- 
- //This is hardcoded to check if the contents of frame is COLOR 
+
+ //This is hardcoded to check if the contents of frame is COLOR
  // as we set while sending.
  int VerifyFrame(const unsigned char* buffer, unsigned int buffer_size)
  {
@@ -349,7 +387,7 @@ public:
  *  For everty RTP/RTCP frame we receive, we pass it back
  *  to the conduit for eventual decoding and rendering.
  */
-class FakeMediaTransport : public mozilla::TransportInterface 
+class FakeMediaTransport : public mozilla::TransportInterface
 {
 public:
   FakeMediaTransport():numPkts(0),
@@ -368,7 +406,7 @@ public:
     if(mAudio)
     {
       mOtherAudioSession->ReceivedRTPPacket(data,len);
-    } else 
+    } else
     {
       mOtherVideoSession->ReceivedRTPPacket(data,len);
     }
@@ -419,29 +457,22 @@ private:
 
 namespace {
 
-class TransportConduitTest : public ::testing::Test 
+class TransportConduitTest : public ::testing::Test
 {
  public:
-  TransportConduitTest() 
+  TransportConduitTest()
   {
     //input and output file names
-    iAudiofilename = "audio_short16.pcm";
+    iAudiofilename = "input.wav";
     oAudiofilename = "recorded.wav";
-    std::string rootpath = ProjectRootPath();
-
-    fileToPlay = rootpath+"media"+kPathDelimiter+"webrtc"+kPathDelimiter+"trunk"+kPathDelimiter+"test"+kPathDelimiter+"data"+kPathDelimiter+"voice_engine"+kPathDelimiter+iAudiofilename;
-
-    fileToRecord =
-                  rootpath+kPathDelimiter+"media"+kPathDelimiter+"webrtc"+kPathDelimiter+"signaling"+kPathDelimiter+"test"+kPathDelimiter+oAudiofilename;
-
   }
 
-  ~TransportConduitTest() 
+  ~TransportConduitTest()
   {
   }
 
   //1. Dump audio samples to dummy external transport
-  void TestDummyAudioAndTransport() 
+  void TestDummyAudioAndTransport()
   {
     //get pointer to AudioSessionConduit
     int err=0;
@@ -485,18 +516,17 @@ class TransportConduitTest : public ::testing::Test
     ASSERT_EQ(mozilla::kMediaConduitNoError, err);
 
     //start generating samples
-    audioTester.Init(mAudioSession,mAudioSession2, fileToPlay,fileToRecord);
+    audioTester.Init(mAudioSession,mAudioSession2, iAudiofilename,oAudiofilename);
     cerr << "   ******************************************************** " << endl;
-    cerr << "    Generating Samples for 6 seconds " << endl;
+    cerr << "    Generating Audio Samples " << endl;
     cerr << "   ******************************************************** " << endl;
     PR_Sleep(PR_SecondsToInterval(2));
     audioTester.GenerateAndReadSamples();
     PR_Sleep(PR_SecondsToInterval(2));
     cerr << "   ******************************************************** " << endl;
-    cerr << "    Output Audio Recorded to  " << fileToRecord << endl;
-    cerr << "    Run webrtc_standalone_test for verifying the test results " << endl;
+    cerr << "    Input Audio  File                " << iAudiofilename << endl;
+    cerr << "    Output Audio File                " << oAudiofilename << endl;
     cerr << "   ******************************************************** " << endl;
-    
   }
 
   //2. Dump audio samples to dummy external transport
@@ -559,18 +589,18 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   **************************************************" << endl;
     cerr << "    Done With The Testing  " << endl;
     cerr << "    VIDEO TEST STATS  "  << endl;
-    cerr << "    Num Raw Frames Inserted: "<< 
+    cerr << "    Num Raw Frames Inserted: "<<
                                         vidStatsGlobal.numRawFramesInserted << endl;
-    cerr << "    Num Frames Successfully Rendered: "<< 
+    cerr << "    Num Frames Successfully Rendered: "<<
                                         vidStatsGlobal.numFramesRenderedSuccessfully << endl;
-    cerr << "    Num Frames Wrongly Rendered: "<< 
+    cerr << "    Num Frames Wrongly Rendered: "<<
                                         vidStatsGlobal.numFramesRenderedWrongly << endl;
-   
+
     cerr << "    Done With The Testing  " << endl;
-    
+
     cerr << "   **************************************************" << endl;
-   
-    
+
+
   }
 
  void TestVideoConduitCodecAPI()
@@ -586,20 +616,20 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   *************************************************" << endl;
     cerr << "    Test Receive Codec Configuration API Now " << endl;
     cerr << "   *************************************************" << endl;
-   
+
     std::vector<mozilla::VideoCodecConfig* > rcvCodecList;
-    
+
     //Same APIs
     cerr << "   *************************************************" << endl;
     cerr << "    1. Same Codec (VP8) Repeated Twice " << endl;
     cerr << "   *************************************************" << endl;
-    
+
     mozilla::VideoCodecConfig cinst1(120, "VP8", 640, 480);
     mozilla::VideoCodecConfig cinst2(120, "VP8", 640, 480);
     rcvCodecList.push_back(&cinst1);
     rcvCodecList.push_back(&cinst2);
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
-    EXPECT_EQ(mozilla::kMediaConduitNoError, err);
+    EXPECT_NE(err,mozilla::kMediaConduitNoError);
     rcvCodecList.pop_back();
     rcvCodecList.pop_back();
 
@@ -610,7 +640,7 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   *************************************************" << endl;
     cerr << "   Setting payload 1 with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676" << endl;
     cerr << "   Setting payload 2 with name of zero length" << endl;
-    
+
     mozilla::VideoCodecConfig cinst3(124, "I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676", 352, 288);
     mozilla::VideoCodecConfig cinst4(124, "", 352, 288);
 
@@ -627,43 +657,43 @@ class TransportConduitTest : public ::testing::Test
     cerr << "   *************************************************" << endl;
     cerr << "    3. Null Codec Parameter  " << endl;
     cerr << "   *************************************************" << endl;
-    
+
     rcvCodecList.push_back(0);
 
     err = mVideoSession->ConfigureRecvMediaCodecs(rcvCodecList);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
     rcvCodecList.pop_back();
-   
+
     cerr << "   *************************************************" << endl;
     cerr << "    Test Send Codec Configuration API Now " << endl;
     cerr << "   *************************************************" << endl;
-   
+
     cerr << "   *************************************************" << endl;
     cerr << "    1. Same Codec (VP8) Repeated Twice " << endl;
     cerr << "   *************************************************" << endl;
-    
-  
+
+
     err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
     err = mVideoSession->ConfigureSendMediaCodec(&cinst1);
-    EXPECT_EQ(mozilla::kMediaConduitNoError, err);
-   
-   
+    EXPECT_EQ(mozilla::kMediaConduitCodecInUse, err);
+
+
     cerr << "   *************************************************" << endl;
     cerr << "    2. Codec With Invalid Payload Names " << endl;
     cerr << "   *************************************************" << endl;
     cerr << "   Setting payload with name: I4201234tttttthhhyyyy89087987y76t567r7756765rr6u6676" << endl;
-    
+
     err = mVideoSession->ConfigureSendMediaCodec(&cinst3);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
-    
+
     cerr << "   *************************************************" << endl;
     cerr << "    3. Null Codec Parameter  " << endl;
     cerr << "   *************************************************" << endl;
-    
+
     err = mVideoSession->ConfigureSendMediaCodec(NULL);
     EXPECT_TRUE(err != mozilla::kMediaConduitNoError);
-    
+
   }
 
 private:

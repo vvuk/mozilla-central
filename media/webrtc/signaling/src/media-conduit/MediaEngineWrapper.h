@@ -7,11 +7,6 @@
 
 #include <mozilla/Scoped.h>
 
-//WebRTC includes
-#include "common_types.h"
-#include "voice_engine/include/voe_base.h"
-#include "video_engine/include/vie_base.h"
-
 
 
 namespace mozilla

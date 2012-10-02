@@ -6,34 +6,33 @@
 #ifndef MEDIA_SESSION_ERRORS_H_
 #define MEDIA_SESSION_ERRORS_H_
 
-
-
-namespace mozilla 
+namespace mozilla
 {
 enum MediaConduitErrorCode
 {
-kMediaConduitNoError = 0,
-kMediaConduitSessionNotInited = 10100, // Video Engine not yet initialized
+kMediaConduitNoError = 0,              // 0 for Success,greater than 0 imples error
+kMediaConduitSessionNotInited = 10100, // Session not initialized.10100 serves as
+                                       // base for the conduit errors
 kMediaConduitMalformedArgument,        // Malformed input to Conduit API
 kMediaConduitCaptureError,             // WebRTC capture APIs failed
 kMediaConduitInvalidSendCodec,         // Wrong Send codec
 kMediaConduitInvalidReceiveCodec,      // Wrong Recv Codec
-kMediaConduitCodecInUse,               // SetSendCodec --> Codec in use
+kMediaConduitCodecInUse,               // Already applied Codec
 kMediaConduitInvalidRenderer,          // NULL or Wrong Renderer object
 kMediaConduitRendererFail,             // Add Render called multiple times
 kMediaConduitSendingAlready,           // Engine already trasmitting
 kMediaConduitReceivingAlready,         // Engine already receiving
-kMediaConduitTransportRegistrationFail,// NULL or wrong transport interface 
-kMediaConduitInvalidTransport,         // NULL or wrong transport interface 
+kMediaConduitTransportRegistrationFail,// NULL or wrong transport interface
+kMediaConduitInvalidTransport,         // NULL or wrong transport interface
 kMediaConduitChannelError,             // Configuration Error
 kMediaConduitSocketError,              // Media Engine transport socket error
 kMediaConduitRTPRTCPModuleError,       // Couldn't start RTP/RTCP processing
 kMediaConduitRTPProcessingFailed,      // Processing incoming RTP frame failed
 kMediaConduitUnknownError,             // More information can be found in logs
 kMediaConduitExternalRecordingError,   // Couldn't start external recording
-kMediaConduitRecordingError,           // Runtime recording error 
-kMediaConduitExternalPlayoutError,     // Couldn't start externla playout
-kMediaConduitPlayoutError              // Runtime playout erorr
+kMediaConduitRecordingError,           // Runtime recording error
+kMediaConduitExternalPlayoutError,     // Couldn't start external playout
+kMediaConduitPlayoutError              // Runtime playout error
 };
 
 }

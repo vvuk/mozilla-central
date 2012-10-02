@@ -11,11 +11,15 @@
 
 namespace mozilla {
 
-  /**
-  * Minimalistic Audio Codec Config Params
-  */
-struct AudioCodecConfig 
+/**
+ * Minimalistic Audio Codec Config Params
+ */
+struct AudioCodecConfig
 {
+  /*
+   * The data-types for these properties mimic the
+   * corresponding webrtc::CodecInst data-types.
+   */
   int mType;
   std::string mName;
   int mFreq;
@@ -23,11 +27,11 @@ struct AudioCodecConfig
   int mChannels;
   int mRate;
 
-  /* Default constructor is not provided since as a consumer, we 
+  /* Default constructor is not provided since as a consumer, we
    * can't decide the default configuration for the codec
    */
-  explicit AudioCodecConfig(int type, std::string name, 
-                            int freq,int pacSize, 
+  explicit AudioCodecConfig(int type, std::string name,
+                            int freq,int pacSize,
                             int channels, int rate): mType(type),
                                                      mName(name),
                                                      mFreq(freq),
@@ -37,7 +41,6 @@ struct AudioCodecConfig
 
   {
   }
- 
 };
 
 /*
@@ -45,16 +48,19 @@ struct AudioCodecConfig
  * More to be added later depending on the use-case
  */
 
-struct VideoCodecConfig 
+struct VideoCodecConfig
 {
 
+  /*
+   * The data-types for these properties mimic the
+   * corresponding webrtc::VideoCodec data-types.
+   */
   int mType;
   std::string mName;
   int mWidth;
   int mHeight;
 
-  
-  VideoCodecConfig(int type, std::string name,int width, 
+  VideoCodecConfig(int type, std::string name,int width,
                     int height): mType(type),
                                  mName(name),
                                  mWidth(width),
@@ -64,8 +70,5 @@ struct VideoCodecConfig
   }
 
 };
-
 }
 #endif
-
-

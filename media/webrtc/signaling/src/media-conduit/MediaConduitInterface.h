@@ -18,12 +18,12 @@
 #include <vector>
 
 namespace mozilla {
-/** 
+/**
  * Abstract Interface for transporting RTP packets - audio/vidoeo
  * The consumers of this interface are responsible for passing in
- * the RTPfied media packets 
+ * the RTPfied media packets
  */
-class TransportInterface 
+class TransportInterface
 {
 public:
   virtual ~TransportInterface() {};
@@ -49,9 +49,9 @@ public:
 
 /**
  * 1. Abstract renderer for video data
- * 2. This class acts as abstract interface between the video-engine and 
+ * 2. This class acts as abstract interface between the video-engine and
  *    video-engine agnostic renderer implementation.
- * 3. Concrete implementation of this interface is responsible for 
+ * 3. Concrete implementation of this interface is responsible for
  *    processing and/or rendering the obtained raw video frame to appropriate
  *    output , say, <video>
  */
@@ -75,7 +75,7 @@ class VideoRenderer
    * @param buffer: pointer to decoded video frame
    * @param buffer_size: size of the decoded frame
    * @param time_stamp: Decoder timestamp, typically 90KHz as per RTP
-   * @render_time: Wall-clock time at the decoder for synchronizartion
+   * @render_time: Wall-clock time at the decoder for synchronization
    *                purposes in milliseconds
    * NOTE: It is the responsibility of the concrete implementations of this
    * class to own copy of the frame if needed for time longer than scope of
@@ -101,11 +101,11 @@ class VideoRenderer
  * of this interface.
  * Also provides codec configuration API for the media sent and recevied
  */
-class MediaSessionConduit 
+class MediaSessionConduit
 {
 public:
   enum Type { AUDIO, VIDEO } ;
-  
+
   virtual ~MediaSessionConduit() {};
 
   virtual Type type() const = 0;
@@ -113,32 +113,31 @@ public:
   /**
    * Function triggered on Incoming RTP packet from the remote
    * endpoint by the transport implementation.
-   * @param data : RTP Packet (audio/video) to be processed 
+   * @param data : RTP Packet (audio/video) to be processed
    * @param len  : Length of the media packet
    * Obtained packets are passed to the Media-Engine for further
-   * processing , say, decoding 
+   * processing , say, decoding
    */
   virtual MediaConduitErrorCode ReceivedRTPPacket(const void *data, int len) = 0;
 
   /**
    * Function triggered on Incoming RTCP packet from the remote
    * endpoint by the transport implementation.
-   * @param data : RTCP Packet (audio/video) to be processed 
+   * @param data : RTCP Packet (audio/video) to be processed
    * @param len  : Length of the media packet
    * Obtained packets are passed to the Media-Engine for further
-   * processing , say, decoding 
+   * processing , say, decoding
    */
-  virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) = 0;  
+  virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) = 0;
 
 
   /**
    * Function to attach Transport end-point of the Media conduit.
-   * @param aTransport: Reference to the concrete teansport implementation 
+   * @param aTransport: Reference to the concrete teansport implementation
    * Note: Multiple invocations of this call , replaces existing transport with
    * with the new one.
    */
-  virtual MediaConduitErrorCode AttachTransport(
-                                      RefPtr<TransportInterface> aTransport) = 0;
+  virtual MediaConduitErrorCode AttachTransport(RefPtr<TransportInterface> aTransport) = 0;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaSessionConduit)
 
@@ -155,8 +154,8 @@ class VideoSessionConduit : public MediaSessionConduit
 public:
   /**
    * Factory function to create and initialize a Video Conduit Session
-   * return: Concrete VideoSessionConduitObject or NULL in the case 
-   *         of failure 
+   * return: Concrete VideoSessionConduitObject or NULL in the case
+   *         of failure
    */
   static RefPtr<VideoSessionConduit> Create();
 
@@ -166,31 +165,29 @@ public:
 
   /**
    * Function to attach Renderer end-point of the Media-Video conduit.
-   * @param aRenderer : Reference to the concrete Video renderer implementation 
-   * Note: Multiple invocations of this API shall remove an existing renderer 
+   * @param aRenderer : Reference to the concrete Video renderer implementation
+   * Note: Multiple invocations of this API shall remove an existing renderer
    * and attaches the new to the Conduit.
    */
   virtual MediaConduitErrorCode AttachRenderer(RefPtr<VideoRenderer> aRenderer) = 0;
 
   /**
    * Function to deliver a capture video frame for encoding and transport
-   * @param video_frame: pointer to captured video-frame. 
+   * @param video_frame: pointer to captured video-frame.
    * @param video_frame_length: size of the frame
    * @param width, height: dimensions of the frame
    * @param video_type: Type of the video frame - I420, RAW
-   * @param captured_time: timestamp when the frame was captured. 
+   * @param captured_time: timestamp when the frame was captured.
    *                       if 0 timestamp is automatcally generated
-   * NOTE: Calling function shouldn't release the frame till this function
-   * completes to the fullest. 
    * NOTE: ConfigureSendMediaCodec() MUST be called before this function can be invoked
    *       This ensures the inserted video-frames can be transmitted by the conduit
    */
   virtual MediaConduitErrorCode SendVideoFrame(unsigned char* video_frame,
                                                unsigned int video_frame_length,
-                                                unsigned short width,
-                                                unsigned short height,
-                                                VideoType video_type,
-                                                uint64_t capture_time) = 0;
+                                               unsigned short width,
+                                               unsigned short height,
+                                               VideoType video_type,
+                                               uint64_t capture_time) = 0;
 
   /**
    * Function to configure send codec for the video session
@@ -199,7 +196,7 @@ public:
    *          On failure, video engine transmit functionality is disabled.
    * NOTE: This API can be invoked multiple time. Invoking this API may involve restarting
    *        transmission sub-system on the engine
-   *  
+   *
    */
   virtual MediaConduitErrorCode ConfigureSendMediaCodec(const VideoCodecConfig* sendSessionConfig) = 0;
 
@@ -208,7 +205,7 @@ public:
    * @param sendSessionConfig: CodecConfiguration
    * NOTE: This API can be invoked multiple time. Invoking this API may involve restarting
    *        reception sub-system on the engine
-   *  
+   *
    */
   virtual MediaConduitErrorCode ConfigureRecvMediaCodecs(
                                 const std::vector<VideoCodecConfig* >& recvCodecConfigList) = 0;
@@ -217,22 +214,22 @@ public:
 };
 
 /**
- * MediaSessionConduit for audio 
+ * MediaSessionConduit for audio
  * Refer to the comments on MediaSessionConduit above for overall
  * information
  */
-class AudioSessionConduit : public MediaSessionConduit 
+class AudioSessionConduit : public MediaSessionConduit
 {
 public:
 
    /**
     * Factory function to create and initialize a Video Conduit Session
-    * return: Concrete VideoSessionConduitObject or NULL in the case 
-    *         of failure 
+    * return: Concrete VideoSessionConduitObject or NULL in the case
+    *         of failure
     */
   static mozilla::RefPtr<AudioSessionConduit> Create();
 
-  virtual ~AudioSessionConduit() {}; 
+  virtual ~AudioSessionConduit() {};
 
   virtual Type type() const { return AUDIO; }
 
@@ -242,7 +239,7 @@ public:
    * @param audioData [in]: Pointer to array containing a frame of audio
    * @param lengthSamples [in]: Length of audio frame in samples in multiple of 10 milliseconds
   *                             Ex: Frame length is 160, 320, 440 for 16, 32, 44 kHz sampling rates
-                                    respectively. 
+                                    respectively.
                                     audioData[] is lengthSamples in size
                                     say, for 16kz sampling rate, audioData[] should contain 160
                                     samples of 16-bits each for a 10m audio frame.
@@ -253,7 +250,7 @@ public:
    *       This ensures the inserted audio-samples can be transmitted by the conduit
    *
    */
-  virtual MediaConduitErrorCode SendAudioFrame(const int16_t audioData[], 
+  virtual MediaConduitErrorCode SendAudioFrame(const int16_t audioData[],
                                                 int32_t lengthSamples,
                                                 int32_t samplingFreqHz,
                                                 int32_t capture_delay) = 0;
@@ -261,7 +258,7 @@ public:
   /**
    * Function to grab a decoded audio-sample from the media engine for rendering
    * / playoutof length 10 milliseconds.
-   * 
+   *
    * @param speechData [in]: Pointer to a array to which a 10ms frame of audio will be copied
    * @param samplingFreqHz [in]: Frequency of the sampling for playback in Hertz (16000, 32000,..)
    * @param capture_delay [in]: Estimated Time between reading of the samples to rendering/playback
@@ -278,7 +275,7 @@ public:
                                               int32_t samplingFreqHz,
                                               int32_t capture_delay,
                                               int& lengthSamples) = 0;
-  
+
    /**
     * Function to configure send codec for the audio session
     * @param sendSessionConfig: CodecConfiguration
@@ -292,7 +289,7 @@ public:
     * @param sendSessionConfig: CodecConfiguration
     * NOTE: See VideoConduit for more information
     */
-  virtual MediaConduitErrorCode ConfigureRecvMediaCodecs( 
+  virtual MediaConduitErrorCode ConfigureRecvMediaCodecs(
                                 const std::vector<AudioCodecConfig* >& recvCodecConfigList) = 0;
 
 };
@@ -302,8 +299,8 @@ public:
 
 #endif
 
- 
 
 
 
- 
+
+

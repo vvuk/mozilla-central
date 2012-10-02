@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// These constants are picked from WebRTC Implementation. Copyright from the same is 
+// These constants are picked from WebRTC Implementation. Copyright from the same is
 // given below
 
 /*
@@ -18,13 +18,13 @@
 #ifndef VIDEO_TYPE_
 #define VIDEO_TYPE_
 
-namespace mozilla 
+namespace mozilla
 {
 /*
- * Enumeration for different video types supported by the 
+ * Enumeration for different video types supported by the
  * video-engine. If more types will be supported in the future
  * newer one shall be appended to the bottom of the list
- */  
+ */
 enum VideoType
 {
     kVideoI420     = 0,
