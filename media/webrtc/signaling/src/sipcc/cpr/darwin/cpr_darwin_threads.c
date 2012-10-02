@@ -161,8 +161,7 @@ cprDestroyThread (cprThread_t thread)
         /*
          * Make sure thread is trying to destroy itself.
          */
-
-        if ((uint64_t) cprThreadPtr->u.handleInt == (uint64_t)pthread_self()) {
+        if (cprThreadPtr->u.handlePtr == (void*) pthread_self()) {
             cprThreadPtr->threadId = 0;
             cpr_free(cprThreadPtr);
             pthread_exit(NULL);

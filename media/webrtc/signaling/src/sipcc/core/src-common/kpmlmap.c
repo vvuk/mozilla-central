@@ -1896,22 +1896,22 @@ kpml_generate_notify (kpml_data_t *kpml_data, boolean no_body,
         if (resp_code == KPML_SUCCESS) {
 
             sstrncpy(&(peventData->u.kpml_response.digits[0]),
-                    &(kpml_data->kpmlDialed[0]), sizeof(peventData->u.kpml_response.digits)); // was MAX_DIALSTRING
+                    &(kpml_data->kpmlDialed[0]), sizeof(peventData->u.kpml_response.digits));
         }
 
         if (kpml_data->flush == FALSE) {
             sstrncpy(peventData->u.kpml_response.forced_flush, "false",
-                    sizeof("false"));
+                    sizeof(peventData->u.kpml_response.forced_flush));
         } else {
             sstrncpy(peventData->u.kpml_response.forced_flush, "true",
-                    sizeof("true"));
+                    sizeof(peventData->u.kpml_response.forced_flush));
         }
 
-        sstrncpy(&(peventData->u.kpml_response.tag[0]),
-                &(kpml_data->regex->tag[0]), sizeof(peventData->u.kpml_response.tag)); // was MAX_KPML_TAG_STRING
+        sstrncpy(peventData->u.kpml_response.tag,
+                &(kpml_data->regex->tag[0]), sizeof(peventData->u.kpml_response.tag));
 
-        sstrncpy(&(peventData->u.kpml_response.text[0]),
-                resp_text, MAX_KPML_TEXT_STRING);
+        sstrncpy(peventData->u.kpml_response.text,
+                resp_text, sizeof(peventData->u.kpml_response.text));
 
         peventData->type = EVENT_DATA_KPML_RESPONSE;
         peventData->next = NULL;

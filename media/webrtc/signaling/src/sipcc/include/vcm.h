@@ -260,7 +260,7 @@ typedef enum vcm_audio_bits_ {
 typedef enum {
     VCM_INVLID_ALGORITM_ID = -1,    /* invalid algorithm ID.             */
     VCM_NO_ENCRYPTION = 0,          /* no encryption                     */
-    VCM_AES_128_COUNTER,            /* AES 128 counter mode (32 bits HMAC)*/
+    VCM_AES_128_COUNTER             /* AES 128 counter mode (32 bits HMAC)*/
 } vcm_crypto_algorithmID;
 
 /**
@@ -493,7 +493,7 @@ short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, u
  *  @param[in]  ufrag - the ufrag
  *  @param[in]  pwd - the pwd
  *  @param[in]  candidates - the candidates
- *  @param[i]   candidate_ct - the number of candidates
+ *  @param[in]  candidate_ct - the number of candidates
  *  @return 0 success, error failure
  */
 short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, char *pwd,
@@ -587,9 +587,9 @@ int vcmRxStart(cc_mcapid_t mcap_id,
  *  @param[in]   stream_id    - stream id of the given media type.
  *  @param[in]   level        - the m-line index
  *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
- *  @param[i]n   pc_track_id  - the track within the media stream
+ *  @param[in]   pc_track_id  - the track within the media stream
  *  @param[in]   call_handle  - call handle
- *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]   peerconnection - the peerconnection in use
  *  @param[in]   num_payloads  - number of codecs negotiated
  *  @param[in]   payloads      - list of negotiated codec details 
  *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm
@@ -665,9 +665,9 @@ int vcmTxStart(cc_mcapid_t mcap_id,
  *  @param[in]   stream_id    - stream id of the given media type.
  *  @param[in]   level        - the m-line index
  *  @param[in]   pc_stream_id - the media stream index (from PC.addStream())
- *  @param[i]n   pc_track_id  - the track within the media stream
+ *  @param[in]   pc_track_id  - the track within the media stream
  *  @param[in]   call_handle  - call handle
- *  @param[in]  peerconnection - the peerconnection in use
+ *  @param[in]   peerconnection - the peerconnection in use
  *  @param[in]   payload      - payload type
  *  @param[in]   tos          - bit marking
  *  @param[in]   fingerprint_alg - the DTLS fingerprint algorithm

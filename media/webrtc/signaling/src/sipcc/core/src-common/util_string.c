@@ -117,7 +117,7 @@ dotted2ipaddr (const char *addr_str)
     /* Check args */
     if ((!addr_str) || (addr_str[0] == '\0'))
     {
-        return (uint32_t) -1;
+        return 0xFFFFFFFF;
     }
 
     /* Init */
@@ -150,7 +150,7 @@ dotted2ipaddr (const char *addr_str)
 
         if (errno || section_str == strtoul_end ||
             strtoul_result > 255) {
-            return (uint32_t) -1;
+            return 0xFFFFFFFF;
         }
 
         sections[section] = (int) strtoul_result;

@@ -260,13 +260,14 @@ cprSleep (uint32_t duration)
  */
 static cprRC_t addTimerToList (cpr_timer_t *cprTimerPtr, uint32_t duration, void *data) 
 {
+    // TODO(ekr@rtfm.com): Put this back in when you figure out why it causes crashes
+    return CPR_SUCCESS;
 
+#if 0
     static const char fname[] = "addTimerToList";
     timer_ipc_t tmr_cmd = {0};
     timer_ipc_t tmr_rsp={0};
     
-    // TODO(ekr@rtfm.com): Put this back in when you figure out why it causes crashes
-    return CPR_SUCCESS;
 
     API_ENTER();
     
@@ -304,6 +305,7 @@ static cprRC_t addTimerToList (cpr_timer_t *cprTimerPtr, uint32_t duration, void
         //CPR_INFO("received response from the timer result=%d\n", tmr_rsp.u.result);
         API_RETURN(tmr_rsp.u.result);
     }
+#endif
 }
 
 
@@ -1156,11 +1158,11 @@ cprRC_t start_timer_service_loop (void)
 
 
     /* initialize server and client addresses used for sending.*/
-    bzero(&tmr_serv_addr, sizeof(tmr_serv_addr));
+    memset(&tmr_serv_addr, 0, sizeof(tmr_serv_addr));
     tmr_serv_addr.sun_family = AF_UNIX;
     snprintf(tmr_serv_addr.sun_path, sizeof(tmr_serv_addr.sun_path), "%s_%d",SERVER_PATH, getpid());
     
-    bzero(&tmr_client_addr, sizeof(tmr_client_addr));
+    memset(&tmr_client_addr, 0, sizeof(tmr_client_addr));
     tmr_client_addr.sun_family = AF_UNIX;
     snprintf(tmr_client_addr.sun_path, sizeof(tmr_client_addr.sun_path), "%s_%d",CLIENT_PATH, getpid());
     
