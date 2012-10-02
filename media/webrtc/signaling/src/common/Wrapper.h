@@ -72,24 +72,65 @@
 
 #include <map>
 #include "SharedPtr.h"
+#include "prlock.h"
 #include "base/lock.h"
+#include "mozilla/Assertions.h"
 
-#include "mozilla/Mutex.h"
+/*
+ * Wrapper has its own autolock class because the instances are declared
+ * statically and mozilla::Mutex will not work properly when instantiated
+ * in a static constructor.
+ */
 
+class LockNSPR {
+public:
+  LockNSPR() : lock_(NULL) {
+    lock_ = PR_NewLock();
+    MOZ_ASSERT(lock_);
+  }
+  ~LockNSPR() {
+    PR_DestroyLock(lock_);
+  }
+
+  void Acquire() {
+    PR_Lock(lock_);
+  }
+
+  void Release() {
+    PR_Unlock(lock_);
+  }
+
+private:
+  PRLock *lock_;
+};
+
+class AutoLockNSPR {
+public:
+  AutoLockNSPR(LockNSPR& lock) : lock_(lock) {
+    lock_.Acquire();
+  }
+  ~AutoLockNSPR() {
+    lock_.Release();
+  }
+
+private:
+  LockNSPR& lock_;
+};
+ 
 template <class T>
 class Wrapper
 {
 private:
     typedef std::map<typename T::Handle, typename T::Ptr>      	HandleMapType;
-	HandleMapType 	handleMap;
-	mozilla::Mutex   handleMapMutex;
+    HandleMapType handleMap;
+    LockNSPR handleMapMutex;
 
 public:
-	Wrapper() : handleMapMutex("Wrapper") {}
+	Wrapper() {}
 
 	typename T::Ptr wrap(typename T::Handle handle)
 	{
-		mozilla::MutexAutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -105,7 +146,7 @@ public:
 
 	bool changeHandle(typename T::Handle oldHandle, typename T::Handle newHandle)
 	{
-		mozilla::MutexAutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(oldHandle);
 		if(it != handleMap.end())
 		{
@@ -122,7 +163,7 @@ public:
 
 	bool release(typename T::Handle handle)
 	{
-		mozilla::MutexAutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		typename HandleMapType::iterator it = handleMap.find(handle);
 		if(it != handleMap.end())
 		{
@@ -137,7 +178,7 @@ public:
 
 	void reset()
 	{
-		mozilla::MutexAutoLock lock(handleMapMutex);
+		AutoLockNSPR lock(handleMapMutex);
 		handleMap.clear();
 	}
 };
