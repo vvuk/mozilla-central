@@ -505,13 +505,13 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
     int sslen = sizeof(ss);
 
     if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET6, nullptr, (struct sockaddr*)&ss, &sslen)) {
-      addr6.sin6_addr = (static_cast<struct sockaddr_in6 *>(&ss))->sin6_addr;
+      addr6.sin6_addr = (reinterpret_cast<struct sockaddr_in6 *>(&ss))->sin6_addr;
       if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr6), sizeof(struct sockaddr_in6)) < 0) {
         LOG(("*** Failed userspace_connect"));
         return false;
       }
     } else if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET, nullptr, (struct sockaddr*)&ss, &sslen)) {
-      addr4.sin_addr = (static_cast<struct sockaddr_in *>(&ss))->sin_addr;
+      addr4.sin_addr = (reinterpret_cast<struct sockaddr_in *>(&ss))->sin_addr;
       if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr4), sizeof(struct sockaddr_in)) < 0) {
         LOG(("*** Failed userspace_connect"));
         return false;
