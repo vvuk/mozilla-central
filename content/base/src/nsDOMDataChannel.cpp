@@ -277,18 +277,17 @@ nsDOMDataChannel::Send(nsIVariant *aData, JSContext *aCx)
   MOZ_ASSERT(state == mozilla::DataChannel::OPEN,
              "Unknown state in nsWebSocket::Send");
 
-  bool result;
+  int32_t sent;
   if (msgStream) {
-    result = mDataChannel->SendBinaryStream(msgStream, msgLen);
+    sent = mDataChannel->SendBinaryStream(msgStream, msgLen);
   } else {
     if (isBinary) {
-      result = mDataChannel->SendBinaryMsg(msgString);
+      sent = mDataChannel->SendBinaryMsg(msgString);
     } else {
-      result = mDataChannel->SendMsg(msgString);
+      sent = mDataChannel->SendMsg(msgString);
     }
   }
-
-  return result ? NS_OK : NS_ERROR_FAILURE;
+  return sent >= 0 ? NS_OK : NS_ERROR_FAILURE;
 }
 
 // XXX Exact clone of nsWebSocketChannel::GetSendParams() - find a way to share!

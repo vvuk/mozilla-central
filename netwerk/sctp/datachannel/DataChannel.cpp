@@ -35,27 +35,12 @@
 PRLogModuleInfo* dataChannelLog = PR_NewLogModule("DataChannel");
 #endif
 
-#if 1
-#define ARRAY_LEN(x) (x).Length()
-#else
-#define ARRAY_LEN(x) (sizeof((x))/sizeof((x)[0]))
-#endif
-
-// NS_ENSURE_TRUE for void functions
-#define DC_ENSURE_TRUE(x)                                     \
-  PR_BEGIN_MACRO                                              \
-    if (NS_UNLIKELY(!(x))) {                                  \
-       NS_WARNING("NS_ENSURE_TRUE(" #x ") failed");           \
-       return;                                                \
-    }                                                         \
-  PR_END_MACRO
-
 static bool sctp_initialized;
 
 namespace mozilla {
 
 class DataChannelShutdown;
-DataChannelShutdown *gDataChannelShutdown;
+nsCOMPtr<DataChannelShutdown> gDataChannelShutdown;
 
 class DataChannelShutdown : public nsIObserver
 {
@@ -68,30 +53,28 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  DataChannelShutdown() 
+  DataChannelShutdown() {}
+
+  void Init() 
     { 
       nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
       if (!observerService)
         return;
 
-      // XXX Verify this is true
-      ++mRefCnt;    // Our refcnt must be > 0 when we call this, or we'll get deleted!
       nsresult rv = observerService->AddObserver(this,
                                                  "profile-change-net-teardown",
                                                  false);
-      --mRefCnt;
-      DC_ENSURE_TRUE(rv == NS_OK);
+      MOZ_ASSERT(rv == NS_OK);
+      (void) rv;
     }
+
   virtual ~DataChannelShutdown() 
     {
       nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
       if (observerService)
         observerService->RemoveObserver(this, "profile-change-net-teardown");
-
-      // We know this is a simple pointer
-      gDataChannelShutdown = nullptr;
     }
 
   NS_IMETHODIMP Observe(nsISupports* aSubject, const char* aTopic,
@@ -110,13 +93,13 @@ public:
 NS_IMPL_ISUPPORTS1(DataChannelShutdown, nsIObserver);
 
 
-BufferedMsg::BufferedMsg(struct sctp_sendv_spa &spa,const char *data,
+BufferedMsg::BufferedMsg(struct sctp_sendv_spa &spa, const char *data,
                          uint32_t length) : mLength(length)
 {
   mSpa = new sctp_sendv_spa;
   *mSpa = spa;
   char *tmp = new char[length]; // infallible malloc!
-  memcpy(tmp,data,length);
+  memcpy(tmp, data, length);
   mData = tmp;
 }
 
@@ -139,10 +122,9 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
    mLock("netwerk::sctp::DataChannel")
 {
   mState = CLOSED;
-  mSocket = NULL;
-  mMasterSocket = NULL;
+  mSocket = nullptr;
+  mMasterSocket = nullptr;
   mListener = listener;
-  mNumChannels = 0;
   mLocalPort = 0;
   mRemotePort = 0;
   mDeferTimeout = 10;
@@ -164,10 +146,8 @@ DataChannelConnection::~DataChannelConnection()
     usrsctp_close(mMasterSocket);
 }
 
-NS_IMPL_THREADSAFE_QUERY_INTERFACE1(DataChannelConnection,
-                                    nsITimerCallback)
-NS_IMPL_THREADSAFE_ADDREF(DataChannelConnection)
-NS_IMPL_THREADSAFE_RELEASE(DataChannelConnection)
+NS_IMPL_THREADSAFE_ISUPPORTS1(DataChannelConnection,
+                              nsITimerCallback)
 
 bool
 DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls)
@@ -187,18 +167,20 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
                             SCTP_STREAM_RESET_EVENT,
                             SCTP_STREAM_CHANGE_EVENT};
   {
-    MutexAutoLock lock(mLock);
+    MOZ_ASSERT(NS_IsMainThread());
+
+    // MutexAutoLock lock(mLock); Not needed since we're on mainthread always
     if (!sctp_initialized) {
       if (aUsingDtls) {
         LOG(("sctp_init(DTLS)"));
 #ifdef MOZ_PEERCONNECTION
-        usrsctp_init(0,DataChannelConnection::SctpDtlsOutput);
+        usrsctp_init(0, DataChannelConnection::SctpDtlsOutput);
 #else
-        NS_ASSERTION(!aUsingDtls,"Trying to use SCTP/DTLS without mtransport");
+        NS_ASSERTION(!aUsingDtls, "Trying to use SCTP/DTLS without mtransport");
 #endif
       } else {
-        LOG(("sctp_init(%d)",aPort));
-        usrsctp_init(aPort,NULL);
+        LOG(("sctp_init(%d)", aPort));
+        usrsctp_init(aPort, nullptr);
       }
 
       usrsctp_sysctl_set_sctp_debug_on(0 /*SCTP_DEBUG_ALL*/);
@@ -206,13 +188,14 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
       sctp_initialized = true;
 
       gDataChannelShutdown = new DataChannelShutdown();
+      gDataChannelShutdown->Init();
     }
   }
 
   // Open sctp association across tunnel
   if ((mMasterSocket = usrsctp_socket(
          aUsingDtls ? AF_CONN : AF_INET,
-         SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, this)) == NULL) {
+         SOCK_STREAM, IPPROTO_SCTP, receive_cb, nullptr, 0, this)) == nullptr) {
     return false;
   }
 
@@ -224,41 +207,35 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
                            (const void*)&encaps, 
                            (socklen_t)sizeof(struct sctp_udpencaps)) < 0) {
       LOG(("*** failed encaps errno %d", errno));
-      usrsctp_close(mMasterSocket);
-      mMasterSocket = NULL;
-      return false;
+      goto error_cleanup;
     }
-    LOG(("SCTP encapsulation local port %d",aPort));
+    LOG(("SCTP encapsulation local port %d", aPort));
   }
 
   av.assoc_id = SCTP_ALL_ASSOC;
   av.assoc_value = SCTP_ENABLE_RESET_STREAM_REQ | SCTP_ENABLE_CHANGE_ASSOC_REQ;
   if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_ENABLE_STREAM_RESET, &av,
                          (socklen_t)sizeof(struct sctp_assoc_value)) < 0) {
-    LOG(("*** failed enable stream reset errno %d",errno));
-    usrsctp_close(mMasterSocket);
-    mMasterSocket = NULL;
-    return false;
+    LOG(("*** failed enable stream reset errno %d", errno));
+    goto error_cleanup;
   }
   
   /* Enable the events of interest. */
   memset(&event, 0, sizeof(event));
   event.se_assoc_id = SCTP_ALL_ASSOC;
   event.se_on = 1;
-  for (uint32_t i = 0; i < sizeof(event_types)/sizeof(event_types[0]); i++) {
+  for (uint32_t i = 0; i < sizeof(event_types)/sizeof(event_types[0]); ++i) {
     event.se_type = event_types[i];
     if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_EVENT, &event, sizeof(event)) < 0) {
-      LOG(("*** failed setsockopt SCTP_EVENT errno %d",errno));
-      usrsctp_close(mMasterSocket);
-      mMasterSocket = NULL;
-      return false;
+      LOG(("*** failed setsockopt SCTP_EVENT errno %d", errno));
+      goto error_cleanup;
     }
   }
 
   // Update number of streams
   mStreamsOut.AppendElements(aNumStreams);
   mStreamsIn.AppendElements(aNumStreams); // make sure both are the same length
-  for (uint32_t i = 0; i < aNumStreams; i++) {
+  for (uint32_t i = 0; i < aNumStreams; ++i) {
     mStreamsOut[i] = nullptr;
     mStreamsIn[i]  = nullptr;
   }
@@ -266,24 +243,25 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
   len = sizeof(initmsg);
   if (usrsctp_getsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, &len) < 0) {
     LOG(("*** failed getsockopt SCTP_INITMSG"));
-    usrsctp_close(mMasterSocket);
-    mMasterSocket = NULL;
-    return false;
+    goto error_cleanup;
   }
-  LOG(("Setting number of SCTP streams to %u, was %u/%u",aNumStreams,
-       initmsg.sinit_num_ostreams,initmsg.sinit_max_instreams));
+  LOG(("Setting number of SCTP streams to %u, was %u/%u", aNumStreams,
+       initmsg.sinit_num_ostreams, initmsg.sinit_max_instreams));
   initmsg.sinit_num_ostreams  = aNumStreams;
   initmsg.sinit_max_instreams = MAX_NUM_STREAMS;
   if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_INITMSG, &initmsg,
                          (socklen_t)sizeof(initmsg)) < 0) {
-    LOG(("*** failed setsockopt SCTP_INITMSG, errno %d",errno));
-    usrsctp_close(mMasterSocket);
-    mMasterSocket = NULL;
-    return false;
+    LOG(("*** failed setsockopt SCTP_INITMSG, errno %d", errno));
+    goto error_cleanup;
   }
 
-  mSocket = NULL;
+  mSocket = nullptr;
   return true;
+
+error_cleanup:
+  usrsctp_close(mMasterSocket);
+  mMasterSocket = nullptr;
+  return false;
 }
 
 void
@@ -293,7 +271,7 @@ DataChannelConnection::StartDefer()
   if (!NS_IsMainThread()) {
     NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::START_DEFER,
-                            this, NULL));
+                            this, nullptr));
     return;
   }
 
@@ -306,11 +284,10 @@ DataChannelConnection::StartDefer()
   if (!mTimerRunning) {
     rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
                                           nsITimer::TYPE_ONE_SHOT);
-    DC_ENSURE_TRUE(rv == NS_OK);
+    NS_ENSURE_TRUE(rv == NS_OK, /* */);
 
     mTimerRunning = true;
   }
-  return;
 }
 
 // nsITimerCallback
@@ -322,12 +299,13 @@ DataChannelConnection::Notify(nsITimer *timer)
   LOG(("%s: %p [%p] (%dms), sending deferred messages", __FUNCTION__, this, timer, mDeferTimeout));
 
   if (timer == mDeferredTimer) {
-    if (SendDeferredMessages() != 0) {
-      // XXX I don't think i need a lock, since this must be main thread...
+    if (SendDeferredMessages()) {
+      // Still blocked
+      // we don't need a lock, since this must be main thread...
       nsresult rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
                                                      nsITimer::TYPE_ONE_SHOT);
       if (NS_FAILED(rv)) {
-        LOG(("%s: cannot initialize open timer",__FUNCTION__));
+        LOG(("%s: cannot initialize open timer", __FUNCTION__));
         // XXX and do....?
         return rv;
       }
@@ -344,10 +322,10 @@ DataChannelConnection::Notify(nsITimer *timer)
 bool 
 DataChannelConnection::ConnectDTLS(TransportFlow *aFlow, uint16_t localport, uint16_t remoteport)
 {
-  LOG(("Connect DTLS local %d, remote %d",localport,remoteport));
+  LOG(("Connect DTLS local %d, remote %d", localport, remoteport));
 
-  NS_PRECONDITION(mMasterSocket,"SCTP wasn't initialized before ConnectDTLS!");
-  NS_ENSURE_TRUE(aFlow,false);
+  NS_PRECONDITION(mMasterSocket, "SCTP wasn't initialized before ConnectDTLS!");
+  NS_ENSURE_TRUE(aFlow, false);
 
   mTransportFlow = aFlow;
   mTransportFlow->SignalPacketReceived.connect(this, &DataChannelConnection::PacketReceived);
@@ -382,7 +360,7 @@ DataChannelConnection::DTLSConnectThread(void *data)
   int r = usrsctp_bind(_this->mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr),
                        sizeof(addr));
   if (r < 0) {
-    LOG(("usrsctp_bind failed: %d",r));
+    LOG(("usrsctp_bind failed: %d", r));
     return;
   }
 
@@ -392,29 +370,26 @@ DataChannelConnection::DTLSConnectThread(void *data)
   r = usrsctp_connect(_this->mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr),
                       sizeof(addr));
   if (r < 0) {
-    LOG(("usrsctp_connect failed: %d",r));
+    LOG(("usrsctp_connect failed: %d", r));
     return;
   }
 
   // Notify Connection open
-  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,_this));
-  _this->mNumChannels = 0;
-  _this->mSocket = _this->mMasterSocket;  // XXX Be careful!  
+  LOG(("%s: sending ON_CONNECTION for %p", __FUNCTION__, _this));
+  _this->mSocket = _this->mMasterSocket;
   _this->mState = OPEN;
   LOG(("DTLS connect() succeeded!  Entering connected mode"));
 
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::ON_CONNECTION,
-                            _this, NULL));
-
-  return;
+                            _this, nullptr));
 }
 
 void 
 DataChannelConnection::PacketReceived(TransportFlow *flow, 
                                       const unsigned char *data, size_t len)
 {
-  //LOG(("%p: SCTP/DTLS received %ld bytes",this,len));
+  //LOG(("%p: SCTP/DTLS received %ld bytes", this, len));
 
   // Pass the data to SCTP
   usrsctp_conninput(static_cast<void *>(this), data, len, 0);
@@ -424,7 +399,7 @@ DataChannelConnection::PacketReceived(TransportFlow *flow,
 int
 DataChannelConnection::SendPacket(const unsigned char *data, size_t len)
 {
-  //LOG(("%p: SCTP/DTLS sent %ld bytes",this,len));
+  //LOG(("%p: SCTP/DTLS sent %ld bytes", this, len));
   return mTransportFlow->SendPacket(data, len) < 0 ? 1 : 0;
 }
 
@@ -457,9 +432,9 @@ DataChannelConnection::Listen(unsigned short port)
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  LOG(("Waiting for connections on port %d",ntohs(addr.sin_port)));
+  LOG(("Waiting for connections on port %d", ntohs(addr.sin_port)));
   mState = CONNECTING;
-  if (usrsctp_bind(mMasterSocket, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0) {
+  if (usrsctp_bind(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr), sizeof(struct sockaddr_in)) < 0) {
     LOG(("***Failed userspace_bind"));
     return false;
   }
@@ -470,21 +445,18 @@ DataChannelConnection::Listen(unsigned short port)
 
   LOG(("Accepting connection"));
   addr_len = 0;
-  if ((mSocket = usrsctp_accept(mMasterSocket, NULL, &addr_len)) == NULL) {
+  if ((mSocket = usrsctp_accept(mMasterSocket, nullptr, &addr_len)) == nullptr) {
     LOG(("***Failed accept"));
     return false;
   }
   mState = OPEN;
 
-  //LOG(("Accepting incoming connection.  Entering connected mode. mSocket=%p, masterSocket=%p", mSocket, mMasterSocket));
-
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
-  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,this));
+  LOG(("%s: sending ON_CONNECTION for %p", __FUNCTION__, this));
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::ON_CONNECTION,
-                            this, NULL));
-  mNumChannels = 0;
+                            this, nullptr));
   return true;
 }
 
@@ -498,7 +470,7 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   NS_WARN_IF_FALSE(!NS_IsMainThread(), "Blocks, do not call from main thread!!!");
 
   /* Acting as the connector */
-  LOG(("Connecting to %s, port %u",addr, port));
+  LOG(("Connecting to %s, port %u", addr, port));
   memset((void *)&addr4, 0, sizeof(struct sockaddr_in));
   memset((void *)&addr6, 0, sizeof(struct sockaddr_in6));
 #ifdef HAVE_SIN_LEN
@@ -515,12 +487,12 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
 
 #if !defined(__Userspace_os_Windows)
   if (inet_pton(AF_INET6, addr, &addr6.sin6_addr) == 1) {
-    if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr6, sizeof(struct sockaddr_in6)) < 0) {
+    if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr6), sizeof(struct sockaddr_in6)) < 0) {
       LOG(("*** Failed userspace_connect"));
       return false;
     }
   } else if (inet_pton(AF_INET, addr, &addr4.sin_addr) == 1) {
-    if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr4, sizeof(struct sockaddr_in)) < 0) {
+    if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr4), sizeof(struct sockaddr_in)) < 0) {
       LOG(("*** Failed userspace_connect"));
       return false;
     }
@@ -532,15 +504,15 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
     struct sockaddr_storage ss;
     int sslen = sizeof(ss);
 
-    if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET6, NULL, (struct sockaddr*)&ss, &sslen)) {
-      addr6.sin6_addr = ((struct sockaddr_in6 *)&ss)->sin6_addr;
-      if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr6, sizeof(struct sockaddr_in6)) < 0) {
+    if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET6, nullptr, (struct sockaddr*)&ss, &sslen)) {
+      addr6.sin6_addr = (static_cast<struct sockaddr_in6 *>(&ss))->sin6_addr;
+      if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr6), sizeof(struct sockaddr_in6)) < 0) {
         LOG(("*** Failed userspace_connect"));
         return false;
       }
-    } else if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET, NULL, (struct sockaddr*)&ss, &sslen)) {
-      addr4.sin_addr = ((struct sockaddr_in *)&ss)->sin_addr;
-      if (usrsctp_connect(mMasterSocket, (struct sockaddr *)&addr4, sizeof(struct sockaddr_in)) < 0) {
+    } else if (!WSAStringToAddressA(const_cast<char *>(addr), AF_INET, nullptr, (struct sockaddr*)&ss, &sslen)) {
+      addr4.sin_addr = (static_cast<struct sockaddr_in *>(&ss))->sin_addr;
+      if (usrsctp_connect(mMasterSocket, reinterpret_cast<struct sockaddr *>(&addr4), sizeof(struct sockaddr_in)) < 0) {
         LOG(("*** Failed userspace_connect"));
         return false;
       }
@@ -550,18 +522,17 @@ DataChannelConnection::Connect(const char *addr, unsigned short port)
   }
 #endif
 
-  mSocket = mMasterSocket;  // XXX Be careful!  
+  mSocket = mMasterSocket;
 
   LOG(("connect() succeeded!  Entering connected mode"));
   mState = OPEN;
   
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered
-  LOG(("%s: sending ON_CONNECTION for %p",__FUNCTION__,this));
+  LOG(("%s: sending ON_CONNECTION for %p", __FUNCTION__, this));
   NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                             DataChannelOnMessageAvailable::ON_CONNECTION,
-                            this, NULL));
-  mNumChannels = 0;
+                            this, nullptr));
   return true;
 }
 
@@ -571,9 +542,9 @@ DataChannelConnection::FindChannelByStreamIn(uint16_t streamIn)
   // Auto-extend mStreamsIn as needed
   if (((uint32_t) streamIn) + 1 > mStreamsIn.Length()) {
     uint32_t old_len = mStreamsIn.Length();
-    LOG(("Extending mStreamsIn[] to %d elements",((int32_t) streamIn)+1));
+    LOG(("Extending mStreamsIn[] to %d elements", ((int32_t) streamIn)+1));
     mStreamsIn.AppendElements((streamIn+1) - mStreamsIn.Length());
-    for (uint32_t i = old_len; i < mStreamsIn.Length(); i++)
+    for (uint32_t i = old_len; i < mStreamsIn.Length(); ++i)
       mStreamsIn[i] = nullptr;
   }
   // Should always be safe in practice
@@ -594,7 +565,7 @@ DataChannelConnection::FindFreeStreamOut()
   limit = mStreamsOut.Length();
   if (limit > MAX_NUM_STREAMS)
     limit = MAX_NUM_STREAMS;
-  for (i = 0; i < limit; i++) {
+  for (i = 0; i < limit; ++i) {
     if (!mStreamsOut[i]) {
       break;
     }
@@ -634,10 +605,10 @@ DataChannelConnection::RequestMoreStreamsOut(int32_t aNeeded)
     if (errno == EALREADY)
       return true;
 
-    LOG(("***failed: setsockopt ADD errno=%d",errno));
+    LOG(("***failed: setsockopt ADD errno=%d", errno));
     return false;
   }
-  LOG(("Requested %u more streams",outStreamsNeeded));
+  LOG(("Requested %u more streams", outStreamsNeeded));
   return true;
 }
 
@@ -646,17 +617,15 @@ DataChannelConnection::SendControlMessage(void *msg, uint32_t len, uint16_t stre
 {
   struct sctp_sndinfo sndinfo;
 
-  // XXX fix!  Main-thread IO
+  // Note: Main-thread IO, but doesn't block
   memset(&sndinfo, 0, sizeof(struct sctp_sndinfo));
   sndinfo.snd_sid = streamOut;
   sndinfo.snd_ppid = htonl(DATA_CHANNEL_PPID_CONTROL);
-  if (usrsctp_sendv(mSocket, msg, len, NULL, 0,
+  if (usrsctp_sendv(mSocket, msg, len, nullptr, 0,
                     &sndinfo, (socklen_t)sizeof(struct sctp_sndinfo),
                     SCTP_SENDV_SNDINFO, 0) < 0) {
     //LOG(("***failed: sctp_sendv")); don't log because errno is a return!
     return (0);
-  } else {
-    return (1);
   }
   return (1);
 }
@@ -664,7 +633,6 @@ DataChannelConnection::SendControlMessage(void *msg, uint32_t len, uint16_t stre
 int32_t
 DataChannelConnection::SendOpenResponseMessage(uint16_t streamOut, uint16_t streamIn)
 {
-  /* XXX: This should be encoded in a better way */
   struct rtcweb_datachannel_open_response rsp;
 
   memset(&rsp, 0, sizeof(struct rtcweb_datachannel_open_response));
@@ -678,7 +646,6 @@ DataChannelConnection::SendOpenResponseMessage(uint16_t streamOut, uint16_t stre
 int32_t
 DataChannelConnection::SendOpenAckMessage(uint16_t streamOut)
 {
-  /* XXX: This should be encoded in a better way */
   struct rtcweb_datachannel_ack ack;
 
   memset(&ack, 0, sizeof(struct rtcweb_datachannel_ack));
@@ -692,11 +659,10 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
                                               uint16_t streamOut, bool unordered,
                                               uint16_t prPolicy, uint32_t prValue)
 {
-  /* XXX: This should be encoded in a better way */
-  char *temp = ToNewCString(label);
-  int len = strlen(temp); // not including nul
+  const char *temp = label.BeginReading();
+  int len = label.Length(); // not including nul
   struct rtcweb_datachannel_open_request *req = 
-    (struct rtcweb_datachannel_open_request*) malloc(sizeof(*req)+len);
+    (struct rtcweb_datachannel_open_request*) moz_xmalloc(sizeof(*req)+len);
    // careful - ok because request includes 1 char label
 
   memset(req, 0, sizeof(struct rtcweb_datachannel_open_request));
@@ -713,7 +679,6 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
     break;
   default:
     // FIX! need to set errno!  Or make all these SendXxxx() funcs return 0 or errno!
-    NS_Free(temp);
     return (0);
   }
   req->flags = htons(0);
@@ -722,9 +687,8 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
   }
   req->reliability_params = htons((uint16_t)prValue); /* XXX Why 16-bit */
   req->priority = htons(0); /* XXX: add support */
-  strcpy(&req->label[0],temp);
+  strcpy(&req->label[0], temp);
   
-  NS_Free(temp);
   return SendControlMessage(req, sizeof(*req)+len, streamOut);
 }
 
@@ -733,6 +697,8 @@ DataChannelConnection::SendOpenRequestMessage(const nsACString& label,
 // Alternatively, it can use a timeout, but that's guaranteed to be wrong
 // (just not sure in what direction).  We could re-implement NSPR's
 // PR_POLL_WRITE/etc handling... with a lot of work.
+
+// returns if we're still blocked or not
 bool
 DataChannelConnection::SendDeferredMessages()
 {
@@ -741,9 +707,12 @@ DataChannelConnection::SendDeferredMessages()
   bool still_blocked = false;
   bool sent = false;
 
+  // This may block while something is modifying channels, but should not block for IO
+  MutexAutoLock lock(mLock);
+
   // XXX For total fairness, on a still_blocked we'd start next time at the
   // same index.  Sorry, not going to bother for now.
-  for (i = 0; i < mStreamsOut.Length() && !still_blocked; i++) {
+  for (i = 0; i < mStreamsOut.Length(); ++i) {
     channel = mStreamsOut[i];
     if (!channel)
       continue;
@@ -760,7 +729,7 @@ DataChannelConnection::SendDeferredMessages()
           still_blocked = true;
         } else {
           // Close the channel, inform the user
-          mStreamsOut[channel->mStreamOut] = NULL;
+          mStreamsOut[channel->mStreamOut] = nullptr;
           channel->mState = CLOSED;
           // Don't need to reset; we didn't open it
           NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
@@ -769,8 +738,10 @@ DataChannelConnection::SendDeferredMessages()
         }
       }
     }
-    if (!still_blocked &&
-        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_RSP) {
+    if (still_blocked)
+      break;
+
+    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_RSP) {
       if (SendOpenResponseMessage(channel->mStreamOut, channel->mStreamIn)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_RSP;
         sent = true;
@@ -784,14 +755,16 @@ DataChannelConnection::SendDeferredMessages()
           // send the open response means we can't easily tell them about it
           // We haven't informed the user/DOM of the creation yet, so just
           // delete the channel.
-          mStreamsIn[channel->mStreamIn]   = NULL;
-          mStreamsOut[channel->mStreamOut] = NULL;
+          mStreamsIn[channel->mStreamIn]   = nullptr;
+          mStreamsOut[channel->mStreamOut] = nullptr;
           delete channel;
         }
       }
     }
-    if (!still_blocked &&
-        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_ACK) {
+    if (still_blocked)
+      break;
+
+    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_ACK) {
       if (SendOpenAckMessage(channel->mStreamOut)) {
         channel->mFlags &= ~DATA_CHANNEL_FLAGS_SEND_ACK;
         sent = true;
@@ -804,8 +777,10 @@ DataChannelConnection::SendDeferredMessages()
         }
       }
     }
-    if (!still_blocked &&
-        channel->mFlags & DATA_CHANNEL_FLAGS_SEND_DATA) {
+    if (still_blocked)
+      break;
+
+    if (channel->mFlags & DATA_CHANNEL_FLAGS_SEND_DATA) {
       bool failed_send = false;
       int32_t result;
 
@@ -821,20 +796,20 @@ DataChannelConnection::SendDeferredMessages()
         // SCTP will return EMSGSIZE if the message is bigger than the buffer
         // size (or EAGAIN if there isn't space)
         if ((result = usrsctp_sendv(mSocket, data, len,
-                                    NULL, 0,
+                                    nullptr, 0,
                                     (void *)spa, (socklen_t)sizeof(struct sctp_sendv_spa),
                                     SCTP_SENDV_SPA,
                                     spa->sendv_sndinfo.snd_flags) < 0)) {
           if (errno == EAGAIN) {
             // leave queued for resend
             failed_send = true;
-            LOG(("queue full again when resending %d bytes (%d)",len,result));
+            LOG(("queue full again when resending %d bytes (%d)", len, result));
           } else {
-            LOG(("error %d re-sending string",errno));
+            LOG(("error %d re-sending string", errno));
             failed_send = true;
           }
         } else {
-          //LOG(("Resent buffer of %d bytes (%d)",len,result));
+          LOG(("Resent buffer of %d bytes (%d)", len, result));
           sent = true;
           channel->mBufferedData.RemoveElementAt(0);
         }
@@ -844,10 +819,12 @@ DataChannelConnection::SendDeferredMessages()
       else
         still_blocked = true;
     }
+    if (still_blocked)
+      break;
   }
 
   if (!still_blocked) {
-    // adjust time for next wait
+    // mDeferTimeout becomes an estimate of how long we need to wait next time we block
     return false;
   }
   // adjust time?  More time for next wait if we didn't send anything, less if did
@@ -870,6 +847,8 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
   uint16_t prPolicy;
   uint32_t flags;
   nsCString label(nsDependentCString(req->label));
+
+  mLock.AssertCurrentThreadOwns();
 
   if ((channel = FindChannelByStreamIn(streamIn))) {
     LOG(("ERROR: HandleOpenRequestMessage: channel for stream %d is in state %d instead of CLOSED.",
@@ -898,29 +877,31 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
                             label,
                             prPolicy, prValue,
                             flags,
-                            NULL, NULL);
+                            nullptr, nullptr);
   mStreamsIn[streamIn] = channel;
 
   OpenResponseFinish(channel);
 }
 
-// Called under MutexAutoLock(mLock)
 void
 DataChannelConnection::OpenResponseFinish(DataChannel *channel)
 {
   uint16_t streamOut = FindFreeStreamOut(); // may be INVALID_STREAM!
 
-  LOG(("Finished response: channel %p, streamOut = %u",channel,streamOut));
+  mLock.AssertCurrentThreadOwns();
+
+  LOG(("Finished response: channel %p, streamOut = %u", channel, streamOut));
 
   if (streamOut == INVALID_STREAM) {
     if (!RequestMoreStreamsOut()) {
       /* XXX: Signal error to the other end. */
-      mStreamsIn[channel->mStreamIn] = NULL;
-      MutexAutoUnlock unlock(mLock);
+      mStreamsIn[channel->mStreamIn] = nullptr;
+      // we can do this with the lock held because mStreamOut is INVALID_STREAM,
+      // so there's no outbound channel to reset
       delete channel;
       return;
     }
-    LOG(("Queuing channel %p to finish response",channel));
+    LOG(("Queuing channel %p to finish response", channel));
     channel->mFlags |= DATA_CHANNEL_FLAGS_FINISH_RSP;
     mPending.Push(channel);
     // can't notify the user until we can send an OpenResponse
@@ -928,13 +909,12 @@ DataChannelConnection::OpenResponseFinish(DataChannel *channel)
     channel->mStreamOut = streamOut;
     mStreamsOut[streamOut] = channel;
     if (SendOpenResponseMessage(streamOut, channel->mStreamIn)) {
-      mNumChannels++;
-      LOG(("successful incoming open of '%s' in: %u, out: %u, total channels %d\n",
-           channel->mLabel.get(), channel->mStreamIn, streamOut, mNumChannels));
+      LOG(("successful incoming open of '%s' in: %u, out: %u\n",
+           channel->mLabel.get(), channel->mStreamIn, streamOut));
 
       /* Notify ondatachannel */
       // XXX We need to make sure connection sticks around until the message is delivered
-      LOG(("%s: sending ON_CHANNEL_CREATED for %p",__FUNCTION__,channel));
+      LOG(("%s: sending ON_CHANNEL_CREATED for %p", __FUNCTION__, channel));
       NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                                 DataChannelOnMessageAvailable::ON_CHANNEL_CREATED,
                                 this, channel));
@@ -944,9 +924,11 @@ DataChannelConnection::OpenResponseFinish(DataChannel *channel)
         StartDefer();
       } else {
         /* XXX: Signal error to the other end. */
-        mStreamsIn[channel->mStreamIn] = NULL;
-        mStreamsOut[streamOut] = NULL;
-        MutexAutoUnlock unlock(mLock);
+        mStreamsIn[channel->mStreamIn] = nullptr;
+        mStreamsOut[streamOut] = nullptr;
+        channel->mStreamOut = INVALID_STREAM;
+        // we can do this with the lock held because mStreamOut is INVALID_STREAM,
+        // so there's no outbound channel to reset (we failed to send on it)
         delete channel;
         return; // paranoia against future changes since we unlocked
       }
@@ -962,18 +944,20 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
   uint16_t streamOut;
   DataChannel *channel;
 
+  mLock.AssertCurrentThreadOwns();
+
   streamOut = ntohs(rsp->reverse_stream);
   channel = FindChannelByStreamOut(streamOut);
 
-  DC_ENSURE_TRUE(channel != NULL);
-  DC_ENSURE_TRUE(channel->mState == CONNECTING);
+  NS_ENSURE_TRUE(channel != nullptr, /* */);
+  NS_ENSURE_TRUE(channel->mState == CONNECTING, /* */);
 
   if (rsp->error) {
     LOG(("%s: error in response to open of channel %d (%s)",
          __FUNCTION__, streamOut, channel->mLabel.get()));
     
   } else {
-    DC_ENSURE_TRUE(!FindChannelByStreamIn(streamIn));
+    NS_ENSURE_TRUE(!FindChannelByStreamIn(streamIn), /* */);
 
     channel->mStreamIn = streamIn;
     channel->mState = OPEN;
@@ -986,12 +970,11 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_ACK;
       StartDefer();
     }
-    LOG(("%s: sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
+    LOG(("%s: sending ON_CHANNEL_OPEN for %p", __FUNCTION__, channel));
     NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, this,
                               channel));
   }
-  return;
 }
 
 void
@@ -1000,10 +983,12 @@ DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack 
 {
   DataChannel *channel;
 
+  mLock.AssertCurrentThreadOwns();
+
   channel = FindChannelByStreamIn(streamIn);
 
-  DC_ENSURE_TRUE(channel != NULL);
-  DC_ENSURE_TRUE(channel->mState == CONNECTING);
+  NS_ENSURE_TRUE(channel != nullptr, /* */);
+  NS_ENSURE_TRUE(channel->mState == CONNECTING, /* */);
 
   channel->mState = channel->mReady ? DataChannel::OPEN : DataChannel::WAITING_TO_OPEN;
   if (channel->mState == OPEN) {
@@ -1014,7 +999,6 @@ DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack 
   } else {
     LOG(("%s: deferring sending ON_CHANNEL_OPEN for %p",__FUNCTION__,channel));
   }
-  return;
 }
 
 void
@@ -1022,25 +1006,27 @@ DataChannelConnection::HandleUnknownMessage(uint32_t ppid, size_t length, uint16
 {
   /* XXX: Send an error message? */
   LOG(("unknown DataChannel message received: %u, len %ld on stream %lu",ppid,length,streamIn));
-  NS_WARNING("unknown DataChannel message received");
-  return;
+  // XXX Log to JS error console if possible
 }
 
 void
 DataChannelConnection::HandleDataMessage(uint32_t ppid, 
-                                         const char *buffer, size_t length,
+                                         const void *data, size_t length,
                                          uint16_t streamIn)
 {
   DataChannel *channel;
+  const char *buffer = (const char *) data;
+
+  mLock.AssertCurrentThreadOwns();
 
   channel = FindChannelByStreamIn(streamIn);
 
   // XXX A closed channel may trip this... check
-  DC_ENSURE_TRUE(channel != NULL);
-  DC_ENSURE_TRUE(channel->mState != CONNECTING);
+  NS_ENSURE_TRUE(channel != nullptr, /* */);
+  NS_ENSURE_TRUE(channel->mState != CONNECTING, /* */);
 
   // XXX should this be a simple if, no warnings/debugbreaks?
-  DC_ENSURE_TRUE(channel->mState != CLOSED);
+  NS_ENSURE_TRUE(channel->mState != CLOSED, /* */);
 
   {
     nsAutoCString recvData(buffer, length);
@@ -1051,11 +1037,8 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
              length, channel->mStreamOut, (int)PR_MIN(length,80), buffer));
         length = -1; // Flag for DOMString
 
-        // paranoia (WebSockets does this)
-        if (!IsUTF8(recvData, false)) {
-          NS_ERROR("DataChannel:: text message invalid utf-8");
-          return;
-        }
+        // WebSockets checks IsUTF8() here; we can try to deliver it
+
         NS_WARN_IF_FALSE(channel->mBinaryBuffer.IsEmpty(),"Binary message aborted by text message!");
         if (!channel->mBinaryBuffer.IsEmpty())
           channel->mBinaryBuffer.Truncate(0);
@@ -1095,7 +1078,6 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
                               DataChannelOnMessageAvailable::ON_DATA, this,
                               channel, recvData, length));
   }
-  return;
 }
 
 // Called with mLock locked!
@@ -1116,37 +1098,37 @@ DataChannelConnection::SendOrQueue(DataChannel *aChannel,
 
 // Called with mLock locked!
 void
-DataChannelConnection::HandleMessage(char *buffer, size_t length, uint32_t ppid, uint16_t streamIn)
+DataChannelConnection::HandleMessage(const void *buffer, size_t length, uint32_t ppid, uint16_t streamIn)
 {
-  struct rtcweb_datachannel_open_request *req;
-  struct rtcweb_datachannel_open_response *rsp;
-  struct rtcweb_datachannel_ack *ack, *msg;
+  const struct rtcweb_datachannel_open_request *req;
+  const struct rtcweb_datachannel_open_response *rsp;
+  const struct rtcweb_datachannel_ack *ack, *msg;
 
   mLock.AssertCurrentThreadOwns();
 
   switch (ppid) {
     case DATA_CHANNEL_PPID_CONTROL:
-      DC_ENSURE_TRUE(length >= sizeof(*ack));
+      NS_ENSURE_TRUE(length >= sizeof(*ack), /* */); // Ack is the smallest
 
-      msg = (struct rtcweb_datachannel_ack *)buffer;
+      msg = static_cast<const struct rtcweb_datachannel_ack *>(buffer);
       switch (msg->msg_type) {
         case DATA_CHANNEL_OPEN_REQUEST:
-          LOG(("length %u, sizeof(*req) = %u",length,sizeof(*req)));
-          DC_ENSURE_TRUE(length >= sizeof(*req));
+          LOG(("length %u, sizeof(*req) = %u", length, sizeof(*req)));
+          NS_ENSURE_TRUE(length >= sizeof(*req), /* */);
 
-          req = (struct rtcweb_datachannel_open_request *)buffer;
+          req = static_cast<const struct rtcweb_datachannel_open_request *>(buffer);
           HandleOpenRequestMessage(req, length, streamIn);
           break;
         case DATA_CHANNEL_OPEN_RESPONSE:
-          DC_ENSURE_TRUE(length >= sizeof(*rsp));
+          NS_ENSURE_TRUE(length >= sizeof(*rsp), /* */);
 
-          rsp = (struct rtcweb_datachannel_open_response *)buffer;
+          rsp = static_cast<const struct rtcweb_datachannel_open_response *>(buffer);
           HandleOpenResponseMessage(rsp, length, streamIn);
           break;
         case DATA_CHANNEL_ACK:
-          // DC_ENSURE_TRUE(length >= sizeof(*ack)); checked above
+          // >= sizeof(*ack) checked above
 
-          ack = (struct rtcweb_datachannel_ack *)buffer;
+          ack = static_cast<const struct rtcweb_datachannel_ack *>(buffer);
           HandleOpenAckMessage(ack, length, streamIn);
           break;
         default:
@@ -1193,10 +1175,12 @@ DataChannelConnection::HandleAssociationChangeEvent(const struct sctp_assoc_chan
   }
   LOG(("Association change: streams (in/out) = (%u/%u)",
        sac->sac_inbound_streams, sac->sac_outbound_streams));
+
+  NS_ENSURE_TRUE(sizeof(*sac) >= sac->sac_length, /* */);
   n = sac->sac_length - sizeof(*sac);
   if (((sac->sac_state == SCTP_COMM_UP) ||
         (sac->sac_state == SCTP_RESTART)) && (n > 0)) {
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < n; ++i) {
       switch (sac->sac_info[i]) {
       case SCTP_ASSOC_SUPPORTS_PR:
         LOG(("Supports: PR"));
@@ -1221,7 +1205,7 @@ DataChannelConnection::HandleAssociationChangeEvent(const struct sctp_assoc_chan
   } else if (((sac->sac_state == SCTP_COMM_LOST) ||
               (sac->sac_state == SCTP_CANT_STR_ASSOC)) && (n > 0)) {
     LOG(("Association: ABORT ="));
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < n; ++i) {
       LOG((" 0x%02x", sac->sac_info[i]));
     }
   }
@@ -1230,14 +1214,13 @@ DataChannelConnection::HandleAssociationChangeEvent(const struct sctp_assoc_chan
       (sac->sac_state == SCTP_COMM_LOST)) {
     return;
   }
-  return;
 }
 
 void
 DataChannelConnection::HandlePeerAddressChangeEvent(const struct sctp_paddr_change *spc)
 {
   char addr_buf[INET6_ADDRSTRLEN];
-  const char *addr;
+  const char *addr = "";
   struct sockaddr_in *sin;
   struct sockaddr_in6 *sin6;
 #if defined(__Userspace_os_Windows)
@@ -1250,7 +1233,7 @@ DataChannelConnection::HandlePeerAddressChangeEvent(const struct sctp_paddr_chan
 #if !defined(__Userspace_os_Windows)
     addr = inet_ntop(AF_INET, &sin->sin_addr, addr_buf, INET6_ADDRSTRLEN);
 #else
-    if (WSAAddressToStringA((LPSOCKADDR)sin, sizeof(sin->sin_addr), NULL, 
+    if (WSAAddressToStringA((LPSOCKADDR)sin, sizeof(sin->sin_addr), nullptr, 
                             addr_buf, &addr_len)) {
       return;
     }
@@ -1261,7 +1244,7 @@ DataChannelConnection::HandlePeerAddressChangeEvent(const struct sctp_paddr_chan
 #if !defined(__Userspace_os_Windows)
     addr = inet_ntop(AF_INET6, &sin6->sin6_addr, addr_buf, INET6_ADDRSTRLEN);
 #else
-    if (WSAAddressToStringA((LPSOCKADDR)sin6, sizeof(sin6), NULL, 
+    if (WSAAddressToStringA((LPSOCKADDR)sin6, sizeof(sin6), nullptr, 
                             addr_buf, &addr_len)) {
       return;
     }
@@ -1297,7 +1280,6 @@ DataChannelConnection::HandlePeerAddressChangeEvent(const struct sctp_paddr_chan
     break;
   }
   LOG((" (error = 0x%08x).\n", spc->spc_error));
-  return;
 }
 
 void
@@ -1307,10 +1289,9 @@ DataChannelConnection::HandleRemoteErrorEvent(const struct sctp_remote_error *sr
 
   n = sre->sre_length - sizeof(struct sctp_remote_error);
   LOG(("Remote Error (error = 0x%04x): ", sre->sre_error));
-  for (i = 0; i < n; i++) {
+  for (i = 0; i < n; ++i) {
     LOG((" 0x%02x", sre-> sre_data[i]));
   }
-  return;
 }
 
 void
@@ -1318,14 +1299,13 @@ DataChannelConnection::HandleShutdownEvent(const struct sctp_shutdown_event *sse
 {
   LOG(("Shutdown event."));
   /* XXX: notify all channels. */
-  return;
+  // Attempts to actually send anything will fail
 }
 
 void
 DataChannelConnection::HandleAdaptationIndication(const struct sctp_adaptation_event *sai)
 {
   LOG(("Adaptation indication: %x.", sai-> sai_adaptation_ind));
-  return;
 }
 
 void
@@ -1346,10 +1326,9 @@ DataChannelConnection::HandleSendFailedEvent(const struct sctp_send_failed_event
        ntohl(ssfe->ssfe_info.snd_ppid), ssfe->ssfe_info.snd_sid,
        ssfe->ssfe_info.snd_flags, ssfe->ssfe_error));
   n = ssfe->ssfe_length - sizeof(struct sctp_send_failed_event);
-  for (i = 0; i < n; i++) {
+  for (i = 0; i < n; ++i) {
     LOG((" 0x%02x", ssfe->ssfe_data[i]));
   }
-  return;
 }
 
 void
@@ -1359,13 +1338,12 @@ DataChannelConnection::ResetOutgoingStream(uint16_t streamOut)
 
   mLock.AssertCurrentThreadOwns();
   // Rarely has more than a couple items and only for a short time
-  for (i = 0; i < mStreamsResetting.Length(); i++) {
+  for (i = 0; i < mStreamsResetting.Length(); ++i) {
     if (mStreamsResetting[i] == streamOut) {
       return;
     }
   }
   mStreamsResetting.AppendElement(streamOut);
-  return;
 }
 
 void
@@ -1380,20 +1358,19 @@ DataChannelConnection::SendOutgoingStreamReset()
     return;
   }
   len = sizeof(sctp_assoc_t) + (2 + mStreamsResetting.Length()) * sizeof(uint16_t);
-  srs = (struct sctp_reset_streams *) malloc(len); // infallible malloc
+  srs = static_cast<struct sctp_reset_streams *> (moz_xmalloc(len)); // infallible malloc
   memset(srs, 0, len);
   srs->srs_flags = SCTP_STREAM_RESET_OUTGOING;
   srs->srs_number_streams = mStreamsResetting.Length();
-  for (i = 0; i < mStreamsResetting.Length(); i++) {
+  for (i = 0; i < mStreamsResetting.Length(); ++i) {
     srs->srs_stream_list[i] = mStreamsResetting[i];
   }
   if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_RESET_STREAMS, srs, (socklen_t)len) < 0) {
-    LOG(("***failed: setsockopt RESET, errno %d",errno));
+    LOG(("***failed: setsockopt RESET, errno %d", errno));
   } else {
     mStreamsResetting.Clear();
   }
   free(srs);
-  return;
 }
 
 void
@@ -1405,11 +1382,11 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
   if (!(strrst->strreset_flags & SCTP_STREAM_RESET_DENIED) &&
       !(strrst->strreset_flags & SCTP_STREAM_RESET_FAILED)) {
     n = (strrst->strreset_length - sizeof(struct sctp_stream_reset_event)) / sizeof(uint16_t);
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < n; ++i) {
       if (strrst->strreset_flags & SCTP_STREAM_RESET_INCOMING_SSN) {
         channel = FindChannelByStreamIn(strrst->strreset_stream_list[i]);
-        if (channel != NULL) {
-          mStreamsIn[channel->mStreamIn] = NULL;
+        if (channel != nullptr) {
+          mStreamsIn[channel->mStreamIn] = nullptr;
           channel->mStreamIn = INVALID_STREAM;
           if (channel->mStreamOut == INVALID_STREAM) {
             channel->mPrPolicy = SCTP_PR_SCTP_NONE;
@@ -1427,8 +1404,8 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
       }
       if (strrst->strreset_flags & SCTP_STREAM_RESET_OUTGOING_SSN) {
         channel = FindChannelByStreamOut(strrst->strreset_stream_list[i]);
-        if (channel != NULL && channel->mStreamOut != INVALID_STREAM) {
-          mStreamsOut[channel->mStreamOut] = NULL;
+        if (channel != nullptr && channel->mStreamOut != INVALID_STREAM) {
+          mStreamsOut[channel->mStreamOut] = nullptr;
           channel->mStreamOut = INVALID_STREAM;
           if (channel->mStreamIn == INVALID_STREAM) {
             channel->mPrPolicy = SCTP_PR_SCTP_NONE;
@@ -1443,7 +1420,6 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
       }
     }
   }
-  return;
 }
 
 void
@@ -1475,7 +1451,7 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
       // make sure both are the same length
       mStreamsOut.AppendElements(strchg->strchange_outstrms - old_len);
       LOG(("New length = %d (was %d)",mStreamsOut.Length(),old_len));
-      for (uint32_t i = old_len; i < mStreamsOut.Length(); i++) {
+      for (uint32_t i = old_len; i < mStreamsOut.Length(); ++i) {
         mStreamsOut[i] = nullptr;
       }
       // Re-process any channels waiting for streams.
@@ -1498,12 +1474,12 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
       // Can't copy nsDeque's.  Move into temp array since any that fail will
       // go back to mPending
       nsDeque temp;
-      while (NULL != (channel = (DataChannel *) mPending.PopFront())) {
+      while (nullptr != (channel = static_cast<DataChannel *>(mPending.PopFront()))) {
         temp.Push(channel);
       }
 
       // Now assign our new streams
-      while (NULL != (channel = (DataChannel *) temp.PopFront())) {
+      while (nullptr != (channel = static_cast<DataChannel *>(temp.PopFront()))) {
         if (channel->mFlags & DATA_CHANNEL_FLAGS_FINISH_RSP) {
           channel->mFlags &= ~DATA_CHANNEL_FLAGS_FINISH_RSP;
           OpenResponseFinish(channel); // may reset the flag and re-push
@@ -1516,7 +1492,7 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
     // else probably not a change in # of streams
   }
     
-  for (i = 0; i < mStreamsOut.Length(); i++) {
+  for (i = 0; i < mStreamsOut.Length(); ++i) {
     channel = mStreamsOut[i];
     if (!channel)
       continue;
@@ -1527,7 +1503,7 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
           (strchg->strchange_flags & SCTP_STREAM_CHANGE_FAILED)) {
         /* XXX: Signal to the other end. */
         if (channel->mStreamIn != INVALID_STREAM) {
-          mStreamsIn[channel->mStreamIn] = NULL;
+          mStreamsIn[channel->mStreamIn] = nullptr;
         }
         channel->mState = CLOSED;
         // inform user!
@@ -1550,7 +1526,6 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
       }
     }
   }
-  return;
 }
 
 
@@ -1579,12 +1554,16 @@ DataChannelConnection::HandleNotification(const union sctp_notification *notif, 
     HandleAdaptationIndication(&(notif->sn_adaptation_event));
     break;
   case SCTP_PARTIAL_DELIVERY_EVENT:
+    LOG(("SCTP_PARTIAL_DELIVERY_EVENT"));
     break;
   case SCTP_AUTHENTICATION_EVENT:
+    LOG(("SCTP_AUTHENTICATION_EVENT"));
     break;
   case SCTP_SENDER_DRY_EVENT:
+    //LOG(("SCTP_SENDER_DRY_EVENT"));
     break;
   case SCTP_NOTIFICATIONS_STOPPED_EVENT:
+    LOG(("SCTP_NOTIFICATIONS_STOPPED_EVENT"));
     break;
   case SCTP_SEND_FAILED_EVENT:
     HandleSendFailedEvent(&(notif->sn_send_failed_event));
@@ -1593,31 +1572,34 @@ DataChannelConnection::HandleNotification(const union sctp_notification *notif, 
     HandleStreamResetEvent(&(notif->sn_strreset_event));
     break;
   case SCTP_ASSOC_RESET_EVENT:
+    LOG(("SCTP_ASSOC_RESET_EVENT"));
     break;
   case SCTP_STREAM_CHANGE_EVENT:
     HandleStreamChangeEvent(&(notif->sn_strchange_event));
     break;
   default:
+    LOG(("unknown SCTP event: %u", (uint32_t)notif->sn_header.sn_type));
     break;
    }
  }
 
-
-// NOTE: not called on main thread
 int
 DataChannelConnection::ReceiveCallback(struct socket* sock, void *data, size_t datalen,
                                        struct sctp_rcvinfo rcv, int32_t flags)
 {
-  if (data == NULL) {
-    usrsctp_close(sock);
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  if (!data) {
+    usrsctp_close(sock); // SCTP has finished shutting down
   } else {
     MutexAutoLock lock(mLock);
     if (flags & MSG_NOTIFICATION) {
-      HandleNotification((union sctp_notification *)data, datalen);
+      HandleNotification(static_cast<union sctp_notification *>(data), datalen);
     } else {
-      HandleMessage((char *)data, datalen, ntohl(rcv.rcv_ppid), rcv.rcv_sid);
+      HandleMessage(data, datalen, ntohl(rcv.rcv_ppid), rcv.rcv_sid);
     }
   }
+  // usrsctp defines the callback as returning an int, but doesn't use it
   return 1;
 }
 
@@ -1627,7 +1609,7 @@ DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder,
                             nsISupports *aContext)
 {
   DataChannel *channel;
-  uint16_t prPolicy;
+  uint16_t prPolicy = SCTP_PR_SCTP_NONE;
   uint32_t flags;
 
   LOG(("DC Open: label %s, type %u, inorder %d, prValue %u, listener %p, context %p",
@@ -1644,7 +1626,7 @@ DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder,
       break;
   }
   if ((prPolicy == SCTP_PR_SCTP_NONE) && (prValue != 0)) {
-    return NULL;
+    return nullptr;
   }
 
   flags = !inOrder ? DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED : 0;
@@ -1659,11 +1641,12 @@ DataChannelConnection::Open(const nsACString& label, Type type, bool inOrder,
 }
 
 // Separate routine so we can also call it to finish up from pending opens
-// Called under MutexAutoLock lock(mLock);
 DataChannel *
 DataChannelConnection::OpenFinish(DataChannel *channel)
 {
   uint16_t streamOut = FindFreeStreamOut(); // may be INVALID_STREAM!
+
+  mLock.AssertCurrentThreadOwns();
 
   LOG(("Finishing open: channel %p, streamOut = %u",channel,streamOut));
 
@@ -1675,9 +1658,10 @@ DataChannelConnection::OpenFinish(DataChannel *channel)
         NS_ERROR("Failed to request more streams");
         return channel;
       }
-      MutexAutoUnlock unlock(mLock);
+      // we can do this with the lock held because mStreamOut is INVALID_STREAM,
+      // so there's no outbound channel to reset
       delete channel;
-      return NULL;
+      return nullptr;
     }
     LOG(("Queuing channel %p to finish open",channel));
     // Also serves to mark we told the app
@@ -1686,64 +1670,27 @@ DataChannelConnection::OpenFinish(DataChannel *channel)
     return channel;
   }
   mStreamsOut[streamOut] = channel;
+  channel->mStreamOut = streamOut;
 
   if (!SendOpenRequestMessage(channel->mLabel, streamOut, 
                               !!(channel->mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED),
                               channel->mPrPolicy, channel->mPrValue)) {
-    LOG(("SendOpenRequest failed, errno = %d",errno));
+    LOG(("SendOpenRequest failed, errno = %d", errno));
     if (errno == EAGAIN) {
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_REQ;
       StartDefer();
     } else {
       // XXX FIX! can't do this if we previously returned it!  Need to internally mark it dead
       // and file onerror
-      mStreamsOut[streamOut] = NULL;
-      MutexAutoUnlock unlock(mLock);
+      mStreamsOut[streamOut] = nullptr;
+      channel->mStreamOut = INVALID_STREAM;
+      // we can do this with the lock held because mStreamOut is INVALID_STREAM,
+      // so there's no outbound channel to reset (we didn't sent anything)
       delete channel;
-      return NULL;
+      return nullptr;
     }
   }
   return channel;
-}
-
-void
-DataChannelConnection::Close(uint16_t streamOut)
-{
-  DataChannel *channel;
-
-  MutexAutoLock lock(mLock);
-  LOG(("Closing stream %d",streamOut));
-  channel = FindChannelByStreamOut(streamOut);
-  if (channel) {
-    channel->mBufferedData.Clear();
-    ResetOutgoingStream(channel->mStreamOut);
-    SendOutgoingStreamReset();
-    channel->mState = CLOSING;
-   }
-  return;
-}
-
-void DataChannelConnection::CloseAll()
-{
-  LOG(("Closing all channels"));
-  // Don't need to lock here
-
-  // Make sure no more channels will be opened
-  mState = CLOSED;
-
-  // Close current channels 
-  // FIX! if there are runnables, they must use weakrefs or hold a strong
-  // ref and keep the channel and/or connection alive
-  for (uint32_t i = 0; i < mStreamsOut.Length(); i++) {
-    if (mStreamsOut[i]) {
-      mStreamsOut[i]->Close();
-    }
-  }
-
-  // Clean up any pending opens for channels
-  DataChannel *channel;
-  while (NULL != (channel = (DataChannel *) mPending.PopFront()))
-    channel->Close();
 }
 
 int32_t
@@ -1754,8 +1701,8 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
   struct sctp_sendv_spa spa;
   int32_t result;
 
-  NS_ENSURE_TRUE(channel->mState == OPEN || channel->mState == CONNECTING,0);
-  NS_WARN_IF_FALSE(length > 0,"Length is 0?!");
+  NS_ENSURE_TRUE(channel->mState == OPEN || channel->mState == CONNECTING, 0);
+  NS_WARN_IF_FALSE(length > 0, "Length is 0?!");
 
   flags = (channel->mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED) ? SCTP_UNORDERED : 0;
 
@@ -1776,7 +1723,7 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
 
   spa.sendv_flags = SCTP_SEND_SNDINFO_VALID | SCTP_SEND_PRINFO_VALID;
 
-  // XXX fix!  Main-thread IO
+  // Note: Main-thread IO, but doesn't block!
   // XXX FIX!  to deal with heavy overruns of JS trying to pass data in
   // (more than the buffersize) queue data onto another thread to do the
   // actual sends.  See netwerk/protocol/websocket/WebSocketChannel.cpp
@@ -1785,10 +1732,10 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
   // size (or EAGAIN if there isn't space)
   if (channel->mBufferedData.IsEmpty()) {
     result = usrsctp_sendv(mSocket, data, length,
-                           NULL, 0, 
+                           nullptr, 0, 
                            (void *)&spa, (socklen_t)sizeof(struct sctp_sendv_spa),
                            SCTP_SENDV_SPA, flags);
-    //LOG(("Sent buffer (len=%u), result=%d",length,result));
+    LOG(("Sent buffer (len=%u), result=%d", length, result));
   } else {
     // Fake EAGAIN if we're already buffering data
     result = -1;
@@ -1797,14 +1744,14 @@ DataChannelConnection::SendMsgInternal(DataChannel *channel, const char *data,
   if (result < 0) {
     if (errno == EAGAIN) {
       // queue data for resend!  And queue any further data for the stream until it is...
-      BufferedMsg *buffered = new BufferedMsg(spa,data,length); // infallible malloc
+      BufferedMsg *buffered = new BufferedMsg(spa, data, length); // infallible malloc
       channel->mBufferedData.AppendElement(buffered); // owned by mBufferedData array
       channel->mFlags |= DATA_CHANNEL_FLAGS_SEND_DATA;
-      //LOG(("Queued %u buffers (len=%u)",channel->mBufferedData.Length(),length));
+      LOG(("Queued %u buffers (len=%u)", channel->mBufferedData.Length(), length));
       StartDefer();
       return 0;
     }
-    LOG(("error %d sending string",errno));
+    LOG(("error %d sending string", errno));
   }
   return result;
 }
@@ -1817,7 +1764,7 @@ DataChannelConnection::SendBinary(DataChannel *channel, const char *data,
   // Since there's a limit on network buffer size and no limits on message
   // size, and we don't want to use EOR mode (multiple writes for a
   // message, but all other streams are blocked until you finish sending
-  // this message), we need to add application-level fragmentatio of large
+  // this message), we need to add application-level fragmentation of large
   // messages.  On a reliable channel, these can be simply rebuilt into a
   // large message.  On an unreliable channel, we can't and don't know how
   // long to wait, and there are no retransmissions, and no easy way to
@@ -1825,26 +1772,27 @@ DataChannelConnection::SendBinary(DataChannel *channel, const char *data,
   // need to return an error if sending more bytes than the network buffers
   // can hold, and perhaps a lower number.
 
-  // XXX We *really* don't want to do this from main thread!
+  // We *really* don't want to do this from main thread! - and SendMsgInternal
+  // avoids blocking.
   if (len > DATA_CHANNEL_MAX_BINARY_FRAGMENT &&
       channel->mPrPolicy == DATA_CHANNEL_RELIABLE) {
     int32_t sent=0;
     uint32_t origlen = len;
-    LOG(("Sending binary message length %u in chunks",len));
+    LOG(("Sending binary message length %u in chunks", len));
     // XXX check flags for out-of-order, or force in-order for large binary messages
     while (len > 0) {
-      uint32_t sendlen = PR_MIN(len,DATA_CHANNEL_MAX_BINARY_FRAGMENT);
+      uint32_t sendlen = PR_MIN(len, DATA_CHANNEL_MAX_BINARY_FRAGMENT);
       uint32_t ppid;
       len -= sendlen;
       ppid = len > 0 ? DATA_CHANNEL_PPID_BINARY : DATA_CHANNEL_PPID_BINARY_LAST;
-      //LOG(("Send chunk of %d bytes, ppid %d",sendlen,ppid));
+      LOG(("Send chunk of %d bytes, ppid %d", sendlen, ppid));
       // Note that these might end up being deferred and queued.
       sent += SendMsgInternal(channel, data, sendlen, ppid);
       data += sendlen;
     }
     LOG(("Sent %d buffers for %u bytes, %d sent immediately, % buffers queued",
          (origlen+DATA_CHANNEL_MAX_BINARY_FRAGMENT-1)/DATA_CHANNEL_MAX_BINARY_FRAGMENT,
-         origlen,sent,
+         origlen, sent,
          channel->mBufferedData.Length()));
     return sent;
   }
@@ -1859,10 +1807,10 @@ int32_t
 DataChannelConnection::SendBlob(uint16_t stream, nsIInputStream *aBlob)
 {
   DataChannel *channel = mStreamsOut[stream];
-  NS_ENSURE_TRUE(channel,0);
+  NS_ENSURE_TRUE(channel, 0);
   // Spawn a thread to send the data
 
-  LOG(("Sending blob to stream %u",stream));
+  LOG(("Sending blob to stream %u", stream));
 
   // XXX to do this safely, we must enqueue these atomically onto the
   // output socket.  We need a sender thread(s?) to enque data into the
@@ -1870,7 +1818,8 @@ DataChannelConnection::SendBlob(uint16_t stream, nsIInputStream *aBlob)
   // background thread, we may not want to block on one stream's data.
   // I.e. run non-blocking and service multiple channels.
 
-  // For now as a hack, block main thread while sending it.
+  // For now as a hack, send as a single blast of queued packets which may
+  // be deferred until buffer space is available.
   nsAutoPtr<nsCString> temp(new nsCString());
   uint64_t len;
   aBlob->Available(&len);
@@ -1909,20 +1858,81 @@ DataChannelConnection::SendMsgCommon(uint16_t stream, const nsACString &aMsg,
   DataChannel *channel;
 
   if (isBinary)
-    LOG(("Sending to stream %u: %u bytes",stream,len));
+    LOG(("Sending to stream %u: %u bytes", stream, len));
   else
-    LOG(("Sending to stream %u: %s",stream,data));
+    LOG(("Sending to stream %u: %s", stream, data));
   // XXX if we want more efficiency, translate flags once at open time
   channel = mStreamsOut[stream];
-  NS_ENSURE_TRUE(channel,0);
+  NS_ENSURE_TRUE(channel, 0);
 
   if (isBinary)
     return SendBinary(channel, data, len);
   return SendMsgInternal(channel, data, len, DATA_CHANNEL_PPID_DOMSTRING);
 }
 
+void
+DataChannelConnection::Close(uint16_t streamOut)
+{
+  DataChannel *channel;
+
+  MutexAutoLock lock(mLock);
+  LOG(("Closing stream %d",streamOut));
+  channel = FindChannelByStreamOut(streamOut);
+  if (channel) {
+    channel->mBufferedData.Clear();
+    ResetOutgoingStream(channel->mStreamOut);
+    SendOutgoingStreamReset();
+    channel->mState = CLOSING;
+  }
+}
+
+void DataChannelConnection::CloseAll()
+{
+  LOG(("Closing all channels"));
+  // Don't need to lock here
+
+  // Make sure no more channels will be opened
+  mState = CLOSED;
+
+  // Close current channels
+  // FIX! if there are runnables, they must use weakrefs or hold a strong
+  // ref and keep the channel and/or connection alive
+  for (uint32_t i = 0; i < mStreamsOut.Length(); ++i) {
+    if (mStreamsOut[i]) {
+      mStreamsOut[i]->Close();
+    }
+  }
+
+  // Clean up any pending opens for channels
+  DataChannel *channel;
+  while (nullptr != (channel = static_cast<DataChannel *>(mPending.PopFront())))
+    channel->Close();
+}
+
+void
+DataChannel::Close()
+{ 
+  if (mState == CLOSING || mState == CLOSED ||
+      mStreamOut == INVALID_STREAM) {
+    return;
+  }
+  mState = CLOSING;
+  mConnection->Close(mStreamOut);
+  mStreamOut = INVALID_STREAM;
+  mStreamIn  = INVALID_STREAM;
+}
+
+void
+DataChannel::SetListener(DataChannelListener *aListener, nsISupports *aContext)
+{
+  MOZ_ASSERT(!mListener); // only should be set once, avoids races w/o locking
+  mContext = aContext;
+  mListener = aListener;
+}
+
 // May be called from another (i.e. Main) thread!
-void DataChannel::AppReady()
+void
+DataChannel::AppReady()
 {
   MutexAutoLock lock(mConnection->mLock);
 
@@ -1932,13 +1942,13 @@ void DataChannel::AppReady()
     NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                               DataChannelOnMessageAvailable::ON_CHANNEL_OPEN, mConnection,
                               this));
-    for (uint32_t i = 0; i < mQueuedMessages.Length(); i++) {
+    for (uint32_t i = 0; i < mQueuedMessages.Length(); ++i) {
       nsCOMPtr<nsIRunnable> runnable = mQueuedMessages[i];
       MOZ_ASSERT(runnable);
       NS_DispatchToMainThread(runnable);
     }
   } else {
-    NS_ASSERTION(mQueuedMessages.IsEmpty(),"Shouldn't have queued messages if not WAITING_TO_OPEN");
+    NS_ASSERTION(mQueuedMessages.IsEmpty(), "Shouldn't have queued messages if not WAITING_TO_OPEN");
   }
   mQueuedMessages.Clear();
   mQueuedMessages.Compact();
@@ -1946,4 +1956,15 @@ void DataChannel::AppReady()
   // cases we need it.
 }
 
+uint32_t
+DataChannel::GetBufferedAmount()
+{
+  uint32_t buffered = 0;
+  for (uint32_t i = 0; i < mBufferedData.Length(); ++i) {
+    buffered += mBufferedData[i]->mLength;
+  }
+  return buffered;
 }
+
+} // namespace mozilla
+

@@ -79,4 +79,3 @@ struct rtcweb_datachannel_ack {
 #endif
 
 #endif
-

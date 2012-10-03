@@ -187,8 +187,8 @@ private:
   void HandleOpenAckMessage(const struct rtcweb_datachannel_ack *ack,
                             size_t length, uint16_t streamIn);
   void HandleUnknownMessage(uint32_t ppid, size_t length, uint16_t streamIn);
-  void HandleDataMessage(uint32_t ppid, const char *buffer, size_t length, uint16_t streamIn);
-  void HandleMessage(char *buffer, size_t length, uint32_t ppid, uint16_t streamIn);
+  void HandleDataMessage(uint32_t ppid, const void *buffer, size_t length, uint16_t streamIn);
+  void HandleMessage(const void *buffer, size_t length, uint32_t ppid, uint16_t streamIn);
   void HandleAssociationChangeEvent(const struct sctp_assoc_change *sac);
   void HandlePeerAddressChangeEvent(const struct sctp_paddr_change *spc);
   void HandleRemoteErrorEvent(const struct sctp_remote_error *sre);
@@ -210,7 +210,6 @@ private:
 
   struct socket *mMasterSocket;
   struct socket *mSocket;
-  uint16_t mNumChannels;
   uint16_t mState;
 
   nsRefPtr<TransportFlow> mTransportFlow;
@@ -219,7 +218,7 @@ private:
 
   // Timer to control when we try to resend blocked messages
   nsCOMPtr<nsITimer> mDeferredTimer;
-  uint32_t mDeferTimeout;
+  uint32_t mDeferTimeout; // in ms
   bool mTimerRunning;
 };
 
@@ -240,12 +239,18 @@ public:
               uint16_t policy, uint32_t value,
               uint32_t flags,
               DataChannelListener *aListener,
-              nsISupports *aContext) : 
-    mListener(aListener), mConnection(connection),
-    mLabel(label), mState(state), mReady(false),
-    mStreamOut(streamOut), mStreamIn(streamIn),
-    mPrPolicy(policy), mPrValue(value),
-    mFlags(0), mContext(aContext)
+              nsISupports *aContext)
+    : mListener(aListener)
+    , mConnection(connection)
+    , mLabel(label)
+    , mState(state)
+    , mReady(false)
+    , mStreamOut(streamOut)
+    , mStreamIn(streamIn)
+    , mPrPolicy(policy)
+    , mPrValue(value)
+    , mFlags(0)
+    , mContext(aContext)
     {
       NS_ASSERTION(mConnection,"NULL connection");
     }
@@ -256,21 +261,11 @@ public:
     }
 
   // Close this DataChannel.  Can be called multiple times.
-  void Close() 
-    { 
-      if (mState == CLOSING || mState == CLOSED ||
-          mStreamOut == INVALID_STREAM) {
-        return;
-      }
-      mState = CLOSING;
-      mConnection->Close(mStreamOut);
-      mStreamOut = INVALID_STREAM;
-      mStreamIn  = INVALID_STREAM;
-    }
+  void Close();
 
   // Set the listener (especially for channels created from the other side)
-  void SetListener(DataChannelListener *aListener, nsISupports *aContext)
-    { mContext = aContext; mListener = aListener; } // XXX Locking?
+  // Note: The Listener and Context should only be set once
+  void SetListener(DataChannelListener *aListener, nsISupports *aContext);
 
   // Send a string
   bool SendMsg(const nsACString &aMsg)
@@ -304,14 +299,7 @@ public:
   bool GetOrdered() { return !(mFlags & DATA_CHANNEL_FLAG_OUT_OF_ORDER_ALLOWED); }
 
   // Amount of data buffered to send
-  uint32_t GetBufferedAmount()
-    {
-      uint32_t buffered = 0;
-      for (uint32_t i = 0; i < mBufferedData.Length(); i++) {
-        buffered += mBufferedData[i]->mLength;
-      }
-      return buffered;
-    }
+  uint32_t GetBufferedAmount();
 
   // Find out state
   uint16_t GetReadyState()
@@ -396,9 +384,6 @@ public:
 
   NS_IMETHOD Run()
   {
-    printf("OnMessage: mChannel %p mConnection %p\n",mChannel,(void *)mConnection.get());
-    // XXX Is there any point in verifying mListener is set?  Can't hurt that much, but
-    // may be unnecessary.
     switch (mType) {
       case ON_DATA:
       case ON_CHANNEL_OPEN:
@@ -417,7 +402,6 @@ public:
     }
     switch (mType) {
       case ON_DATA:
-        printf("OnMessage: ON_DATA:  mListener %p context %p, mLen %d\n",(void *)mChannel->mListener,(void*) mChannel->mContext,mLen);
         if (mLen < 0) {
           mChannel->mListener->OnMessageAvailable(mChannel->mContext, mData);
         } else {
