@@ -35,7 +35,6 @@ UTIL_JAVA_FILES := \
   $(NULL)
 
 FENNEC_JAVA_FILES = \
-  AboutHomeContent.java \
   AboutHomePromoBox.java \
   AboutHomeSection.java \
   ActivityHandlerHelper.java \
@@ -173,6 +172,7 @@ FENNEC_JAVA_FILES = \
   GeckoScreenOrientationListener.java \
   UpdateService.java \
   GeckoUpdateReceiver.java \
+  ReferrerReceiver.java \
   $(NULL)
 
 ifdef MOZ_WEBSMS_BACKEND
@@ -181,6 +181,7 @@ endif
 
 FENNEC_PP_JAVA_FILES = \
   App.java \
+  AboutHomeContent.java \
   MarketplaceApp.java \
   WebApp.java \
   WebApps.java \
@@ -359,6 +360,7 @@ RES_LAYOUT = \
   res/layout/tabs_tray.xml \
   res/layout/list_item_header.xml \
   res/layout/select_dialog_list.xml \
+  res/layout/select_dialog_multichoice.xml \
   res/layout/abouthome_addon_row.xml \
   res/layout/abouthome_last_tabs_row.xml \
   res/layout/abouthome_promo_box.xml \
@@ -465,10 +467,14 @@ RES_DRAWABLE_BASE = \
   res/drawable/ic_menu_back.xml \
   res/drawable/ic_menu_bookmark_add.png \
   res/drawable/ic_menu_bookmark_remove.png \
+  res/drawable/ic_menu_desktop_mode_off.xml \
+  res/drawable/ic_menu_desktop_mode_on.xml \
+  res/drawable/ic_menu_forward.png \
   res/drawable/ic_menu_reload.png \
   res/drawable/ic_menu_save_as_pdf.png \
   res/drawable/ic_menu_share.png \
-  res/drawable/ic_menu_forward.png \
+  res/drawable/ic_menu_quit.xml \
+  res/drawable/ic_status_logo.png \
   res/drawable/remote_tabs_off.png \
   res/drawable/remote_tabs_on.png \
   res/drawable/tab_new.png \
@@ -505,6 +511,7 @@ RES_DRAWABLE_BASE = \
   res/drawable/bookmarkdefaults_favicon_support.png \
   res/drawable/bookmarkdefaults_favicon_addons.png \
   res/drawable/handle_end.png \
+  res/drawable/handle_middle.png \
   res/drawable/handle_start.png \
   $(addprefix res/drawable-mdpi/,$(notdir $(SYNC_RES_DRAWABLE_MDPI))) \
   $(NULL)
@@ -543,6 +550,7 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/ic_menu_reload.png \
   res/drawable-hdpi/ic_menu_save_as_pdf.png \
   res/drawable-hdpi/ic_menu_share.png \
+  res/drawable-hdpi/ic_status_logo.png \
   res/drawable-hdpi/remote_tabs_off.png \
   res/drawable-hdpi/remote_tabs_on.png \
   res/drawable-hdpi/tab_new.png \
@@ -571,6 +579,7 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/validation_arrow_inverted.png \
   res/drawable-hdpi/validation_bg.9.png \
   res/drawable-hdpi/handle_end.png \
+  res/drawable-hdpi/handle_middle.png \
   res/drawable-hdpi/handle_start.png \
   $(addprefix res/drawable-hdpi/,$(notdir $(SYNC_RES_DRAWABLE_HDPI))) \
   $(NULL)
@@ -606,6 +615,7 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/ic_menu_reload.png \
   res/drawable-xhdpi/ic_menu_save_as_pdf.png \
   res/drawable-xhdpi/ic_menu_share.png \
+  res/drawable-xhdpi/ic_status_logo.png \
   res/drawable-xhdpi/tab_new.png \
   res/drawable-xhdpi/tab_close.png \
   res/drawable-xhdpi/tab_thumbnail_default.png \
@@ -631,6 +641,7 @@ RES_DRAWABLE_XHDPI = \
   res/drawable-xhdpi/validation_arrow_inverted.png \
   res/drawable-xhdpi/validation_bg.9.png \
   res/drawable-xhdpi/handle_end.png \
+  res/drawable-xhdpi/handle_middle.png \
   res/drawable-xhdpi/handle_start.png \
   $(NULL)
 
@@ -638,20 +649,29 @@ RES_DRAWABLE_MDPI_V11 = \
   res/drawable-mdpi-v11/alert_addon.png \
   res/drawable-mdpi-v11/alert_app.png \
   res/drawable-mdpi-v11/alert_download.png \
+  res/drawable-mdpi-v11/ic_menu_addons.png \
+  res/drawable-mdpi-v11/ic_menu_apps.png \
   res/drawable-mdpi-v11/ic_menu_back.png \
   res/drawable-mdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-mdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-mdpi-v11/ic_menu_desktop_mode.png \
+  res/drawable-mdpi-v11/ic_menu_desktop_mode_off.png \
+  res/drawable-mdpi-v11/ic_menu_desktop_mode_on.png \
+  res/drawable-mdpi-v11/ic_menu_downloads.png \
   res/drawable-mdpi-v11/ic_menu_find_in_page.png \
   res/drawable-mdpi-v11/ic_menu_forward.png \
   res/drawable-mdpi-v11/ic_menu_reload.png \
   res/drawable-mdpi-v11/ic_menu_save_as_pdf.png \
+  res/drawable-mdpi-v11/ic_menu_settings.png \
   res/drawable-mdpi-v11/ic_menu_share.png \
+  res/drawable-mdpi-v11/ic_menu_tools.png \
+  res/drawable-mdpi-v11/ic_menu_quit.png \
+  res/drawable-mdpi-v11/ic_status_logo.png \
   res/drawable-mdpi-v11/menu.png \
   res/drawable-mdpi-v11/menu_panel_bg.9.png \
   res/drawable-mdpi-v11/menu_popup_bg.9.png \
   res/drawable-mdpi-v11/menu_popup_arrow.png \
   res/drawable-mdpi-v11/menu_item_check.png \
+  res/drawable-mdpi-v11/menu_item_more.png \
   res/drawable-mdpi-v11/menu_item_uncheck.png \
   $(NULL)
 
@@ -659,20 +679,29 @@ RES_DRAWABLE_HDPI_V11 = \
   res/drawable-hdpi-v11/alert_addon.png \
   res/drawable-hdpi-v11/alert_app.png \
   res/drawable-hdpi-v11/alert_download.png \
+  res/drawable-hdpi-v11/ic_menu_addons.png \
+  res/drawable-hdpi-v11/ic_menu_apps.png \
   res/drawable-hdpi-v11/ic_menu_back.png \
   res/drawable-hdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-hdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-hdpi-v11/ic_menu_desktop_mode.png \
+  res/drawable-hdpi-v11/ic_menu_desktop_mode_off.png \
+  res/drawable-hdpi-v11/ic_menu_desktop_mode_on.png \
+  res/drawable-hdpi-v11/ic_menu_downloads.png \
   res/drawable-hdpi-v11/ic_menu_find_in_page.png \
   res/drawable-hdpi-v11/ic_menu_forward.png \
   res/drawable-hdpi-v11/ic_menu_reload.png \
   res/drawable-hdpi-v11/ic_menu_save_as_pdf.png \
+  res/drawable-hdpi-v11/ic_menu_settings.png \
   res/drawable-hdpi-v11/ic_menu_share.png \
+  res/drawable-hdpi-v11/ic_menu_tools.png \
+  res/drawable-hdpi-v11/ic_menu_quit.png \
+  res/drawable-hdpi-v11/ic_status_logo.png \
   res/drawable-hdpi-v11/menu.png \
   res/drawable-hdpi-v11/menu_panel_bg.9.png \
   res/drawable-hdpi-v11/menu_popup_bg.9.png \
   res/drawable-hdpi-v11/menu_popup_arrow.png \
   res/drawable-hdpi-v11/menu_item_check.png \
+  res/drawable-hdpi-v11/menu_item_more.png \
   res/drawable-hdpi-v11/menu_item_uncheck.png \
   $(NULL)
 
@@ -680,20 +709,29 @@ RES_DRAWABLE_XHDPI_V11 = \
   res/drawable-xhdpi-v11/alert_addon.png \
   res/drawable-xhdpi-v11/alert_app.png \
   res/drawable-xhdpi-v11/alert_download.png \
+  res/drawable-xhdpi-v11/ic_menu_addons.png \
+  res/drawable-xhdpi-v11/ic_menu_apps.png \
   res/drawable-xhdpi-v11/ic_menu_back.png \
   res/drawable-xhdpi-v11/ic_menu_bookmark_add.png \
   res/drawable-xhdpi-v11/ic_menu_bookmark_remove.png \
-  res/drawable-xhdpi-v11/ic_menu_desktop_mode.png \
+  res/drawable-xhdpi-v11/ic_menu_desktop_mode_off.png \
+  res/drawable-xhdpi-v11/ic_menu_desktop_mode_on.png \
+  res/drawable-xhdpi-v11/ic_menu_downloads.png \
   res/drawable-xhdpi-v11/ic_menu_find_in_page.png \
   res/drawable-xhdpi-v11/ic_menu_forward.png \
   res/drawable-xhdpi-v11/ic_menu_reload.png \
   res/drawable-xhdpi-v11/ic_menu_save_as_pdf.png \
+  res/drawable-xhdpi-v11/ic_menu_settings.png \
   res/drawable-xhdpi-v11/ic_menu_share.png \
+  res/drawable-xhdpi-v11/ic_menu_tools.png \
+  res/drawable-xhdpi-v11/ic_menu_quit.png \
+  res/drawable-xhdpi-v11/ic_status_logo.png \
   res/drawable-xhdpi-v11/menu.png \
   res/drawable-xhdpi-v11/menu_panel_bg.9.png \
   res/drawable-xhdpi-v11/menu_popup_bg.9.png \
   res/drawable-xhdpi-v11/menu_popup_arrow.png \
   res/drawable-xhdpi-v11/menu_item_check.png \
+  res/drawable-xhdpi-v11/menu_item_more.png \
   res/drawable-xhdpi-v11/menu_item_uncheck.png \
   $(NULL)
 
@@ -853,6 +891,7 @@ RES_DRAWABLE_XLARGE_XHDPI_V11 = \
 
 RES_COLOR = \
   res/color/menu_item_title.xml \
+  res/color/select_item_multichoice.xml \
   $(NULL)
 
 RES_MENU = \

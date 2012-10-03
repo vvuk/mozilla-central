@@ -25,6 +25,7 @@ DIRS = lib  \
  httpserv  \
  fipstest  \
  $(LOWHASHTEST_SRCDIR)  \
+ listsuites \
  makepqg  \
  multinit \
  ocspclnt  \
@@ -38,6 +39,7 @@ DIRS = lib  \
  pk1sign  \
  pkix-errcodes \
  pp  \
+ pwdecrypt \
  rsaperf \
  sdrtest \
  selfserv  \

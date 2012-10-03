@@ -112,6 +112,7 @@ nsSimplePageSequenceFrame::nsSimplePageSequenceFrame(nsStyleContext* aContext) :
 nsSimplePageSequenceFrame::~nsSimplePageSequenceFrame()
 {
   delete mPageData;
+  ResetPrintCanvasList();
 }
 
 NS_QUERYFRAME_HEAD(nsSimplePageSequenceFrame)
@@ -674,19 +675,6 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
   return NS_OK;
 }
 
-void
-nsSimplePageSequenceFrame::InvalidateInternal(const nsRect& aDamageRect,
-                                              nscoord aX, nscoord aY,
-                                              nsIFrame* aForChild,
-                                              uint32_t aFlags)
-{
-  // xxx Invalidate the entire frame as otherwise invalidate of printCanvas
-  // don't work properly. This is hopefully no longer necessary once 539356
-  // lands.
-  nsContainerFrame::InvalidateInternal(
-      nsRect(nsPoint(0,0), GetSize()), 0, 0, aForChild, aFlags); 
-}
-
 NS_IMETHODIMP
 nsSimplePageSequenceFrame::ResetPrintCanvasList()
 {
@@ -815,42 +803,11 @@ nsSimplePageSequenceFrame::DoPageEnd()
   return rv;
 }
 
-static void PaintPageSequence(nsIFrame* aFrame, nsRenderingContext* aCtx,
-                             const nsRect& aDirtyRect, nsPoint aPt)
+static gfx3DMatrix
+ComputePageSequenceTransform(nsIFrame* aFrame, float aAppUnitsPerPixel)
 {
-  static_cast<nsSimplePageSequenceFrame*>(aFrame)->PaintPageSequence(*aCtx, aDirtyRect, aPt);
-}
-
-//------------------------------------------------------------------------------
-void
-nsSimplePageSequenceFrame::PaintPageSequence(nsRenderingContext& aRenderingContext,
-                                             const nsRect&        aDirtyRect,
-                                             nsPoint              aPt) {
-  nsRect rect = aDirtyRect;
-  float scale = PresContext()->GetPrintPreviewScale();
-  aRenderingContext.PushState();
-  nsPoint framePos = aPt;
-  aRenderingContext.Translate(framePos);
-  rect -= framePos;
-  aRenderingContext.Scale(scale, scale);
-  rect.ScaleRoundOut(1.0f / scale);
-
-  // Now the rect and the rendering coordinates are are relative to this frame.
-  // Loop over the pages and paint them.
-  nsIFrame* child = GetFirstPrincipalChild();
-  while (child) {
-    nsPoint pt = child->GetPosition();
-    // The rendering context has to be translated before each call to PaintFrame
-    aRenderingContext.PushState();
-    aRenderingContext.Translate(pt);
-    nsLayoutUtils::PaintFrame(&aRenderingContext, child,
-                              nsRegion(rect - pt), NS_RGBA(0,0,0,0),
-                              nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES);
-    aRenderingContext.PopState();
-    child = child->GetNextSibling();
-  }
-
-  aRenderingContext.PopState();
+  float scale = aFrame->PresContext()->GetPrintPreviewScale();
+  return gfx3DMatrix::ScalingMatrix(scale, scale, 1);
 }
 
 NS_IMETHODIMP
@@ -861,11 +818,18 @@ nsSimplePageSequenceFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aBuilder, this, ::PaintPageSequence, "PageSequence",
-                         nsDisplayItem::TYPE_PAGE_SEQUENCE));
+  nsDisplayList content;
+  nsIFrame* child = GetFirstPrincipalChild();
+  while (child) {
+    rv = child->BuildDisplayListForStackingContext(aBuilder, aDirtyRect - child->GetOffsetTo(this), &content);
+    NS_ENSURE_SUCCESS(rv, rv);
+    child = child->GetNextSibling();
+  }
+
+  rv = content.AppendNewToTop(new (aBuilder) nsDisplayTransform(aBuilder, this, &content, ::ComputePageSequenceTransform));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  aLists.Content()->AppendToTop(&content);
   return NS_OK;
 }
 

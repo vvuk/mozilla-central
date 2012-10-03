@@ -1069,7 +1069,7 @@ public class GeckoAppShell
 
     static String getMimeTypeFromExtensions(String aFileExt) {
         MimeTypeMap mtm = MimeTypeMap.getSingleton();
-        StringTokenizer st = new StringTokenizer(aFileExt, "., ");
+        StringTokenizer st = new StringTokenizer(aFileExt, ".,; ");
         String type = null;
         String subType = null;
         while (st.hasMoreElements()) {
@@ -1188,7 +1188,16 @@ public class GeckoAppShell
             intent.setDataAndType(Uri.parse(aUriSpec), aMimeType);
         } else {
             Uri uri = Uri.parse(aUriSpec);
-            if ("sms".equals(uri.getScheme())) {
+            final String scheme = uri.getScheme();
+            if ("tel".equals(scheme)) {
+                // Bug 794034 - We don't want to pass MWI or USSD codes to the
+                // dialer, and ensure the Uri class doesn't parse a tel: URI as
+                // containing a fragment ('#')
+                final String number = uri.getSchemeSpecificPart();
+                if (number.contains("#") || number.contains("*") || uri.getFragment() != null) {
+                    return false;
+                }
+            } else if ("sms".equals(scheme)) {
                 // Have a apecial handling for the SMS, as the message body
                 // is not extracted from the URI automatically
                 final String query = uri.getEncodedQuery();
@@ -1788,22 +1797,8 @@ public class GeckoAppShell
         return null;
     }
 
-    static native void executeNextRunnable();
-
-    static class GeckoRunnableCallback implements Runnable {
-        public void run() {
-            Log.i(LOGTAG, "run GeckoRunnableCallback");
-            GeckoAppShell.executeNextRunnable();
-        }
-    }
-
-    public static void postToJavaThread(boolean mainThread) {
-        Log.i(LOGTAG, "post to " + (mainThread ? "main " : "") + "java thread");
-        getMainHandler().post(new GeckoRunnableCallback());
-    }
-    
     public static android.hardware.Camera sCamera = null;
-    
+
     static native void cameraCallbackBridge(byte[] data);
 
     static int kPreferedFps = 25;

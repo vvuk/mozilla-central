@@ -23,6 +23,7 @@ Cu.import('resource://gre/modules/PermissionSettings.jsm');
 Cu.import('resource://gre/modules/ObjectWrapper.jsm');
 Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
 Cu.import('resource://gre/modules/Payment.jsm');
+Cu.import("resource://gre/modules/AppsUtils.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
                                    '@mozilla.org/process/environment;1',
@@ -77,11 +78,6 @@ var shell = {
     if (Services.prefs.getBoolPref('app.reportCrashes') &&
         crashID) {
 
-      if (!Services.io.offline) {
-        this.CrashSubmit.submit(crashID);
-        return;
-      }
-
       Services.obs.addObserver(function observer(subject, topic, state) {
           if (topic != "network:offline-status-changed")
             return;
@@ -114,6 +110,19 @@ var shell = {
    },
 
   start: function shell_start() {
+
+    // Dogfood id. We might want to remove it in the future.
+    // see bug 789466
+    try {
+      let dogfoodId = Services.prefs.getCharPref('prerelease.dogfood.id');
+      if (dogfoodId != "") {
+        let cr = Cc["@mozilla.org/xre/app-info;1"]
+                   .getService(Ci.nsICrashReporter);
+        cr.annotateCrashReport("Email", dogfoodId);
+      }
+    }
+    catch (e) { }
+
     let homeURL = this.homeURL;
     if (!homeURL) {
       let msg = 'Fatal error during startup: No homescreen found: try setting B2G_HOMESCREEN';
@@ -179,8 +188,12 @@ var shell = {
     });
 
     this.contentBrowser.src = homeURL;
+    this.isHomeLoaded = false;
 
     ppmm.addMessageListener("content-handler", this);
+    ppmm.addMessageListener("dial-handler", this);
+    ppmm.addMessageListener("sms-handler", this);
+    ppmm.addMessageListener("mail-handler", this);
   },
 
   stop: function shell_stop() {
@@ -304,6 +317,17 @@ var shell = {
         DOMApplicationRegistry.allAppsLaunchable = true;
 
         this.sendEvent(window, 'ContentStart');
+
+        content.addEventListener('load', function shell_homeLoaded() {
+          content.removeEventListener('load', shell_homeLoaded);
+          shell.isHomeLoaded = true;
+
+          if ('pendingChromeEvents' in shell) {
+            shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
+          }
+          delete shell.pendingChromeEvents;
+        });
+
         break;
       case 'MozApplicationManifest':
         try {
@@ -349,6 +373,15 @@ var shell = {
   },
 
   sendChromeEvent: function shell_sendChromeEvent(details) {
+    if (!this.isHomeLoaded) {
+      if (!('pendingChromeEvents' in this)) {
+        this.pendingChromeEvents = [];
+      }
+
+      this.pendingChromeEvents.push(details);
+      return;
+    }
+
     this.sendEvent(getContentWindow(), "mozChromeEvent",
                    ObjectWrapper.wrap(details, getContentWindow()));
   },
@@ -365,16 +398,18 @@ var shell = {
   },
 
   receiveMessage: function shell_receiveMessage(message) {
-    if (message.name != 'content-handler') {
+    var names = { 'content-handler': 'view',
+                  'dial-handler'   : 'dial',
+                  'mail-handler'   : 'new',
+                  'sms-handler'    : 'new' }
+
+    if (!(message.name in names))
       return;
-    }
-    let handler = message.json;
+
+    let data = message.data;
     new MozActivity({
-      name: 'view',
-      data: {
-        type: handler.type,
-        url: handler.url
-      }
+      name: names[message.name],
+      data: data
     });
   }
 };
@@ -430,6 +465,16 @@ Services.obs.addObserver(function(aSubject, aTopic, aData) {
 Services.obs.addObserver(function onWebappsReady(subject, topic, data) {
   shell.sendChromeEvent({ type: 'webapps-registry-ready' });
 }, 'webapps-registry-ready', false);
+
+Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) {
+  if (data == 'up') {
+    shell.sendChromeEvent({ type: 'volume-up-button-press' });
+    shell.sendChromeEvent({ type: 'volume-up-button-release' });
+  } else if (data == 'down') {
+    shell.sendChromeEvent({ type: 'volume-down-button-press' });
+    shell.sendChromeEvent({ type: 'volume-down-button-release' });
+  }
+}, 'bluetooth-volume-change', false);
 
 (function Repl() {
   if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {
@@ -607,7 +652,7 @@ var WebappsHelper = {
           if (!aManifest)
             return;
 
-          let manifest = new DOMApplicationManifest(aManifest, json.origin);
+          let manifest = new ManifestHelper(aManifest, json.origin);
           shell.sendChromeEvent({
             "type": "webapps-launch",
             "url": manifest.fullLaunchPath(json.startPoint),

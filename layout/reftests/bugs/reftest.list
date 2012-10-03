@@ -1316,7 +1316,7 @@ fails-if(Android) random-if(winWidget) fails-if(gtk2Widget) == 481948-3.html 481
 == 482398-1.html 482398-1-ref.html
 random-if(d2d) == 482592-1a.xhtml 482592-1-ref.html # bug 586771
 random-if(d2d) == 482592-1b.xhtml 482592-1-ref.html # bug 586771
-== 482659-1a.html 482659-1-ref.html
+random-if(winWidget) == 482659-1a.html 482659-1-ref.html
 == 482659-1b.html 482659-1-ref.html
 == 482659-1c.html 482659-1-ref.html
 == 482659-1d.html 482659-1-ref.html
@@ -1568,7 +1568,7 @@ fails-if(Android) random-if(layersGPUAccelerated) fails-if(/^Windows\x20NT\x205\
 == 582037-1b.html 582037-1-ref.html
 == 582037-2a.html 582037-2-ref.html
 == 582037-2b.html 582037-2-ref.html
-asserts(0-11) == 582146-1.html about:blank
+asserts(0-12) == 582146-1.html about:blank
 == 582476-1.svg 582476-1-ref.svg
 == 584400-dash-length.svg 584400-dash-length-ref.svg
 == 584699-1.html 584699-1-ref.html
@@ -1586,7 +1586,7 @@ skip-if(!browserIsRemote) == 593243-2.html 593243-2-ref.html # bug 593168
 == 594624-1.html 594624-1-ref.html
 == 594737-1.html 594737-1-ref.html
 == 597721-1.html 597721-1-ref.html
-random-if(/^Windows\x20NT\x206\.1/.test(http.oscpu)) needs-focus == 598726-1.html 598726-1-ref.html # Fails on Win7, bug 782196
+random-if(winWidget) needs-focus == 598726-1.html 598726-1-ref.html # Fails on Windows, bug 782196
 == 599113-1.html 599113-1-ref.html
 fails-if(!haveTestPlugin) == 599476.html 599476-ref.html
 == 600045-1.html 600045-1-ref.html

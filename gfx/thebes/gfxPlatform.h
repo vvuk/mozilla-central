@@ -6,7 +6,6 @@
 #ifndef GFX_PLATFORM_H
 #define GFX_PLATFORM_H
 
-#include "prtypes.h"
 #include "prlog.h"
 #include "nsTArray.h"
 #include "nsStringGlue.h"
@@ -126,6 +125,8 @@ GetBackendName(mozilla::gfx::BackendType aBackend)
         return "cairo";
       case mozilla::gfx::BACKEND_SKIA:
         return "skia";
+      case mozilla::gfx::BACKEND_RECORDING:
+        return "recording";
       case mozilla::gfx::BACKEND_NONE:
         return "none";
   }
@@ -184,7 +185,7 @@ public:
     virtual mozilla::RefPtr<mozilla::gfx::SourceSurface>
       GetSourceSurfaceForSurface(mozilla::gfx::DrawTarget *aTarget, gfxASurface *aSurface);
 
-    virtual mozilla::RefPtr<mozilla::gfx::ScaledFont>
+    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
 
     virtual already_AddRefed<gfxASurface>
@@ -379,9 +380,6 @@ public:
     // Break large OMTC tiled thebes layer painting into small paints.
     static bool UseProgressiveTilePainting();
 
-    // helper method to indicate if we want to use Azure content drawing
-    static bool UseAzureContentDrawing();
-
     static bool OffMainThreadCompositingEnabled();
 
     /**
@@ -549,6 +547,8 @@ private:
 
     mozilla::widget::GfxInfoCollector<gfxPlatform> mAzureCanvasBackendCollector;
     bool mWorkAroundDriverBugs;
+
+    mozilla::RefPtr<mozilla::gfx::DrawEventRecorder> mRecorder;
 };
 
 #endif /* GFX_PLATFORM_H */

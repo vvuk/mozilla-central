@@ -558,7 +558,7 @@ protected:
       sInstance = nullptr;
     }
 
-    bool IsInTransaction() { return mHandlingDeltaMode != PR_UINT32_MAX; }
+    bool IsInTransaction() { return mHandlingDeltaMode != UINT32_MAX; }
 
     /**
      * InitLineOrPageDelta() stores pixel delta values of WheelEvents which are
@@ -585,7 +585,7 @@ protected:
   private:
     DeltaAccumulator() :
       mX(0.0), mY(0.0), mPendingScrollAmountX(0.0), mPendingScrollAmountY(0.0),
-      mHandlingDeltaMode(PR_UINT32_MAX), mHandlingPixelOnlyDevice(false)
+      mHandlingDeltaMode(UINT32_MAX), mHandlingPixelOnlyDevice(false)
     {
     }
 
@@ -696,6 +696,13 @@ private:
   // device pixels) when mouse was locked, used to restore mouse position
   // after unlocking.
   nsIntPoint  mPreLockPoint;
+
+  // Stores the refPoint of the last synthetic mouse move we dispatched
+  // to re-center the mouse when we were pointer locked. If this is (-1,-1) it
+  // means we've not recently dispatched a centering event. We use this to
+  // detect when we receive the synth event, so we can cancel and not send it
+  // to content.
+  static nsIntPoint sSynthCenteringPoint;
 
   nsWeakFrame mCurrentTarget;
   nsCOMPtr<nsIContent> mCurrentTargetContent;

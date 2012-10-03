@@ -255,7 +255,7 @@ MAKEFILES_layout="
   layout/style/Makefile
   layout/style/xbl-marquee/Makefile
   layout/tables/Makefile
-  layout/svg/base/src/Makefile
+  layout/svg/Makefile
   layout/xul/base/public/Makefile
   layout/xul/base/src/Makefile
 "
@@ -894,7 +894,6 @@ if [ "$ENABLE_TESTS" ]; then
     services/crypto/component/tests/Makefile
     startupcache/test/Makefile
     storage/test/Makefile
-    testing/firebug/Makefile
     testing/mochitest/Makefile
     testing/mochitest/MochiKit/Makefile
     testing/mochitest/chrome/Makefile

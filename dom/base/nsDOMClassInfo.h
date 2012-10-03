@@ -82,14 +82,12 @@ struct nsExternalDOMClassInfoData : public nsDOMClassInfoData
 };
 
 
-typedef uintptr_t PtrBits;
-
 // To be used with the nsDOMClassInfoData::mCachedClassInfo pointer.
 // The low bit is set when we created a generic helper for an external
 // (which holds on to the nsDOMClassInfoData).
-#define GET_CLEAN_CI_PTR(_ptr) (nsIClassInfo*)(PtrBits(_ptr) & ~0x1)
-#define MARK_EXTERNAL(_ptr) (nsIClassInfo*)(PtrBits(_ptr) | 0x1)
-#define IS_EXTERNAL(_ptr) (PtrBits(_ptr) & 0x1)
+#define GET_CLEAN_CI_PTR(_ptr) (nsIClassInfo*)(uintptr_t(_ptr) & ~0x1)
+#define MARK_EXTERNAL(_ptr) (nsIClassInfo*)(uintptr_t(_ptr) | 0x1)
+#define IS_EXTERNAL(_ptr) (uintptr_t(_ptr) & 0x1)
 
 
 class nsDOMClassInfo : public nsXPCClassInfo
@@ -420,7 +418,7 @@ public:
                                           JSMutableHandleValue vp);
   static JSBool SecurityCheckOnSetProp(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                        JSBool strict, JSMutableHandleValue vp);
-  static void InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
+  static JSBool InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
   static nsresult InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
                                              nsIHTMLDocument *doc);
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)

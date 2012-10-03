@@ -2729,7 +2729,7 @@ var gDetailView = {
     if (this._addon) {
       if (this._addon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
         Services.obs.notifyObservers(document,
-                                     "addon-options-hidden",
+                                     AddonManager.OPTIONS_NOTIFICATION_HIDDEN,
                                      this._addon.id);
       }
 
@@ -2803,6 +2803,26 @@ var gDetailView = {
         warningLink.value = gStrings.ext.GetStringFromName("details.notification.outdated.link");
         warningLink.href = Services.urlFormatter.formatURLPref("plugins.update.url");
         warningLink.hidden = false;
+      } else if (this._addon.blocklistState == Ci.nsIBlocklistService.STATE_VULNERABLE_UPDATE_AVAILABLE) {
+        this.node.setAttribute("notification", "error");
+        document.getElementById("detail-error").textContent = gStrings.ext.formatStringFromName(
+          "details.notification.vulnerableUpdatable",
+          [this._addon.name], 1
+        );
+        var errorLink = document.getElementById("detail-error-link");
+        errorLink.value = gStrings.ext.GetStringFromName("details.notification.vulnerableUpdatable.link");
+        errorLink.href = this._addon.blocklistURL;
+        errorLink.hidden = false;
+      } else if (this._addon.blocklistState == Ci.nsIBlocklistService.STATE_VULNERABLE_NO_UPDATE) {
+        this.node.setAttribute("notification", "error");
+        document.getElementById("detail-error").textContent = gStrings.ext.formatStringFromName(
+          "details.notification.vulnerableNoUpdate",
+          [this._addon.name], 1
+        );
+        var errorLink = document.getElementById("detail-error-link");
+        errorLink.value = gStrings.ext.GetStringFromName("details.notification.vulnerableNoUpdate.link");
+        errorLink.href = this._addon.blocklistURL;
+        errorLink.hidden = false;
       } else {
         this.node.removeAttribute("notification");
       }
@@ -2887,14 +2907,18 @@ var gDetailView = {
             gDetailView.node.removeEventListener("ViewChanged", viewChangedEventListener, false);
             if (firstSetting)
               firstSetting.clientTop;
-            Services.obs.notifyObservers(document, "addon-options-displayed", gDetailView._addon.id);
+            Services.obs.notifyObservers(document,
+                                         AddonManager.OPTIONS_NOTIFICATION_DISPLAYED,
+                                         gDetailView._addon.id);
             if (aScrollToPreferences)
               gDetailView.scrollToPreferencesRows();
           }, false);
         } else {
           if (firstSetting)
             firstSetting.clientTop;
-          Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
+          Services.obs.notifyObservers(document,
+                                       AddonManager.OPTIONS_NOTIFICATION_DISPLAYED,
+                                       this._addon.id);
           if (aScrollToPreferences)
             gDetailView.scrollToPreferencesRows();
         }
@@ -2949,7 +2973,7 @@ var gDetailView = {
     if (!aNeedsRestart &&
         this._addon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
       Services.obs.notifyObservers(document,
-                                   "addon-options-hidden",
+                                   AddonManager.OPTIONS_NOTIFICATION_HIDDEN,
                                    this._addon.id);
     }
   },

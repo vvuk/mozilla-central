@@ -7,12 +7,12 @@
 # assume $1 is the directory with a SVN checkout of the libsctp source
 #
 # sctp usrlib source is available (via svn) at:
-# svn co --username your.user.name https://sctp-refimpl.googlecode.com/svn/trunk sctpSVN
+# svn co https://sctp-refimpl.googlecode.com/svn/trunk sctpSVN
 #
 # also assumes we've made *NO* changes to the SCTP sources!  If we do, we have to merge by
 # hand after this process, or use a more complex one.
 #
-# For example, one could update an sctp library import head, and merge back to default.  Or keep a 
+# For example, one could update an sctp library import head, and merge back to default.  Or keep a
 # separate repo with this in it, and pull from there to m-c and merge.
 if [ "$1" ] ; then
   export date=`date`

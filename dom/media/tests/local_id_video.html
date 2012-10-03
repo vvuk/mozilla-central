@@ -85,14 +85,14 @@
     pc2.onaddstream = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
       if (obj.type == "video") {
-        video.src = obj.stream;
+        video.mozSrcObject = obj.stream;
         video.play();
       }
     }
 
     log("About to call getusermedia");
     navigator.mozGetUserMedia({video:true}, function(stream) {
-      localvideo.src = stream;
+      localvideo.mozSrcObject = stream;
       localvideo.play();
 
       pc1.addStream(stream);

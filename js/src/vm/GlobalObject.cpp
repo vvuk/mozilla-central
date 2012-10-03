@@ -33,7 +33,7 @@
 using namespace js;
 
 JSObject *
-js_InitObjectClass(JSContext *cx, JSObject *obj)
+js_InitObjectClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
@@ -41,7 +41,7 @@ js_InitObjectClass(JSContext *cx, JSObject *obj)
 }
 
 JSObject *
-js_InitFunctionClass(JSContext *cx, JSObject *obj)
+js_InitFunctionClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 
@@ -463,7 +463,8 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
      * [[Prototype]] before standard classes have been initialized.  For now,
      * only set the [[Prototype]] if it hasn't already been set.
      */
-    if (self->shouldSplicePrototype(cx) && !self->splicePrototype(cx, objectProto))
+    Rooted<TaggedProto> tagged(cx, TaggedProto(objectProto));
+    if (self->shouldSplicePrototype(cx) && !self->splicePrototype(cx, tagged))
         return NULL;
 
     /*
@@ -620,7 +621,7 @@ DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
 }
 
 void
-GlobalDebuggees_finalize(FreeOp *fop, JSObject *obj)
+GlobalDebuggees_finalize(FreeOp *fop, RawObject obj)
 {
     fop->delete_((GlobalObject::DebuggerVector *) obj->getPrivate());
 }

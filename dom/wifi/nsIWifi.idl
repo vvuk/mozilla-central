@@ -5,49 +5,38 @@
 #include "nsISupports.idl"
 #include "nsIDOMDOMRequest.idl"
 #include "nsIDOMEvent.idl"
-#include "nsINetworkManager.idl"
 
 interface nsIVariant;
 
-[scriptable, function, uuid(c675c7c3-5261-480a-98f3-69934c9ab7c6)]
-interface nsIWifiTetheringCallback : nsISupports
-{
-  /**
-   * Callback function used to report status to NetworkManager.
-   * result: 0: success, others: fail.
-   * networkInterface: report wifi network interface's name.
-   */
-  void wifiTetheringEnabledChange(in jsval result,
-                                  in nsINetworkInterface networkInterface);
-};
-
-[scriptable, uuid(65649c30-d312-11e1-9b23-0800200c9a66)]
+[scriptable, uuid(335ff8a0-fb18-11e1-a21f-0800200c9a66)]
 interface nsIWifi : nsISupports
 {
     /**
      * Shutdown the wifi system.
      */
     void shutdown();
-    /**
-     * Request to enable/disable Wifi Tethering.
-     * enabled: true or false.
-     * callback: report status to NetworkManager.
-     */
-    void setWifiTethering(in boolean enabled, in nsIWifiTetheringCallback callback);
 };
 
-[scriptable, uuid(540674a6-edbe-11e1-87c9-dbcd31c74284)]
+[scriptable, uuid(caa76ee3-8ffe-4ea5-bc59-3b53a9df0d07)]
 interface nsIDOMWifiManager : nsISupports
 {
     /**
-     * Returns the list of currently available networks as well as the list of
-     * currently configured networks.
+     * Returns the list of currently available networks.
      * onsuccess: We have obtained the current list of networks. request.value
      *            is an object whose property names are SSIDs and values are
      *            network objects.
      * onerror: We were unable to obtain a list of property names.
      */
     nsIDOMDOMRequest getNetworks();
+
+    /**
+     * Returns the list of networks known to the system that will be
+     * automatically connected to if they're in range.
+     * onsuccess: request.value is an object whose property names are
+     *            SSIDs and values are network objects.
+     * onerror: We were unable to obtain a list of known networks.
+     */
+    nsIDOMDOMRequest getKnownNetworks();
 
     /**
      * Takes one of the networks returned from getNetworks and tries to
@@ -88,9 +77,22 @@ interface nsIDOMWifiManager : nsISupports
     nsIDOMDOMRequest wps(in jsval detail);
 
     /**
+     * Turn on/off wifi power saving mode.
+     * @param enabled true or false.
+     * onsuccess: We have successfully turn on/off wifi power saving mode.
+     * onerror: We have failed to turn on/off wifi power saving mode.
+     */
+    nsIDOMDOMRequest setPowerSavingMode(in boolean enabled);
+
+    /**
      * Returns whether or not wifi is currently enabled.
      */
     readonly attribute boolean enabled;
+
+    /**
+     * Returns the MAC address of the wifi adapter.
+     */
+    readonly attribute DOMString macAddress;
 
     /**
      * An non-null object containing the following information:
@@ -165,7 +167,7 @@ interface nsIDOMMozWifiStatusChangeEvent : nsIDOMEvent
                                                  in DOMString status);
 };
 
-[scriptable, builtinclass, uuid(34994296-d694-4aed-953d-fc25ee25c050)]
+[scriptable, builtinclass, uuid(1717f9d9-5fd8-43d8-a098-55924c6d37de)]
 interface nsIDOMMozWifiConnectionInfoEvent : nsIDOMEvent
 {
     /**
@@ -188,11 +190,17 @@ interface nsIDOMMozWifiConnectionInfoEvent : nsIDOMEvent
      */
     readonly attribute long linkSpeed;
 
+    /**
+     * IP address in the dotted quad format.
+     */
+    readonly attribute DOMString ipAddress;
+
     [noscript] void initMozWifiConnectionInfoEvent(in DOMString aType,
                                                    in boolean aCanBubble,
                                                    in boolean aCancelable,
                                                    in nsIVariant aNetwork,
                                                    in short signalStrength,
                                                    in short relSignalStrength,
-                                                   in long linkSpeed);
+                                                   in long linkSpeed,
+                                                   in DOMString ipAddress);
 };

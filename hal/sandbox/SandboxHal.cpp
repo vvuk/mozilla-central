@@ -184,7 +184,7 @@ GetLight(hal::LightType light, hal::LightConfiguration* aConfig)
 }
 
 void 
-AdjustSystemClock(int32_t aDeltaMilliseconds)
+AdjustSystemClock(int64_t aDeltaMilliseconds)
 {
   Hal()->SendAdjustSystemClock(aDeltaMilliseconds);
 }
@@ -218,13 +218,19 @@ DisableSystemTimeChangeNotifications()
 void
 Reboot()
 {
-  Hal()->SendReboot();
+  NS_RUNTIMEABORT("Reboot() can't be called from sandboxed contexts.");
 }
 
 void
 PowerOff()
 {
-  Hal()->SendPowerOff();
+  NS_RUNTIMEABORT("PowerOff() can't be called from sandboxed contexts.");
+}
+
+void
+StartForceQuitWatchdog(ShutdownMode aMode, int32_t aTimeoutSecs)
+{
+  NS_RUNTIMEABORT("StartForceQuitWatchdog() can't be called from sandboxed contexts.");
 }
 
 void
@@ -510,7 +516,7 @@ public:
   virtual bool
   RecvGetScreenEnabled(bool *enabled) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     *enabled = hal::GetScreenEnabled();
@@ -520,7 +526,7 @@ public:
   virtual bool
   RecvSetScreenEnabled(const bool &enabled) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     hal::SetScreenEnabled(enabled);
@@ -530,7 +536,7 @@ public:
   virtual bool
   RecvGetCpuSleepAllowed(bool *allowed) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     *allowed = hal::GetCpuSleepAllowed();
@@ -540,7 +546,7 @@ public:
   virtual bool
   RecvSetCpuSleepAllowed(const bool &allowed) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     hal::SetCpuSleepAllowed(allowed);
@@ -550,7 +556,7 @@ public:
   virtual bool
   RecvGetScreenBrightness(double *brightness) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     *brightness = hal::GetScreenBrightness();
@@ -560,7 +566,7 @@ public:
   virtual bool
   RecvSetScreenBrightness(const double &brightness) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     hal::SetScreenBrightness(brightness);
@@ -574,7 +580,7 @@ public:
     // controlled as a unit.  Those are set through the power API, and
     // there's no other way to poke lights currently, so we require
     // "power" privileges here.
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     *status = hal::SetLight(aLight, aConfig);
@@ -584,7 +590,7 @@ public:
   virtual bool
   RecvGetLight(const LightType& aLight, LightConfiguration* aConfig, bool* status) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     *status = hal::GetLight(aLight, aConfig);
@@ -592,9 +598,9 @@ public:
   }
 
   virtual bool
-  RecvAdjustSystemClock(const int32_t &aDeltaMilliseconds) MOZ_OVERRIDE
+  RecvAdjustSystemClock(const int64_t &aDeltaMilliseconds) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "time")) {
+    if (!AssertAppProcessPermission(this, "time")) {
       return false;
     }
     hal::AdjustSystemClock(aDeltaMilliseconds);
@@ -604,7 +610,7 @@ public:
   virtual bool 
   RecvSetTimezone(const nsCString& aTimezoneSpec) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "time")) {
+    if (!AssertAppProcessPermission(this, "time")) {
       return false;
     }
     hal::SetTimezone(aTimezoneSpec);
@@ -614,7 +620,7 @@ public:
   virtual bool
   RecvGetTimezone(nsCString *aTimezoneSpec) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "time")) {
+    if (!AssertAppProcessPermission(this, "time")) {
       return false;
     }
     *aTimezoneSpec = hal::GetTimezone();
@@ -632,26 +638,6 @@ public:
   RecvDisableSystemTimeChangeNotifications() MOZ_OVERRIDE
   {
     hal::UnregisterSystemTimeChangeObserver(this);
-    return true;
-  }
-
-  virtual bool
-  RecvReboot() MOZ_OVERRIDE
-  {
-    if (!AppProcessHasPermission(this, "power")) {
-      return false;
-    }
-    hal::Reboot();
-    return true;
-  }
-
-  virtual bool
-  RecvPowerOff() MOZ_OVERRIDE
-  {
-    if (!AppProcessHasPermission(this, "power")) {
-      return false;
-    }
-    hal::PowerOff();
     return true;
   }
 
@@ -701,7 +687,7 @@ public:
   virtual bool
   RecvGetWakeLockInfo(const nsString &aTopic, WakeLockInformation *aWakeLockInfo) MOZ_OVERRIDE
   {
-    if (!AppProcessHasPermission(this, "power")) {
+    if (!AssertAppProcessPermission(this, "power")) {
       return false;
     }
     hal::GetWakeLockInfo(aTopic, aWakeLockInfo);
@@ -756,6 +742,9 @@ public:
   virtual bool
   RecvEnableFMRadio(const hal::FMRadioSettings& aSettings)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::EnableFMRadio(aSettings);
     return true;
   }
@@ -763,6 +752,9 @@ public:
   virtual bool
   RecvDisableFMRadio()
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::DisableFMRadio();
     return true;
   }
@@ -770,6 +762,9 @@ public:
   virtual bool
   RecvFMRadioSeek(const hal::FMRadioSeekDirection& aDirection)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::FMRadioSeek(aDirection);
     return true;
   }
@@ -777,6 +772,9 @@ public:
   virtual bool
   RecvGetFMRadioSettings(hal::FMRadioSettings* aSettings)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::GetFMRadioSettings(aSettings);
     return true;
   }
@@ -784,6 +782,9 @@ public:
   virtual bool
   RecvSetFMRadioFrequency(const uint32_t& aFrequency)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::SetFMRadioFrequency(aFrequency);
     return true;
   }
@@ -791,6 +792,9 @@ public:
   virtual bool
   RecvGetFMRadioFrequency(uint32_t* aFrequency)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     *aFrequency = hal::GetFMRadioFrequency();
     return true;
   }
@@ -803,6 +807,9 @@ public:
   virtual bool
   RecvIsFMRadioOn(bool* radioOn)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     *radioOn = hal::IsFMRadioOn();
     return true;
   }
@@ -810,6 +817,9 @@ public:
   virtual bool
   RecvGetFMRadioSignalStrength(uint32_t* strength)
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     *strength = hal::GetFMRadioSignalStrength();
     return true;
   }
@@ -817,6 +827,9 @@ public:
   virtual bool
   RecvCancelFMRadioSeek()
   {
+    if (!AssertAppProcessPermission(this, "fmradio")) {
+      return false;
+    }
     hal::CancelFMRadioSeek();
     return true;
   }

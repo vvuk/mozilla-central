@@ -51,8 +51,22 @@ abstract public class BrowserApp extends GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     private AboutHomeContent mAboutHomeContent;
+    private Boolean mAboutHomeShowing = null;
 
-    static Vector<MenuItem> sAddonMenuItems = new Vector<MenuItem>();
+    private static final int ADDON_MENU_OFFSET = 1000;
+    private class MenuItemInfo {
+        int id;
+        String label;
+        String icon;
+
+        public MenuItemInfo(int id, String label, String icon) {
+            this.id = id;
+            this.label = label;
+            this.icon = icon;
+        }
+    }
+
+    private Vector<MenuItemInfo> mAddonMenuItemsCache;
 
     private PropertyAnimator mMainLayoutAnimator;
 
@@ -344,7 +358,7 @@ abstract public class BrowserApp extends GeckoApp
         try {
             if (event.equals("Menu:Add")) {
                 final String label = message.getString("name");
-                final int id = message.getInt("id");
+                final int id = message.getInt("id") + ADDON_MENU_OFFSET;
                 String iconRes = null;
                 try { // icon is optional
                     iconRes = message.getString("icon");
@@ -356,7 +370,7 @@ abstract public class BrowserApp extends GeckoApp
                     }
                 });
             } else if (event.equals("Menu:Remove")) {
-                final int id = message.getInt("id");
+                final int id = message.getInt("id") + ADDON_MENU_OFFSET;
                 mMainHandler.post(new Runnable() {
                     public void run() {
                         removeAddonMenuItem(id);
@@ -584,17 +598,29 @@ abstract public class BrowserApp extends GeckoApp
         mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES));
     }
 
-    public void showAboutHome() {
+    private void showAboutHome() {
+        // Don't create an additional AboutHomeRunnable if about:home
+        // is already visible.
+        if (mAboutHomeShowing != null && mAboutHomeShowing)
+            return;
+
+        mAboutHomeShowing = true;
         Runnable r = new AboutHomeRunnable(true);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    public void hideAboutHome() {
+    private void hideAboutHome() {
+        // If hideAboutHome gets called before showAboutHome, we still need
+        // to create an AboutHomeRunnable to hide the about:home content.
+        if (mAboutHomeShowing != null && !mAboutHomeShowing)
+            return;
+
+        mAboutHomeShowing = false;
         Runnable r = new AboutHomeRunnable(false);
         mMainHandler.postAtFrontOfQueue(r);
     }
 
-    public class AboutHomeRunnable implements Runnable {
+    private class AboutHomeRunnable implements Runnable {
         boolean mShow;
         AboutHomeRunnable(boolean show) {
             mShow = show;
@@ -613,12 +639,16 @@ abstract public class BrowserApp extends GeckoApp
                             loadUrl(url, AwesomeBar.Target.CURRENT_TAB);
                         }
                     });
+                    mAboutHomeContent.setLoadCompleteCallback(new AboutHomeContent.VoidCallback() {
+                         public void callback() {
+                             mAboutHomeStartupTimer.stop();
+                         }
+                    });
                     mAboutHomeContent.setOnInterceptTouchListener(new ContentTouchListener());
                 } else {
                     mAboutHomeContent.update(EnumSet.of(AboutHomeContent.UpdateFlags.TOP_SITES,
                                                         AboutHomeContent.UpdateFlags.REMOTE_TABS));
                 }
-            
                 mAboutHomeContent.setVisibility(View.VISIBLE);
             } else {
                 findViewById(R.id.abouthome_content).setVisibility(View.GONE);
@@ -627,8 +657,13 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void addAddonMenuItem(final int id, final String label, final String icon) {
-        if (mMenu == null)
+        if (mMenu == null) {
+            if (mAddonMenuItemsCache == null)
+                mAddonMenuItemsCache = new Vector<MenuItemInfo>();
+
+            mAddonMenuItemsCache.add(new MenuItemInfo(id, label, icon));
             return;
+        }
 
         final MenuItem item = mMenu.add(Menu.NONE, id, Menu.NONE, label);
 
@@ -636,7 +671,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Log.i(LOGTAG, "menu item clicked");
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id)));
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(id - ADDON_MENU_OFFSET)));
                 return true;
             }
         });
@@ -667,24 +702,25 @@ abstract public class BrowserApp extends GeckoApp
                 });
             }
         }
-        sAddonMenuItems.add(item);
     }
 
     private void removeAddonMenuItem(int id) {
-        for (MenuItem item : sAddonMenuItems) {
-            if (item.getItemId() == id) {
-                sAddonMenuItems.remove(item);
-
-                if (mMenu == null)
-                    break;
-
-                MenuItem menuItem = mMenu.findItem(id);
-                if (menuItem != null)
-                    mMenu.removeItem(id);
-
-                break;
+        // Remove add-on menu item from cache, if available.
+        if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
+            for (MenuItemInfo item : mAddonMenuItemsCache) {
+                 if (item.id == id) {
+                     mAddonMenuItemsCache.remove(item);
+                     break;
+                 }
             }
         }
+
+        if (mMenu == null)
+            return;
+
+        MenuItem menuItem = mMenu.findItem(id);
+        if (menuItem != null)
+            mMenu.removeItem(id);
     }
 
     @Override
@@ -697,6 +733,16 @@ abstract public class BrowserApp extends GeckoApp
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.browser_app_menu, mMenu);
+
+        // Add add-on menu items if any.
+        if (mAddonMenuItemsCache != null && !mAddonMenuItemsCache.isEmpty()) {
+            for (MenuItemInfo item : mAddonMenuItemsCache) {
+                 addAddonMenuItem(item.id, item.label, item.icon);
+            }
+
+            mAddonMenuItemsCache.clear();
+        }
+
         return true;
     }
 
@@ -760,17 +806,12 @@ abstract public class BrowserApp extends GeckoApp
 
         bookmark.setEnabled(!tab.getURL().startsWith("about:reader"));
         bookmark.setCheckable(true);
-        
-        if (tab.isBookmark()) {
-            bookmark.setChecked(true);
-            bookmark.setIcon(R.drawable.ic_menu_bookmark_remove);
-        } else {
-            bookmark.setChecked(false);
-            bookmark.setIcon(R.drawable.ic_menu_bookmark_add);
-        }
+        bookmark.setChecked(tab.isBookmark());
+        bookmark.setIcon(tab.isBookmark() ? R.drawable.ic_menu_bookmark_remove : R.drawable.ic_menu_bookmark_add);
 
         forward.setEnabled(tab.canDoForward());
         desktopMode.setChecked(tab.getDesktopMode());
+        desktopMode.setIcon(tab.getDesktopMode() ? R.drawable.ic_menu_desktop_mode_on : R.drawable.ic_menu_desktop_mode_off);
 
         String url = tab.getURL();
         if (ReaderModeUtils.isAboutReader(url))

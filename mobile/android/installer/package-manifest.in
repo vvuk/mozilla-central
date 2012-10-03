@@ -284,8 +284,6 @@
 @BINPATH@/components/nsHelperAppDlg.js
 @BINPATH@/components/nsDownloadManagerUI.manifest
 @BINPATH@/components/nsDownloadManagerUI.js
-@BINPATH@/components/nsProxyAutoConfig.manifest
-@BINPATH@/components/nsProxyAutoConfig.js
 @BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
 @BINPATH@/components/GPSDGeolocationProvider.manifest
@@ -353,17 +351,20 @@
 @BINPATH@/components/AppsService.manifest
 
 @BINPATH@/components/TCPSocket.js
+@BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
 
 ; Modules
 @BINPATH@/modules/*
 
+#ifdef MOZ_SAFE_BROWSING
 ; Safe Browsing
 @BINPATH@/components/nsURLClassifier.manifest
 @BINPATH@/components/nsUrlClassifierHashCompleter.js
 @BINPATH@/components/nsUrlClassifierListManager.js
 @BINPATH@/components/nsUrlClassifierLib.js
 @BINPATH@/components/url-classifier.xpt
+#endif
 
 ; GNOME hooks
 #ifdef MOZ_ENABLE_GNOME_COMPONENT
@@ -523,7 +524,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/SessionStore.js
 @BINPATH@/components/Sidebar.js
 #ifdef MOZ_SAFE_BROWSING
-@BINPATH@/components/SafeBrowsing.js
+@BINPATH@/components/SafeBrowsing.jsm
 #endif
 @BINPATH@/components/XPIDialogService.js
 @BINPATH@/components/browsercomps.xpt

@@ -27,6 +27,7 @@ pref("browser.cache.memory.capacity", 1024); // kilobytes
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
+pref("image.high_quality_downscaling.enabled", false);
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
@@ -263,6 +264,10 @@ pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
 
+// The default number of decoded video frames that are enqueued in
+// nsBuiltinDecoderReader's mVideoQueue.
+pref("media.video-queue.default-size", 3);
+
 //  0: don't show fullscreen keyboard
 //  1: always show fullscreen keyboard
 // -1: show fullscreen keyboard based on threshold pref
@@ -354,6 +359,10 @@ pref("browser.dom.window.dump.enabled", false);
 // installable apps or wifi support.
 pref("security.fileuri.strict_origin_policy", false);
 
+// Default Content Security Policy to apply to privileged and certified apps
+pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
+pref("security.apps.certified.CSP.default", "options inline-script eval-script; default-src *; script-src 'self'; object-src 'none'; style-src 'self'");
+
 // Temporarily force-enable GL compositing.  This is default-disabled
 // deep within the bowels of the widgetry system.  Remove me when GL
 // compositing isn't default disabled in widget/android.
@@ -378,6 +387,7 @@ pref("dom.ipc.browser_frames.oop_by_default", false);
 
 // Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
+pref("dom.sms.strict7BitEncoding", false); // Disabled by default.
 
 // Temporary permission hack for WebContacts
 pref("dom.mozContacts.enabled", true);
@@ -441,8 +451,8 @@ pref("marionette.defaultPrefs.port", 2828);
 pref("shutdown.watchdog.timeoutSecs", 5);
 // Timeout before the update prompt automatically installs the update
 pref("b2g.update.apply-prompt-timeout", 60000); // milliseconds
-// Optional timeout the user can wait before getting another update prompt
-pref("b2g.update.apply-wait-timeout", 1800000); // milliseconds
+// Amount of time to wait after the user is idle before prompting to apply an update
+pref("b2g.update.apply-idle-timeout", 600000); // milliseconds
 // Amount of time the updater waits for the process to exit cleanly before
 // forcefully exiting the process
 pref("b2g.update.self-destruct-timeout", 5000); // milliseconds
@@ -456,7 +466,9 @@ pref("app.update.staging.enabled", true);
 pref("app.update.service.enabled", true);
 
 // The URL hosting the update manifest.
-pref("app.update.url", "http://update.boot2gecko.org/nightly/update.xml");
+pref("app.update.url", "http://update.boot2gecko.org/%CHANNEL%/update.xml");
+pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
+
 // Interval at which update manifest is fetched.  In units of seconds.
 pref("app.update.interval", 86400); // 1 day
 // First interval to elapse before checking for update.  In units of
@@ -486,7 +498,8 @@ pref("ui.click_hold_context_menus.delay", 1000);
 // Enable device storage
 pref("device.storage.enabled", true);
 
-pref("media.plugins.enabled", true);
+pref("media.plugins.enabled", false);
+pref("media.omx.enabled", true);
 
 // Disable printing (particularly, window.print())
 pref("dom.disable_window_print", true);
@@ -531,9 +544,9 @@ pref("hal.processPriorityManager.gonk.backgroundNice", 10);
 #ifndef DEBUG
 // Enable pre-launching content processes for improved startup time
 // (hiding latency).
-pref("dom.ipc.processPrelauch.enabled", true);
+pref("dom.ipc.processPrelaunch.enabled", true);
 // Wait this long before pre-launching a new subprocess.
-pref("dom.ipc.processPrelauch.delayMs", 1000);
+pref("dom.ipc.processPrelaunch.delayMs", 1000);
 #endif
 
 // Ignore the "dialog=1" feature in window.open.
@@ -542,5 +555,24 @@ pref("dom.disable_window_open_dialog_feature", true);
 // Screen reader support
 pref("accessibility.accessfu.activate", 2);
 
+// Enable hit-target fluffing
+pref("ui.touch.radius.enabled", false);
+pref("ui.touch.radius.leftmm", 3);
+pref("ui.touch.radius.topmm", 5);
+pref("ui.touch.radius.rightmm", 3);
+pref("ui.touch.radius.bottommm", 2);
+
+pref("ui.mouse.radius.enabled", false);
+pref("ui.mouse.radius.leftmm", 3);
+pref("ui.mouse.radius.topmm", 5);
+pref("ui.mouse.radius.rightmm", 3);
+pref("ui.mouse.radius.bottommm", 2);
+
 // Disable native prompt
 pref("browser.prompt.allowNative", false);
+
+// Minimum delay in milliseconds between network activity notifications (0 means
+// no notifications). The delay is the same for both download and upload, though
+// they are handled separately. This pref is only read once at startup:
+// a restart is required to enable a new value.
+pref("network.activity.blipIntervalMilliseconds", 250);

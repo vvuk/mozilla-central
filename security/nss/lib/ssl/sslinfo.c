@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslinfo.c,v 1.30 2012/07/13 00:51:57 wtc%google.com Exp $ */
+/* $Id: sslinfo.c,v 1.31 2012/08/03 23:54:31 wtc%google.com Exp $ */
 #include "ssl.h"
 #include "sslimpl.h"
 #include "sslproto.h"
@@ -63,11 +63,11 @@ SSL_GetChannelInfo(PRFileDesc *fd, SSLChannelInfo *info, PRUintn len)
 	} else if (ss->ssl3.initialized) { 	/* SSL3 and TLS */
 	    ssl_GetSpecReadLock(ss);
 	    /* XXX  The cipher suite should be in the specs and this
-	     * function should get it from crSpec rather than from the "hs".
-	     * See bug 275744 comment 69.
+	     * function should get it from cwSpec rather than from the "hs".
+	     * See bug 275744 comment 69 and bug 766137.
 	     */
 	    inf.cipherSuite           = ss->ssl3.hs.cipher_suite;
-	    inf.compressionMethod     = ss->ssl3.crSpec->compression_method;
+	    inf.compressionMethod     = ss->ssl3.cwSpec->compression_method;
 	    ssl_ReleaseSpecReadLock(ss);
 	    inf.compressionMethodName =
 		ssl_GetCompressionMethodName(inf.compressionMethod);
@@ -302,7 +302,7 @@ SSL_GetNegotiatedHostInfo(PRFileDesc *fd)
             ss->ssl3.initialized) { /* TLS */
             SECItem *crsName;
             ssl_GetSpecReadLock(ss); /*********************************/
-            crsName = &ss->ssl3.crSpec->srvVirtName;
+            crsName = &ss->ssl3.cwSpec->srvVirtName;
             if (crsName->data) {
                 sniName = SECITEM_DupItem(crsName);
             }

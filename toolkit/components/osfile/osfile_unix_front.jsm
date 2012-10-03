@@ -80,7 +80,7 @@
      /**
       * Read some bytes from a file.
       *
-      * @param {ArrayBuffer} buffer A buffer for holding the data
+      * @param {C pointer} buffer A buffer for holding the data
       * once it is read.
       * @param {number} nbytes The number of bytes to read. It must not
       * exceed the size of |buffer| in bytes but it may exceed the number
@@ -101,7 +101,7 @@
      /**
       * Write some bytes to a file.
       *
-      * @param {ArrayBuffer} buffer A buffer holding the data that must be
+      * @param {C pointer} buffer A buffer holding the data that must be
       * written.
       * @param {number} nbytes The number of bytes to write. It must not
       * exceed the size of |buffer| in bytes.
@@ -348,6 +348,9 @@
       * @option {bool} noOverwrite - If set, this function will fail if
       * a file already exists at |destPath|. Otherwise, if this file exists,
       * it will be erased silently.
+      * @option {bool} noCopy - If set, this function will fail if the
+      * operation is more sophisticated than a simple renaming, i.e. if
+      * |sourcePath| and |destPath| are not situated on the same device.
       *
       * @throws {OS.File.Error} In case of any error.
       *
@@ -515,7 +518,7 @@
            if (options.noOverwrite) {
              dest = File.open(destPath, {create:true});
            } else {
-             dest = File.open(destPath, {write:true});
+             dest = File.open(destPath, {trunc:true});
            }
            result = pump(source, dest, options);
          } catch (x) {
@@ -559,9 +562,11 @@
          return;
 
        // If the error is not EXDEV ("not on the same device"),
-       // throw it.
-       if (ctypes.errno != Const.EXDEV) {
-         throw new File.Error();
+       // or if the error is EXDEV and we have passed an option
+       // that prevents us from crossing devices, throw the
+       // error.
+       if (ctypes.errno != Const.EXDEV || options.noCopy) {
+         throw new File.Error("move");
        }
 
        // Otherwise, copy and remove.
@@ -821,6 +826,9 @@
        }
        return new File.Info(gStatData);
      };
+
+     File.read = exports.OS.Shared.AbstractFile.read;
+     File.writeAtomic = exports.OS.Shared.AbstractFile.writeAtomic;
 
      /**
       * Get/set the current directory.

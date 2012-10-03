@@ -98,7 +98,9 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsid id, uint3
   // Make sure to actually operate on our object, and not some object further
   // down on the proto chain.
   while (JS_GetClass(obj) != &nsXBLDocGlobalObject::gSharedGlobalClass) {
-    obj = ::JS_GetPrototype(obj);
+    if (!::JS_GetPrototype(cx, obj, &obj)) {
+      return JS_FALSE;
+    }
     if (!obj) {
       ::JS_ReportError(cx, "Invalid access to a global object property.");
       return JS_FALSE;
@@ -282,8 +284,8 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   nsIPrincipal *principal = GetPrincipal();
   JSCompartment *compartment;
 
-  rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nullptr,
-                              false, &mJSObject, &compartment);
+  rv = xpc::CreateGlobalObject(cx, &gSharedGlobalClass, principal, false,
+                               &mJSObject, &compartment);
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
   // Set the location information for the new global, so that tools like

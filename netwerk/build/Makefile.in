@@ -36,16 +36,16 @@ SHARED_LIBRARY_LIBS = \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
   $(NULL)
 
-ifdef MOZ_SCTP
-SHARED_LIBRARY_LIBS += \
-  ../sctp/datachannel/$(LIB_PREFIX)nkdatachan_s.$(LIB_SUFFIX) \
-  ../sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
 ifdef MOZ_SRTP
 SHARED_LIBRARY_LIBS += \
   ../srtp/src/$(LIB_PREFIX)nksrtp_s.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifdef MOZ_SCTP
+SHARED_LIBRARY_LIBS += \
+  ../sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX) \
+  ../sctp/datachannel/$(LIB_PREFIX)nkdatachan_s.$(LIB_SUFFIX) \
   $(NULL)
 endif
 

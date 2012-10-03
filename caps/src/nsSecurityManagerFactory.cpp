@@ -67,15 +67,6 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
     JSContext* cx = aScriptContext->GetNativeContext();
     JSObject *global = JS_ObjectToInnerObject(cx, JS_GetGlobalObject(cx));
 
-    // We hide enablePrivilege behind a pref because it has been altered in a
-    // way that makes it fundamentally insecure to use in production. Mozilla
-    // uses this pref during automated testing to support legacy test code that
-    // uses enablePrivilege. If you're not doing test automation, you _must_ not
-    // flip this pref, or you will be exposing all your users to security
-    // vulnerabilities.
-    if (!Preferences::GetBool("security.enablePrivilege.enable_for_tests"))
-        return NS_OK;
-
     /*
      * Find Object.prototype's class by walking up the global object's
      * prototype chain.
@@ -83,8 +74,12 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
     JSObject *obj = global;
     JSObject *proto;
     JSAutoRequest ar(cx);
-    while ((proto = JS_GetPrototype(obj)) != nullptr)
+    for (;;) {
+        MOZ_ALWAYS_TRUE(JS_GetPrototype(cx, obj, &proto));
+        if (!proto)
+            break;
         obj = proto;
+    }
     JSClass *objectClass = JS_GetClass(obj);
 
     JS::Value v;
@@ -111,6 +106,15 @@ nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
         if (securityObj == nullptr)
             return NS_ERROR_FAILURE;
     }
+
+    // We hide enablePrivilege behind a pref because it has been altered in a
+    // way that makes it fundamentally insecure to use in production. Mozilla
+    // uses this pref during automated testing to support legacy test code that
+    // uses enablePrivilege. If you're not doing test automation, you _must_ not
+    // flip this pref, or you will be exposing all your users to security
+    // vulnerabilities.
+    if (!Preferences::GetBool("security.enablePrivilege.enable_for_tests"))
+        return NS_OK;
 
     /* Define PrivilegeManager object with the necessary "static" methods. */
     obj = JS_DefineObject(cx, securityObj, "PrivilegeManager", objectClass,

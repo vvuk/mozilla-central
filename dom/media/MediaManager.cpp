@@ -15,10 +15,9 @@
 #include "nsGlobalWindow.h"
 
 /* Using WebRTC backend on Desktops (Mac, Windows, Linux), otherwise default */
+#include "MediaEngineDefault.h"
 #if defined(MOZ_WEBRTC)
 #include "MediaEngineWebRTC.h"
-#else
-#include "MediaEngineDefault.h"
 #endif
 
 namespace mozilla {
@@ -300,7 +299,8 @@ public:
     , mListeners(aListeners)
     , mWindowID(aWindowID)
     , mDevice(aDevice)
-    , mInited(true) {}
+    , mDeviceChosen(true)
+    , mBackendChosen(false) {}
 
   GetUserMediaRunnable(bool aAudio, bool aVideo, bool aPicture,
     already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
@@ -313,9 +313,33 @@ public:
     , mError(aError)
     , mListeners(aListeners)
     , mWindowID(aWindowID)
-    , mInited(false) {}
+    , mDeviceChosen(false)
+    , mBackendChosen(false) {}
 
-  ~GetUserMediaRunnable() {}
+  /**
+   * The caller can also choose to provide their own backend instead of
+   * using the one provided by MediaManager::GetBackend.
+   */
+  GetUserMediaRunnable(bool aAudio, bool aVideo,
+    already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
+    already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
+    StreamListeners* aListeners, uint64_t aWindowID, MediaEngine* aBackend)
+    : mAudio(aAudio)
+    , mVideo(aVideo)
+    , mPicture(false)
+    , mSuccess(aSuccess)
+    , mError(aError)
+    , mListeners(aListeners)
+    , mWindowID(aWindowID)
+    , mDeviceChosen(false)
+    , mBackendChosen(true)
+    , mBackend(aBackend) {}
+
+  ~GetUserMediaRunnable() {
+    if (mBackendChosen) {
+      delete mBackend;
+    }
+  }
 
   NS_IMETHOD
   Run()
@@ -324,13 +348,17 @@ public:
 
     mManager = MediaManager::Get();
 
+    // Was a backend provided?
+    if (!mBackendChosen) {
+      mBackend = mManager->GetBackend();
+    }
+
     // Was a device provided?
-    if (!mInited) {
+    if (!mDeviceChosen) {
       nsresult rv = SelectDevice();
       if (rv != NS_OK) {
         return rv;
       }
-      mInited = true;
     }
 
     // It is an error if audio or video are requested along with picture.
@@ -373,7 +401,7 @@ public:
     uint32_t count;
     if (mPicture || mVideo) {
       nsTArray<nsRefPtr<MediaEngineVideoSource> > videoSources;
-      mManager->GetBackend()->EnumerateVideoDevices(&videoSources);
+      mBackend->EnumerateVideoDevices(&videoSources);
 
       count = videoSources.Length();
       if (count <= 0) {
@@ -385,7 +413,7 @@ public:
       mDevice = new MediaDevice(videoSources[0]);
     } else {
       nsTArray<nsRefPtr<MediaEngineAudioSource> > audioSources;
-      mManager->GetBackend()->EnumerateAudioDevices(&audioSources);
+      mBackend->EnumerateAudioDevices(&audioSources);
 
       count = audioSources.Length();
       if (count <= 0) {
@@ -460,7 +488,10 @@ private:
   uint64_t mWindowID;
   nsRefPtr<MediaDevice> mDevice;
 
-  bool mInited;
+  bool mDeviceChosen;
+  bool mBackendChosen;
+
+  MediaEngine* mBackend;
   MediaManager* mManager;
 };
 
@@ -485,7 +516,7 @@ public:
   {
     NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
 
-    uint32_t audioCount, videoCount, total, i;
+    uint32_t audioCount, videoCount, i;
     MediaManager* manager = MediaManager::Get();
 
     nsTArray<nsRefPtr<MediaEngineVideoSource> > videoSources;
@@ -495,8 +526,6 @@ public:
     nsTArray<nsRefPtr<MediaEngineAudioSource> > audioSources;
     manager->GetBackend()->EnumerateAudioDevices(&audioSources);
     audioCount = videoSources.Length();
-
-    total = videoCount + audioCount;
 
     nsTArray<nsCOMPtr<nsIMediaDevice> > *devices =
       new nsTArray<nsCOMPtr<nsIMediaDevice> >;
@@ -544,7 +573,10 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
 
   /* Get options */
   nsresult rv;
-  bool audio, video, picture;
+  bool fake, audio, video, picture;
+
+  rv = aParams->GetFake(&fake);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = aParams->GetPicture(&picture);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -630,14 +662,24 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
    * optionally be a MediaDevice object, which should provided if one was
    * selected by the user via the UI, or was provided by privileged code
    * via the device: attribute via nsIMediaStreamOptions.
+   *
+   * If a fake stream was requested, we force the use of the default backend.
    */
   nsCOMPtr<nsIRunnable> gUMRunnable;
-  if (device) {
+  if (fake) {
+    // Fake stream from default backend.
+    gUMRunnable = new GetUserMediaRunnable(
+      audio, video, onSuccess.forget(), onError.forget(), listeners,
+      windowID, new MediaEngineDefault()
+    );
+  } else if (device) {
+    // Stream from provided device.
     gUMRunnable = new GetUserMediaRunnable(
       audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
       windowID, static_cast<MediaDevice*>(device.get())
     );
   } else {
+    // Stream from default device from WebRTC backend.
     gUMRunnable = new GetUserMediaRunnable(
       audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
       windowID

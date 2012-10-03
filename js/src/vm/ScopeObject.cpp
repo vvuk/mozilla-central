@@ -160,7 +160,7 @@ CallObject::createTemplateObject(JSContext *cx, JSScript *script)
 {
     RootedShape shape(cx, script->bindings.callObjShape());
 
-    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 
@@ -170,7 +170,7 @@ CallObject::createTemplateObject(JSContext *cx, JSScript *script)
 
     CallObject *callobj = CallObject::create(cx, shape, type, slots);
     if (!callobj) {
-        js_delete(slots);
+        js_free(slots);
         return NULL;
     }
 
@@ -268,7 +268,7 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
 {
     assertSameCompartment(cx, fp);
 
-    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 
@@ -302,7 +302,7 @@ WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, ui
     if (!type)
         return NULL;
 
-    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &WithClass, proto,
+    RootedShape shape(cx, EmptyShape::getInitialShape(cx, &WithClass, TaggedProto(proto),
                                                       &enclosing->global(), FINALIZE_KIND));
     if (!shape)
         return NULL;
@@ -641,7 +641,7 @@ ClonedBlockObject::copyUnaliasedValues(StackFrame *fp)
 StaticBlockObject *
 StaticBlockObject::create(JSContext *cx)
 {
-    RootedTypeObject type(cx, cx->compartment->getEmptyType(cx));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 
@@ -1119,12 +1119,12 @@ class DebugScopeProxy : public BaseProxyHandler
         /* Handle unaliased formals, vars, and consts at function scope. */
         if (scope->isCall() && !scope->asCall().isForEval()) {
             CallObject &callobj = scope->asCall();
-            JSScript *script = callobj.callee().script();
+            RootedScript script(cx, callobj.callee().script());
             if (!script->ensureHasTypes(cx))
                 return false;
 
             Bindings &bindings = script->bindings;
-            BindingIter bi(script->bindings);
+            BindingIter bi(script);
             while (bi && NameToId(bi->name()) != id)
                 bi++;
             if (!bi)
@@ -1395,7 +1395,8 @@ class DebugScopeProxy : public BaseProxyHandler
          * they must be manually appended here.
          */
         if (scope.isCall() && !scope.asCall().isForEval()) {
-            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
+            RootedScript script(cx, scope.asCall().callee().script());
+            for (BindingIter bi(script); bi; bi++) {
                 if (!bi->aliased() && !props.append(NameToId(bi->name())))
                     return false;
             }
@@ -1433,7 +1434,8 @@ class DebugScopeProxy : public BaseProxyHandler
          * a manual search is necessary.
          */
         if (!found && scope.isCall() && !scope.asCall().isForEval()) {
-            for (BindingIter bi(scope.asCall().callee().script()->bindings); bi; bi++) {
+            RootedScript script(cx, scope.asCall().callee().script());
+            for (BindingIter bi(script); bi; bi++) {
                 if (!bi->aliased() && NameToId(bi->name()) == id) {
                     found = true;
                     break;

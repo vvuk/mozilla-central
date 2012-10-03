@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: blapit.h,v 1.29 2012/06/14 18:55:10 wtc%google.com Exp $ */
+/* $Id: blapit.h,v 1.30 2012/09/28 22:46:32 rrelyea%redhat.com Exp $ */
 
 #ifndef _BLAPIT_H_
 #define _BLAPIT_H_
@@ -34,6 +34,9 @@
 /* AES operation modes */
 #define NSS_AES                 0
 #define NSS_AES_CBC             1
+#define NSS_AES_CTS             2
+#define NSS_AES_CTR             3
+#define NSS_AES_GCM             4
 
 /* Camellia operation modes */
 #define NSS_CAMELLIA                 0

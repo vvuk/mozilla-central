@@ -14,11 +14,18 @@
 #include "jsmath.h"
 #include "jsinterpinlines.h"
 
+#include "vm/StringObject-inl.h"
+
 using namespace js;
 using namespace js::ion;
 
 namespace js {
 namespace ion {
+
+StringObject *
+MNewStringObject::templateObj() const {
+    return &templateObj_->asString();
+}
 
 CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorSpecific(gen, graph)
@@ -197,11 +204,25 @@ CodeGenerator::visitPolyInlineDispatch(LPolyInlineDispatch *lir)
 bool
 CodeGenerator::visitIntToString(LIntToString *lir)
 {
+    Register input = ToRegister(lir->input());
+    Register output = ToRegister(lir->output());
+
     typedef JSFlatString *(*pf)(JSContext *, int);
     static const VMFunction IntToStringInfo = FunctionInfo<pf>(Int32ToString);
 
-    pushArg(ToRegister(lir->input()));
-    return callVM(IntToStringInfo, lir);
+    OutOfLineCode *ool = oolCallVM(IntToStringInfo, lir, (ArgList(), input),
+                                   StoreRegisterTo(output));
+    if (!ool)
+        return false;
+
+    masm.branch32(Assembler::AboveOrEqual, input, Imm32(StaticStrings::INT_STATIC_LIMIT),
+                  ool->entry());
+
+    masm.movePtr(ImmWord(&gen->compartment->rt->staticStrings.intStaticTable), output);
+    masm.loadPtr(BaseIndex(output, input, ScalePointer), output);
+
+    masm.bind(ool->rejoin());
+    return true;
 }
 
 bool
@@ -759,8 +780,8 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     masm.j(Assembler::Above, &thunk);
 
     // No argument fixup needed. Load the start of the target IonCode.
-    masm.movePtr(Address(objreg, offsetof(IonScript, method_)), objreg);
-    masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
+    masm.movePtr(Address(objreg, IonScript::offsetOfMethod()), objreg);
+    masm.movePtr(Address(objreg, IonCode::offsetOfCode()), objreg);
     masm.jump(&makeCall);
 
     // Argument fixed needed. Load the ArgumentsRectifier.
@@ -768,7 +789,7 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     {
         JS_ASSERT(ArgumentsRectifierReg != objreg);
         masm.movePtr(ImmGCPtr(argumentsRectifier), objreg); // Necessary for GC marking.
-        masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
+        masm.movePtr(Address(objreg, IonCode::offsetOfCode()), objreg);
         masm.move32(Imm32(call->numStackArgs()), ArgumentsRectifierReg);
     }
 
@@ -834,8 +855,8 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     masm.branchPtr(Assembler::BelowOrEqual, objreg, ImmWord(ION_COMPILING_SCRIPT), &invoke);
 
     // Load the start of the target IonCode.
-    masm.movePtr(Address(objreg, offsetof(IonScript, method_)), objreg);
-    masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
+    masm.movePtr(Address(objreg, IonScript::offsetOfMethod()), objreg);
+    masm.movePtr(Address(objreg, IonCode::offsetOfCode()), objreg);
 
     // Nestle the StackPointer up to the argument vector.
     masm.freeStack(unusedStack);
@@ -1077,8 +1098,8 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
 
         // No argument fixup needed. Load the start of the target IonCode.
         {
-            masm.movePtr(Address(objreg, offsetof(IonScript, method_)), objreg);
-            masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
+            masm.movePtr(Address(objreg, IonScript::offsetOfMethod()), objreg);
+            masm.movePtr(Address(objreg, IonCode::offsetOfCode()), objreg);
 
             // Skip the construction of the rectifier frame because we have no
             // underflow.
@@ -1097,7 +1118,7 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
 
             JS_ASSERT(ArgumentsRectifierReg != objreg);
             masm.movePtr(ImmGCPtr(argumentsRectifier), objreg); // Necessary for GC marking.
-            masm.movePtr(Address(objreg, IonCode::OffsetOfCode()), objreg);
+            masm.movePtr(Address(objreg, IonCode::offsetOfCode()), objreg);
             masm.movePtr(argcreg, ArgumentsRectifierReg);
         }
 
@@ -1515,6 +1536,35 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
 }
 
 bool
+CodeGenerator::visitNewStringObject(LNewStringObject *lir)
+{
+    Register input = ToRegister(lir->input());
+    Register output = ToRegister(lir->output());
+    Register temp = ToRegister(lir->temp());
+
+    typedef JSObject *(*pf)(JSContext *, HandleString);
+    static const VMFunction NewStringObjectInfo = FunctionInfo<pf>(NewStringObject);
+
+    StringObject *templateObj = lir->mir()->templateObj();
+
+    OutOfLineCode *ool = oolCallVM(NewStringObjectInfo, lir, (ArgList(), input),
+                                   StoreRegisterTo(output));
+    if (!ool)
+        return false;
+
+    masm.newGCThing(output, templateObj, ool->entry());
+    masm.initGCThing(output, templateObj);
+
+    masm.loadStringLength(input, temp);
+
+    masm.storeValue(JSVAL_TYPE_STRING, input, Address(output, StringObject::offsetOfPrimitiveValue()));
+    masm.storeValue(JSVAL_TYPE_INT32, temp, Address(output, StringObject::offsetOfLength()));
+
+    masm.bind(ool->rejoin());
+    return true;
+}
+
+bool
 CodeGenerator::visitInitProp(LInitProp *lir)
 {
     Register objReg = ToRegister(lir->getObject());
@@ -1638,11 +1688,10 @@ CodeGenerator::visitTypedArrayElements(LTypedArrayElements *lir)
 bool
 CodeGenerator::visitStringLength(LStringLength *lir)
 {
-    Address lengthAndFlags(ToRegister(lir->string()), JSString::offsetOfLengthAndFlags());
+    Register input = ToRegister(lir->string());
     Register output = ToRegister(lir->output());
 
-    masm.loadPtr(lengthAndFlags, output);
-    masm.rshiftPtr(Imm32(JSString::LENGTH_SHIFT), output);
+    masm.loadStringLength(input, output);
     return true;
 }
 
@@ -2645,7 +2694,7 @@ CodeGenerator::visitIteratorNext(LIteratorNext *lir)
     const Register temp = ToRegister(lir->temp());
     const ValueOperand output = ToOutValue(lir);
 
-    typedef bool (*pf)(JSContext *, JSObject *, MutableHandleValue);
+    typedef bool (*pf)(JSContext *, HandleObject, MutableHandleValue);
     static const VMFunction Info = FunctionInfo<pf>(js_IteratorNext);
 
     OutOfLineCode *ool = oolCallVM(Info, lir, (ArgList(), obj), StoreValueTo(output));
@@ -2703,7 +2752,7 @@ CodeGenerator::visitIteratorEnd(LIteratorEnd *lir)
     const Register temp1 = ToRegister(lir->temp1());
     const Register temp2 = ToRegister(lir->temp2());
 
-    typedef bool (*pf)(JSContext *, JSObject *);
+    typedef bool (*pf)(JSContext *, HandleObject);
     static const VMFunction Info = FunctionInfo<pf>(CloseIterator);
 
     OutOfLineCode *ool = oolCallVM(Info, lir, (ArgList(), obj), StoreNothing());
@@ -3091,6 +3140,13 @@ CodeGenerator::visitCache(LInstruction *ins)
     OutOfLineCache *ool = new OutOfLineCache(ins);
     if (!addOutOfLineCode(ool))
         return false;
+
+#if 0
+    // NOTE: This is currently disabled. OSI and IC interaction are  protected
+    // through other means in ICs, since the nops incur significant overhead.
+    //
+    // ensureOsiSpace();
+#endif
 
     CodeOffsetJump jump = masm.jumpWithPatch(ool->repatchEntry());
     CodeOffsetLabel label = masm.labelForPatch();
@@ -3896,6 +3952,10 @@ CodeGenerator::emitInstanceOf(LInstruction *ins, Register rhs)
     if (!addOutOfLineCode(ool))
         return false;
 
+    // If the IC code wants to patch, make sure there is enough space to that
+    // the patching does not overwrite an invalidation marker.
+    ensureOsiSpace();
+
     CodeOffsetJump jump = masm.jumpWithPatch(ool->repatchEntry());
     CodeOffsetLabel label = masm.labelForPatch();
     masm.bind(ool->rejoin());
@@ -3910,11 +3970,14 @@ CodeGenerator::emitInstanceOf(LInstruction *ins, Register rhs)
     masm.loadPtr(Address(lhsTmp, JSObject::offsetOfType()), lhsTmp);
     masm.loadPtr(Address(lhsTmp, offsetof(types::TypeObject, proto)), lhsTmp);
 
-    masm.test32(lhsTmp, lhsTmp);
+    // Bail out if we hit a lazy proto
+    masm.branch32(Assembler::Equal, lhsTmp, Imm32(1), call->entry());
+
+    masm.testPtr(lhsTmp, lhsTmp);
     masm.j(Assembler::Zero, &done);
 
     // Check lhs is equal to rhsShape
-    masm.cmp32(lhsTmp, rhsTmp);
+    masm.cmpPtr(lhsTmp, rhsTmp);
     masm.j(Assembler::NotEqual, &loopPrototypeChain);
 
     // return true
@@ -3938,7 +4001,7 @@ CodeGenerator::visitGetDOMProperty(LGetDOMProperty *ins)
     masm.checkStackAlignment();
 
     /* Make Space for the outparam */
-    masm.adjustStack((int)-sizeof(Value));
+    masm.adjustStack(-int32_t(sizeof(Value)));
     masm.movePtr(StackPointer, ValueReg);
 
     masm.Push(ObjectReg);

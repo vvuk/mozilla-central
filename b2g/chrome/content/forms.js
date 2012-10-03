@@ -112,9 +112,14 @@ let FormAssistant = {
 
     let json = msg.json;
     switch (msg.name) {
-      case "Forms:Input:Value":
+      case "Forms:Input:Value": {
         target.value = json.value;
+
+        let event = content.document.createEvent('HTMLEvents');
+        event.initEvent('input', true, false);
+        target.dispatchEvent(event);
         break;
+      }
 
       case "Forms:Select:Choice":
         let options = target.options;
@@ -215,7 +220,8 @@ function getJSON(element) {
 
   return {
     "type": type.toLowerCase(),
-    "choices": getListForElement(element)
+    "choices": getListForElement(element),
+    "value": element.value
   };
 }
 

@@ -34,6 +34,7 @@
 #include "nsIScriptContext.h"
 #include "nsJSEnvironment.h"
 #include "nsXMLHttpRequest.h"
+#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 using namespace js;
@@ -1879,7 +1880,7 @@ struct NS_STACK_CLASS ExceptionArgParser
     }
 
     bool parseResult(JS::Value &v) {
-        return JS_ValueToECMAInt32(cx, v, (int32_t*) &eResult);
+        return JS_ValueToECMAUint32(cx, v, (uint32_t*) &eResult);
     }
 
     bool parseStack(JS::Value &v) {
@@ -2703,7 +2704,7 @@ nsXPCComponents_Utils::LookupMethod(const JS::Value& object,
     // first param must be a JSObject
     if (!object.isObject())
         return NS_ERROR_XPC_BAD_CONVERT_JS;
-    JS::RootedObject obj(cx, &object.toObject());
+    js::RootedObject obj(cx, &object.toObject());
 
     // second param must be a string.
     if (!JSVAL_IS_STRING(name))
@@ -3056,15 +3057,6 @@ WrapForSandbox(JSContext *cx, bool wantXrays, jsval *vp)
            : xpc::WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
-// Needed to distinguish multiple compartments with the same origin from each
-// other. The only thing we need out of identity objects are unique addresses.
-class Identity MOZ_FINAL : public nsISupports
-{
-    NS_DECL_ISUPPORTS
-};
-
-NS_IMPL_ISUPPORTS0(Identity)
-
 xpc::SandboxProxyHandler xpc::sandboxProxyHandler;
 
 // A proxy handler that lets us wrap callables and invoke them with
@@ -3172,8 +3164,8 @@ xpc::SandboxProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy,
                                                 jsid id_, bool set,
                                                 PropertyDescriptor *desc)
 {
-    JS::RootedObject obj(cx, wrappedObject(proxy));
-    JS::RootedId id(cx, id_);
+    js::RootedObject obj(cx, wrappedObject(proxy));
+    js::RootedId id(cx, id_);
 
     MOZ_ASSERT(js::GetObjectCompartment(obj) == js::GetObjectCompartment(proxy));
     // XXXbz Not sure about the JSRESOLVE_QUALIFIED here, but we have
@@ -3270,9 +3262,8 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
     JSCompartment *compartment;
     JSObject *sandbox;
 
-    nsRefPtr<Identity> identity = new Identity();
-    rv = xpc_CreateGlobalObject(cx, &SandboxClass, principal, identity,
-                                options.wantXrays, &sandbox, &compartment);
+    rv = xpc::CreateGlobalObject(cx, &SandboxClass, principal,
+                                 options.wantXrays, &sandbox, &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
     JS::AutoObjectRooter tvr(cx, sandbox);
@@ -3327,7 +3318,7 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
               return NS_ERROR_XPC_UNEXPECTED;
 
           if (options.wantComponents &&
-              !nsXPCComponents::AttachComponentsObject(ccx, scope, sandbox))
+              !nsXPCComponents::AttachComponentsObject(ccx, scope))
               return NS_ERROR_XPC_UNEXPECTED;
 
           if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, sandbox))
@@ -3928,7 +3919,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
         JS::CompileOptions options(sandcx->GetJSContext());
         options.setPrincipals(nsJSPrincipals::get(prin))
                .setFileAndLine(filename, lineNo);
-        JS::RootedObject rootedSandbox(sandcx->GetJSContext(), sandbox);
+        js::RootedObject rootedSandbox(sandcx->GetJSContext(), sandbox);
         bool ok = JS::Evaluate(sandcx->GetJSContext(), rootedSandbox, options,
                                PromiseFlatString(source).get(), source.Length(), &v);
         if (ok && returnStringOnly && !(JSVAL_IS_VOID(v))) {
@@ -4162,7 +4153,7 @@ nsXPCComponents_Utils::GetGlobalForObject(const JS::Value& object,
   // a wrapper for the foreign global. So we need to unwrap before getting the
   // parent, enter the compartment for the duration of the call, and wrap the
   // result.
-  JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(object));
+  js::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(object));
   obj = js::UnwrapObject(obj);
   {
     JSAutoCompartment ac(cx, obj);
@@ -4327,6 +4318,28 @@ nsXPCComponents_Utils::RecomputeWrappers(const jsval &vobj, JSContext *cx)
         js::RecomputeWrappers(cx, js::SingleCompartment(c), js::AllCompartments()) &&
         js::RecomputeWrappers(cx, js::AllCompartments(), js::SingleCompartment(c));
 
+    return NS_OK;
+}
+
+/* jsval getComponentsForScope(jsval vscope); */
+NS_IMETHODIMP
+nsXPCComponents_Utils::GetComponentsForScope(const jsval &vscope, JSContext *cx,
+                                             jsval *rval)
+{
+    if (!vscope.isObject())
+        return NS_ERROR_INVALID_ARG;
+    JSObject *scopeObj = js::UnwrapObject(&vscope.toObject());
+    XPCWrappedNativeScope *scope =
+      XPCWrappedNativeScope::FindInJSObjectScope(cx, scopeObj);
+    if (!scope)
+        return NS_ERROR_FAILURE;
+    XPCCallContext ccx(NATIVE_CALLER, cx);
+    JSObject *components = scope->GetComponentsJSObject(ccx);
+    if (!components)
+        return NS_ERROR_FAILURE;
+    *rval = ObjectValue(*components);
+    if (!JS_WrapValue(cx, rval))
+        return NS_ERROR_FAILURE;
     return NS_OK;
 }
 
@@ -4758,46 +4771,58 @@ nsXPCComponents::SetProperty(nsIXPConnectWrappedNative *wrapper,
     return NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN;
 }
 
+static JSBool
+ContentComponentsGetterOp(JSContext *cx, JSHandleObject obj, JSHandleId id,
+                          JSMutableHandleValue vp)
+{
+    // If chrome is accessing the Components object of content, allow.
+    MOZ_ASSERT(nsContentUtils::GetCurrentJSContext() == cx);
+    if (nsContentUtils::IsCallerChrome())
+        return true;
+
+    // If the caller is XBL, this is ok.
+    if (AccessCheck::callerIsXBL(cx))
+        return true;
+
+    // Do Telemetry on how often this happens.
+    Telemetry::Accumulate(Telemetry::COMPONENTS_OBJECT_ACCESSED_BY_CONTENT, true);
+
+    // Warn once. Note that if somebody does window.Components we may have an
+    // outer window here.
+    MOZ_ASSERT(JS_GetGlobalForObject(cx, obj) == JS_ObjectToInnerObject(cx, obj));
+    JSAutoCompartment ac(cx, obj);
+    nsCOMPtr<nsPIDOMWindow> win =
+        do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));
+    if (win) {
+        nsCOMPtr<nsIDocument> doc =
+            do_QueryInterface(win->GetExtantDocument());
+        if (doc)
+            doc->WarnOnceAbout(nsIDocument::eComponents, /* asError = */ true);
+    }
+
+    return true;
+}
+
 // static
 JSBool
 nsXPCComponents::AttachComponentsObject(XPCCallContext& ccx,
                                         XPCWrappedNativeScope* aScope,
-                                        JSObject* aGlobal)
+                                        JSObject* aTarget)
 {
-    if (!aGlobal)
+    JSObject *components = aScope->GetComponentsJSObject(ccx);
+    if (!components)
         return false;
 
-    nsXPCComponents* components = aScope->GetComponents();
-    if (!components) {
-        components = new nsXPCComponents(aScope);
-        if (!components)
-            return false;
-        aScope->SetComponents(components);
-    }
-
-    nsCOMPtr<nsIXPCComponents> cholder(components);
-
-    AutoMarkingNativeInterfacePtr iface(ccx);
-    iface = XPCNativeInterface::GetNewOrUsed(ccx, &NS_GET_IID(nsIXPCComponents));
-
-    if (!iface)
-        return false;
-
-    nsCOMPtr<XPCWrappedNative> wrapper;
-    xpcObjectHelper helper(cholder);
-    XPCWrappedNative::GetNewOrUsed(ccx, helper, aScope, iface, getter_AddRefs(wrapper));
-    if (!wrapper)
-        return false;
-
-    // The call to wrap() here is necessary even though the object is same-
-    // compartment, because it applies our security wrapper.
-    js::Value v = ObjectValue(*wrapper->GetFlatJSObject());
-    if (!JS_WrapValue(ccx, &v))
-        return false;
+    JSObject *global = aScope->GetGlobalJSObject();
+    MOZ_ASSERT(js::IsObjectInContextCompartment(global, ccx));
+    if (!aTarget)
+        aTarget = global;
 
     jsid id = ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_COMPONENTS);
-    return JS_DefinePropertyById(ccx, aGlobal, id, v, nullptr, nullptr,
-                                 JSPROP_PERMANENT | JSPROP_READONLY);
+    JSPropertyOp getter = AccessCheck::isChrome(global) ? nullptr
+                                                        : &ContentComponentsGetterOp;
+    return JS_DefinePropertyById(ccx, aTarget, id, js::ObjectValue(*components),
+                                 getter, nullptr, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 /* void lookupMethod (); */

@@ -9,6 +9,7 @@
 #define mozilla_layers_ShadowLayers_h 1
 
 #include "gfxASurface.h"
+#include "mozilla/gfx/2D.h"
 #include "GLDefs.h"
 
 #include "ImageLayers.h"
@@ -319,6 +320,8 @@ public:
   virtual int32_t GetMaxTextureSize() const { return mMaxTextureSize; }
   void SetMaxTextureSize(int32_t aMaxTextureSize) { mMaxTextureSize = aMaxTextureSize; }
 
+  static void PlatformSyncBeforeUpdate();
+
 protected:
   ShadowLayerForwarder();
 
@@ -366,6 +369,9 @@ private:
   static already_AddRefed<gfxASurface>
   OpenDescriptor(OpenMode aMode, const SurfaceDescriptor& aSurface);
 
+  static TemporaryRef<mozilla::gfx::DrawTarget>
+  OpenDescriptorForDrawTarget(OpenMode aMode, const SurfaceDescriptor& aSurface);
+
   static already_AddRefed<gfxASurface>
   PlatformOpenDescriptor(OpenMode aMode, const SurfaceDescriptor& aDescriptor);
 
@@ -378,8 +384,6 @@ private:
   PlatformCloseDescriptor(const SurfaceDescriptor& aDescriptor);
 
   bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
-
-  static void PlatformSyncBeforeUpdate();
 
   Transaction* mTxn;
   int32_t mMaxTextureSize;

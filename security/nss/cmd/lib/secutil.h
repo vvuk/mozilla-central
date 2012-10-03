@@ -17,12 +17,14 @@
 
 #include "basicutil.h"
 #include "sslerr.h"
+#include "sslt.h"
 
 
 #define SEC_CT_PRIVATE_KEY		"private-key"
 #define SEC_CT_PUBLIC_KEY		"public-key"
 #define SEC_CT_CERTIFICATE		"certificate"
 #define SEC_CT_CERTIFICATE_REQUEST	"certificate-request"
+#define SEC_CT_CERTIFICATE_ID           "certificate-identity"
 #define SEC_CT_PKCS7			"pkcs7"
 #define SEC_CT_CRL			"crl"
 #define SEC_CT_NAME			"name"
@@ -210,6 +212,9 @@ extern int SECU_PrintCertificateRequest(FILE *out, SECItem *der, char *m,
 /* Dump contents of certificate */
 extern int SECU_PrintCertificate(FILE *out, SECItem *der, char *m, int level);
 
+extern int SECU_PrintDumpDerIssuerAndSerial(FILE *out, SECItem *der, char *m,
+                                 int level);
+
 /* Dump contents of a DER certificate name (issuer or subject) */
 extern int SECU_PrintDERName(FILE *out, SECItem *der, const char *m, int level);
 
@@ -245,6 +250,10 @@ extern SECStatus SECU_PKCS11Init(PRBool readOnly);
 /* Dump contents of signed data */
 extern int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m, 
                                 int level, SECU_PPFunc inner);
+
+/* Dump contents of signed data, excluding the signature */
+extern int SECU_PrintSignedContent(FILE *out, SECItem *der, char *m, int level,
+                                   SECU_PPFunc inner);
 
 /* Print cert data and its trust flags */
 extern SECStatus SEC_PrintCertificateAndTrust(CERTCertificate *cert,
@@ -361,6 +370,33 @@ SECU_SECItemToHex(const SECItem * item, char * dst);
  * successful */
 SECStatus
 SECU_SECItemHexStringToBinary(SECItem* srcdest);
+
+/* Parse a version range string, with "min" and "max" version numbers,
+ * separated by colon (":"), and return the result in vr and v2.
+ *
+ * Both min and max values are optional.
+ * The following syntax is used to specify the enabled protocol versions:
+ * A string with only a max value is expected as ":{max}",
+ * and all implemented versions less than or equal to max will be enabled.
+ * A string with only a min value is expected as "{min}:",
+ * and all implemented versions greater than or equal to min will be enabled.
+ * A string consisting of a colon only means "all versions enabled".
+ *
+ * Because output parameter type SSLVersionRange doesn't allow to set
+ * version 2 values, we use a separate boolean output parameter
+ * to return whether SSL 2 is enabled.
+ *
+ * In order to avoid a link dependency from libsectool to libssl,
+ * the caller must provide the desired default values for the min/max values,
+ * by providing defaultEnableSSL2 and defaultVersionRange
+ * (which can be obtained from libssl by calling SSL_VersionRangeGetSupported).
+ */
+SECStatus
+SECU_ParseSSLVersionRangeString(const char *input,
+                                const SSLVersionRange defaultVersionRange,
+                                const PRBool defaultEnableSSL2,
+                                SSLVersionRange *vrange,
+                                PRBool *enableSSL2);
 
 /*
  *

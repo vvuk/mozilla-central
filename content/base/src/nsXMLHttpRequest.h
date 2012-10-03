@@ -415,11 +415,8 @@ public:
       aResult.SetIsVoid(true);
     }
     else {
-      // We use UTF8ToNewUnicode here because it truncates after invalid UTF-8
-      // characters, CopyUTF8toUTF16 just doesn't copy in that case.
-      uint32_t length;
-      PRUnichar* chars = UTF8ToNewUnicode(result, &length);
-      aResult.Adopt(chars, length);
+      // The result value should be inflated:
+      CopyASCIItoUTF16(result, aResult);
     }
   }
   void GetAllResponseHeaders(nsString& aResponseHeaders);
@@ -457,7 +454,7 @@ public:
   // doesn't bubble.
   static nsresult CreateReadystatechangeEvent(nsIDOMEvent** aDOMEvent);
   // For backwards compatibility aPosition should contain the headers for upload
-  // and aTotalSize is LL_MAXUINT when unknown. Both those values are
+  // and aTotalSize is UINT64_MAX when unknown. Both those values are
   // used by nsXMLHttpProgressEvent. Normal progress event should not use
   // headers in aLoaded and aTotal is 0 when unknown.
   void DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
@@ -477,7 +474,7 @@ public:
   {
     DispatchProgressEvent(aTarget, aType, false,
                           aLengthComputable, aLoaded, aTotal,
-                          aLoaded, aLengthComputable ? aTotal : LL_MAXUINT);
+                          aLoaded, aLengthComputable ? aTotal : UINT64_MAX);
   }
 
   // Dispatch the "progress" event on the XHR or XHR.upload object if we've

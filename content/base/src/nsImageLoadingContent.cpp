@@ -1227,7 +1227,7 @@ nsImageLoadingContent::UntrackImage(imgIRequest* aImage)
   // all locked images on destruction.
   nsIDocument* doc = GetOurCurrentDoc();
   if (doc)
-    return doc->RemoveImage(aImage);
+    return doc->RemoveImage(aImage, nsIDocument::REQUEST_DISCARD);
   return NS_OK;
 }
 

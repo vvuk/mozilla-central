@@ -121,6 +121,12 @@ public:
   nsAutoArrayPtr<AudioDataValue> mAudioData;
 };
 
+namespace mozilla {
+namespace layers {
+class GraphicBufferLocked;
+}
+}
+
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
 class VideoData {
 public:
@@ -156,6 +162,16 @@ public:
                            int64_t aTime,
                            int64_t aEndTime,
                            const YCbCrBuffer &aBuffer,
+                           bool aKeyframe,
+                           int64_t aTimecode,
+                           nsIntRect aPicture);
+
+  static VideoData* Create(nsVideoInfo& aInfo,
+                           ImageContainer* aContainer,
+                           int64_t aOffset,
+                           int64_t aTime,
+                           int64_t aEndTime,
+                           mozilla::layers::GraphicBufferLocked *aBuffer,
                            bool aKeyframe,
                            int64_t aTimecode,
                            nsIntRect aPicture);
@@ -514,7 +530,7 @@ public:
   virtual void SetIndexByteRange(MediaByteRange &aByteRange) { }
 
   // Returns list of ranges for index frame start/end offsets. Used by DASH.
-  nsresult GetIndexByteRanges(nsTArray<MediaByteRange>& aByteRanges) {
+  virtual nsresult GetIndexByteRanges(nsTArray<MediaByteRange>& aByteRanges) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 

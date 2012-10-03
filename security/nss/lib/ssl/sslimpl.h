@@ -5,7 +5,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sslimpl.h,v 1.106 2012/06/14 19:03:29 wtc%google.com Exp $ */
+/* $Id: sslimpl.h,v 1.108 2012/09/28 01:46:45 wtc%google.com Exp $ */
 
 #ifndef __sslimpl_h_
 #define __sslimpl_h_
@@ -251,6 +251,8 @@ struct sslSocketOpsStr {
 #define ssl_SEND_FLAG_NO_BUFFER		0x20000000
 #define ssl_SEND_FLAG_USE_EPOCH		0x10000000 /* DTLS only */
 #define ssl_SEND_FLAG_NO_RETRANSMIT	0x08000000 /* DTLS only */
+#define ssl_SEND_FLAG_CAP_RECORD_VERSION \
+					0x04000000 /* TLS only */
 #define ssl_SEND_FLAG_MASK		0x7f000000
 
 /*
@@ -814,11 +816,8 @@ const ssl3CipherSuiteDef *suite_def;
     /* This group of values is used for DTLS */
     PRUint16              sendMessageSeq;  /* The sending message sequence
 					    * number */
-    PRCList *             lastMessageFlight; /* The last message flight we sent.
-					      * This is a pointer because
-					      *	ssl_FreeSocket relocates the
-					      *	structure in DEBUG mode, which
-					      * messes up the list macros */
+    PRCList               lastMessageFlight; /* The last message flight we
+					      * sent */
     PRUint16              maxMessageSent;    /* The largest message we sent */
     PRUint16              recvMessageSeq;  /* The receiving message sequence
 					    * number */
@@ -1327,6 +1326,7 @@ extern SECStatus
 ssl3_CompressMACEncryptRecord(ssl3CipherSpec *   cwSpec,
 		              PRBool             isServer,
 			      PRBool             isDTLS,
+			      PRBool             capRecordVersion,
                               SSL3ContentType    type,
 		              const SSL3Opaque * pIn,
 		              PRUint32           contentLen,

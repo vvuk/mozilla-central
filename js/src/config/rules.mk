@@ -939,7 +939,7 @@ $(HOST_CMMOBJS): host_%.$(OBJ_SUFFIX): %.mm
 $(COBJS): %.$(OBJ_SUFFIX): %.c $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
-	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 # DEFINES and ACDEFINES are needed here to enable conditional compilation of Q_OBJECTs:
 # 'moc' only knows about #defines it gets on the command line (-D...), not in
@@ -961,7 +961,7 @@ $(ASOBJS): %.$(OBJ_SUFFIX): %.$(ASM_SUFFIX)
 endif
 
 $(SOBJS): %.$(OBJ_SUFFIX): %.S
-	$(AS) -o $@ $(ASFLAGS) -c $<
+	$(AS) -o $@ $(ASFLAGS) $(LOCAL_INCLUDES) $(TARGET_LOCAL_INCLUDES) -c $<
 
 #
 # Please keep the next two rules in sync.
@@ -969,43 +969,43 @@ $(SOBJS): %.$(OBJ_SUFFIX): %.S
 $(CCOBJS): %.$(OBJ_SUFFIX): %.cc $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
-	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 $(CPPOBJS): %.$(OBJ_SUFFIX): %.cpp $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
-	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 $(CMMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.mm $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
-	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 $(CMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.m $(call mkdir_deps,$(MDDEPDIR))
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
-	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $(_VPATH_SRCS)
+	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 %.s: %.cpp $(call mkdir_deps,$(MDDEPDIR))
-	$(CCC) -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
+	$(CCC) -S $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 %.s: %.cc $(call mkdir_deps,$(MDDEPDIR))
-	$(CCC) -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
+	$(CCC) -S $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 %.s: %.c $(call mkdir_deps,$(MDDEPDIR))
-	$(CC) -S $(COMPILE_CFLAGS) $(_VPATH_SRCS)
+	$(CC) -S $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 %.i: %.cpp $(call mkdir_deps,$(MDDEPDIR))
-	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) > $*.i
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 %.i: %.cc $(call mkdir_deps,$(MDDEPDIR))
-	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) > $*.i
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 %.i: %.c $(call mkdir_deps,$(MDDEPDIR))
-	$(CC) -C -E $(COMPILE_CFLAGS) $(_VPATH_SRCS) > $*.i
+	$(CC) -C -E $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 %.i: %.mm $(call mkdir_deps,$(MDDEPDIR))
-	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS) > $*.i
+	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS) > $*.i
 
 %.res: %.rc
 	@echo Creating Resource file: $@
@@ -1573,13 +1573,6 @@ $(foreach category,$(PP_TARGETS),\
 # Special gmake rules.
 ################################################################################
 
-
-#
-# Disallow parallel builds with MSVC < 8
-#
-ifneq (,$(filter 1200 1300 1310,$(_MSC_VER)))
-.NOTPARALLEL:
-endif
 
 #
 # Re-define the list of default suffixes, so gmake won't have to churn through

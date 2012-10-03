@@ -52,6 +52,7 @@ static char consoleName[] =  {
 
 #include "nssutil.h"
 #include "ssl.h"
+#include "sslproto.h"
 
 
 static void
@@ -1437,6 +1438,62 @@ loser:
 	    SECU_PrintAny(out, &i->subjectPublicKey, "Raw", level);
 	}
     }
+}
+
+int
+SECU_PrintDumpDerIssuerAndSerial(FILE *out, SECItem *der, char *m,
+                                 int level)
+{
+    PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    CERTCertificate *c;
+    int rv = SEC_ERROR_NO_MEMORY;
+    char *derIssuerB64;
+    char *derSerialB64;
+    
+    if (!arena)
+        return rv;
+
+    /* Decode certificate */
+    c = PORT_ArenaZNew(arena, CERTCertificate);
+    if (!c)
+        goto loser;
+    c->arena = arena;
+    rv = SEC_ASN1DecodeItem(arena, c, 
+                            SEC_ASN1_GET(CERT_CertificateTemplate), der);
+    if (rv) {
+        SECU_PrintErrMsg(out, 0, "Error", "Parsing extension");
+        goto loser;
+    }
+
+    SECU_PrintName(out, &c->subject, "Subject", 0);
+    fprintf(out, "\n");
+    SECU_PrintName(out, &c->issuer, "Issuer", 0);
+    fprintf(out, "\n");
+    SECU_PrintInteger(out, &c->serialNumber, "Serial Number", 0);
+    
+    derIssuerB64 = BTOA_ConvertItemToAscii(&c->derIssuer);
+    derSerialB64 = BTOA_ConvertItemToAscii(&c->serialNumber);
+    fprintf(out, "Issuer DER Base64:\n%s\n", derIssuerB64);
+    fprintf(out, "Serial DER Base64:\n%s\n", derSerialB64);
+    PORT_Free(derIssuerB64);
+    PORT_Free(derSerialB64);
+    
+    fprintf(out, "Serial DER as C source: \n{ %d, \"", c->serialNumber.len);
+
+    {
+      int i;
+      for (i=0; i < c->serialNumber.len; ++i) {
+        unsigned char *chardata = (unsigned char*)(c->serialNumber.data);
+        unsigned char c = *(chardata + i);
+        
+        fprintf(out, "\\x%02x", c);
+      }
+      fprintf(out, "\" }\n");
+    }
+
+loser:
+    PORT_FreeArena(arena, PR_FALSE);
+    return rv;
 }
 
 static SECStatus
@@ -2946,8 +3003,15 @@ loser:
     return rv;
 }
 
-int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m,
-			   int level, SECU_PPFunc inner)
+typedef enum  {
+    noSignature = 0,
+    withSignature = 1
+} SignatureOptionType;
+
+static int
+secu_PrintSignedDataSigOpt(FILE *out, SECItem *der, const char *m,
+			   int level, SECU_PPFunc inner,
+                           SignatureOptionType withSignature)
 {
     PRArenaPool *arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     CERTSignedData *sd;
@@ -2966,17 +3030,37 @@ int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m,
     if (rv)
 	goto loser;
 
-    SECU_Indent(out, level); fprintf(out, "%s:\n", m);
+    if (m) {
+        SECU_Indent(out, level); fprintf(out, "%s:\n", m);
+    } else {
+        level -= 1;
+    }
     rv = (*inner)(out, &sd->data, "Data", level+1);
 
-    SECU_PrintAlgorithmID(out, &sd->signatureAlgorithm, "Signature Algorithm",
-			  level+1);
-    DER_ConvertBitString(&sd->signature);
-    SECU_PrintAsHex(out, &sd->signature, "Signature", level+1);
+    if (withSignature) {
+        SECU_PrintAlgorithmID(out, &sd->signatureAlgorithm, "Signature Algorithm",
+                              level+1);
+        DER_ConvertBitString(&sd->signature);
+        SECU_PrintAsHex(out, &sd->signature, "Signature", level+1);
+    }
     SECU_PrintFingerprints(out, der, "Fingerprint", level+1);
 loser:
     PORT_FreeArena(arena, PR_FALSE);
     return rv;
+}
+
+int SECU_PrintSignedData(FILE *out, SECItem *der, const char *m,
+                           int level, SECU_PPFunc inner)
+{
+    return secu_PrintSignedDataSigOpt(out, der, m, level, inner, 
+                                      withSignature);
+}
+
+int SECU_PrintSignedContent(FILE *out, SECItem *der, char *m,
+                            int level, SECU_PPFunc inner)
+{
+    return secu_PrintSignedDataSigOpt(out, der, m, level, inner, 
+                                      noSignature);
 }
 
 SECStatus
@@ -3474,4 +3558,116 @@ SECU_FindCertByNicknameOrFilename(CERTCertDBHandle *handle,
     return the_cert;
 }
 
+/* Convert a SSL/TLS protocol version string into the respective numeric value
+ * defined by the SSL_LIBRARY_VERSION_* constants,
+ * while accepting a flexible set of case-insensitive identifiers.
+ *
+ * Caller must specify bufLen, allowing the function to operate on substrings.
+ */
+static SECStatus
+SECU_GetSSLVersionFromName(const char *buf, size_t bufLen, PRUint16 *version)
+{
+    if (!buf || !version) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
 
+    if (!PL_strncasecmp(buf, "ssl2", bufLen)) {
+        *version = SSL_LIBRARY_VERSION_2;
+        return SECSuccess;
+    }
+    if (!PL_strncasecmp(buf, "ssl3", bufLen)) {
+        *version = SSL_LIBRARY_VERSION_3_0;
+        return SECSuccess;
+    }
+    if (!PL_strncasecmp(buf, "tls1.0", bufLen)) {
+        *version = SSL_LIBRARY_VERSION_TLS_1_0;
+        return SECSuccess;
+    }
+    if (!PL_strncasecmp(buf, "tls1.1", bufLen)) {
+        *version = SSL_LIBRARY_VERSION_TLS_1_1;
+        return SECSuccess;
+    }
+    PORT_SetError(SEC_ERROR_INVALID_ARGS);
+    return SECFailure;
+}
+
+SECStatus
+SECU_ParseSSLVersionRangeString(const char *input,
+                                const SSLVersionRange defaultVersionRange,
+                                const PRBool defaultEnableSSL2,
+                                SSLVersionRange *vrange, PRBool *enableSSL2)
+{
+    const char *colonPos;
+    size_t colonIndex;
+    const char *maxStr;
+
+    if (!input || !vrange || !enableSSL2) {
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+        return SECFailure;
+    }
+
+    if (!strcmp(input, ":")) {
+        /* special value, use default */
+        *enableSSL2 = defaultEnableSSL2;
+        *vrange = defaultVersionRange;
+        return SECSuccess;
+    }
+
+    colonPos = strchr(input, ':');
+    if (!colonPos) {
+        return SECFailure;
+        PORT_SetError(SEC_ERROR_INVALID_ARGS);
+    }
+
+    colonIndex = colonPos - input;
+    maxStr = colonPos + 1;
+
+    if (!colonIndex) {
+        /* colon was first character, min version is empty */
+        *enableSSL2 = defaultEnableSSL2;
+        vrange->min = defaultVersionRange.min;
+    } else {
+        PRUint16 version;
+        /* colonIndex is equivalent to the length of the min version substring */
+        if (SECU_GetSSLVersionFromName(input, colonIndex, &version) != SECSuccess) {
+            PORT_SetError(SEC_ERROR_INVALID_ARGS);
+            return SECFailure;
+        }
+
+        if (version == SSL_LIBRARY_VERSION_2) {
+            *enableSSL2 = PR_TRUE;
+            vrange->min = defaultVersionRange.min;
+        } else {
+            *enableSSL2 = PR_FALSE;
+            vrange->min = version;
+        }
+    }
+
+    if (!*maxStr) {
+        vrange->max = defaultVersionRange.max;
+    } else {
+        PRUint16 version;
+        /* if max version is empty, then maxStr points to the string terminator */
+        if (SECU_GetSSLVersionFromName(maxStr, strlen(maxStr), &version)
+                != SECSuccess) {
+            PORT_SetError(SEC_ERROR_INVALID_ARGS);
+            return SECFailure;
+        }
+
+        if (version == SSL_LIBRARY_VERSION_2) {
+            /* consistency checking, require that min allows enableSSL2, too */
+            if (!*enableSSL2) {
+                PORT_SetError(SEC_ERROR_INVALID_ARGS);
+                return SECFailure;
+            }
+            /* we use 0 because SSL_LIBRARY_VERSION_NONE is private: */
+            vrange->min = 0;
+            vrange->max = 0;
+        } else {
+            vrange->max = version;
+        }
+    }
+
+    return SECSuccess;
+}

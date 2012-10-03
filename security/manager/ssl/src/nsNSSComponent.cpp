@@ -97,13 +97,12 @@ int nsNSSComponent::mInstanceCount = 0;
 bool nsNSSComponent::globalConstFlagUsePKIXVerification = false;
 
 // XXX tmp callback for slot password
-extern char * PR_CALLBACK 
-pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
+extern char* pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
 
 #define PIPNSS_STRBUNDLE_URL "chrome://pipnss/locale/pipnss.properties"
 #define NSSERR_STRBUNDLE_URL "chrome://pipnss/locale/nsserrors.properties"
 
-static PLHashNumber PR_CALLBACK certHashtable_keyHash(const void *key)
+static PLHashNumber certHashtable_keyHash(const void *key)
 {
   if (!key)
     return 0;
@@ -123,7 +122,7 @@ static PLHashNumber PR_CALLBACK certHashtable_keyHash(const void *key)
   return hash;
 }
 
-static int PR_CALLBACK certHashtable_keyCompare(const void *k1, const void *k2)
+static int certHashtable_keyCompare(const void *k1, const void *k2)
 {
   // return type is a bool, answering the question "are the keys equal?"
 
@@ -150,7 +149,7 @@ static int PR_CALLBACK certHashtable_keyCompare(const void *k1, const void *k2)
   return true;
 }
 
-static int PR_CALLBACK certHashtable_valueCompare(const void *v1, const void *v2)
+static int certHashtable_valueCompare(const void *v1, const void *v2)
 {
   // two values are identical if their keys are identical
   
@@ -163,7 +162,7 @@ static int PR_CALLBACK certHashtable_valueCompare(const void *v1, const void *v2
   return certHashtable_keyCompare(&cert1->certKey, &cert2->certKey);
 }
 
-static int PR_CALLBACK certHashtable_clearEntry(PLHashEntry *he, int /*index*/, void * /*userdata*/)
+static int certHashtable_clearEntry(PLHashEntry *he, int /*index*/, void * /*userdata*/)
 {
   if (he && he->value) {
     CERT_DestroyCertificate((CERTCertificate*)he->value);
@@ -2779,11 +2778,11 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
   if (NS_FAILED(rv))
     return rv;
 
-  // if the user has passed PR_UINT32_MAX, then read
+  // if the user has passed UINT32_MAX, then read
   // everything in the stream
 
   uint64_t len = aLen;
-  if (aLen == PR_UINT32_MAX)
+  if (aLen == UINT32_MAX)
     len = n;
 
   // So, if the stream has NO data available for the hash,
@@ -2972,11 +2971,11 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
   if (NS_FAILED(rv))
     return rv;
 
-  // if the user has passed PR_UINT32_MAX, then read
+  // if the user has passed UINT32_MAX, then read
   // everything in the stream
 
   uint64_t len = aLen;
-  if (aLen == PR_UINT32_MAX)
+  if (aLen == UINT32_MAX)
     len = n;
 
   // So, if the stream has NO data available for the hash,

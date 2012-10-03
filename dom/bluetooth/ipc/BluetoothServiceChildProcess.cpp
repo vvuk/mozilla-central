@@ -202,24 +202,41 @@ BluetoothServiceChildProcess::RemoveDeviceInternal(
 }
 
 nsresult
-BluetoothServiceChildProcess::GetSocketViaService(
-                                              const nsAString& aObjectPath,
-                                              const nsAString& aService,
-                                              int aType,
-                                              bool aAuth,
-                                              bool aEncrypt,
-                                              BluetoothReplyRunnable* aRunnable)
+BluetoothServiceChildProcess::GetScoSocket(
+                                    const nsAString& aObjectPath,
+                                    bool aAuth,
+                                    bool aEncrypt,
+                                    mozilla::ipc::UnixSocketConsumer* aConsumer)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  MOZ_NOT_REACHED("This should never be called!");
+  return NS_ERROR_FAILURE;
 }
 
-bool
-BluetoothServiceChildProcess::CloseSocket(int aFd,
-                                          BluetoothReplyRunnable* aRunnable)
+nsresult
+BluetoothServiceChildProcess::GetSocketViaService(
+                                       const nsAString& aObjectPath,
+                                       const nsAString& aService,
+                                       BluetoothSocketType aType,
+                                       bool aAuth,
+                                       bool aEncrypt,
+                                       mozilla::ipc::UnixSocketConsumer* aConsumer,
+                                       BluetoothReplyRunnable* aRunnable)
 {
-  MOZ_NOT_REACHED("Implement me!");
-  return false;
+  MOZ_NOT_REACHED("This should never be called!");
+  return NS_ERROR_FAILURE;
+}
+
+
+nsresult
+BluetoothServiceChildProcess::ListenSocketViaService(
+  int aChannel,
+  BluetoothSocketType aType,
+  bool aAuth,
+  bool aEncrypt,
+  mozilla::ipc::UnixSocketConsumer* aConsumer)
+{
+  MOZ_NOT_REACHED("This should never be called!");
+  return NS_ERROR_FAILURE;
 }
 
 bool
@@ -281,6 +298,67 @@ BluetoothServiceChildProcess::PrepareAdapterInternal(const nsAString& aPath)
 {
   MOZ_NOT_REACHED("Should never be called from child");
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+bool
+BluetoothServiceChildProcess::ConnectHeadset(
+  const nsAString& aDeviceAddress,
+  const nsAString& aAdapterPath,
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              ConnectHeadsetRequest(nsString(aDeviceAddress), 
+                                    nsString(aAdapterPath)));
+
+  return true;
+}
+
+void
+BluetoothServiceChildProcess::DisconnectHeadset(
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, DisconnectHeadsetRequest());
+}
+
+bool
+BluetoothServiceChildProcess::ConnectObjectPush(
+  const nsAString& aDeviceAddress,
+  const nsAString& aAdapterPath,
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              ConnectObjectPushRequest(nsString(aDeviceAddress), 
+                                       nsString(aAdapterPath)));
+  return true;
+}
+
+void
+BluetoothServiceChildProcess::DisconnectObjectPush(
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable, DisconnectObjectPushRequest());
+}
+
+bool
+BluetoothServiceChildProcess::SendFile(
+  const nsAString& aDeviceAddress,
+  BlobParent* aBlobParent,
+  BlobChild* aBlobChild,
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              SendFileRequest(nsString(aDeviceAddress), nullptr, aBlobChild));
+  return true;
+}
+
+bool
+BluetoothServiceChildProcess::StopSendingFile(
+  const nsAString& aDeviceAddress,
+  BluetoothReplyRunnable* aRunnable)
+{
+  SendRequest(aRunnable,
+              StopSendingFileRequest(nsString(aDeviceAddress)));
+  return true;
 }
 
 nsresult

@@ -568,7 +568,8 @@ public:
   };
   typedef struct ScrollAxis {
     int16_t mWhereToScroll;
-    WhenToScroll mWhenToScroll : 16;
+    WhenToScroll mWhenToScroll : 8;
+    bool mOnlyIfPerceivedScrollableDirection : 1;
   /**
    * @param aWhere: Either a percentage or a special value.
    *                nsIPresShell defines:
@@ -599,10 +600,17 @@ public:
    *                is visible.
    *                * SCROLL_ALWAYS: Move the frame regardless of its current
    *                visibility.
+   * @param aOnlyIfPerceivedScrollableDirection:
+   *                If the direction is not a perceived scrollable direction (i.e.
+   *                no scrollbar showing and less than one device pixel of
+   *                scrollable distance), don't scroll. Defaults to false.
    */
     ScrollAxis(int16_t aWhere = SCROLL_MINIMUM,
-               WhenToScroll aWhen = SCROLL_IF_NOT_FULLY_VISIBLE) :
-                 mWhereToScroll(aWhere), mWhenToScroll(aWhen) {}
+               WhenToScroll aWhen = SCROLL_IF_NOT_FULLY_VISIBLE,
+               bool aOnlyIfPerceivedScrollableDirection = false) :
+      mWhereToScroll(aWhere), mWhenToScroll(aWhen),
+      mOnlyIfPerceivedScrollableDirection(aOnlyIfPerceivedScrollableDirection)
+    {}
   } ScrollAxis;
   /**
    * Scrolls the view of the document so that the primary frame of the content
@@ -1231,6 +1239,11 @@ public:
    * root pres shell.
    */
   virtual void DidPaint() = 0;
+
+  /**
+   * Ensures that the refresh driver is running, and schedules a view 
+   * manager flush on the next tick.
+   */
   virtual void ScheduleViewManagerFlush() = 0;
   virtual void ClearMouseCaptureOnView(nsIView* aView) = 0;
   virtual bool IsVisible() = 0;
@@ -1257,6 +1270,10 @@ public:
   uint32_t FontSizeInflationLineThreshold() const {
     return mFontSizeInflationLineThreshold;
   }
+
+  virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) = 0;
+
+  void InvalidatePresShellIfHidden();
 
   /**
    * Refresh observer management.
@@ -1338,6 +1355,7 @@ protected:
   // GetRootFrame() can be inlined:
   nsFrameManagerBase*       mFrameManager;
   nsWeakPtr                 mForwardingContainer;
+  nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
   DocAccessible* mAccDocument;
 #endif

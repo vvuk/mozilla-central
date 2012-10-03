@@ -496,6 +496,20 @@ nsDNSService::SetOffline(bool offline)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+nsDNSService::GetPrefetchEnabled(bool *outVal)
+{
+    *outVal = !mDisablePrefetch;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDNSService::SetPrefetchEnabled(bool inVal)
+{
+    mDisablePrefetch = !inVal;
+    return NS_OK;
+}
+
 namespace {
 
 class DNSListenerProxy MOZ_FINAL : public nsIDNSListener
@@ -673,6 +687,15 @@ nsDNSService::Resolve(const nsACString &hostname,
                       uint32_t          flags,
                       nsIDNSRecord    **result)
 {
+    NS_WARNING("Do not use synchronous DNS resolution! This API may be removed soon.");
+
+    // We will not allow this to be called on the main thread. This is transitional
+    // and a bit of a test for removing the synchronous API entirely.
+    if (NS_IsMainThread()) {
+        NS_ERROR("Synchronous DNS resolve failing - not allowed on the main thread!");
+        return NS_ERROR_FAILURE;
+    }
+
     // grab reference to global host resolver and IDN service.  beware
     // simultaneous shutdown!!
     nsRefPtr<nsHostResolver> res;

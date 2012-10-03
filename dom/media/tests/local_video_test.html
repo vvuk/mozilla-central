@@ -77,18 +77,18 @@
 
     pc1.onaddstream = function(obj) {
       log("pc1 got remote stream from pc2 " + obj.type);
-      pc2video.src = obj.stream;
+      pc2video.mozSrcObject = obj.stream;
       pc2video.play();
     }
     pc2.onaddstream = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
-      pc1video.src = obj.stream;
+      pc1video.mozSrcObject = obj.stream;
       pc1video.play();
     }
 
     navigator.mozGetUserMedia({video:true}, function(stream) {
       // Add stream obtained from gUM to <video> to start media flow.
-      localvideo.src = stream;
+      localvideo.mozSrcObject = stream;
       localvideo.play();
 
       pc1.addStream(stream);

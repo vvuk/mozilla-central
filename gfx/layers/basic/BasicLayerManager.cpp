@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/dom/TabChild.h"
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layers/PLayersParent.h"
@@ -25,6 +26,7 @@
 #include "mozilla/Preferences.h"
 #include "nsIWidget.h"
 
+using namespace mozilla::dom;
 using namespace mozilla::gfx;
 
 namespace mozilla {
@@ -208,22 +210,19 @@ public:
 };
 
 BasicLayerManager::BasicLayerManager(nsIWidget* aWidget) :
-#ifdef DEBUG
   mPhase(PHASE_NONE),
-#endif
   mWidget(aWidget)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
   , mCachedSurfaceInUse(false)
   , mTransactionIncomplete(false)
+  , mCompositorMightResample(false)
 {
   MOZ_COUNT_CTOR(BasicLayerManager);
   NS_ASSERTION(aWidget, "Must provide a widget");
 }
 
 BasicLayerManager::BasicLayerManager() :
-#ifdef DEBUG
   mPhase(PHASE_NONE),
-#endif
   mWidget(nullptr)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
   , mCachedSurfaceInUse(false)
@@ -321,9 +320,7 @@ BasicLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 #endif
 
   NS_ASSERTION(!InTransaction(), "Nested transactions not allowed");
-#ifdef DEBUG
   mPhase = PHASE_CONSTRUCTION;
-#endif
   mTarget = aTarget;
 }
 
@@ -510,9 +507,7 @@ void
 BasicLayerManager::AbortTransaction()
 {
   NS_ASSERTION(InConstruction(), "Should be in construction phase");
-#ifdef DEBUG
   mPhase = PHASE_NONE;
-#endif
   mUsingDefaultTarget = false;
   mInTransaction = false;
 }
@@ -529,9 +524,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 #endif
 
   NS_ASSERTION(InConstruction(), "Should be in construction phase");
-#ifdef DEBUG
   mPhase = PHASE_DRAWING;
-#endif
 
   Layer* aLayer = GetRoot();
   RenderTraceLayers(aLayer, "FF00");
@@ -599,11 +592,9 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   MOZ_LAYERS_LOG(("]----- EndTransaction"));
 #endif
 
-#ifdef DEBUG
   // Go back to the construction phase if the transaction isn't complete.
   // Layout will update the layer tree and call EndTransaction().
   mPhase = mTransactionIncomplete ? PHASE_CONSTRUCTION : PHASE_NONE;
-#endif
 
   if (!mTransactionIncomplete) {
     // This is still valid if the transaction was incomplete.
@@ -1036,7 +1027,7 @@ BasicShadowLayerManager::GetMaxTextureSize() const
     return ShadowLayerForwarder::GetMaxTextureSize();
   }
 
-  return PR_INT32_MAX;
+  return INT32_MAX;
 }
 
 void
@@ -1089,6 +1080,17 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // to the previous transaction.
   if (HasShadowManager()) {
     ShadowLayerForwarder::BeginTransaction(mTargetBounds, mTargetRotation);
+
+    // If we're drawing on behalf of a context with async pan/zoom
+    // enabled, then the entire buffer of thebes layers might be
+    // composited (including resampling) asynchronously before we get
+    // a chance to repaint, so we have to ensure that it's all valid
+    // and not rotated.
+    if (mWidget) {
+      if (TabChild* window = mWidget->GetOwningTabChild()) {
+        mCompositorMightResample = window->IsAsyncPanZoomEnabled();
+      }
+    }
 
     // If we have a non-default target, we need to let our shadow manager draw
     // to it. This will happen at the end of the transaction.
@@ -1143,9 +1145,7 @@ void
 BasicShadowLayerManager::ForwardTransaction()
 {
   RenderTraceScope rendertrace("Foward Transaction", "000090");
-#ifdef DEBUG
   mPhase = PHASE_FORWARD;
-#endif
 
   // forward this transaction's changeset to our ShadowLayerManager
   AutoInfallibleTArray<EditReply, 10> replies;
@@ -1209,9 +1209,7 @@ BasicShadowLayerManager::ForwardTransaction()
     NS_WARNING("failed to forward Layers transaction");
   }
 
-#ifdef DEBUG
   mPhase = PHASE_NONE;
-#endif
 
   // this may result in Layers being deleted, which results in
   // PLayer::Send__delete__() and DeallocShmem()

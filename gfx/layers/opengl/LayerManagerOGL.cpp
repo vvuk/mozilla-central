@@ -84,7 +84,7 @@ private:
       const TimeStamp& frame = mFrames[i];
       if (!frame.IsNull() && frame > beginningOfWindow) {
         ++numFramesDrawnInWindow;
-        earliestFrameInWindow = PR_MIN(earliestFrameInWindow, frame);
+        earliestFrameInWindow = NS_MIN(earliestFrameInWindow, frame);
       }
     }
     double realWindowSecs = (aNow - earliestFrameInWindow).ToSeconds();
@@ -308,27 +308,16 @@ LayerManagerOGL::~LayerManagerOGL()
 void
 LayerManagerOGL::Destroy()
 {
-  if (!mDestroyed) {
-    if (mRoot) {
-      RootLayer()->Destroy();
-    }
-    mRoot = nullptr;
-
-    CleanupResources();
-
-    mDestroyed = true;
-  }
-}
-
-void
-LayerManagerOGL::CleanupResources()
-{
-  if (!mGLContext)
+  if (mDestroyed)
     return;
 
   if (mRoot) {
-    RootLayer()->CleanupResources();
+    RootLayer()->Destroy();
+    mRoot = nullptr;
   }
+
+  if (!mGLContext)
+    return;
 
   nsRefPtr<GLContext> ctx = mGLContext->GetSharedContext();
   if (!ctx) {
@@ -362,6 +351,8 @@ LayerManagerOGL::CleanupResources()
   }
 
   mGLContext = nullptr;
+
+  mDestroyed = true;
 }
 
 already_AddRefed<mozilla::gl::GLContext>
@@ -933,7 +924,7 @@ LayerManagerOGL::Render()
   // If the Java compositor is being used, this clear will be done in
   // DrawWindowUnderlay. Make sure the bits used here match up with those used
   // in mobile/android/base/gfx/LayerRenderer.java
-#ifndef MOZ_JAVA_COMPOSITOR
+#ifndef MOZ_ANDROID_OMTC
   mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 #endif
@@ -954,7 +945,7 @@ LayerManagerOGL::Render()
     if (mIsRenderingToEGLSurface) {
       rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
     } else {
-      mWidget->GetBounds(rect);
+      mWidget->GetClientBounds(rect);
     }
     nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
@@ -1189,12 +1180,12 @@ LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
   if (mIsRenderingToEGLSurface) {
     rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    mWidget->GetBounds(rect);
+    mWidget->GetClientBounds(rect);
   }
   GLint width = rect.width;
   GLint height = rect.height;
 
-  if ((int64_t(width) * int64_t(height) * int64_t(4)) > PR_INT32_MAX) {
+  if ((int64_t(width) * int64_t(height) * int64_t(4)) > INT32_MAX) {
     NS_ERROR("Widget size too big - integer overflow!");
     return;
   }
@@ -1285,10 +1276,16 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                                   0);
     } else {
       // Curses, incompatible formats.  Take a slow path.
-      //
-      // XXX Technically CopyTexSubImage2D also has the requirement of
-      // matching formats, but it doesn't seem to affect us in the
-      // real world.
+
+      // RGBA
+      size_t bufferSize = aRect.width * aRect.height * 4;
+      nsAutoArrayPtr<uint8_t> buf(new uint8_t[bufferSize]);
+
+      mGLContext->fReadPixels(aRect.x, aRect.y,
+                              aRect.width, aRect.height,
+                              LOCAL_GL_RGBA,
+                              LOCAL_GL_UNSIGNED_BYTE,
+                              buf);
       mGLContext->fTexImage2D(mFBOTextureTarget,
                               0,
                               LOCAL_GL_RGBA,
@@ -1296,12 +1293,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              NULL);
-      mGLContext->fCopyTexSubImage2D(mFBOTextureTarget,
-                                     0,    // level
-                                     0, 0, // offset
-                                     aRect.x, aRect.y,
-                                     aRect.width, aRect.height);
+                              buf);
     }
   } else {
     mGLContext->fTexImage2D(mFBOTextureTarget,

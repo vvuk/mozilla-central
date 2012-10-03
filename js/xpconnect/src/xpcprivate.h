@@ -727,6 +727,45 @@ public:
 
     bool DeferredRelease(nsISupports* obj);
 
+
+    /**
+     * Infrastructure for classes that need to defer part of the finalization
+     * until after the GC has run, for example for objects that we don't want to
+     * destroy during the GC.
+     */
+
+    // Called once before the deferred finalization starts. Should hand off the
+    // buffer with things to finalize in the return value.
+    typedef void* (*DeferredFinalizeStartFunction)();
+
+    // Called to finalize a number of objects. Slice is the number of objects to
+    // finalize, if it's -1 all objects should be finalized. data is the pointer
+    // returned by DeferredFinalizeStartFunction. Should return if it finalized
+    // all objects remaining in the buffer.
+    typedef bool (*DeferredFinalizeFunction)(int32_t slice, void* data);
+
+private:
+    struct DeferredFinalizeFunctions
+    {
+        DeferredFinalizeStartFunction start;
+        DeferredFinalizeFunction run;
+    };
+    nsAutoTArray<DeferredFinalizeFunctions, 16> mDeferredFinalizeFunctions;
+
+public:
+    // Register deferred finalization functions. Should only be called once per
+    // pair of start and run.
+    bool RegisterDeferredFinalize(DeferredFinalizeStartFunction start,
+                                  DeferredFinalizeFunction run)
+    {
+        DeferredFinalizeFunctions* item =
+            mDeferredFinalizeFunctions.AppendElement();
+        item->start = start;
+        item->run = run;
+        return true;
+    }
+
+
     JSBool GetDoingFinalization() const {return mDoingFinalization;}
 
     // Mapping of often used strings to jsid atoms that live 'forever'.
@@ -1586,6 +1625,10 @@ public:
     nsXPCComponents*
     GetComponents() const {return mComponents;}
 
+    // Returns the JS object reflection of the Components object.
+    JSObject*
+    GetComponentsJSObject(XPCCallContext& ccx);
+
     JSObject*
     GetGlobalJSObject() const
         {return xpc_UnmarkGrayObject(mGlobalJSObject);}
@@ -1682,8 +1725,6 @@ public:
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
 
-    void SetComponents(nsXPCComponents* aComponents);
-    nsXPCComponents *GetComponents();
     void SetGlobal(XPCCallContext& ccx, JSObject* aGlobal, nsISupports* aNative);
 
     static void InitStatics() { gScopes = nullptr; gDyingScopes = nullptr; }
@@ -3747,10 +3788,13 @@ public:
     NS_DECL_NSISECURITYCHECKEDCOMPONENT
 
 public:
+    // The target is the object upon which |Components| will be defined. If
+    // aTarget is left null, a default object will be computed. This is usually
+    // the right thing to do.
     static JSBool
     AttachComponentsObject(XPCCallContext& ccx,
                            XPCWrappedNativeScope* aScope,
-                           JSObject* aGlobal);
+                           JSObject* aTarget = NULL);
 
     void SystemIsBeingShutDown() {ClearMembers();}
 
@@ -4377,8 +4421,7 @@ GetCompartmentPrivate(JSObject *object)
 
 inline bool IsUniversalXPConnectEnabled(JSCompartment *compartment)
 {
-    CompartmentPrivate *priv =
-      static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv)
         return false;
     return priv->universalXPConnectEnabled;
@@ -4397,8 +4440,7 @@ inline bool EnableUniversalXPConnect(JSContext *cx)
     JSCompartment *compartment = js::GetContextCompartment(cx);
     if (!compartment)
         return true;
-    CompartmentPrivate *priv =
-      static_cast<CompartmentPrivate*>(JS_GetCompartmentPrivate(compartment));
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv)
         return true;
     priv->universalXPConnectEnabled = true;

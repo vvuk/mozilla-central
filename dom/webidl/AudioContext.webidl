@@ -15,7 +15,14 @@ interface mozAudioContext {
 
     readonly attribute AudioDestinationNode destination;
 
+    [Creator, Throws]
+    AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
+
+    // [Creator, Throws]
+    // AudioBuffer createBuffer(ArrayBuffer buffer, boolean mixToMono);
+
     // AudioNode creation 
+    [Creator]
     AudioBufferSourceNode createBufferSource();
 
 };

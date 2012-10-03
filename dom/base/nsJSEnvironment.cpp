@@ -58,6 +58,7 @@
 #include "mozilla/dom/ImageData.h"
 
 #include "nsJSPrincipals.h"
+#include "jsdbgapi.h"
 
 #ifdef XP_MACOSX
 // AssertMacros.h defines 'check' and conflicts with AccessCheck.h
@@ -162,14 +163,14 @@ static bool sPostGCEventsToConsole;
 static bool sPostGCEventsToObserver;
 static bool sDisableExplicitCompartmentGC;
 static uint32_t sCCTimerFireCount = 0;
-static uint32_t sMinForgetSkippableTime = PR_UINT32_MAX;
+static uint32_t sMinForgetSkippableTime = UINT32_MAX;
 static uint32_t sMaxForgetSkippableTime = 0;
 static uint32_t sTotalForgetSkippableTime = 0;
 static uint32_t sRemovedPurples = 0;
 static uint32_t sForgetSkippableBeforeCC = 0;
 static uint32_t sPreviousSuspectedCount = 0;
 static uint32_t sCompartmentGCCount = NS_MAX_COMPARTMENT_GC_COUNT;
-static uint32_t sCleanupsSinceLastGC = PR_UINT32_MAX;
+static uint32_t sCleanupsSinceLastGC = UINT32_MAX;
 static bool sNeedsFullCC = false;
 static nsJSContext *sContextList = nullptr;
 
@@ -1307,7 +1308,7 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     options.setFileAndLine(aURL, aLineNo)
            .setVersion(JSVersion(aVersion))
            .setPrincipals(nsJSPrincipals::get(principal));
-    JS::RootedObject rootedScope(mContext, aScopeObject);
+    js::RootedObject rootedScope(mContext, aScopeObject);
     ok = JS::Evaluate(mContext, rootedScope, options, PromiseFlatString(aScript).get(),
                       aScript.Length(), &val);
 
@@ -1495,7 +1496,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     XPCAutoRequest ar(mContext);
     JSAutoCompartment ac(mContext, aScopeObject);
 
-    JS::RootedObject rootedScope(mContext, aScopeObject);
+    js::RootedObject rootedScope(mContext, aScopeObject);
     JS::CompileOptions options(mContext);
     options.setFileAndLine(aURL, aLineNo)
            .setPrincipals(nsJSPrincipals::get(principal))
@@ -1585,7 +1586,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
          .setFileAndLine(aURL, aLineNo)
          .setVersion(JSVersion(aVersion))
          .setSourcePolicy(sp);
-  JS::RootedObject rootedScope(mContext, scopeObject);
+  js::RootedObject rootedScope(mContext, scopeObject);
   JSScript* script = JS::Compile(mContext,
                                  rootedScope,
                                  options,
@@ -1730,6 +1731,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                  const nsAString& aBody,
                                  const char *aURL, uint32_t aLineNo,
                                  uint32_t aVersion,
+                                 bool aIsXBL,
                                  nsScriptObjectHolder<JSObject>& aHandler)
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
@@ -1763,7 +1765,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   JS::CompileOptions options(mContext);
   options.setVersion(JSVersion(aVersion))
          .setFileAndLine(aURL, aLineNo);
-  JS::RootedObject empty(mContext, NULL);
+  js::RootedObject empty(mContext, NULL);
   JSFunction* fun = JS::CompileFunction(mContext, empty, options, nsAtomCString(aName).get(),
                                         aArgCount, aArgNames,
                                         PromiseFlatString(aBody).get(), aBody.Length());
@@ -1771,6 +1773,11 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   if (!fun) {
     ReportPendingException();
     return NS_ERROR_ILLEGAL_VALUE;
+  }
+
+  // If this is an XBL function, make a note to that effect on its script.
+  if (aIsXBL) {
+    JS_SetScriptUserBit(JS_GetFunctionScript(mContext, fun), true);
   }
 
   JSObject *handler = ::JS_GetFunctionObject(fun);
@@ -1789,6 +1796,7 @@ nsJSContext::CompileFunction(JSObject* aTarget,
                              uint32_t aLineNo,
                              uint32_t aVersion,
                              bool aShared,
+                             bool aIsXBL,
                              JSObject** aFunctionObject)
 {
   NS_ABORT_IF_FALSE(aFunctionObject,
@@ -1816,7 +1824,7 @@ nsJSContext::CompileFunction(JSObject* aTarget,
     }
   }
 
-  JS::RootedObject target(mContext, aShared ? NULL : aTarget);
+  js::RootedObject target(mContext, aShared ? NULL : aTarget);
 
   XPCAutoRequest ar(mContext);
 
@@ -1831,6 +1839,11 @@ nsJSContext::CompileFunction(JSObject* aTarget,
 
   if (!fun)
     return NS_ERROR_FAILURE;
+
+  // If this is an XBL function, make a note to that effect on its script.
+  if (aIsXBL) {
+    JS_SetScriptUserBit(JS_GetFunctionScript(mContext, fun), true);
+  }
 
   *aFunctionObject = JS_GetFunctionObject(fun);
   return NS_OK;
@@ -3095,7 +3108,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
   PRTime delta = GetCollectionTimeDelta();
 
   uint32_t cleanups = sForgetSkippableBeforeCC ? sForgetSkippableBeforeCC : 1;
-  uint32_t minForgetSkippableTime = (sMinForgetSkippableTime == PR_UINT32_MAX)
+  uint32_t minForgetSkippableTime = (sMinForgetSkippableTime == UINT32_MAX)
     ? 0 : sMinForgetSkippableTime;
 
   if (sPostGCEventsToConsole) {
@@ -3172,7 +3185,7 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
       observerService->NotifyObservers(nullptr, "cycle-collection-statistics", json.get());
     }
   }
-  sMinForgetSkippableTime = PR_UINT32_MAX;
+  sMinForgetSkippableTime = UINT32_MAX;
   sMaxForgetSkippableTime = 0;
   sTotalForgetSkippableTime = 0;
   sRemovedPurples = 0;
@@ -3892,7 +3905,7 @@ ReadSourceFromFilename(JSContext *cx, const char *filename, jschar **src, uint32
   NS_ENSURE_SUCCESS(rv, rv);
   if (!rawLen)
     return NS_ERROR_FAILURE;
-  if (rawLen > PR_UINT32_MAX)
+  if (rawLen > UINT32_MAX)
     return NS_ERROR_FILE_TOO_BIG;
 
   // Allocate an internal buf the size of the file.

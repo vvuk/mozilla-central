@@ -350,6 +350,11 @@ gfxPlatform::Init()
     // ::Shutdown to be called.
     nsCOMPtr<nsISupports> forceReg
         = do_CreateInstance("@mozilla.org/gfx/init;1");
+
+    if (Preferences::GetBool("gfx.2d.recording", false)) {
+      gPlatform->mRecorder = Factory::CreateEventRecorderForFile("browserrecording.aer");
+      Factory::SetGlobalEventRecorder(gPlatform->mRecorder);
+    }
 }
 
 void
@@ -624,7 +629,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
   return srcBuffer;
 }
 
-RefPtr<ScaledFont>
+TemporaryRef<ScaledFont>
 gfxPlatform::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
   NativeFont nativeFont;
@@ -1241,21 +1246,6 @@ gfxPlatform::UseProgressiveTilePainting()
     }
 
     return sUseProgressiveTilePainting;
-}
-
-bool
-gfxPlatform::UseAzureContentDrawing()
-{
-  static bool sAzureContentDrawingEnabled;
-  static bool sAzureContentDrawingPrefCached = false;
-
-  if (!sAzureContentDrawingPrefCached) {
-    sAzureContentDrawingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sAzureContentDrawingEnabled,
-                                          "gfx.content.azure.enabled");
-  }
-
-  return sAzureContentDrawingEnabled;
 }
 
 bool

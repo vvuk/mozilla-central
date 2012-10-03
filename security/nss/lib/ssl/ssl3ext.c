@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* TLS extension code moved here from ssl3ecc.c */
-/* $Id: ssl3ext.c,v 1.27 2012/07/30 00:47:36 emaldona%redhat.com Exp $ */
+/* $Id: ssl3ext.c,v 1.28 2012/09/21 00:28:05 wtc%google.com Exp $ */
 
 #include "nssrenam.h"
 #include "nss.h"
@@ -1725,8 +1725,8 @@ ssl3_HandleUseSRTPXtn(sslSocket * ss, PRUint16 ex_type, SECItem *data)
 {
     SECStatus rv;
     SECItem ciphers = {siBuffer, NULL, 0};
-    PRInt16 i;
-    PRInt16 j;
+    PRUint16 i;
+    unsigned int j;
     PRUint16 cipher = 0;
     PRBool found = PR_FALSE;
     SECItem litem;

@@ -141,6 +141,8 @@ class IonExitFooterFrame
 };
 
 class IonNativeExitFrameLayout;
+class IonOOLNativeGetterExitFrameLayout;
+class IonOOLPropertyOpExitFrameLayout;
 class IonDOMExitFrameLayout;
 
 class IonExitFrameLayout : public IonCommonFrameLayout
@@ -176,6 +178,12 @@ class IonExitFrameLayout : public IonCommonFrameLayout
     inline bool isNativeExit() {
         return footer()->ionCode() == NULL;
     }
+    inline bool isOOLNativeGetterExit() {
+        return footer()->ionCode() == ION_FRAME_OOL_NATIVE_GETTER;
+    }
+    inline bool isOOLPropertyOpExit() {
+        return footer()->ionCode() == ION_FRAME_OOL_PROPERTY_OP;
+    }
     inline bool isDomExit() {
         IonCode *code = footer()->ionCode();
         return
@@ -188,6 +196,14 @@ class IonExitFrameLayout : public IonCommonFrameLayout
         // see CodeGenerator::visitCallNative
         JS_ASSERT(isNativeExit());
         return reinterpret_cast<IonNativeExitFrameLayout *>(footer());
+    }
+    inline IonOOLNativeGetterExitFrameLayout *oolNativeGetterExit() {
+        JS_ASSERT(isOOLNativeGetterExit());
+        return reinterpret_cast<IonOOLNativeGetterExitFrameLayout *>(footer());
+    }
+    inline IonOOLPropertyOpExitFrameLayout *oolPropertyOpExit() {
+        JS_ASSERT(isOOLPropertyOpExit());
+        return reinterpret_cast<IonOOLPropertyOpExitFrameLayout *>(footer());
     }
     inline IonDOMExitFrameLayout *DOMExit() {
         JS_ASSERT(isDomExit());
@@ -220,6 +236,75 @@ class IonNativeExitFrameLayout
     }
     inline uintptr_t argc() const {
         return argc_;
+    }
+};
+
+class IonOOLNativeGetterExitFrameLayout
+{
+  protected: // only to silence a clang warning about unused private fields
+    IonExitFooterFrame footer_;
+    IonExitFrameLayout exit_;
+
+    // We need to split the Value into 2 fields of 32 bits, otherwise the C++
+    // compiler may add some padding between the fields.
+    uint32_t loCalleeResult_;
+    uint32_t hiCalleeResult_;
+
+    // The frame includes the object argument.
+    uint32_t loThisResult_;
+    uint32_t hiThisResult_;
+
+  public:
+    static inline size_t Size() {
+        return sizeof(IonOOLNativeGetterExitFrameLayout);
+    }
+
+    static size_t offsetOfResult() {
+        return offsetof(IonOOLNativeGetterExitFrameLayout, loCalleeResult_);
+    }
+
+    inline Value *vp() {
+        return reinterpret_cast<Value*>(&loCalleeResult_);
+    }
+    inline uintptr_t argc() const {
+        return 0;
+    }
+};
+
+class IonOOLPropertyOpExitFrameLayout
+{
+  protected: // only to silence a clang warning about unused private fields
+    IonExitFooterFrame footer_;
+    IonExitFrameLayout exit_;
+
+    // Object for JSHandleObject
+    JSObject *obj_;
+
+    // id for JSHandleId
+    jsid id_;
+
+    // space for JSMutableHandleValue result
+    // use two uint32_t so compiler doesn't align.
+    uint32_t vp0_;
+    uint32_t vp1_;
+
+  public:
+    static inline size_t Size() {
+        return sizeof(IonOOLPropertyOpExitFrameLayout);
+    }
+
+    static size_t offsetOfResult() {
+        return offsetof(IonOOLPropertyOpExitFrameLayout, vp0_);
+    }
+
+    inline Value *vp() {
+        return reinterpret_cast<Value*>(&vp0_);
+    }
+    inline jsid *id() {
+        return &id_;
+    }
+    inline JSObject **obj() {
+        return &obj_;
     }
 };
 

@@ -393,7 +393,7 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
 }
 
 inline bool
-IntrinsicNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, Value *vp)
+IntrinsicNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, MutableHandleValue vp)
 {
     JSOp op = JSOp(*pc);
     RootedPropertyName name(cx);
@@ -685,9 +685,20 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
         return js_GetXMLMethod(cx, obj, id, res);
     }
 #endif
+    // Don't call GetPcScript (needed for analysis) from inside Ion since it's expensive.
+    bool analyze = !cx->fp()->beginsIonActivation();
 
     uint32_t index;
     if (IsDefinitelyIndex(rref, &index)) {
+        if (analyze && !obj->isNative() && !obj->isArray()) {
+            RootedScript script(cx, NULL);
+            jsbytecode *pc = NULL;
+            types::TypeScript::GetPcScript(cx, &script, &pc);
+
+            if (script->hasAnalysis())
+                script->analysis()->getCode(pc).nonNativeGetElement = true;
+        }
+
         do {
             if (obj->isDenseArray()) {
                 if (index < obj->getDenseArrayInitializedLength()) {
@@ -703,15 +714,17 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
                 return false;
         } while(0);
     } else {
-        if (!cx->fp()->beginsIonActivation()) {
-            // Don't update getStringElement if called from Ion code, since
-            // ion::GetPcScript is expensive.
-            JSScript *script;
-            jsbytecode *pc;
+        if (analyze) {
+            RootedScript script(cx, NULL);
+            jsbytecode *pc = NULL;
             types::TypeScript::GetPcScript(cx, &script, &pc);
 
-            if (script->hasAnalysis())
+            if (script->hasAnalysis()) {
                 script->analysis()->getCode(pc).getStringElement = true;
+
+                if (!obj->isArray() && !obj->isNative())
+                    script->analysis()->getCode(pc).nonNativeGetElement = true;
+            }
         }
 
         SpecialId special;
@@ -800,7 +813,7 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
             int32_t i = JSID_TO_INT(id);
             if ((uint32_t)i < length) {
                 if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
-                    if (js_PrototypeHasIndexedProperties(cx, obj))
+                    if (js_PrototypeHasIndexedProperties(obj))
                         break;
                     if ((uint32_t)i >= obj->getArrayLength())
                         JSObject::setArrayLength(cx, obj, i + 1);
@@ -809,7 +822,7 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
                 return true;
             } else {
                 if (!cx->fp()->beginsIonActivation()) {
-                    JSScript *script;
+                    RootedScript script(cx);
                     jsbytecode *pc;
                     types::TypeScript::GetPcScript(cx, &script, &pc);
 

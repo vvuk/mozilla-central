@@ -10,6 +10,7 @@ moztest.pth:testing/mozbase/moztest
 mozcrash.pth:testing/mozbase/mozcrash
 blessings.pth:python/blessings
 mozbuild.pth:python/mozbuild
+pymake.pth:build/pymake
 optional:setup.py:python/psutil:build_ext:--inplace
 optional:psutil.pth:python/psutil
 which.pth:python/which

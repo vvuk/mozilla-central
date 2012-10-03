@@ -239,12 +239,12 @@ ContentParent::StartUp()
     }
 
     sKeepAppProcessPreallocated =
-        Preferences::GetBool("dom.ipc.processPrelauch.enabled", false);
+        Preferences::GetBool("dom.ipc.processPrelaunch.enabled", false);
     if (sKeepAppProcessPreallocated) {
         ClearOnShutdown(&sPreallocatedAppProcess);
 
         sPreallocateDelayMs = Preferences::GetUint(
-            "dom.ipc.processPrelauch.delayMs", 1000);
+            "dom.ipc.processPrelaunch.delayMs", 1000);
 
         MOZ_ASSERT(!sPreallocateAppProcessTask);
         ScheduleDelayedPreallocateAppProcess();
@@ -404,6 +404,10 @@ ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
 
     if (gAppContentParents) {
         gAppContentParents->EnumerateRead(&AppendToTArray, &aArray);
+    }
+
+    if (sPreallocatedAppProcess) {
+        aArray.AppendElement(sPreallocatedAppProcess);
     }
 }
 
@@ -573,6 +577,12 @@ struct DelayedDeleteContentParentTask : public nsRunnable
 void
 ContentParent::ActorDestroy(ActorDestroyReason why)
 {
+    nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
+    if (ppm) {
+      ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
+                          CHILD_PROCESS_SHUTDOWN_MESSAGE, false,
+                          nullptr, nullptr, nullptr);
+    }
     nsCOMPtr<nsIThreadObserver>
         kungFuDeathGrip(static_cast<nsIThreadObserver*>(this));
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -1450,7 +1460,7 @@ ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
 PSmsParent*
 ContentParent::AllocPSms()
 {
-    if (!AppProcessHasPermission(this, "sms")) {
+    if (!AssertAppProcessPermission(this, "sms")) {
         return nullptr;
     }
     return new SmsParent();
@@ -1480,7 +1490,7 @@ PBluetoothParent*
 ContentParent::AllocPBluetooth()
 {
 #ifdef MOZ_B2G_BT
-    if (!AppProcessHasPermission(this, "bluetooth")) {
+    if (!AssertAppProcessPermission(this, "bluetooth")) {
         return nullptr;
     }
     return new mozilla::dom::bluetooth::BluetoothParent();
@@ -1882,6 +1892,38 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
   }
   return true;
 }
+
+bool
+ContentParent::DoSendAsyncMessage(const nsAString& aMessage,
+                                  const mozilla::dom::StructuredCloneData& aData)
+{
+  ClonedMessageData data;
+  SerializedStructuredCloneBuffer& buffer = data.data();
+  buffer.data = aData.mData;
+  buffer.dataLength = aData.mDataLength;
+  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
+  if (!blobs.IsEmpty()) {
+    InfallibleTArray<PBlobParent*>& blobParents = data.blobsParent();
+    uint32_t length = blobs.Length();
+    blobParents.SetCapacity(length);
+    for (uint32_t i = 0; i < length; ++i) {
+      BlobParent* blobParent = GetOrCreateActorForBlob(blobs[i]);
+      if (!blobParent) {
+        return false;
+      }
+      blobParents.AppendElement(blobParent);
+    }
+  }
+
+  return SendAsyncMessage(nsString(aMessage), data);
+}
+
+bool
+ContentParent::CheckPermission(const nsAString& aPermission)
+{
+  return AssertAppProcessPermission(this, NS_ConvertUTF16toUTF8(aPermission).get());
+}
+
 
 } // namespace dom
 } // namespace mozilla

@@ -6,7 +6,7 @@
  * Pretty-print some well-known BER or DER encoded data (e.g. certificates,
  * keys, pkcs7)
  *
- * $Id: pp.c,v 1.11 2012/03/20 14:47:15 gerv%gerv.net Exp $
+ * $Id: pp.c,v 1.12 2012/08/16 06:57:24 kaie%kuix.de Exp $
  */
 
 #include "secutil.h"
@@ -30,8 +30,8 @@ static void Usage(char *progName)
 	    "-t type", SEC_CT_PRIVATE_KEY);
     fprintf(stderr, "%-20s %s, %s, %s,\n", "", SEC_CT_PUBLIC_KEY,
 	    SEC_CT_CERTIFICATE, SEC_CT_CERTIFICATE_REQUEST);
-    fprintf(stderr, "%-20s %s, %s or %s)\n", "", SEC_CT_PKCS7, SEC_CT_CRL,
-            SEC_CT_NAME);    
+    fprintf(stderr, "%-20s %s, %s, %s or %s)\n", "", SEC_CT_CERTIFICATE_ID,
+            SEC_CT_PKCS7, SEC_CT_CRL, SEC_CT_NAME);
     fprintf(stderr, "%-20s Input is in ascii encoded form (RFC1113)\n",
 	    "-a");
     fprintf(stderr, "%-20s Define an input file to use (default is stdin)\n",
@@ -121,6 +121,12 @@ int main(int argc, char **argv)
     if (PORT_Strcmp(typeTag, SEC_CT_CERTIFICATE) == 0) {
 	rv = SECU_PrintSignedData(outFile, &data, "Certificate", 0,
 			     SECU_PrintCertificate);
+    } else if (PORT_Strcmp(typeTag, SEC_CT_CERTIFICATE_ID) == 0) {
+        PRBool saveWrapeState = SECU_GetWrapEnabled();
+        SECU_EnableWrap(PR_FALSE);
+        rv = SECU_PrintSignedContent(outFile, &data, 0, 0,
+                                     SECU_PrintDumpDerIssuerAndSerial);
+        SECU_EnableWrap(saveWrapeState);
     } else if (PORT_Strcmp(typeTag, SEC_CT_CERTIFICATE_REQUEST) == 0) {
 	rv = SECU_PrintSignedData(outFile, &data, "Certificate Request", 0,
 			     SECU_PrintCertificateRequest);

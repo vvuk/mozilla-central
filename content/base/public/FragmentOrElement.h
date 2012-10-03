@@ -348,6 +348,8 @@ public:
     void Traverse(nsCycleCollectionTraversalCallback &cb, bool aIsXUL);
     void Unlink(bool aIsXUL);
 
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+
     /**
      * The .style attribute (an interface that forwards to the actual
      * style rules)
@@ -408,7 +410,7 @@ protected:
 
   nsDOMSlots *DOMSlots()
   {
-    return static_cast<nsDOMSlots*>(GetSlots());
+    return static_cast<nsDOMSlots*>(Slots());
   }
 
   nsDOMSlots *GetExistingDOMSlots() const

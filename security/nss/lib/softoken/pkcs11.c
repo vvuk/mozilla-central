@@ -347,6 +347,9 @@ static const struct mechanismList mechanisms[] = {
      {CKM_AES_MAC,		{16, 32, CKF_SN_VR},		PR_TRUE},
      {CKM_AES_MAC_GENERAL,	{16, 32, CKF_SN_VR},		PR_TRUE},
      {CKM_AES_CBC_PAD,		{16, 32, CKF_EN_DE_WR_UN},	PR_TRUE},
+     {CKM_AES_CTS,		{16, 32, CKF_EN_DE},		PR_TRUE},
+     {CKM_AES_CTR,		{16, 32, CKF_EN_DE},		PR_TRUE},
+     {CKM_AES_GCM,		{16, 32, CKF_EN_DE},		PR_TRUE},
      /* ------------------------- Camellia Operations --------------------- */
      {CKM_CAMELLIA_KEY_GEN,	{16, 32, CKF_GENERATE},         PR_TRUE},
      {CKM_CAMELLIA_ECB,  	{16, 32, CKF_EN_DE_WR_UN},      PR_TRUE},
@@ -611,8 +614,8 @@ sftk_hasNullPassword(SFTKSlot *slot, SFTKDBHandle *keydb)
  * value and len
  */
 CK_RV
-sftk_defaultAttribute(SFTKObject *object,CK_ATTRIBUTE_TYPE type,void *value,
-							unsigned int len)
+sftk_defaultAttribute(SFTKObject *object,CK_ATTRIBUTE_TYPE type,
+					const void *value, unsigned int len)
 {
     if ( !sftk_hasAttribute(object, type)) {
 	return sftk_AddAttributeType(object,type,value,len);
@@ -2674,7 +2677,6 @@ NSC_ModuleDBFunc(unsigned long function,char *parameters, void *args)
 	    char *oldSecmod = NULL;
 	    char *oldAppName = NULL;
 	    char *oldFilename = NULL;
-	    char *end;
 	    PRBool oldrw;
 	    char **strings = NULL;
 	    int i;
@@ -3902,16 +3904,19 @@ CK_RV NSC_Logout(CK_SESSION_HANDLE hSession)
 }
 
 /*
- * Create a new slot on the fly. The slot that is passed in is the
- * slot the request came from. Only the crypto or FIPS slots can
- * be used. The resulting slot will live in the same module as
- * the slot the request was passed to. object is the creation object
- * that specifies the module spec for the new slot.
+ * Create or remove a new slot on the fly.
+ * When creating a slot, "slot" is the slot that the request came from. The
+ * resulting slot will live in the same module as "slot".
+ * When removing a slot, "slot" is the slot to be removed.
+ * "object" is the creation object that specifies the module spec for the slot
+ * to add or remove.
  */
 static CK_RV sftk_CreateNewSlot(SFTKSlot *slot, CK_OBJECT_CLASS class,
                                 SFTKObject *object)
 {
-    CK_SLOT_ID idMin, idMax;
+    PRBool isValidUserSlot = PR_FALSE;
+    PRBool isValidFIPSUserSlot = PR_FALSE;
+    PRBool isValidSlot = PR_FALSE;
     PRBool isFIPS = PR_FALSE;
     unsigned long moduleIndex;
     SFTKAttribute *attribute;
@@ -3921,21 +3926,13 @@ static CK_RV sftk_CreateNewSlot(SFTKSlot *slot, CK_OBJECT_CLASS class,
     SFTKSlot *newSlot = NULL;
     CK_RV crv = CKR_OK;
 
-    /* only the crypto or FIPS slots can create new slot objects */
-    if (slot->slotID == NETSCAPE_SLOT_ID) {
-	idMin = SFTK_MIN_USER_SLOT_ID;
-	idMax = SFTK_MAX_USER_SLOT_ID;
-	moduleIndex = NSC_NON_FIPS_MODULE;
-	isFIPS = PR_FALSE;
-    } else if (slot->slotID == FIPS_SLOT_ID) {
-	idMin = SFTK_MIN_FIPS_USER_SLOT_ID;
-	idMax = SFTK_MAX_FIPS_USER_SLOT_ID;
-	moduleIndex = NSC_FIPS_MODULE;
-	isFIPS = PR_TRUE;
-    } else {
+    if (class != CKO_NETSCAPE_DELSLOT && class != CKO_NETSCAPE_NEWSLOT) {
 	return CKR_ATTRIBUTE_VALUE_INVALID;
     }
-    attribute = sftk_FindAttribute(object,CKA_NETSCAPE_MODULE_SPEC);
+    if (class == CKO_NETSCAPE_NEWSLOT && slot->slotID == FIPS_SLOT_ID) {
+	isFIPS = PR_TRUE;
+    }
+    attribute = sftk_FindAttribute(object, CKA_NETSCAPE_MODULE_SPEC);
     if (attribute == NULL) {
 	return CKR_TEMPLATE_INCOMPLETE;
     }
@@ -3954,7 +3951,27 @@ static CK_RV sftk_CreateNewSlot(SFTKSlot *slot, CK_OBJECT_CLASS class,
     slotID = paramStrings.tokens[0].slotID;
 
     /* stay within the valid ID space */
-    if ((slotID < idMin) || (slotID > idMax)) {
+    isValidUserSlot = (slotID >= SFTK_MIN_USER_SLOT_ID &&
+                       slotID <= SFTK_MAX_USER_SLOT_ID);
+    isValidFIPSUserSlot = (slotID >= SFTK_MIN_FIPS_USER_SLOT_ID &&
+                           slotID <= SFTK_MAX_FIPS_USER_SLOT_ID);
+
+    if (class == CKO_NETSCAPE_DELSLOT) {
+	if (slot->slotID == slotID) {
+	    isValidSlot = isValidUserSlot || isValidFIPSUserSlot;
+	}
+    } else {
+	/* only the crypto or FIPS slots can create new slot objects */
+	if (slot->slotID == NETSCAPE_SLOT_ID) {
+	    isValidSlot = isValidUserSlot;
+	    moduleIndex = NSC_NON_FIPS_MODULE;
+	} else if (slot->slotID == FIPS_SLOT_ID) {
+	    isValidSlot = isValidFIPSUserSlot;
+	    moduleIndex = NSC_FIPS_MODULE;
+	}
+    }
+
+    if (!isValidSlot) {
 	crv = CKR_ATTRIBUTE_VALUE_INVALID;
 	goto loser;
     }
@@ -3971,7 +3988,7 @@ static CK_RV sftk_CreateNewSlot(SFTKSlot *slot, CK_OBJECT_CLASS class,
     /* if we were just planning on deleting the slot, then do so now */
     if (class == CKO_NETSCAPE_DELSLOT) {
 	/* sort of a unconventional use of this error code, be we are
-         * overusing CKR_ATTRIBUTE_VALUE_INVALID, and it does apply */
+	 * overusing CKR_ATTRIBUTE_VALUE_INVALID, and it does apply */
 	crv = newSlot ? CKR_OK : CKR_SLOT_ID_INVALID;
 	goto loser; /* really exit */
     }
@@ -3985,9 +4002,7 @@ static CK_RV sftk_CreateNewSlot(SFTKSlot *slot, CK_OBJECT_CLASS class,
 			paramStrings.updatedir, paramStrings.updateID,
 			&paramStrings.tokens[0], moduleIndex);
     }
-    if (crv != CKR_OK) {
-	goto loser;
-    }
+
 loser:
     sftk_freeParams(&paramStrings);
     sftk_FreeAttribute(attribute);

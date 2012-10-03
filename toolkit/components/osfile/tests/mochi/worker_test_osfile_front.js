@@ -210,12 +210,10 @@ function compare_files(test, sourcePath, destPath, prefix)
       sourceResult = source.read();
       destResult = dest.read();
     }
-    is(sourceResult.bytes, destResult.bytes, test + ": Both files have the same size");
-    let sourceView = new Uint8Array(sourceResult.buffer);
-    let destView = new Uint8Array(destResult.buffer);
-    for (let i = 0; i < sourceResult.bytes; ++i) {
-      if (sourceView[i] != destView[i]) {
-        is(sourceView[i] != destView[i], test + ": Comparing char " + i);
+    is(sourceResult.length, destResult.length, test + ": Both files have the same size");
+    for (let i = 0; i < sourceResult.length; ++i) {
+      if (sourceResult[i] != destResult[i]) {
+        is(sourceResult[i] != destResult[i], test + ": Comparing char " + i);
         break;
       }
     }
@@ -238,7 +236,7 @@ function test_readall_writeall_file()
   let dest = OS.File.open(tmp_file_name, {write: true, trunc:true});
   let size = source.stat().size;
 
-  let buf = new ArrayBuffer(size);
+  let buf = new Uint8Array(size);
   let readResult = source.readTo(buf);
   is(readResult, size, "test_readall_writeall_file: read the right number of bytes");
 
@@ -284,33 +282,14 @@ function test_readall_writeall_file()
   let OFFSET = 12;
   let LEFT = size - OFFSET;
   buf = new ArrayBuffer(size);
+  let offset_view = new Uint8Array(buf, OFFSET);
   source = OS.File.open(src_file_name);
   dest = OS.File.open(tmp_file_name, {write: true, trunc:true});
 
-  readResult = source.readTo(buf, {offset: OFFSET});
+  readResult = source.readTo(offset_view);
   is(readResult, LEFT, "test_readall_writeall_file: read the right number of bytes (with offset)");
 
-  dest.write(buf, {offset: OFFSET});
-  is(dest.stat().size, LEFT, "test_readall_writeall_file: wrote the right number of bytes (with offset)");
-
-  ok(true, "test_readall_writeall_file: copy complete (with offset)");
-  source.close();
-  dest.close();
-
-  compare_files("test_readall_writeall_file (with offset)", src_file_name, tmp_file_name, LEFT);
-  OS.File.remove(tmp_file_name);
-
-  // readTo, C buffer + offset
-  buf = new ArrayBuffer(size);
-  ptr = OS.Shared.Type.voidptr_t.implementation(buf);
-
-  source = OS.File.open(src_file_name);
-  dest = OS.File.open(tmp_file_name, {write: true, trunc:true});
-
-  readResult = source.readTo(ptr, {bytes: LEFT, offset: OFFSET});
-  is(readResult, LEFT, "test_readall_writeall_file: read the right number of bytes (with offset)");
-
-  dest.write(ptr, {bytes: LEFT, offset: OFFSET});
+  dest.write(offset_view);
   is(dest.stat().size, LEFT, "test_readall_writeall_file: wrote the right number of bytes (with offset)");
 
   ok(true, "test_readall_writeall_file: copy complete (with offset)");
@@ -321,14 +300,14 @@ function test_readall_writeall_file()
   OS.File.remove(tmp_file_name);
 
   // read
-  buf = new ArrayBuffer(size);
+  buf = new Uint8Array(size);
   source = OS.File.open(src_file_name);
   dest = OS.File.open(tmp_file_name, {write: true, trunc:true});
 
   readResult = source.read();
-  is(readResult.bytes, size, "test_readall_writeall_file: read the right number of bytes (auto allocation)");
+  is(readResult.length, size, "test_readall_writeall_file: read the right number of bytes (auto allocation)");
 
-  dest.write(readResult.buffer, {bytes: readResult.bytes});
+  dest.write(readResult);
 
   ok(true, "test_readall_writeall_file: copy complete (auto allocation)");
   source.close();
@@ -336,6 +315,57 @@ function test_readall_writeall_file()
 
   compare_files("test_readall_writeall_file (auto allocation)", src_file_name, tmp_file_name);
   OS.File.remove(tmp_file_name);
+
+  // File.readAll
+  readResult = OS.File.read(src_file_name);
+  is(readResult.length, size, "test_readall_writeall_file: read the right number of bytes (OS.File.readAll)");
+ 
+  // File.writeAtomic on top of nothing
+  OS.File.writeAtomic(tmp_file_name, readResult,
+    {tmpPath: tmp_file_name + ".tmp"});
+  try {
+    let stat = OS.File.stat(tmp_file_name);
+    ok(true, "readAll + writeAtomic created a file");
+    is(stat.size, size, "readAll + writeAtomic created a file of the right size");
+  } catch (x) {
+    ok(false, "readAll + writeAtomic somehow failed");
+    if(x.becauseNoSuchFile) {
+      ok(false, "readAll + writeAtomic did not create file");
+    }
+  }
+  compare_files("test_readall_writeall_file (OS.File.readAll + writeAtomic)",
+                src_file_name, tmp_file_name);
+  exn = null;
+  try {
+    let stat = OS.File.stat(tmp_file_name + ".tmp");
+  } catch (x) {
+    exn = x;
+  }
+  ok(!!exn, "readAll + writeAtomic cleaned up after itself");
+
+
+  // File.writeAtomic on top of existing file
+  // Remove content and set arbitrary size, to avoid potential false negatives
+  dest = OS.File.open(tmp_file_name, {write: true, trunc:true});
+  dest.setPosition(1234);
+  dest.close();
+
+  OS.File.writeAtomic(tmp_file_name, readResult,
+    {tmpPath: tmp_file_name + ".tmp"});
+  compare_files("test_readall_writeall_file (OS.File.readAll + writeAtomic 2)",
+                src_file_name, tmp_file_name);
+
+  // Ensure that File.writeAtomic fails if no temporary file name is provided
+  // (FIXME: Remove this test as part of bug 793660)
+
+  exn = null;
+  try {
+    OS.File.writeAtomic(tmp_file_name, readResult.buffer,
+      {bytes: readResult.length});
+  } catch (x) {
+    exn = x;
+  }
+  ok(!!exn && exn instanceof TypeError, "wrietAtomic fails if tmpPath is not provided");
 }
 
 /**
@@ -350,6 +380,27 @@ function test_copy_existing_file()
 
   ok(true, "test_copy_existing: Copy complete");
   compare_files("test_copy_existing", src_file_name, tmp_file_name);
+
+  // Create a bogus file with arbitrary content, then attempt to overwrite
+  // it with |copy|.
+  let dest = OS.File.open(tmp_file_name, {trunc: true});
+  let buf = new Uint8Array(50);
+  dest.write(buf);
+  dest.close();
+
+  OS.File.copy(src_file_name, tmp_file_name);
+
+  compare_files("test_copy_existing 2", src_file_name, tmp_file_name);
+
+  // Attempt to overwrite with noOverwrite
+  let exn;
+  try {
+    OS.File.copy(src_file_name, tmp_file_name, {noOverwrite: true});
+  } catch(x) {
+    exn = x;
+  }
+  ok(!!exn, "test_copy_existing: noOverwrite prevents overwriting existing files");
+
 
   ok(true, "test_copy_existing: Cleaning up");
   OS.File.remove(tmp_file_name);

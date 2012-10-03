@@ -427,7 +427,7 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
     // plugins are painted through Thebes and we need to ensure
     // the Thebes layer containing the plugin is updated.
     if (parentWidget == GetNearestWidget()) {
-      Invalidate(GetContentRectRelativeToSelf());
+      InvalidateFrame();
     }
 #endif
 
@@ -528,8 +528,8 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
     // exceed the maximum size of X coordinates.  See bug #225357 for
     // more information.  In theory Gtk2 can handle large coordinates,
     // but underlying plugins can't.
-    aMetrics.height = NS_MIN(aPresContext->DevPixelsToAppUnits(PR_INT16_MAX), aMetrics.height);
-    aMetrics.width = NS_MIN(aPresContext->DevPixelsToAppUnits(PR_INT16_MAX), aMetrics.width);
+    aMetrics.height = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.height);
+    aMetrics.width = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.width);
 #endif
   }
 
@@ -649,11 +649,16 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
 
   nsIntPoint origin = GetWindowOriginInPixels(windowless);
 
-  window->x = origin.x;
-  window->y = origin.y;
-
-  window->width = presContext->AppUnitsToDevPixels(aSize.width);
-  window->height = presContext->AppUnitsToDevPixels(aSize.height);
+  // window must be in "display pixels"
+  double scaleFactor = 1.0;
+  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
+    scaleFactor = 1.0;
+  }
+  int intScaleFactor = ceil(scaleFactor);
+  window->x = origin.x / intScaleFactor;
+  window->y = origin.y / intScaleFactor;
+  window->width = presContext->AppUnitsToDevPixels(aSize.width) / intScaleFactor;
+  window->height = presContext->AppUnitsToDevPixels(aSize.height) / intScaleFactor;
 
   // on the Mac we need to set the clipRect to { 0, 0, 0, 0 } for now. This will keep
   // us from drawing on screen until the widget is properly positioned, which will not
@@ -709,10 +714,17 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
   nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
   nsRect bounds = GetContentRectRelativeToSelf() + GetOffsetToCrossDoc(rootFrame);
   nsIntRect intBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
-  window->x = intBounds.x;
-  window->y = intBounds.y;
-  window->width = intBounds.width;
-  window->height = intBounds.height;
+
+  // window must be in "display pixels"
+  double scaleFactor = 1.0;
+  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
+    scaleFactor = 1.0;
+  }
+  size_t intScaleFactor = ceil(scaleFactor);
+  window->x = intBounds.x / intScaleFactor;
+  window->y = intBounds.y / intScaleFactor;
+  window->width = intBounds.width / intScaleFactor;
+  window->height = intBounds.height / intScaleFactor;
 
   // Calling SetWindow might destroy this frame. We need to use the instance
   // owner to clean up so hold a ref.
@@ -1631,14 +1643,20 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nullptr;
   }
 
-  gfxIntSize size(window->width, window->height);
+  // window is in "display pixels", but size needs to be in device pixels
+  double scaleFactor = 1.0;
+  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
+    scaleFactor = 1.0;
+  }
+  int intScaleFactor = ceil(scaleFactor);
+  gfxIntSize size(window->width * intScaleFactor, window->height * intScaleFactor);
 
   nsRect area = GetContentRectRelativeToSelf() + aItem->ToReferenceFrame();
   gfxRect r = nsLayoutUtils::RectToGfxRect(area, PresContext()->AppUnitsPerDevPixel());
   // to provide crisper and faster drawing.
   r.Round();
   nsRefPtr<Layer> layer =
-    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
+    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aItem));
 
   if (aItem->GetType() == nsDisplayItem::TYPE_PLUGIN) {
     if (!layer) {

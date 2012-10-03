@@ -242,7 +242,7 @@ void NotifyNetworkChange(const hal::NetworkInformation& aNetworkInfo);
  * Adjusting system clock.
  * @param aDeltaMilliseconds The difference compared with current system clock.
  */
-void AdjustSystemClock(int32_t aDeltaMilliseconds);
+void AdjustSystemClock(int64_t aDeltaMilliseconds);
 
 /**
  * Set timezone
@@ -277,11 +277,15 @@ void NotifySystemTimeChange(const hal::SystemTimeChange& aReason);
 
 /**
  * Reboot the device.
+ * 
+ * This API is currently only allowed to be used from the main process.
  */
 void Reboot();
 
 /**
  * Power off the device.
+ * 
+ * This API is currently only allowed to be used from the main process.
  */
 void PowerOff();
 
@@ -503,6 +507,15 @@ void CancelFMRadioSeek();
  * Get FM radio band settings by country.
  */
 hal::FMRadioSettings GetFMBandSettings(hal::FMRadioCountry aCountry);
+
+/**
+ * Start a watchdog to compulsively shutdown the system if it hangs.
+ * @param aMode Specify how to shutdown the system.
+ * @param aTimeoutSecs Specify the delayed seconds to shutdown the system.
+ * 
+ * This API is currently only allowed to be used from the main process.
+ */
+void StartForceQuitWatchdog(hal::ShutdownMode aMode, int32_t aTimeoutSecs);
 
 } // namespace MOZ_HAL_NAMESPACE
 } // namespace mozilla

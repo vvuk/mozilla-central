@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: nssinit.c,v 1.117 2012/06/26 22:27:30 rrelyea%redhat.com Exp $ */
+/* $Id: nssinit.c,v 1.118 2012/09/21 21:58:44 wtc%google.com Exp $ */
 
 #include <ctype.h>
 #include <string.h>
@@ -1265,10 +1265,6 @@ NSS_VersionCheck(const char *importedVersion)
     }
     if (vmajor == NSS_VMAJOR && vminor == NSS_VMINOR &&
         vpatch == NSS_VPATCH && vbuild > NSS_VBUILD) {
-        return PR_FALSE;
-    }
-    /* Check dependent libraries */
-    if (PR_VersionCheck(PR_VERSION) == PR_FALSE) {
         return PR_FALSE;
     }
     return PR_TRUE;

@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: ssl.h,v 1.58 2012/06/19 21:56:10 wtc%google.com Exp $ */
+/* $Id: ssl.h,v 1.59 2012/09/21 21:58:43 wtc%google.com Exp $ */
 
 #ifndef __ssl_h_
 #define __ssl_h_
@@ -741,14 +741,14 @@ SSL_IMPORT SECStatus SSL_GetSRTPCipher(PRFileDesc *fd,
 
 /*
  * Look to see if any of the signers in the cert chain for "cert" are found
- * in the list of caNames.
+ * in the list of caNames.  
  * Returns SECSuccess if so, SECFailure if not.
  * Used by NSS_GetClientAuthData.  May be used by other callback functions.
  */
-SSL_IMPORT SECStatus NSS_CmpCertChainWCANames(CERTCertificate *cert,
+SSL_IMPORT SECStatus NSS_CmpCertChainWCANames(CERTCertificate *cert, 
                                           CERTDistNames *caNames);
 
-/*
+/* 
  * Returns key exchange type of the keys in an SSL server certificate.
  */
 SSL_IMPORT SSLKEAType NSS_FindCertKEAType(CERTCertificate * cert);
@@ -863,8 +863,7 @@ SSL_IMPORT SECStatus DTLS_GetHandshakeTimeout(PRFileDesc *socket,
  * The only argument is a string, which should be the version
  * identifier of the NSS library. That string will be compared
  * against a string that represents the actual build version of
- * the SSL library.  It also invokes the version checking functions
- * of the dependent libraries such as NSPR.
+ * the SSL library.
  */
 extern PRBool NSSSSL_VersionCheck(const char *importedVersion);
 

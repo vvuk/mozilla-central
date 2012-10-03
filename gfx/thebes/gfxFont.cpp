@@ -18,7 +18,6 @@
 #include "gfxPlatform.h"
 #include "nsGkAtoms.h"
 
-#include "prtypes.h"
 #include "gfxTypes.h"
 #include "nsAlgorithm.h"
 #include "gfxContext.h"
@@ -1900,8 +1899,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
       glyphs.Flush(cr, aDrawMode, isRTL, aObjectPaint, globalMatrix, true);
 
     } else {
-      RefPtr<ScaledFont> scaledFont =
-        gfxPlatform::GetPlatform()->GetScaledFontForFont(dt, this);
+      RefPtr<ScaledFont> scaledFont = GetScaledFont(dt);
 
       if (!scaledFont) {
         return;
@@ -3002,7 +3000,7 @@ gfxGlyphExtents::GlyphWidths::~GlyphWidths()
 {
     uint32_t i, count = mBlocks.Length();
     for (i = 0; i < count; ++i) {
-        PtrBits bits = mBlocks[i];
+        uintptr_t bits = mBlocks[i];
         if (bits && !(bits & 0x1)) {
             delete[] reinterpret_cast<uint16_t *>(bits);
         }
@@ -3015,7 +3013,7 @@ gfxGlyphExtents::GlyphWidths::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeO
     uint32_t i;
     uint32_t size = mBlocks.SizeOfExcludingThis(aMallocSizeOf);
     for (i = 0; i < mBlocks.Length(); ++i) {
-        PtrBits bits = mBlocks[i];
+        uintptr_t bits = mBlocks[i];
         if (bits && !(bits & 0x1)) {
             size += aMallocSizeOf(reinterpret_cast<void*>(bits));
         }
@@ -3029,13 +3027,13 @@ gfxGlyphExtents::GlyphWidths::Set(uint32_t aGlyphID, uint16_t aWidth)
     uint32_t block = aGlyphID >> BLOCK_SIZE_BITS;
     uint32_t len = mBlocks.Length();
     if (block >= len) {
-        PtrBits *elems = mBlocks.AppendElements(block + 1 - len);
+        uintptr_t *elems = mBlocks.AppendElements(block + 1 - len);
         if (!elems)
             return;
-        memset(elems, 0, sizeof(PtrBits)*(block + 1 - len));
+        memset(elems, 0, sizeof(uintptr_t)*(block + 1 - len));
     }
 
-    PtrBits bits = mBlocks[block];
+    uintptr_t bits = mBlocks[block];
     uint32_t glyphOffset = aGlyphID & (BLOCK_SIZE - 1);
     if (!bits) {
         mBlocks[block] = MakeSingle(glyphOffset, aWidth);
@@ -3054,7 +3052,7 @@ gfxGlyphExtents::GlyphWidths::Set(uint32_t aGlyphID, uint16_t aWidth)
             newBlock[i] = INVALID_WIDTH;
         }
         newBlock[GetGlyphOffset(bits)] = GetWidth(bits);
-        mBlocks[block] = reinterpret_cast<PtrBits>(newBlock);
+        mBlocks[block] = reinterpret_cast<uintptr_t>(newBlock);
     } else {
         newBlock = reinterpret_cast<uint16_t *>(bits);
     }
@@ -5215,7 +5213,7 @@ gfxTextRun::BreakAndMeasureText(uint32_t aStart, uint32_t aMaxLength,
     }
     if (aLastBreak && charsFit == aMaxLength) {
         if (lastBreak < 0) {
-            *aLastBreak = PR_UINT32_MAX;
+            *aLastBreak = UINT32_MAX;
         } else {
             *aLastBreak = lastBreak - aStart;
         }

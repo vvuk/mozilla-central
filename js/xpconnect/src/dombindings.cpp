@@ -150,17 +150,6 @@ size_t ListBase<LC>::sProtoMethodsCount = 0;
 template<class LC>
 ListBase<LC> ListBase<LC>::instance;
 
-bool
-DefineConstructor(JSContext *cx, JSObject *obj, DefineInterface aDefine, nsresult *aResult)
-{
-    bool enabled;
-    bool defined = aDefine(cx, obj, &enabled);
-    NS_ASSERTION(!defined || enabled,
-                 "We defined a constructor but the new bindings are disabled?");
-    *aResult = defined ? NS_OK : NS_ERROR_FAILURE;
-    return enabled;
-}
-
 template<class LC>
 typename ListBase<LC>::ListType*
 ListBase<LC>::getNative(JSObject *obj)
@@ -288,7 +277,11 @@ interface_hasInstance(JSContext *cx, JSHandleObject obj, JSMutableHandleValue vp
             } else {
                 JSObject *protoObj = JSVAL_TO_OBJECT(prototype);
                 JSObject *proto = other;
-                while ((proto = JS_GetPrototype(proto))) {
+                for (;;) {
+                    if (!JS_GetPrototype(cx, proto, &proto))
+                        return false;
+                    if (!proto)
+                        break;
                     if (proto == protoObj) {
                         *bp = true;
                         return true;
@@ -319,10 +312,8 @@ js::Class sInterfacePrototypeClass = {
 
 template<class LC>
 JSObject *
-ListBase<LC>::getPrototype(JSContext *cx, JSObject *receiver, bool *enabled)
+ListBase<LC>::getPrototype(JSContext *cx, JSObject *receiver)
 {
-    *enabled = true;
-
     XPCWrappedNativeScope *scope =
         XPCWrappedNativeScope::FindInJSObjectScope(cx, receiver);
     if (!scope)
@@ -401,10 +392,8 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope,
 template<class LC>
 JSObject *
 ListBase<LC>::create(JSContext *cx, JSObject *scope, ListType *aList,
-                     nsWrapperCache* aWrapperCache, bool *triedToWrap)
+                     nsWrapperCache* aWrapperCache)
 {
-    *triedToWrap = true;
-
     JSObject *parent = WrapNativeParent(cx, scope, aList->GetParentObject());
     if (!parent)
         return NULL;
@@ -412,9 +401,7 @@ ListBase<LC>::create(JSContext *cx, JSObject *scope, ListType *aList,
     JSObject *global = js::GetGlobalForObjectCrossCompartment(parent);
     JSAutoCompartment ac(cx, global);
 
-    JSObject *proto = getPrototype(cx, global, triedToWrap);
-    if (!proto && !*triedToWrap)
-        aWrapperCache->ClearIsDOMBinding();
+    JSObject *proto = getPrototype(cx, global);
     if (!proto)
         return NULL;
     JSObject *obj = NewProxyObject(cx, &ListBase<LC>::instance,
@@ -562,7 +549,9 @@ ListBase<LC>::getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, boo
         return true;
     if (xpc::WrapperFactory::IsXrayWrapper(proxy))
         return resolveNativeName(cx, proxy, id, desc);
-    JSObject *proto = js::GetObjectProto(proxy);
+    JSObject *proto;
+    if (!js::GetObjectProto(cx, proxy, &proto))
+        return false;
     if (!proto) {
         desc->obj = NULL;
         return true;
@@ -695,8 +684,9 @@ template<class LC>
 bool
 ListBase<LC>::enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
-    JSObject *proto = JS_GetPrototype(proxy);
-    return getOwnPropertyNames(cx, proxy, props) &&
+    JSObject *proto;
+    return JS_GetPrototype(cx, proxy, &proto) &&
+           getOwnPropertyNames(cx, proxy, props) &&
            (!proto || js::GetPropertyNames(cx, proto, 0, &props));
 }
 
@@ -744,7 +734,9 @@ ListBase<LC>::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
         return true;
 
     // OK, now we have to look at the proto
-    JSObject *proto = js::GetObjectProto(proxy);
+    JSObject *proto;
+    if (!js::GetObjectProto(cx, proxy, &proto))
+        return false;
     if (!proto)
         return true;
 
@@ -797,7 +789,9 @@ bool
 ListBase<LC>::getPropertyOnPrototype(JSContext *cx, JSObject *proxy, jsid id, bool *found,
                                      JS::Value *vp)
 {
-    JSObject *proto = js::GetObjectProto(proxy);
+    JSObject *proto;
+    if (!js::GetObjectProto(cx, proxy, &proto))
+        return false;
     if (!proto)
         return true;
 
@@ -918,7 +912,9 @@ ListBase<LC>::getElementIfPresent(JSContext *cx, JSObject *proxy, JSObject *rece
 
     // No need to worry about name getters here, so just check the proto.
 
-    JSObject *proto = js::GetObjectProto(proxy);
+    JSObject *proto;
+    if (!js::GetObjectProto(cx, proxy, &proto))
+        return false;
     if (proto) {
         JSBool isPresent;
         if (!JS_GetElementIfPresent(cx, proto, index, proxy, vp, &isPresent))

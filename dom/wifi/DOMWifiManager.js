@@ -75,9 +75,11 @@ DOMWifiManager.prototype = {
     this._lastConnectionInfo = null;
 
     const messages = ["WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
+                      "WifiManager:getKnownNetworks:Return:OK", "WifiManager:getKnownNetworks:Return:NO",
                       "WifiManager:associate:Return:OK", "WifiManager:associate:Return:NO",
                       "WifiManager:forget:Return:OK", "WifiManager:forget:Return:NO",
                       "WifiManager:wps:Return:OK", "WifiManager:wps:Return:NO",
+                      "WifiManager:setPowerSavingMode:Return:OK", "WifiManager:setPowerSavingMode:Return:NO",
                       "WifiManager:wifiDown", "WifiManager:wifiUp",
                       "WifiManager:onconnecting", "WifiManager:onassociate",
                       "WifiManager:onconnect", "WifiManager:ondisconnect",
@@ -95,11 +97,13 @@ DOMWifiManager.prototype = {
       this._lastConnectionInfo = state.connectionInfo;
       this._enabled = state.enabled;
       this._connectionStatus = state.status;
+      this._macAddress = state.macAddress;
     } else {
       this._currentNetwork = null;
       this._lastConnectionInfo = null;
       this._enabled = false;
       this._connectionStatus = "disconnected";
+      this._macAddress = "";
     }
   },
 
@@ -134,6 +138,16 @@ DOMWifiManager.prototype = {
         Services.DOMRequest.fireError(request, "Unable to scan for networks");
         break;
 
+      case "WifiManager:getKnownNetworks:Return:OK":
+        request = this.takeRequest(msg.rid);
+        Services.DOMRequest.fireSuccess(request, exposeReadOnly(msg.data));
+        break;
+
+      case "WifiManager:getKnownNetworks:Return:NO":
+        request = this.takeRequest(msg.rid);
+        Services.DOMRequest.fireError(request, "Unable to get known networks");
+        break;
+
       case "WifiManager:associate:Return:OK":
         request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireSuccess(request, true);
@@ -160,6 +174,16 @@ DOMWifiManager.prototype = {
         break;
 
       case "WifiManager:wps:Return:NO":
+        request = this.takeRequest(msg.rid);
+        Services.DOMRequest.fireError(request, msg.data);
+        break;
+
+      case "WifiManager:setPowerSavingMode:Return:OK":
+        request = this.takeRequest(msg.rid);
+        Services.DOMRequest.fireSuccess(request, exposeReadOnly(msg.data));
+        break;
+
+      case "WifiManager:setPowerSavingMode:Return:NO":
         request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireError(request, msg.data);
         break;
@@ -255,7 +279,8 @@ DOMWifiManager.prototype = {
                                                             { network: this._currentNetwork,
                                                               signalStrength: info.signalStrength,
                                                               relSignalStrength: info.relSignalStrength,
-                                                              linkSpeed: info.linkSpeed
+                                                              linkSpeed: info.linkSpeed,
+                                                              ipAddress: info.ipAddress,
                                                             });
       this._onConnectionInfoUpdate.handleEvent(evt);
     }
@@ -275,6 +300,14 @@ DOMWifiManager.prototype = {
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     var request = this.createRequest();
     this._sendMessageForRequest("WifiManager:getNetworks", null, request);
+    return request;
+  },
+
+  getKnownNetworks: function nsIDOMWifiManager_getKnownNetworks() {
+    if (!this._hasPrivileges)
+      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
+    var request = this.createRequest();
+    this._sendMessageForRequest("WifiManager:getKnownNetworks", null, request);
     return request;
   },
 
@@ -302,10 +335,24 @@ DOMWifiManager.prototype = {
     return request;
   },
 
+  setPowerSavingMode: function nsIDOMWifiManager_setPowerSavingMode(enabled) {
+    if (!this._hasPrivileges)
+      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
+    var request = this.createRequest();
+    this._sendMessageForRequest("WifiManager:setPowerSavingMode", enabled, request);
+    return request;
+  },
+
   get enabled() {
     if (!this._hasPrivileges)
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     return this._enabled;
+  },
+
+  get macAddress() {
+    if (!this._hasPrivileges)
+      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
+    return this._macAddress;
   },
 
   get connection() {

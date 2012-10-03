@@ -5124,7 +5124,7 @@ xml_hasInstance(JSContext *cx, HandleObject obj, MutableHandleValue v, JSBool *b
 }
 
 static void
-xml_trace(JSTracer *trc, JSObject *obj)
+xml_trace(JSTracer *trc, RawObject obj)
 {
     JSXML *xml = (JSXML *) obj->getPrivate();
     /*
@@ -7327,7 +7327,7 @@ js_GetXMLObject(JSContext *cx, JSXML *xmlArg)
 }
 
 JSObject *
-js_InitNamespaceClass(JSContext *cx, JSObject *obj)
+js_InitNamespaceClass(JSContext *cx, HandleObject obj)
 {
     cx->runtime->gcExactScanningEnabled = false;
 
@@ -7361,7 +7361,7 @@ js_InitNamespaceClass(JSContext *cx, JSObject *obj)
 }
 
 JSObject *
-js_InitQNameClass(JSContext *cx, JSObject *obj)
+js_InitQNameClass(JSContext *cx, HandleObject obj)
 {
     cx->runtime->gcExactScanningEnabled = false;
 
@@ -7394,7 +7394,7 @@ js_InitQNameClass(JSContext *cx, JSObject *obj)
 }
 
 JSObject *
-js_InitXMLClass(JSContext *cx, JSObject *obj)
+js_InitXMLClass(JSContext *cx, HandleObject obj)
 {
     cx->runtime->gcExactScanningEnabled = false;
     Rooted<GlobalObject *> global(cx, &obj->asGlobal());
@@ -7456,7 +7456,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
 }
 
 JSObject *
-js_InitXMLClasses(JSContext *cx, JSObject *obj)
+js_InitXMLClasses(JSContext *cx, HandleObject obj)
 {
     if (!js_InitNamespaceClass(cx, obj))
         return NULL;
@@ -7824,7 +7824,7 @@ struct JSXMLFilter
 };
 
 static void
-xmlfilter_trace(JSTracer *trc, JSObject *obj)
+xmlfilter_trace(JSTracer *trc, RawObject obj)
 {
     JSXMLFilter *filter = (JSXMLFilter *) obj->getPrivate();
     if (!filter)
@@ -7844,7 +7844,7 @@ xmlfilter_trace(JSTracer *trc, JSObject *obj)
 }
 
 static void
-xmlfilter_finalize(FreeOp *fop, JSObject *obj)
+xmlfilter_finalize(FreeOp *fop, RawObject obj)
 {
     JSXMLFilter *filter = (JSXMLFilter *) obj->getPrivate();
     if (!filter)

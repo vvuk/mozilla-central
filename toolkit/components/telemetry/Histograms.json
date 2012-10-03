@@ -1956,6 +1956,12 @@
     "n_buckets": 20,
     "description": "Firefox: Time taken to open a new browser window (ms)"
   },
+  "FX_PAGE_LOAD_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": 20,
+    "description": "Firefox: Time taken to load a page (ms)"
+  },
   "FX_THUMBNAILS_CAPTURE_TIME_MS": {
     "kind": "exponential",
     "high": "500",
@@ -2229,6 +2235,44 @@
     "description": "Number of history entries in the original XUL places database",
     "cpp_guard": "ANDROID"
   },
+  "FENNEC_AWESOMEBAR_ALLPAGES_EMPTY_TIME": {
+    "kind": "exponential",
+    "low": 10,
+    "high": "20000",
+    "n_buckets": 20,
+    "description": "Fennec: Time for the Awesomebar Top Sites query to return with no filter set (ms)",
+    "cpp_guard": "ANDROID"
+  },
+  "FENNEC_STARTUP_TIME_JAVAUI": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "5000",
+    "n_buckets": 20,
+    "description": "Time for the Java UI to load (ms)",
+    "cpp_guard": "ANDROID"
+  },
+  "FENNEC_STARTUP_TIME_ABOUTHOME": {
+    "kind": "exponential",
+    "low": 100,
+    "high": "10000",
+    "n_buckets": 20,
+    "description": "Time for the about:home page to be displayed (ms)",
+    "cpp_guard": "ANDROID"
+  },
+  "FENNEC_STARTUP_TIME_GECKOREADY": {
+    "kind": "exponential",
+    "low": 500,
+    "high": "20000",
+    "n_buckets": 20,
+    "description": "Time for the Gecko:Ready message to arrive (ms)",
+    "cpp_guard": "ANDROID"
+  },
+  "FENNEC_STARTUP_GECKOAPP_ACTION": {
+    "kind": "enumerated",
+    "n_values": 4,
+    "description": "The way the GeckoApp was launched. (Normal, URL, Prefetch, Redirector)",
+    "cpp_guard": "ANDROID"
+  },
   "OUT_OF_MEMORY_KILLED": {
     "kind": "flag",
     "description": "Killed due to an OOM condition",
@@ -2250,5 +2294,18 @@
   "ENABLE_PRIVILEGE_EVER_CALLED": {
     "kind": "flag",
     "description": "Whether enablePrivilege has ever been called during the current session"
+  },
+  "READ_SAVED_PING_SUCCESS": {
+    "kind": "boolean",
+    "description": "Sucessful reading a saved ping file"
+  },
+  "TOUCH_ENABLED_DEVICE": {
+    "kind": "boolean",
+    "description": "The device supports touch input",
+    "cpp_guard": "XP_WIN"
+  },
+  "COMPONENTS_OBJECT_ACCESSED_BY_CONTENT": {
+    "kind": "flag",
+    "description": "Whether content ever accesed the Components object in this session"
   }
 }

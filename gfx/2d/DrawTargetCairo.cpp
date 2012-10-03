@@ -403,9 +403,9 @@ DrawTargetCairo::DrawSurfaceWithShadow(SourceSurface *aSurface,
     return;
   }
 
-  Float width = aSurface->GetSize().width;
-  Float height = aSurface->GetSize().height;
- 
+  Float width = Float(aSurface->GetSize().width);
+  Float height = Float(aSurface->GetSize().height);
+
   SourceSurfaceCairo* source = static_cast<SourceSurfaceCairo*>(aSurface);
   cairo_surface_t* sourcesurf = source->GetSurface();
   cairo_surface_t* blursurf;
@@ -659,7 +659,15 @@ DrawTargetCairo::Mask(const Pattern &aSource,
                       const DrawOptions &aOptions /* = DrawOptions() */)
 {
   AutoPrepareForDrawing prep(this, mContext);
-  // TODO
+
+  cairo_pattern_t* source = GfxPatternToCairoPattern(aSource, aOptions.mAlpha);
+  cairo_set_source(mContext, source);
+
+  cairo_pattern_t* mask = GfxPatternToCairoPattern(aMask, aOptions.mAlpha);
+  cairo_mask(mContext, mask);
+
+  cairo_pattern_destroy(mask);
+  cairo_pattern_destroy(source);
 }
 
 void

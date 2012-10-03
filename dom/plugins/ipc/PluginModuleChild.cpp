@@ -23,7 +23,6 @@
 #if (MOZ_WIDGET_GTK == 3)
 #include <gtk/gtkx.h>
 #endif
-#include "gtk2compat.h"
 #endif
 
 #include "nsIFile.h"
@@ -2297,7 +2296,7 @@ PluginModuleChild::NPN_IntFromIdentifier(NPIdentifier aIdentifier)
     if (!static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
       return static_cast<PluginIdentifierChildInt*>(aIdentifier)->ToInt();
     }
-    return PR_INT32_MIN;
+    return INT32_MIN;
 }
 
 #ifdef OS_WIN

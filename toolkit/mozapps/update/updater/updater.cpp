@@ -272,6 +272,7 @@ static bool gSucceeded = false;
 static bool sBackgroundUpdate = false;
 static bool sReplaceRequest = false;
 static bool sUsingService = false;
+static bool sIsOSUpdate = false;
 
 #ifdef XP_WIN
 // The current working directory specified in the command line.
@@ -2023,6 +2024,7 @@ WaitForServiceFinishThread(void *param)
 }
 #endif
 
+#ifdef MOZ_VERIFY_MAR_SIGNATURE
 /**
  * This function reads in the ACCEPTED_MAR_CHANNEL_IDS from update-settings.ini
  *
@@ -2045,6 +2047,7 @@ ReadMARChannelIDs(const NS_tchar *path, MARChannelStringTable *results)
 
   return result;
 }
+#endif
 
 static void
 UpdateThreadFunc(void *param)
@@ -2092,7 +2095,7 @@ UpdateThreadFunc(void *param)
     }
 #endif
 
-    if (rv == OK && sBackgroundUpdate) {
+    if (rv == OK && sBackgroundUpdate && !sIsOSUpdate) {
       rv = CopyInstallDirToDestDir();
     }
 
@@ -2128,7 +2131,8 @@ UpdateThreadFunc(void *param)
 
       ensure_remove_recursive(stageDir);
       WriteStatusFile(sUsingService ? "pending-service" : "pending");
-      putenv("MOZ_PROCESS_UPDATES="); // We need to use -process-updates again in the tests
+      char processUpdates[] = "MOZ_PROCESS_UPDATES=";
+      putenv(processUpdates); // We need to use -process-updates again in the tests
       reportRealResults = false; // pretend success
     }
   }
@@ -2255,6 +2259,11 @@ int NS_main(int argc, NS_tchar **argv)
       // with an updated version applied in the background.
       sReplaceRequest = true;
     }
+  }
+
+  if (getenv("MOZ_OS_UPDATE")) {
+    sIsOSUpdate = true;
+    putenv(const_cast<char*>("MOZ_OS_UPDATE="));
   }
 
   if (sReplaceRequest) {
@@ -3385,6 +3394,10 @@ GetManifestContents(const NS_tchar *manifest)
 
 int AddPreCompleteActions(ActionList *list)
 {
+  if (sIsOSUpdate) {
+    return OK;
+  }
+
   NS_tchar *rb = GetManifestContents(NS_T("precomplete"));
   if (rb == NULL) {
     LOG(("AddPreCompleteActions: error getting contents of precomplete " \

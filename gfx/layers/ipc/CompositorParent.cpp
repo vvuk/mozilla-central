@@ -467,8 +467,8 @@ private:
     }
     const FrameMetrics& fm = c->GetFrameMetrics();
     gfx3DMatrix m(aContainer->GetTransform());
-    m.Translate(gfxPoint3D(-fm.mViewportScrollOffset.x,
-                           -fm.mViewportScrollOffset.y, 0));
+    m.Translate(gfxPoint3D(-fm.GetScrollOffsetInLayerPixels().x,
+                           -fm.GetScrollOffsetInLayerPixels().y, 0));
 
     // The transform already takes the resolution scale into account.  Since we
     // will apply the resolution scale again when computing the effective
@@ -530,35 +530,6 @@ CompositorParent::Composite()
 
 // Do a breadth-first search to find the first layer in the tree that is
 // scrollable.
-Layer*
-CompositorParent::GetPrimaryScrollableLayer()
-{
-  Layer* root = mLayerManager->GetRoot();
-
-  nsTArray<Layer*> queue;
-  queue.AppendElement(root);
-  while (queue.Length()) {
-    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
-    queue.RemoveElementAt(0);
-    if (!containerLayer) {
-      continue;
-    }
-
-    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      return containerLayer;
-    }
-
-    Layer* child = containerLayer->GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child->GetNextSibling();
-    }
-  }
-
-  return root;
-}
-
 static void
 Translate2D(gfx3DMatrix& aTransform, const gfxPoint& aOffset)
 {
@@ -647,10 +618,19 @@ SampleValue(float aPortion, Animation& aAnimation, nsStyleAnimation::Value& aSta
   nsCSSValueList* interpolatedList = interpolatedValue.GetCSSValueListValue();
 
   TransformData& data = aAnimation.data().get_TransformData();
+  nsPoint origin = data.origin();
+  int32_t auPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
   gfx3DMatrix transform =
-    nsDisplayTransform::GetResultingTransformMatrix(nullptr, data.origin(), nsDeviceContext::AppUnitsPerCSSPixel(),
-                                                    &data.bounds(), interpolatedList, &data.mozOrigin(),
-                                                    &data.perspectiveOrigin(), &data.perspective());
+    nsDisplayTransform::GetResultingTransformMatrix(
+      nullptr, origin, auPerCSSPixel,
+      &data.bounds(), interpolatedList, &data.mozOrigin(),
+      &data.perspectiveOrigin(), &data.perspective());
+  // NB: See nsDisplayTransform::GetTransform().
+  gfxPoint3D newOrigin =
+    gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(origin.x, auPerCSSPixel)),
+               NS_round(NSAppUnitsToFloatPixels(origin.y, auPerCSSPixel)),
+               0.0f);
+  transform.Translate(newOrigin);
 
   InfallibleTArray<TransformFunction>* functions = new InfallibleTArray<TransformFunction>();
   functions->AppendElement(TransformMatrix(transform));
@@ -771,14 +751,14 @@ bool
 CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 {
   bool wantNextFrame = false;
-  Layer* layer = GetPrimaryScrollableLayer();
+  Layer* layer = mLayerManager->GetPrimaryScrollableLayer();
   ShadowLayer* shadow = layer->AsShadowLayer();
   ContainerLayer* container = layer->AsContainerLayer();
   Layer* root = mLayerManager->GetRoot();
 
   // NB: we must sample animations *before* sampling pan/zoom
   // transforms.
-  wantNextFrame |= SampleAnimations(layer, mLastCompose);
+  wantNextFrame |= SampleAnimations(root, mLastCompose);
 
   const FrameMetrics& metrics = container->GetFrameMetrics();
   // We must apply the resolution scale before a pan/zoom transform, so we call
@@ -807,30 +787,43 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     float rootScaleX = rootTransform.GetXScale(),
           rootScaleY = rootTransform.GetYScale();
+    // The ratio of layers pixels to device pixels.  The Java
+    // compositor wants to see values in units of device pixels, so we
+    // map our FrameMetrics values to that space.  This is not exposed
+    // as a FrameMetrics helper because it's a deprecated conversion.
+    float devPixelRatioX = 1 / rootScaleX, devPixelRatioY = 1 / rootScaleY;
+
+    gfx::Point scrollOffsetLayersPixels(metrics.GetScrollOffsetInLayerPixels());
+    nsIntPoint scrollOffsetDevPixels(
+      NS_lround(scrollOffsetLayersPixels.x * devPixelRatioX),
+      NS_lround(scrollOffsetLayersPixels.y * devPixelRatioY));
 
     if (mIsFirstPaint) {
       mContentRect = metrics.mContentRect;
-      const gfx::Point& scrollOffset = metrics.mViewportScrollOffset;
-      SetFirstPaintViewport(nsIntPoint(NS_lround(scrollOffset.x),
-                                       NS_lround(scrollOffset.y)),
+      SetFirstPaintViewport(scrollOffsetDevPixels,
                             1/rootScaleX,
                             mContentRect,
-                            metrics.mCSSContentRect);
+                            metrics.mScrollableRect);
       mIsFirstPaint = false;
     } else if (!metrics.mContentRect.IsEqualEdges(mContentRect)) {
       mContentRect = metrics.mContentRect;
-      SetPageRect(metrics.mCSSContentRect);
+      SetPageRect(metrics.mScrollableRect);
     }
 
     // We synchronise the viewport information with Java after sending the above
     // notifications, so that Java can take these into account in its response.
     // Calculate the absolute display port to send to Java
-    nsIntRect displayPort = metrics.mDisplayPort;
-    gfx::Point scrollOffset = metrics.mViewportScrollOffset;
-    displayPort.x += NS_lround(scrollOffset.x);
-    displayPort.y += NS_lround(scrollOffset.y);
+    gfx::Rect displayPortLayersPixels(metrics.mDisplayPort);
+    nsIntRect displayPortDevPixels(
+      NS_lround(displayPortLayersPixels.x * devPixelRatioX),
+      NS_lround(displayPortLayersPixels.y * devPixelRatioY),
+      NS_lround(displayPortLayersPixels.width * devPixelRatioX),
+      NS_lround(displayPortLayersPixels.height * devPixelRatioY));
 
-    SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
+    displayPortDevPixels.x += scrollOffsetDevPixels.x;
+    displayPortDevPixels.y += scrollOffsetDevPixels.y;
+
+    SyncViewportInfo(displayPortDevPixels, 1/rootScaleX, mLayersUpdated,
                      mScrollOffset, mXScale, mYScale);
     mLayersUpdated = false;
 
@@ -845,8 +838,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     nsIntPoint metricsScrollOffset(0, 0);
     if (metrics.IsScrollable()) {
-      metricsScrollOffset =
-        nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
+      metricsScrollOffset = scrollOffsetDevPixels;
     }
 
     nsIntPoint scrollCompensation(
@@ -953,7 +945,7 @@ CompositorParent::AllocPLayers(const LayersBackend& aBackendHint,
   // mWidget doesn't belong to the compositor thread, so it should be set to
   // NULL before returning from this method, to avoid accessing it elsewhere.
   nsIntRect rect;
-  mWidget->GetBounds(rect);
+  mWidget->GetClientBounds(rect);
   mWidgetSize.width = rect.width;
   mWidgetSize.height = rect.height;
 

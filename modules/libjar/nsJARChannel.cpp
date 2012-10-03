@@ -136,7 +136,7 @@ nsJARInputThunk::EnsureJarStream()
     rv = mJarStream->Available((uint64_t *) &avail);
     if (NS_FAILED(rv)) return rv;
 
-    mContentLength = avail < PR_INT32_MAX ? (int32_t) avail : -1;
+    mContentLength = avail < INT32_MAX ? (int32_t) avail : -1;
 
     return NS_OK;
 }
@@ -611,7 +611,19 @@ nsJARChannel::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
+nsJARChannel::SetContentDisposition(uint32_t aContentDisposition)
+{
+    return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
 nsJARChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
+{
+    return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
+nsJARChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
 {
     return NS_ERROR_NOT_AVAILABLE;
 }

@@ -95,6 +95,7 @@ nsBaseWidget::nsBaseWidget()
 , mForceLayersAcceleration(false)
 , mTemporarilyUseBasicLayerManager(false)
 , mUseAttachedEvents(false)
+, mContextInitialized(false)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nullptr)
 , mClipRectCount(0)
@@ -803,7 +804,7 @@ nsBaseWidget::GetShouldAccelerate()
   
   if (!whitelisted) {
     NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef MOZ_ANDROID_OMTC
     NS_RUNTIMEABORT("OpenGL-accelerated layers are a hard requirement on this platform. "
                     "Cannot continue without support for them.");
 #endif
@@ -820,7 +821,7 @@ nsBaseWidget::GetShouldAccelerate()
 void nsBaseWidget::CreateCompositor()
 {
   bool renderToEGLSurface = false;
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef MOZ_ANDROID_OMTC
   renderToEGLSurface = true;
 #endif
   nsIntRect rect;
@@ -928,6 +929,10 @@ BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
 //-------------------------------------------------------------------------
 nsDeviceContext* nsBaseWidget::GetDeviceContext() 
 {
+  if (!mContextInitialized) {
+    mContext->Init(this);
+    mContextInitialized = true;
+  }
   return mContext; 
 }
 
@@ -1042,13 +1047,6 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
 nsIntPoint nsBaseWidget::GetClientOffset()
 {
   return nsIntPoint(0, 0);
-}
-
-NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
-{
-  mBounds = aRect;
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP

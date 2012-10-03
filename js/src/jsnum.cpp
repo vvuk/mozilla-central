@@ -139,7 +139,7 @@ class BinaryDigitReader
  * rounds to 0x1000000000000000 instead of 0x1000000000000100.
  */
 static double
-ComputeAccurateBinaryBaseInteger(JSContext *cx, const jschar *start, const jschar *end, int base)
+ComputeAccurateBinaryBaseInteger(const jschar *start, const jschar *end, int base)
 {
     BinaryDigitReader bdr(base, start, end);
 
@@ -220,7 +220,7 @@ GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base
     if (base == 10)
         return ComputeAccurateDecimalInteger(cx, start, s, dp);
     if ((base & (base - 1)) == 0)
-        *dp = ComputeAccurateBinaryBaseInteger(cx, start, s, base);
+        *dp = ComputeAccurateBinaryBaseInteger(start, s, base);
 
     return true;
 }
@@ -1122,7 +1122,7 @@ FinishRuntimeNumberState(JSRuntime *rt)
 } /* namespace js */
 
 JSObject *
-js_InitNumberClass(JSContext *cx, JSObject *obj)
+js_InitNumberClass(JSContext *cx, HandleObject obj)
 {
     JS_ASSERT(obj->isNative());
 

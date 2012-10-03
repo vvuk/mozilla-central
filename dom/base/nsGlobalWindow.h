@@ -390,6 +390,10 @@ public:
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
 
+  // WebIDL interface.
+  uint32_t GetLength();
+  already_AddRefed<nsIDOMWindow> IndexedGetter(uint32_t aIndex, bool& aFound);
+
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
 
@@ -536,6 +540,9 @@ public:
 
   virtual void EnableTimeChangeNotifications();
   virtual void DisableTimeChangeNotifications();
+
+  virtual void EnableNetworkEvent(uint32_t aType);
+  virtual void DisableNetworkEvent(uint32_t aType);
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
@@ -917,6 +924,9 @@ protected:
 
   // Helper for creating performance objects.
   void CreatePerformanceObjectIfNeeded();
+
+  // Outer windows only.
+  nsDOMWindowList* GetWindowList();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable

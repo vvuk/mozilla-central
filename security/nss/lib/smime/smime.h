@@ -6,7 +6,7 @@
  * Header file for routines specific to S/MIME.  Keep things that are pure
  * pkcs7 out of here; this is for S/MIME policy, S/MIME interoperability, etc.
  *
- * $Id: smime.h,v 1.12 2012/04/25 14:50:09 gerv%gerv.net Exp $
+ * $Id: smime.h,v 1.13 2012/09/21 21:58:44 wtc%google.com Exp $
  */
 
 #ifndef _SECMIME_H_
@@ -125,8 +125,7 @@ NSS_SMIMEUtil_FindBulkAlgForRecipients(CERTCertificate **rcerts, SECOidTag *bulk
  * The only argument is a string, which should be the version
  * identifier of the NSS library. That string will be compared
  * against a string that represents the actual build version of
- * the S/MIME library.  It also invokes the version checking functions
- * of the dependent libraries such as NSPR.
+ * the S/MIME library.
  */
 extern PRBool NSSSMIME_VersionCheck(const char *importedVersion);
 

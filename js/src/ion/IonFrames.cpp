@@ -16,6 +16,8 @@
 #include "Safepoints.h"
 #include "IonSpewer.h"
 #include "IonMacroAssembler.h"
+#include "PcScriptCache.h"
+#include "PcScriptCache-inl.h"
 #include "gc/Marking.h"
 #include "SnapshotReader.h"
 #include "Safepoints.h"
@@ -115,6 +117,22 @@ IonFrameIterator::isNative() const
     if (type_ != IonFrame_Exit)
         return false;
     return exitFrame()->footer()->ionCode() == NULL;
+}
+
+bool
+IonFrameIterator::isOOLNativeGetter() const
+{
+    if (type_ != IonFrame_Exit)
+        return false;
+    return exitFrame()->footer()->ionCode() == ION_FRAME_OOL_NATIVE_GETTER;
+}
+
+bool
+IonFrameIterator::isOOLPropertyOp() const
+{
+    if (type_ != IonFrame_Exit)
+        return false;
+    return exitFrame()->footer()->ionCode() == ION_FRAME_OOL_PROPERTY_OP;
 }
 
 bool
@@ -252,7 +270,7 @@ CloseLiveIterator(JSContext *cx, const InlineFrameIterator &frame, uint32 localS
         si.skip();
 
     Value v = si.read();
-    JSObject *obj = &v.toObject();
+    RootedObject obj(cx, &v.toObject());
 
     if (cx->isExceptionPending())
         UnwindIteratorForException(cx, obj);
@@ -530,6 +548,21 @@ MarkIonExitFrame(JSTracer *trc, const IonFrameIterator &frame)
         return;
     }
 
+    if (frame.isOOLNativeGetter()) {
+        IonOOLNativeGetterExitFrameLayout *oolgetter = frame.exitFrame()->oolNativeGetterExit();
+        gc::MarkValueRoot(trc, oolgetter->vp(), "ion-ool-getter-callee");
+        gc::MarkValueRoot(trc, oolgetter->vp() + 1, "ion-ool-getter-this");
+        return;
+    }
+ 
+    if (frame.isOOLPropertyOp()) {
+        IonOOLPropertyOpExitFrameLayout *oolgetter = frame.exitFrame()->oolPropertyOpExit();
+        gc::MarkValueRoot(trc, oolgetter->vp(), "ion-ool-property-op-vp");
+        gc::MarkIdRoot(trc, oolgetter->id(), "ion-ool-property-op-id");
+        gc::MarkObjectRoot(trc, oolgetter->obj(), "ion-ool-property-op-obj");
+        return;
+    }
+
     if (frame.isDOMExit()) {
         IonDOMExitFrameLayout *dom = frame.exitFrame()->DOMExit();
         gc::MarkObjectRoot(trc, dom->thisObjAddress(), "ion-dom-args");
@@ -642,20 +675,42 @@ ion::AutoTempAllocatorRooter::trace(JSTracer *trc)
 }
 
 void
-ion::GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
+ion::GetPcScript(JSContext *cx, MutableHandleScript scriptRes, jsbytecode **pcRes)
 {
     JS_ASSERT(cx->fp()->beginsIonActivation());
     IonSpew(IonSpew_Snapshots, "Recover PC & Script from the last frame.");
 
-    // Recover the innermost inlined frame.
-    IonFrameIterator it(cx->runtime->ionTop);
-    ++it;
+    JSRuntime *rt = cx->runtime;
+
+    // Recover the return address.
+    IonFrameIterator it(rt->ionTop);
+    uint8_t *retAddr = it.returnAddress();
+    uint32_t hash = PcScriptCache::Hash(retAddr);
+    JS_ASSERT(retAddr != NULL);
+
+    // Lazily initialize the cache. The allocation may safely fail and will not GC.
+    if (JS_UNLIKELY(rt->ionPcScriptCache == NULL)) {
+        rt->ionPcScriptCache = (PcScriptCache *)js_malloc(sizeof(struct PcScriptCache));
+        if (rt->ionPcScriptCache)
+            rt->ionPcScriptCache->clear(rt->gcNumber);
+    }
+
+    // Attempt to lookup address in cache.
+    if (rt->ionPcScriptCache && rt->ionPcScriptCache->get(rt, hash, retAddr, scriptRes, pcRes))
+        return;
+
+    // Lookup failed: undertake expensive process to recover the innermost inlined frame.
+    ++it; // Skip exit frame.
     InlineFrameIterator ifi(&it);
 
     // Set the result.
-    *scriptRes = ifi.script();
+    scriptRes.set(ifi.script());
     if (pcRes)
         *pcRes = ifi.pc();
+
+    // Add entry to cache.
+    if (rt->ionPcScriptCache)
+        rt->ionPcScriptCache->add(hash, retAddr, ifi.pc(), ifi.script());
 }
 
 void

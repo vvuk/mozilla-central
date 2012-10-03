@@ -7,6 +7,7 @@
 #define GFX_BASICTHEBESLAYER_H
 
 #include "mozilla/layers/PLayersParent.h"
+#include "mozilla/gfx/2D.h"
 #include "BasicBuffers.h"
 
 namespace mozilla {
@@ -37,7 +38,9 @@ public:
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
-    mValidRegion.Sub(mValidRegion, aRegion);
+    mInvalidRegion.Or(mInvalidRegion, aRegion);
+    mInvalidRegion.SimplifyOutward(10);
+    mValidRegion.Sub(mValidRegion, mInvalidRegion);
   }
 
   virtual void PaintThebes(gfxContext* aContext,
@@ -50,6 +53,11 @@ public:
   
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize);
+
+  virtual TemporaryRef<mozilla::gfx::DrawTarget>
+  CreateDrawTarget(const mozilla::gfx::IntSize& aSize,
+                   mozilla::gfx::SurfaceFormat aFormat);
+
 
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
   {
@@ -121,11 +129,7 @@ public:
   {
     MOZ_COUNT_CTOR(BasicShadowableThebesLayer);
   }
-  virtual ~BasicShadowableThebesLayer()
-  {
-    DestroyBackBuffer();
-    MOZ_COUNT_DTOR(BasicShadowableThebesLayer);
-  }
+  virtual ~BasicShadowableThebesLayer();
 
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMaskLayer,
@@ -167,12 +171,13 @@ private:
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData) MOZ_OVERRIDE;
 
-  // This function may *not* open the buffer it allocates.
-  void
-  AllocBackBuffer(Buffer::ContentType aType, const nsIntSize& aSize);
-
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize) MOZ_OVERRIDE;
+
+  virtual TemporaryRef<mozilla::gfx::DrawTarget>
+  CreateDrawTarget(const mozilla::gfx::IntSize& aSize,
+                   mozilla::gfx::SurfaceFormat aFormat) MOZ_OVERRIDE;
+
 
   void DestroyBackBuffer()
   {

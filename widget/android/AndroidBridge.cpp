@@ -142,7 +142,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jGetIconForExtension = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getIconForExtension", "(Ljava/lang/String;I)[B");
     jCreateShortcut = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "createShortcut", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
     jGetShowPasswordSetting = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getShowPasswordSetting", "()Z");
-    jPostToJavaThread = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "postToJavaThread", "(Z)V");
     jInitCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "initCamera", "(Ljava/lang/String;III)[I");
     jCloseCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "closeCamera", "()V");
     jIsTablet = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isTablet", "()Z");
@@ -202,7 +201,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jRegisterSurfaceTextureFrameListener = jEnv->GetStaticMethodID(jGeckoAppShellClass, "registerSurfaceTextureFrameListener", "(Ljava/lang/Object;I)V");
     jUnregisterSurfaceTextureFrameListener = jEnv->GetStaticMethodID(jGeckoAppShellClass, "unregisterSurfaceTextureFrameListener", "(Ljava/lang/Object;)V");
 
-#ifdef MOZ_JAVA_COMPOSITOR
+#ifdef MOZ_ANDROID_OMTC
     jPumpMessageLoop = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "pumpMessageLoop", "()Z");
 
     jAddPluginView = jEnv->GetStaticMethodID(jGeckoAppShellClass, "addPluginView", "(Landroid/view/View;IIIIZ)V");
@@ -780,18 +779,24 @@ AndroidBridge::AlertsProgressListener_OnCancel(const nsAString& aAlertName)
 int
 AndroidBridge::GetDPI()
 {
+    static int sDPI = 0;
+    if (sDPI)
+        return sDPI;
+
     ALOG_BRIDGE("AndroidBridge::GetDPI");
-    const int DEFAULT_DPI = 72; // what is a better value?
+    const int DEFAULT_DPI = 160;
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return DEFAULT_DPI;
     AutoLocalJNIFrame jniFrame(env);
 
-    int dpi = (int)env->CallStaticIntMethod(mGeckoAppShellClass, jGetDpi);
-    if (jniFrame.CheckForException())
+    sDPI = (int)env->CallStaticIntMethod(mGeckoAppShellClass, jGetDpi);
+    if (jniFrame.CheckForException()) {
+        sDPI = 0;
         return DEFAULT_DPI;
+    }
 
-    return dpi;
+    return sDPI;
 }
 
 void
@@ -1352,25 +1357,6 @@ AndroidBridge::CreateShortcut(const nsAString& aTitle, const nsAString& aURI, co
     env->CallStaticVoidMethod(mGeckoAppShellClass, jCreateShortcut, jstrTitle, jstrURI, jstrIconData, jstrIntent);
 }
 
-void
-AndroidBridge::PostToJavaThread(JNIEnv *env, nsIRunnable* aRunnable, bool aMainThread)
-{
-    mRunnableQueue.AppendObject(aRunnable);
-
-    AutoLocalJNIFrame jniFrame(env, 0);
-    env->CallStaticVoidMethod(mGeckoAppShellClass, jPostToJavaThread, (jboolean)aMainThread);
-}
-
-void
-AndroidBridge::ExecuteNextRunnable(JNIEnv *env)
-{
-    if (mRunnableQueue.Count() > 0) {
-        nsIRunnable* r = mRunnableQueue[0];
-        r->Run();
-        mRunnableQueue.RemoveObjectAt(0);
-    }
-}
-
 void*
 AndroidBridge::GetNativeSurface(JNIEnv* env, jobject surface) {
     if (!env || !mHasNativeWindowFallback)
@@ -1503,8 +1489,6 @@ namespace mozilla {
     }
 
     void CleanUpWidgetTracing() {
-        if (sTracerRunnable)
-            delete sTracerRunnable;
         sTracerRunnable = nullptr;
     }
 
@@ -2295,7 +2279,7 @@ AndroidBridge::UnlockScreenOrientation()
 bool
 AndroidBridge::PumpMessageLoop()
 {
-#if MOZ_JAVA_COMPOSITOR
+#if MOZ_ANDROID_OMTC
     JNIEnv* env = GetJNIEnv();
     if (!env)
         return false;
@@ -2330,7 +2314,7 @@ AndroidBridge::NotifyWakeLockChanged(const nsAString& topic, const nsAString& st
 void
 AndroidBridge::ScheduleComposite()
 {
-#if MOZ_JAVA_COMPOSITOR
+#if MOZ_ANDROID_OMTC
     nsWindow::ScheduleComposite();
 #endif
 }
@@ -2401,7 +2385,7 @@ AndroidBridge::AddPluginView(jobject view, const gfxRect& rect, bool isFullScree
 
     AutoLocalJNIFrame jniFrame(env);
 
-#if MOZ_JAVA_COMPOSITOR
+#if MOZ_ANDROID_OMTC
     env->CallStaticVoidMethod(sBridge->mGeckoAppShellClass,
                               sBridge->jAddPluginView, view,
                               (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height,
@@ -2500,6 +2484,9 @@ nsresult AndroidBridge::TakeScreenshot(nsIDOMWindow *window, int32_t srcX, int32
     uint32_t stride = bufW * 2 /* 16 bpp */;
 
     void* data = env->GetDirectBufferAddress(buffer);
+    if (!data)
+        return NS_ERROR_FAILURE;
+
     nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(static_cast<unsigned char*>(data), nsIntSize(bufW, bufH), stride, gfxASurface::ImageFormatRGB16_565);
     if (surf->CairoStatus() != 0) {
         ALOG_BRIDGE("Error creating gfxImageSurface");

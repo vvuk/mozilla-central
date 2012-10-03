@@ -329,11 +329,19 @@ WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(int32_t width, int32_t height)
 {
-    /*** early success return cases ***/
+    // Early error return cases
 
-    if (mCanvasElement) {
-        mCanvasElement->InvalidateCanvas();
+    if (width < 0 || height < 0) {
+        GenerateWarning("Canvas size is too large (seems like a negative value wrapped)");
+        return NS_ERROR_OUT_OF_MEMORY;
     }
+
+    if (!GetCanvas())
+        return NS_ERROR_FAILURE;
+
+    // Early success return cases
+
+    GetCanvas()->InvalidateCanvas();
 
     if (gl && mWidth == width && mHeight == height)
         return NS_OK;
@@ -361,10 +369,9 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
         return NS_OK;
     }
 
-    /*** End of early success return cases.
-     *** At this point we know that we're not just resizing an existing context,
-     *** we are initializing a new context.
-     ***/
+    // End of early return cases.
+    // At this point we know that we're not just resizing an existing context,
+    // we are initializing a new context.
 
     // if we exceeded either the global or the per-principal limit for WebGL contexts,
     // lose the oldest-used context now to free resources. Note that we can't do that
@@ -963,6 +970,16 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext)
                 isSupported = true;
             }
             break;
+        case WEBGL_compressed_texture_atc:
+            if (gl->IsExtensionSupported(GLContext::AMD_compressed_ATC_texture)) {
+                isSupported = true;
+            }
+            break;
+        case WEBGL_compressed_texture_pvrtc:
+            if (gl->IsExtensionSupported(GLContext::IMG_texture_compression_pvrtc)) {
+                isSupported = true;
+            }
+            break;
         case WEBGL_depth_texture:
             if (gl->IsGLES2() && 
                 gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil) &&
@@ -1024,6 +1041,18 @@ WebGLContext::GetExtension(const nsAString& aName)
         if (IsExtensionSupported(WEBGL_compressed_texture_s3tc))
             ext = WEBGL_compressed_texture_s3tc;
     }
+    else if (aName.Equals(NS_LITERAL_STRING("MOZ_WEBGL_compressed_texture_atc"),
+             nsCaseInsensitiveStringComparator()))
+    {
+        if (IsExtensionSupported(WEBGL_compressed_texture_atc))
+            ext = WEBGL_compressed_texture_atc;
+    }
+    else if (aName.Equals(NS_LITERAL_STRING("MOZ_WEBGL_compressed_texture_pvrtc"),
+             nsCaseInsensitiveStringComparator()))
+    {
+        if (IsExtensionSupported(WEBGL_compressed_texture_pvrtc))
+            ext = WEBGL_compressed_texture_pvrtc;
+    }
     else if (aName.Equals(NS_LITERAL_STRING("MOZ_WEBGL_depth_texture"),
              nsCaseInsensitiveStringComparator()))
     {
@@ -1048,6 +1077,12 @@ WebGLContext::GetExtension(const nsAString& aName)
                 break;
             case WEBGL_compressed_texture_s3tc:
                 mExtensions[ext] = new WebGLExtensionCompressedTextureS3TC(this);
+                break;
+            case WEBGL_compressed_texture_atc:
+                mExtensions[ext] = new WebGLExtensionCompressedTextureATC(this);
+                break;
+            case WEBGL_compressed_texture_pvrtc:
+                mExtensions[ext] = new WebGLExtensionCompressedTexturePVRTC(this);
                 break;
             case WEBGL_depth_texture:
                 mExtensions[ext] = new WebGLExtensionDepthTexture(this);
@@ -1564,12 +1599,15 @@ WebGLContext::GetSupportedExtensions(Nullable< nsTArray<nsString> > &retval)
         arr.AppendElement(NS_LITERAL_STRING("OES_standard_derivatives"));
     if (IsExtensionSupported(EXT_texture_filter_anisotropic)) {
         arr.AppendElement(NS_LITERAL_STRING("EXT_texture_filter_anisotropic"));
-        arr.AppendElement(NS_LITERAL_STRING("MOZ_EXT_texture_filter_anisotropic"));
     }
     if (IsExtensionSupported(WEBGL_lose_context))
         arr.AppendElement(NS_LITERAL_STRING("MOZ_WEBGL_lose_context"));
     if (IsExtensionSupported(WEBGL_compressed_texture_s3tc))
         arr.AppendElement(NS_LITERAL_STRING("MOZ_WEBGL_compressed_texture_s3tc"));
+    if (IsExtensionSupported(WEBGL_compressed_texture_atc))
+        arr.AppendElement(NS_LITERAL_STRING("MOZ_WEBGL_compressed_texture_atc"));
+    if (IsExtensionSupported(WEBGL_compressed_texture_pvrtc))
+        arr.AppendElement(NS_LITERAL_STRING("MOZ_WEBGL_compressed_texture_pvrtc"));
     if (IsExtensionSupported(WEBGL_depth_texture))
         arr.AppendElement(NS_LITERAL_STRING("MOZ_WEBGL_depth_texture"));
 }

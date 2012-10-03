@@ -29,14 +29,6 @@ class PlanarYCbCrImage;
 /**
  * The default implementation of the MediaEngine interface.
  */
-
-enum DefaultEngineState {
-  kAllocated,
-  kStarted,
-  kStopped,
-  kReleased
-};
-
 class MediaEngineDefaultVideoSource : public nsITimerCallback,
                                       public MediaEngineVideoSource
 {
@@ -68,7 +60,7 @@ protected:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<layers::ImageContainer> mImageContainer;
 
-  DefaultEngineState mState;
+  MediaEngineState mState;
   SourceMediaStream* mSource;
   layers::PlanarYCbCrImage* mImage;
   static const MediaEngineVideoOptions mOpts;
@@ -98,7 +90,7 @@ protected:
   TrackID mTrackID;
   nsCOMPtr<nsITimer> mTimer;
 
-  DefaultEngineState mState;
+  MediaEngineState mState;
   SourceMediaStream* mSource;
 };
 

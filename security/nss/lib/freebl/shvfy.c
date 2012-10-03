@@ -2,7 +2,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: shvfy.c,v 1.17 2012/06/12 16:39:00 rrelyea%redhat.com Exp $ */
+/* $Id: shvfy.c,v 1.18 2012/09/22 15:18:19 wtc%google.com Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -301,7 +301,7 @@ BLAPI_SHVerifyFile(const char *shName)
     PRFileDesc *checkFD = NULL;
     PRFileDesc *shFD = NULL;
     void  *hashcx = NULL;
-    SECHashObject *hashObj = NULL;
+    const SECHashObject *hashObj = NULL;
     SECItem signature = { 0, NULL, 0 };
     SECItem hash;
     int bytesRead, offset;

@@ -237,10 +237,14 @@ SettingsManager.prototype = {
   },
 
   set onsettingchange(aCallback) {
-    if (this.hasPrivileges)
+    if (this.hasPrivileges) {
+      if (!this._onsettingchange) {
+        cpmm.sendAsyncMessage("Settings:RegisterForMessages");
+      }
       this._onsettingchange = aCallback;
-    else
+    } else {
       throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+    }
   },
 
   get onsettingchange() {
@@ -294,8 +298,10 @@ SettingsManager.prototype = {
 
   addObserver: function addObserver(aName, aCallback) {
     debug("addObserver " + aName);
-    if (!this._callbacks)
+    if (!this._callbacks) {
+      cpmm.sendAsyncMessage("Settings:RegisterForMessages");
       this._callbacks = {};
+    }
     if (!this._callbacks[aName]) {
       this._callbacks[aName] = [aCallback];
     } else {

@@ -557,15 +557,10 @@ class CallCompiler : public BaseCompiler
     {
         RecompilationMonitor monitor(cx);
 
-        if (f.script()->function()) {
-            f.script()->uninlineable = true;
-            MarkTypeObjectFlags(cx, f.script()->function(), types::OBJECT_FLAG_UNINLINEABLE);
-        }
-
-        /* Don't touch the IC if the call triggered a recompilation. */
-        if (monitor.recompiled())
-            return true;
-
+        /*
+         * When IonMonkey is enabled we never inline in JM. So do not cause any
+         * recompilation by setting the UNINLINEABLE flag.
+         */
         JS_ASSERT(!f.regs.inlined());
 
         Assembler masm;
@@ -693,10 +688,10 @@ class CallCompiler : public BaseCompiler
         for (size_t i = 0; i < argc + 1; i++) {
             /* Copy the argument onto the native stack. */
 #ifdef JS_NUNBOX32
-            masm.push(Address(t0, -((i + 1) * sizeof(Value)) + 4));
-            masm.push(Address(t0, -((i + 1) * sizeof(Value))));
+            masm.push(Address(t0, -int32_t((i + 1) * sizeof(Value)) + 4));
+            masm.push(Address(t0, -int32_t((i + 1) * sizeof(Value))));
 #elif defined JS_PUNBOX64
-            masm.push(Address(t0, -((i + 1) * sizeof(Value))));
+            masm.push(Address(t0, -int32_t((i + 1) * sizeof(Value))));
 #endif
         }
 
@@ -712,10 +707,10 @@ class CallCompiler : public BaseCompiler
         /* Call into Ion. */
         masm.loadPtr(Address(ionScript, ion::IonScript::offsetOfMethod()), t0);
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-        masm.loadPtr(Address(t0, ion::IonCode::OffsetOfCode()), t0);
+        masm.loadPtr(Address(t0, ion::IonCode::offsetOfCode()), t0);
         masm.call(t0);
 #elif defined(JS_CPU_ARM)
-        masm.loadPtr(Address(t0, ion::IonCode::OffsetOfCode()), JSC::ARMRegisters::ip);
+        masm.loadPtr(Address(t0, ion::IonCode::offsetOfCode()), JSC::ARMRegisters::ip);
         masm.callAddress(JS_FUNC_TO_DATA_PTR(void *, IonVeneer));
 #endif
 
@@ -1028,6 +1023,9 @@ class CallCompiler : public BaseCompiler
         /* Snapshot the frameDepth before SplatApplyArgs modifies it. */
         unsigned initialFrameDepth = f.regs.sp - f.fp()->slots();
 
+        /* Protect against accessing the IC if it may have been purged. */
+        RecompilationMonitor monitor(cx);
+
         /*
          * SplatApplyArgs has not been called, so we call it here before
          * potentially touching f.u.call.dynamicArgc.
@@ -1039,7 +1037,8 @@ class CallCompiler : public BaseCompiler
         } else {
             JS_ASSERT(!f.regs.inlined());
             JS_ASSERT(*f.regs.pc == JSOP_FUNAPPLY && GET_ARGC(f.regs.pc) == 2);
-            if (!ic::SplatApplyArgs(f))       /* updates regs.sp */
+            /* Updates regs.sp -- may cause GC. */
+            if (!ic::SplatApplyArgs(f))
                 THROWV(true);
             args = CallArgsFromSp(f.u.call.dynamicArgc, f.regs.sp);
         }
@@ -1054,12 +1053,11 @@ class CallCompiler : public BaseCompiler
         if (callingNew)
             args.setThis(MagicValue(JS_IS_CONSTRUCTING));
 
-        RecompilationMonitor monitor(cx);
-
         if (!CallJSNative(cx, fun->native(), args))
             THROWV(true);
 
-        types::TypeScript::Monitor(f.cx, f.script(), f.pc(), args.rval());
+        RootedScript fscript(cx, f.script());
+        types::TypeScript::Monitor(f.cx, fscript, f.pc(), args.rval());
 
         /*
          * Native stubs are not generated for inline frames. The overhead of

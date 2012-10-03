@@ -132,12 +132,12 @@ GeneratePrototypeGuards(JSContext *cx, Vector<JSC::MacroAssembler::Jump,8> &mism
         masm.loadPtr(Address(objReg, JSObject::offsetOfType()), scratchReg);
         Jump j = masm.branchPtr(Assembler::NotEqual,
                                 Address(scratchReg, offsetof(types::TypeObject, proto)),
-                                ImmPtr(obj->getProto()));
+                                ImmPtr(obj->getTaggedProto().toObjectOrNull()));
         if (!mismatches.append(j))
             return false;
     }
 
-    JSObject *pobj = obj->getProto();
+    JSObject *pobj = obj->getTaggedProto().toObjectOrNull();
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
             Jump j;
@@ -606,10 +606,10 @@ IsCacheableProtoChain(JSObject *obj, JSObject *holder)
          * chain and must check for null proto. The prototype chain can be
          * altered during the lookupProperty call.
          */
-        JSObject *proto = obj->getProto();
-        if (!proto || !proto->isNative())
+        TaggedProto proto = obj->getTaggedProto();
+        if (!proto.isObject() || !proto.toObject()->isNative())
             return false;
-        obj = proto;
+        obj = proto.toObject();
     }
     return true;
 }
@@ -678,7 +678,7 @@ struct GetPropHelper {
         if (obj->isDenseArray())
             aobj = obj->getProto();
         else if (IsCacheableListBase(obj))
-            aobj = obj->getProto();
+            aobj = obj->getTaggedProto().toObjectOrNull();
 
         if (!aobj->isNative())
             return ic.disable(f, "non-native");
@@ -865,9 +865,7 @@ class GetPropCompiler : public PICStubCompiler
 
         Jump notStringObj = masm.guardShape(pic.objReg, obj);
 
-        masm.loadPayload(Address(pic.objReg, StringObject::getPrimitiveValueOffset()), pic.objReg);
-        masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
-        masm.urshift32(Imm32(JSString::LENGTH_SHIFT), pic.objReg);
+        masm.loadPayload(Address(pic.objReg, StringObject::offsetOfLength()), pic.objReg);
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
         Jump done = masm.jump();
 
@@ -1362,7 +1360,7 @@ class GetPropCompiler : public PICStubCompiler
             } else {
                 // Like when we add a property, we need to guard on the shape of
                 // everything on the prototype chain.
-                JSObject *proto = obj->getProto();
+                JSObject *proto = obj->getTaggedProto().toObjectOrNull();
                 RegisterID lastReg = pic.objReg;
                 while (proto) {
                     masm.loadPtr(Address(lastReg, JSObject::offsetOfType()), pic.shapeReg);
@@ -1945,7 +1943,7 @@ class BindNameCompiler : public PICStubCompiler
         RecompilationMonitor monitor(cx);
 
         RootedObject scope(cx);
-        if (!LookupNameForSet(cx, name, scopeChain, &scope))
+        if (!LookupNameWithGlobalDefault(cx, name, scopeChain, &scope))
             return NULL;
 
         if (monitor.recompiled())
@@ -2729,7 +2727,7 @@ SetElementIC::attachHoleStub(VMFrame &f, JSObject *obj, int32_t keyval)
     // However we should still build the IC in this case, since it could
     // be in a loop that is filling in the array.
 
-    if (js_PrototypeHasIndexedProperties(cx, obj))
+    if (js_PrototypeHasIndexedProperties(obj))
         return disable(f, "prototype has indexed properties");
 
     MJITInstrumentation sps(&f.cx->runtime->spsProfiler);

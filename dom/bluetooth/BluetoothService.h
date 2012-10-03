@@ -8,11 +8,18 @@
 #define mozilla_dom_bluetooth_bluetootheventservice_h__
 
 #include "BluetoothCommon.h"
+#include "mozilla/dom/ipc/Blob.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
 #include "nsIObserver.h"
 #include "nsIThread.h"
 #include "nsTObserverArray.h"
+
+namespace mozilla {
+namespace ipc {
+class UnixSocketConsumer;
+}
+}
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -224,15 +231,19 @@ public:
                        BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
+  GetScoSocket(const nsAString& aObjectPath,
+               bool aAuth,
+               bool aEncrypt,
+               mozilla::ipc::UnixSocketConsumer* aConsumer) = 0;
+
+  virtual nsresult
   GetSocketViaService(const nsAString& aObjectPath,
                       const nsAString& aService,
-                      int aType,
+                      BluetoothSocketType aType,
                       bool aAuth,
                       bool aEncrypt,
+                      mozilla::ipc::UnixSocketConsumer* aSocketConsumer,
                       BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual bool
-  CloseSocket(int aFd, BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress, const nsAString& aPinCode,
@@ -252,6 +263,39 @@ public:
 
   virtual nsresult
   PrepareAdapterInternal(const nsAString& aPath) = 0;
+
+  virtual bool
+  ConnectHeadset(const nsAString& aDeviceAddress,
+                 const nsAString& aAdapterPath,
+                 BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual void
+  DisconnectHeadset(BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  ConnectObjectPush(const nsAString& aDeviceAddress,
+                    const nsAString& aAdapterPath,
+                    BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual void
+  DisconnectObjectPush(BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  SendFile(const nsAString& aDeviceAddress,
+           BlobParent* aBlobParent,
+           BlobChild* aBlobChild,
+           BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual bool
+  StopSendingFile(const nsAString& aDeviceAddress,
+                  BluetoothReplyRunnable* aRunnable) = 0;
+
+  virtual nsresult
+  ListenSocketViaService(int aChannel,
+                         BluetoothSocketType aType,
+                         bool aAuth,
+                         bool aEncrypt,
+                         mozilla::ipc::UnixSocketConsumer* aConsumer) = 0;
 
   bool
   IsEnabled() const

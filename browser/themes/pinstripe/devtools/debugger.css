@@ -7,7 +7,7 @@
 %include ../shared.inc
 
 #body {
-  background: -moz-dialog;
+  background-color: white;
 }
 
 /**
@@ -297,6 +297,14 @@
   height: 16px;
   background: url("chrome://browser/skin/identity-icons-https.png") no-repeat;
   opacity: 0.5;
+}
+
+@media (min-resolution: 2dppx) {
+  .variable[non-writable] > .title:after,
+  .property[non-writable] > .title:after {
+    background-image: url("chrome://browser/skin/identity-icons-https@2x.png");
+    background-size: 32px;
+  }
 }
 
 #element-tooltip > label {

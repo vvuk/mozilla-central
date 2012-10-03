@@ -61,7 +61,8 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:CancelUssd:Return:OK",
   "RIL:CancelUssd:Return:KO",
   "RIL:StkCommand",
-  "RIL:StkSessionEnd"
+  "RIL:StkSessionEnd",
+  "RIL:DataError"
 ];
 
 const kVoiceChangedTopic     = "mobile-connection-voice-changed";
@@ -71,6 +72,7 @@ const kIccInfoChangedTopic   = "mobile-connection-iccinfo-changed";
 const kUssdReceivedTopic     = "mobile-connection-ussd-received";
 const kStkCommandTopic       = "icc-manager-stk-command";
 const kStkSessionEndTopic    = "icc-manager-stk-session-end";
+const kDataErrorTopic        = "mobile-connection-data-error";
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -451,6 +453,15 @@ RILContentHelper.prototype = {
                                                        helpRequested: helpRequested});
   },
 
+  sendStkEventDownload: function sendStkEventDownload(window,
+                                                      event) {
+    if (window == null) {
+      throw Components.Exception("Can't get window object",
+                                  Cr.NS_ERROR_UNEXPECTED);
+    }
+    cpmm.sendAsyncMessage("RIL:SendStkEventDownload", {event: event});
+  },
+
   _telephonyCallbacks: null,
   _voicemailCallbacks: null,
   _enumerateTelephonyCallbacks: null,
@@ -714,7 +725,11 @@ RILContentHelper.prototype = {
         break;
       case "RIL:StkSessionEnd":
         Services.obs.notifyObservers(null, kStkSessionEndTopic, null);
-      break;
+        break;
+      case "RIL:DataError":
+        this.updateConnectionInfo(msg.json, this.dataConnectionInfo);
+        Services.obs.notifyObservers(null, kDataErrorTopic, msg.json.error);
+        break;
     }
   },
 

@@ -33,6 +33,8 @@
 #include "vm/Stack.h"
 #include "vm/SPSProfiler.h"
 
+#include "ion/PcScriptCache.h"
+
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4100) /* Silence unreferenced formal parameter warnings */
@@ -312,7 +314,7 @@ class NewObjectCache
     inline JSObject *newObjectFromHit(JSContext *cx, EntryIndex entry);
 
     /* Fill an entry after a cache miss. */
-    inline void fillProto(EntryIndex entry, Class *clasp, JSObject *proto, gc::AllocKind kind, JSObject *obj);
+    inline void fillProto(EntryIndex entry, Class *clasp, js::TaggedProto proto, gc::AllocKind kind, JSObject *obj);
     inline void fillGlobal(EntryIndex entry, Class *clasp, js::GlobalObject *global, gc::AllocKind kind, JSObject *obj);
     inline void fillType(EntryIndex entry, Class *clasp, js::types::TypeObject *type, gc::AllocKind kind, JSObject *obj);
 
@@ -473,7 +475,8 @@ struct JSRuntime : js::RuntimeFriendFields
     bool initSelfHosting(JSContext *cx);
     void markSelfHostedGlobal(JSTracer *trc);
     JSFunction *getSelfHostedFunction(JSContext *cx, const char *name);
-    bool cloneSelfHostedValueById(JSContext *cx, jsid id, js::HandleObject holder, js::Value *vp);
+    bool cloneSelfHostedValueById(JSContext *cx, js::HandleId id, js::HandleObject holder,
+                                  js::MutableHandleValue vp);
 
     /* Base address of the native stack for the current thread. */
     uintptr_t           nativeStackBase;
@@ -814,6 +817,9 @@ struct JSRuntime : js::RuntimeFriendFields
     /* Bookkeeping information for debug scope objects. */
     js::DebugScopes     *debugScopes;
 
+    /* Linked list of live array buffers with >1 view */
+    JSObject            *liveArrayBuffers;
+
     /* Client opaque pointers */
     void                *data;
 
@@ -861,12 +867,6 @@ struct JSRuntime : js::RuntimeFriendFields
     const char          *thousandsSeparator;
     const char          *decimalSeparator;
     const char          *numGrouping;
-
-    /*
-     * Flag indicating that we are waiving any soft limits on the GC heap
-     * because we want allocations to be infallible (except when we hit OOM).
-     */
-    bool                waiveGCQuota;
 
   private:
     js::MathCache *mathCache_;
@@ -942,6 +942,9 @@ struct JSRuntime : js::RuntimeFriendFields
 
     // This points to the most recent Ion activation running on the thread.
     js::ion::IonActivation  *ionActivation;
+
+    // Cache for ion::GetPcScript().
+    js::ion::PcScriptCache *ionPcScriptCache;
 
   private:
     // In certain cases, we want to optimize certain opcodes to typed instructions,
@@ -1351,9 +1354,6 @@ struct JSContext : js::ContextFriendFields
   public:
     /* State for object and array toSource conversion. */
     js::ObjectSet       cycleDetectorSet;
-
-    /* Last message string and log file for debugging. */
-    char                *lastMessage;
 
     /* Per-context optional error reporter. */
     JSErrorReporter     errorReporter;

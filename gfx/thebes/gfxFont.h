@@ -6,7 +6,6 @@
 #ifndef GFX_FONT_H
 #define GFX_FONT_H
 
-#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "nsString.h"
@@ -1064,7 +1063,6 @@ private:
         float x, y, width, height;
     };
 
-    typedef uintptr_t PtrBits;
     enum { BLOCK_SIZE_BITS = 7, BLOCK_SIZE = 1 << BLOCK_SIZE_BITS }; // 128-glyph blocks
 
     class GlyphWidths {
@@ -1074,7 +1072,7 @@ private:
             uint32_t block = aIndex >> BLOCK_SIZE_BITS;
             if (block >= mBlocks.Length())
                 return INVALID_WIDTH;
-            PtrBits bits = mBlocks[block];
+            uintptr_t bits = mBlocks[block];
             if (!bits)
                 return INVALID_WIDTH;
             uint32_t indexInBlock = aIndex & (BLOCK_SIZE - 1);
@@ -1092,19 +1090,19 @@ private:
         ~GlyphWidths();
 
     private:
-        static uint32_t GetGlyphOffset(PtrBits aBits) {
+        static uint32_t GetGlyphOffset(uintptr_t aBits) {
             NS_ASSERTION(aBits & 0x1, "This is really a pointer...");
             return (aBits >> 1) & ((1 << BLOCK_SIZE_BITS) - 1);
         }
-        static uint32_t GetWidth(PtrBits aBits) {
+        static uint32_t GetWidth(uintptr_t aBits) {
             NS_ASSERTION(aBits & 0x1, "This is really a pointer...");
             return aBits >> (1 + BLOCK_SIZE_BITS);
         }
-        static PtrBits MakeSingle(uint32_t aGlyphOffset, uint16_t aWidth) {
+        static uintptr_t MakeSingle(uint32_t aGlyphOffset, uint16_t aWidth) {
             return (aWidth << (1 + BLOCK_SIZE_BITS)) + (aGlyphOffset << 1) + 1;
         }
 
-        nsTArray<PtrBits> mBlocks;
+        nsTArray<uintptr_t> mBlocks;
     };
 
     GlyphWidths             mContainedGlyphWidths;
@@ -1571,6 +1569,9 @@ public:
 
     virtual FontType GetType() const = 0;
 
+    virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont> GetScaledFont(mozilla::gfx::DrawTarget *aTarget)
+    { return gfxPlatform::GetPlatform()->GetScaledFontForFont(aTarget, this); }
+
 protected:
     // Call the appropriate shaper to generate glyphs for aText and store
     // them into aShapedWord.
@@ -1693,6 +1694,7 @@ protected:
 #ifdef MOZ_GRAPHITE
     nsAutoPtr<gfxFontShaper>   mGraphiteShaper;
 #endif
+    mozilla::RefPtr<mozilla::gfx::ScaledFont> mAzureScaledFont;
 
     // Create a default platform text shaper for this font.
     // (TODO: This should become pure virtual once all font backends have
@@ -2077,7 +2079,7 @@ public:
     }
 
     float GetDirection() const {
-        return IsRightToLeft() ? -1.0 : 1.0;
+        return IsRightToLeft() ? -1.0f : 1.0f;
     }
 
     bool DisableLigatures() const {
@@ -2605,7 +2607,7 @@ public:
      * SetLineBreaks(aStart, result, aLineBreakBefore, result < aMaxLength, aProvider)
      * and the returned metrics and the invariants above reflect this.
      *
-     * @param aMaxLength this can be PR_UINT32_MAX, in which case the length used
+     * @param aMaxLength this can be UINT32_MAX, in which case the length used
      * is up to the end of the string
      * @param aLineBreakBefore set to true if and only if there is an actual
      * line break at the start of this string.
@@ -2629,7 +2631,7 @@ public:
      * the maximal N such that
      *       N < aMaxLength && line break at N && GetAdvanceWidth(aStart, N) <= aWidth
      *   OR  N < aMaxLength && hyphen break at N && GetAdvanceWidth(aStart, N) + GetHyphenWidth() <= aWidth
-     * or PR_UINT32_MAX if no such N exists, where GetAdvanceWidth assumes
+     * or UINT32_MAX if no such N exists, where GetAdvanceWidth assumes
      * the effect of
      * SetLineBreaks(aStart, N, aLineBreakBefore, N < aMaxLength, aProvider)
      *
@@ -3105,7 +3107,7 @@ public:
     // If this group has such "bad" font, each platform's gfxFontGroup initialized mUnderlineOffset.
     // The value should be lower value of first font's metrics and the bad font's metrics.
     // Otherwise, this returns from first font's metrics.
-    enum { UNDERLINE_OFFSET_NOT_SET = PR_INT16_MAX };
+    enum { UNDERLINE_OFFSET_NOT_SET = INT16_MAX };
     virtual gfxFloat GetUnderlineOffset() {
         if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
             mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;

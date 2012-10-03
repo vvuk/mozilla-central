@@ -4,7 +4,7 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: nss.h,v 1.96 2012/04/25 14:50:04 gerv%gerv.net Exp $ */
+/* $Id: nss.h,v 1.97 2012/09/21 21:58:44 wtc%google.com Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
@@ -128,8 +128,7 @@ SEC_BEGIN_PROTOS
  * The only argument is a string, which should be the version
  * identifier of the NSS library. That string will be compared
  * against a string that represents the actual build version of
- * the NSS library.  It also invokes the version checking functions
- * of the dependent libraries such as NSPR.
+ * the NSS library.
  */
 extern PRBool NSS_VersionCheck(const char *importedVersion);
 

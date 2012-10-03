@@ -51,7 +51,16 @@ CPPSRCS += \
   BluetoothChild.cpp \
   BluetoothParent.cpp \
   BluetoothServiceChildProcess.cpp \
+  BluetoothUnixSocketConnector.cpp \
+  BluetoothHfpManager.cpp \
+  BluetoothOppManager.cpp \
+  ObexBase.cpp \
+  BluetoothScoManager.cpp \
   $(NULL)
+
+ifdef MOZ_B2G_RIL
+CPPSRCS += BluetoothRilListener.cpp
+endif
 
 XPIDLSRCS = \
   nsIDOMNavigatorBluetooth.idl \

@@ -77,6 +77,9 @@
 #include "nsILoadContext.h"
 #include "mozilla/Services.h"
 #include "nsIPrivateBrowsingChannel.h"
+#include "mozIApplicationClearPrivateDataParams.h"
+
+#include <limits>
 
 #ifdef MOZILLA_INTERNAL_API
 
@@ -726,7 +729,7 @@ NS_NewProxyInfo(const nsACString &type,
     nsCOMPtr<nsIProtocolProxyService> pps =
             do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv))
-        rv = pps->NewProxyInfo(type, host, port, flags, PR_UINT32_MAX, nullptr,
+        rv = pps->NewProxyInfo(type, host, port, flags, UINT32_MAX, nullptr,
                                result);
     return rv; 
 }
@@ -851,40 +854,6 @@ NS_GetReferrerFromChannel(nsIChannel *channel,
     }
     return rv;
 }
-
-#ifdef MOZILLA_INTERNAL_API
-inline nsresult
-NS_ExamineForProxy(const char    *scheme,
-                   const char    *host,
-                   int32_t        port, 
-                   nsIProxyInfo **proxyInfo)
-{
-    nsresult rv;
-    nsCOMPtr<nsIProtocolProxyService> pps =
-            do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID, &rv);
-    if (NS_SUCCEEDED(rv)) {
-        nsAutoCString spec(scheme);
-        spec.Append("://");
-        spec.Append(host);
-        spec.Append(':');
-        spec.AppendInt(port);
-        // XXXXX - Under no circumstances whatsoever should any code which
-        // wants a uri do this. I do this here because I do not, in fact,
-        // actually want a uri (the dummy uris created here may not be 
-        // syntactically valid for the specific protocol), and all we need
-        // is something which has a valid scheme, hostname, and a string
-        // to pass to PAC if needed - bbaetz
-        nsCOMPtr<nsIURI> uri =
-                do_CreateInstance(NS_STANDARDURL_CONTRACTID, &rv);
-        if (NS_SUCCEEDED(rv)) {
-            rv = uri->SetSpec(spec);
-            if (NS_SUCCEEDED(rv))
-                rv = pps->Resolve(uri, 0, proxyInfo);
-        }
-    }
-    return rv;
-}
-#endif
 
 inline nsresult
 NS_ParseContentType(const nsACString &rawContentType,
@@ -1342,8 +1311,7 @@ NS_UsePrivateBrowsing(nsIChannel *channel)
 // Constants duplicated from nsIScriptSecurityManager so we avoid having necko
 // know about script security manager.
 #define NECKO_NO_APP_ID 0
-// Note: UNKNOWN also equals PR_UINT32_MAX
-#define NECKO_UNKNOWN_APP_ID 4294967295
+#define NECKO_UNKNOWN_APP_ID UINT32_MAX
 
 /**
  * Gets AppId and isInBrowserElement from channel's nsILoadContext.
@@ -1365,6 +1333,46 @@ NS_GetAppInfo(nsIChannel *aChannel, uint32_t *aAppID, bool *aIsInBrowserElement)
     NS_ENSURE_SUCCESS(rv, false);
 
     return true;
+}
+
+#define TOPIC_WEB_APP_CLEAR_DATA "webapps-clear-data"
+
+/**
+ *  Gets appId and browserOnly parameters from the TOPIC_WEB_APP_CLEAR_DATA
+ *  nsIObserverService notification.  Used when clearing user data or
+ *  uninstalling web apps.
+ */
+inline nsresult
+NS_GetAppInfoFromClearDataNotification(nsISupports *aSubject,
+                                       uint32_t *aAppID, bool* aBrowserOnly)
+{
+    nsresult rv;
+
+    nsCOMPtr<mozIApplicationClearPrivateDataParams>
+        clearParams(do_QueryInterface(aSubject));
+    MOZ_ASSERT(clearParams);
+    if (!clearParams) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    uint32_t appId;
+    rv = clearParams->GetAppId(&appId);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+    MOZ_ASSERT(appId != NECKO_NO_APP_ID);
+    MOZ_ASSERT(appId != NECKO_UNKNOWN_APP_ID);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (appId == NECKO_NO_APP_ID || appId == NECKO_UNKNOWN_APP_ID) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    bool browserOnly = false;
+    rv = clearParams->GetBrowserOnly(&browserOnly);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    *aAppID = appId;
+    *aBrowserOnly = browserOnly;
+    return NS_OK;
 }
 
 /**

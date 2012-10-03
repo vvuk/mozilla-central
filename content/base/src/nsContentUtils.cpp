@@ -99,6 +99,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsDOMJSUtils.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
+#include "nsAttrValueInlines.h"
 #include "nsReferencedElement.h"
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
@@ -128,6 +129,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsISVGChildFrame.h"
 #include "nsRenderingContext.h"
 #include "gfxSVGGlyphs.h"
+#include "mozilla/dom/EncodingUtils.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -1527,6 +1529,7 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sSameOriginChecker);
   
+  EncodingUtils::Shutdown();
   nsTextEditorState::ShutDown();
 }
 
@@ -2877,7 +2880,7 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
 }
 
 static bool
-TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm)
+TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool aExactHostMatch)
 {
   if (!aPrincipal) {
     // We always deny (i.e. don't allow) the permission if we don't have a
@@ -2890,7 +2893,12 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm)
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t perm;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
+  nsresult rv;
+  if (aExactHostMatch) {
+    rv = permMgr->TestExactPermissionFromPrincipal(aPrincipal, aType, &perm);
+  } else {
+    rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
+  }
   NS_ENSURE_SUCCESS(rv, false);
 
   return perm == aPerm;
@@ -2899,13 +2907,25 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm)
 bool
 nsContentUtils::IsSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, false);
 }
 
 bool
 nsContentUtils::IsSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, false);
+}
+
+bool
+nsContentUtils::IsExactSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
+{
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, true);
+}
+
+bool
+nsContentUtils::IsExactSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
+{
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, true);
 }
 
 static const char *gEventNames[] = {"event"};
@@ -6928,9 +6948,7 @@ nsContentUtils::ReleaseWrapper(nsISupports* aScriptObjectHolder,
     // from both here.
     JSObject* obj = aCache->GetWrapperPreserveColor();
     if (aCache->IsDOMBinding() && obj) {
-      JSCompartment *compartment = js::GetObjectCompartment(obj);
-      xpc::CompartmentPrivate *priv =
-        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+      xpc::CompartmentPrivate *priv = xpc::GetCompartmentPrivate(obj);
       priv->RemoveDOMExpandoObject(obj);
     }
     DropJSObjects(aScriptObjectHolder);

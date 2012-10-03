@@ -915,7 +915,7 @@ public:
   virtual Element *LookupImageElement(const nsAString& aElementId);
 
   virtual NS_HIDDEN_(nsresult) AddImage(imgIRequest* aImage);
-  virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
+  virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage, uint32_t aFlags);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(bool aLocked);
 
   // AddPlugin adds a plugin-related element to mPlugins when the element is
@@ -1274,7 +1274,7 @@ private:
   void DoUnblockOnload();
 
   nsresult CheckFrameOptions();
-  nsresult InitCSP(nsIChannel* aChannel, nsIContentSecurityPolicy **aCSP);
+  nsresult InitCSP(nsIChannel* aChannel);
 
   // Sets aElement to be the pending pointer lock element. Once this document's
   // node principal's URI is granted the "fullscreen" permission, the pointer

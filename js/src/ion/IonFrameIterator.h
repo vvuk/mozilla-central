@@ -113,6 +113,8 @@ class IonFrameIterator
         return type_ == IonFrame_JS;
     }
     bool isNative() const;
+    bool isOOLNativeGetter() const;
+    bool isOOLPropertyOp() const;
     bool isDOMExit() const;
     bool isEntry() const {
         return type_ == IonFrame_Entry;

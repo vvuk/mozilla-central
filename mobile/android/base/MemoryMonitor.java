@@ -34,6 +34,7 @@ import android.util.Log;
 class MemoryMonitor extends BroadcastReceiver {
     private static final String LOGTAG = "GeckoMemoryMonitor";
     private static final String ACTION_MEMORY_DUMP = "org.mozilla.gecko.MEMORY_DUMP";
+    private static final String ACTION_FORCE_PRESSURE = "org.mozilla.gecko.FORCE_MEMORY_PRESSURE";
 
     private static final int MEMORY_PRESSURE_NONE = 0;
     private static final int MEMORY_PRESSURE_CLEANUP = 1;
@@ -62,6 +63,7 @@ class MemoryMonitor extends BroadcastReceiver {
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_LOW);
         filter.addAction(Intent.ACTION_DEVICE_STORAGE_OK);
         filter.addAction(ACTION_MEMORY_DUMP);
+        filter.addAction(ACTION_FORCE_PRESSURE);
         context.getApplicationContext().registerReceiver(this, filter);
     }
 
@@ -115,6 +117,8 @@ class MemoryMonitor extends BroadcastReceiver {
                 label = "default";
             }
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Memory:Dump", label));
+        } else if (ACTION_FORCE_PRESSURE.equals(intent.getAction())) {
+            increaseMemoryPressure(MEMORY_PRESSURE_HIGH);
         }
     }
 
@@ -148,17 +152,27 @@ class MemoryMonitor extends BroadcastReceiver {
             if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
                 GeckoAppShell.onLowMemory();
             }
+            ScreenshotHandler.disableScreenshot();
             GeckoAppShell.geckoEventSync();
         }
     }
 
-    private synchronized boolean decreaseMemoryPressure() {
-        if (mMemoryPressure > 0) {
-            mMemoryPressure--;
-            Log.d(LOGTAG, "Decreased memory pressure to " + mMemoryPressure);
-            return true;
+    private boolean decreaseMemoryPressure() {
+        int newLevel;
+        synchronized (this) {
+            if (mMemoryPressure <= 0) {
+                return false;
+            }
+
+            newLevel = --mMemoryPressure;
         }
-        return false;
+        Log.d(LOGTAG, "Decreased memory pressure to " + newLevel);
+
+        if (newLevel == MEMORY_PRESSURE_NONE) {
+            ScreenshotHandler.enableScreenshot();
+        }
+
+        return true;
     }
 
     class PressureDecrementer implements Runnable {

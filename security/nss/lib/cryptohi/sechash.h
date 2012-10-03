@@ -1,9 +1,10 @@
-#ifndef _HASH_H_
-#define _HASH_H_
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* $Id: sechash.h,v 1.10 2012/06/26 22:27:28 rrelyea%redhat.com Exp $ */
+/* $Id: sechash.h,v 1.11 2012/09/22 01:11:49 wtc%google.com Exp $ */
+
+#ifndef _HASH_H_
+#define _HASH_H_
 
 #include "seccomon.h"
 #include "hasht.h"

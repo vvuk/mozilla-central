@@ -66,10 +66,12 @@ var tabPreviews = {
     ctx.drawWindow(win, win.scrollX, win.scrollY,
                    snippetWidth, snippetWidth * this.aspectRatio, "rgb(255,255,255)");
 
-    if (aStore) {
+    if (aStore &&
+        aTab.linkedBrowser /* bug 795608: the tab may got removed while drawing the thumbnail */) {
       aTab.__thumbnail = thumbnail;
       aTab.__thumbnail_lastURI = aTab.linkedBrowser.currentURI.spec;
     }
+
     return thumbnail;
   },
 
@@ -86,7 +88,9 @@ var tabPreviews = {
           this._pendingUpdate = true;
           setTimeout(function (self, aTab) {
             self._pendingUpdate = false;
-            if (aTab.parentNode && !aTab.hasAttribute("busy"))
+            if (aTab.parentNode &&
+                !aTab.hasAttribute("busy") &&
+                !aTab.hasAttribute("pending"))
               self.capture(aTab, true);
           }, 2000, this, this._selectedTab);
         }

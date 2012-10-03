@@ -74,7 +74,7 @@
     }
     pc2.onaddstream = function(obj) {
       log("pc2 got remote stream from pc1 " + obj.type);
-      audio.src = obj.stream;
+      audio.mozSrcObject = obj.stream;
       audio.play();
     }
 
@@ -84,7 +84,7 @@
       // Add the stream obtained from gUM to an <audio> element to start
       // the audio flow. We mute it on this end, and assign the "remote"
       // stream when it arrives at pc2 to an unmuted <audio>.
-      localaudio.src = stream;
+      localaudio.mozSrcObject = stream;
       localaudio.play();
 
       pc1.addStream(stream);

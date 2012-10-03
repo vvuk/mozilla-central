@@ -60,7 +60,7 @@ stubs::BindName(VMFrame &f, PropertyName *name_)
 {
     RootedPropertyName name(f.cx, name_);
     RootedObject scope(f.cx);
-    if (!LookupNameForSet(f.cx, name, f.fp()->scopeChain(), &scope))
+    if (!LookupNameWithGlobalDefault(f.cx, name, f.fp()->scopeChain(), &scope))
         THROW();
     f.regs.sp[0].setObject(*scope);
 }
@@ -135,7 +135,7 @@ stubs::SetElem(VMFrame &f)
             int32_t i = JSID_TO_INT(id);
             if ((uint32_t)i < length) {
                 if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
-                    if (js_PrototypeHasIndexedProperties(cx, obj))
+                    if (js_PrototypeHasIndexedProperties(obj))
                         break;
                     if ((uint32_t)i >= obj->getArrayLength())
                         JSObject::setArrayLength(cx, obj, i + 1);
@@ -175,8 +175,10 @@ stubs::ToId(VMFrame &f)
     if (!FetchElementId(f.cx, obj, idval, id.address(), idval))
         THROW();
 
-    if (!idval.isInt32())
-        TypeScript::MonitorUnknown(f.cx, f.script(), f.pc());
+    if (!idval.isInt32()) {
+        RootedScript fscript(f.cx, f.script());
+        TypeScript::MonitorUnknown(f.cx, fscript, f.pc());
+    }
 }
 
 void JS_FASTCALL
@@ -185,9 +187,8 @@ stubs::ImplicitThis(VMFrame &f, PropertyName *name_)
     RootedObject scopeObj(f.cx, f.cx->stack.currentScriptedScopeChain());
     RootedPropertyName name(f.cx, name_);
 
-    RootedObject obj(f.cx), obj2(f.cx);
-    RootedShape prop(f.cx);
-    if (!LookupName(f.cx, name, scopeObj, &obj, &obj2, &prop))
+    RootedObject obj(f.cx);
+    if (!LookupNameWithGlobalDefault(f.cx, name, scopeObj, &obj))
         THROW();
 
     if (!ComputeImplicitThis(f.cx, obj, &f.regs.sp[0]))
@@ -277,8 +278,10 @@ stubs::Ursh(VMFrame &f)
 
     u >>= (j & 31);
 
-	if (!f.regs.sp[-2].setNumber(uint32_t(u)))
-        TypeScript::MonitorOverflow(f.cx, f.script(), f.pc());
+    if (!f.regs.sp[-2].setNumber(uint32_t(u))) {
+        RootedScript fscript(f.cx, f.script());
+        TypeScript::MonitorOverflow(f.cx, fscript, f.pc());
+    }
 }
 
 template<JSBool strict>
@@ -591,7 +594,8 @@ stubs::Add(VMFrame &f)
             THROW();
         regs.sp[-2] = rval;
         regs.sp--;
-        TypeScript::MonitorUnknown(cx, f.script(), f.pc());
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorUnknown(cx, fscript, f.pc());
     } else
 #endif
     {
@@ -617,8 +621,10 @@ stubs::Add(VMFrame &f)
                     THROW();
                 regs.sp[-1].setString(rstr);
             }
-            if (lIsObject || rIsObject)
-                TypeScript::MonitorString(cx, f.script(), f.pc());
+            if (lIsObject || rIsObject) {
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorString(cx, fscript, f.pc());
+            }
             goto string_concat;
 
         } else {
@@ -628,7 +634,8 @@ stubs::Add(VMFrame &f)
             l += r;
             if (!regs.sp[-2].setNumber(l) &&
                 (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble()))) {
-                TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorOverflow(cx, fscript, f.pc());
             }
         }
     }
@@ -652,8 +659,10 @@ stubs::Sub(VMFrame &f)
     if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
         THROW();
     double d = d1 - d2;
-    if (!regs.sp[-2].setNumber(d))
-        TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+    if (!regs.sp[-2].setNumber(d)) {
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorOverflow(cx, fscript, f.pc());
+    }
 }
 
 void JS_FASTCALL
@@ -665,8 +674,10 @@ stubs::Mul(VMFrame &f)
     if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
         THROW();
     double d = d1 * d2;
-    if (!regs.sp[-2].setNumber(d))
-        TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+    if (!regs.sp[-2].setNumber(d)) {
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorOverflow(cx, fscript, f.pc());
+    }
 }
 
 void JS_FASTCALL
@@ -694,11 +705,14 @@ stubs::Div(VMFrame &f)
         else
             vp = &rt->positiveInfinityValue;
         regs.sp[-2] = *vp;
-        TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorOverflow(cx, fscript, f.pc());
     } else {
         d1 /= d2;
-        if (!regs.sp[-2].setNumber(d1))
-            TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+        if (!regs.sp[-2].setNumber(d1)) {
+            RootedScript fscript(cx, f.script());
+            TypeScript::MonitorOverflow(cx, fscript, f.pc());
+        }
     }
 }
 
@@ -725,7 +739,8 @@ stubs::Mod(VMFrame &f)
             d1 = js_fmod(d1, d2);
             regs.sp[-2].setDouble(d1);
         }
-        TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorOverflow(cx, fscript, f.pc());
     }
 }
 
@@ -890,8 +905,10 @@ stubs::Neg(VMFrame &f)
     if (!ToNumber(f.cx, f.regs.sp[-1], &d))
         THROW();
     d = -d;
-    if (!f.regs.sp[-1].setNumber(d))
-        TypeScript::MonitorOverflow(f.cx, f.script(), f.pc());
+    if (!f.regs.sp[-1].setNumber(d)) {
+        RootedScript fscript(f.cx, f.script());
+        TypeScript::MonitorOverflow(f.cx, fscript, f.pc());
+    }
 }
 
 void JS_FASTCALL
@@ -905,8 +922,8 @@ stubs::NewInitArray(VMFrame &f, uint32_t count)
     if (type) {
         obj->setType(type);
     } else {
-        RootedScript script(f.cx, f.script());
-        if (!SetInitializerObjectType(f.cx, script, f.pc(), obj))
+        RootedScript fscript(f.cx, f.script());
+        if (!SetInitializerObjectType(f.cx, fscript, f.pc(), obj))
             THROW();
     }
 
@@ -934,8 +951,8 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
     if (type) {
         obj->setType(type);
     } else {
-        RootedScript script(f.cx, f.script());
-        if (!SetInitializerObjectType(cx, script, f.pc(), obj))
+        RootedScript fscript(f.cx, f.script());
+        if (!SetInitializerObjectType(cx, fscript, f.pc(), obj))
             THROW();
     }
 
@@ -1101,7 +1118,7 @@ stubs::IterNext(VMFrame &f)
     JS_ASSERT(f.regs.stackDepth() >= 1);
     JS_ASSERT(f.regs.sp[-1].isObject());
 
-    JSObject *iterobj = &f.regs.sp[-1].toObject();
+    RootedObject iterobj(f.cx, &f.regs.sp[-1].toObject());
     f.regs.sp[0].setNull();
     f.regs.sp++;
     if (!js_IteratorNext(f.cx, iterobj, MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1])))
@@ -1126,7 +1143,8 @@ void JS_FASTCALL
 stubs::EndIter(VMFrame &f)
 {
     JS_ASSERT(f.regs.stackDepth() >= 1);
-    if (!CloseIterator(f.cx, &f.regs.sp[-1].toObject()))
+    RootedObject obj(f.cx, &f.regs.sp[-1].toObject());
+    if (!CloseIterator(f.cx, obj))
         THROW();
 }
 
@@ -1217,7 +1235,11 @@ stubs::FastInstanceOf(VMFrame &f)
         THROW();
     }
 
-    f.regs.sp[-3].setBoolean(js_IsDelegate(f.cx, &lref.toObject(), f.regs.sp[-3]));
+    bool isDelegate;
+    RootedObject obj(f.cx, &lref.toObject());
+    if (!IsDelegate(f.cx, obj, f.regs.sp[-3], &isDelegate))
+        THROW();
+    f.regs.sp[-3].setBoolean(isDelegate);
 }
 
 void JS_FASTCALL
@@ -1377,8 +1399,10 @@ stubs::Pos(VMFrame &f)
 {
     if (!ToNumber(f.cx, &f.regs.sp[-1]))
         THROW();
-    if (!f.regs.sp[-1].isInt32())
-        TypeScript::MonitorOverflow(f.cx, f.script(), f.pc());
+    if (!f.regs.sp[-1].isInt32()) {
+        RootedScript fscript(f.cx, f.script());
+        TypeScript::MonitorOverflow(f.cx, fscript, f.pc());
+    }
 }
 
 void JS_FASTCALL
@@ -1526,7 +1550,8 @@ stubs::TypeBarrierHelper(VMFrame &f, uint32_t which)
         f.script()->analysis()->breakTypeBarriers(f.cx, f.pc() - f.script()->code, false);
     }
 
-    TypeScript::Monitor(f.cx, f.script(), f.pc(), result);
+    RootedScript fscript(f.cx, f.script());
+    TypeScript::Monitor(f.cx, fscript, f.pc(), result);
 }
 
 void JS_FASTCALL
@@ -1539,7 +1564,8 @@ stubs::StubTypeHelper(VMFrame &f, int32_t which)
         f.script()->analysis()->breakTypeBarriers(f.cx, f.pc() - f.script()->code, false);
     }
 
-    TypeScript::Monitor(f.cx, f.script(), f.pc(), result);
+    RootedScript fscript(f.cx, f.script());
+    TypeScript::Monitor(f.cx, fscript, f.pc(), result);
 }
 
 /*
@@ -1549,14 +1575,16 @@ stubs::StubTypeHelper(VMFrame &f, int32_t which)
 void JS_FASTCALL
 stubs::TypeBarrierReturn(VMFrame &f, Value *vp)
 {
-    TypeScript::Monitor(f.cx, f.script(), f.pc(), vp[0]);
+    RootedScript fscript(f.cx, f.script());
+    TypeScript::Monitor(f.cx, fscript, f.pc(), vp[0]);
 }
 
 void JS_FASTCALL
 stubs::NegZeroHelper(VMFrame &f)
 {
     f.regs.sp[-1].setDouble(-0.0);
-    TypeScript::MonitorOverflow(f.cx, f.script(), f.pc());
+    RootedScript fscript(f.cx, f.script());
+    TypeScript::MonitorOverflow(f.cx, fscript, f.pc());
 }
 
 void JS_FASTCALL
@@ -1564,7 +1592,7 @@ stubs::CheckArgumentTypes(VMFrame &f)
 {
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    JSScript *script = fun->script();
+    RootedScript fscript(f.cx, fun->script());
     RecompilationMonitor monitor(f.cx);
 
     {
@@ -1572,9 +1600,9 @@ stubs::CheckArgumentTypes(VMFrame &f)
         types::AutoEnterTypeInference enter(f.cx);
 
         if (!f.fp()->isConstructing())
-            TypeScript::SetThis(f.cx, script, fp->thisValue());
+            TypeScript::SetThis(f.cx, fscript, fp->thisValue());
         for (unsigned i = 0; i < fun->nargs; i++)
-            TypeScript::SetArgument(f.cx, script, i, fp->unaliasedFormal(i, DONT_CHECK_ALIASING));
+            TypeScript::SetArgument(f.cx, fscript, i, fp->unaliasedFormal(i, DONT_CHECK_ALIASING));
     }
 
     if (monitor.recompiled())

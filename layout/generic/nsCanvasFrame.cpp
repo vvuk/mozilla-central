@@ -22,6 +22,7 @@
 #include "nsDisplayList.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsFrameManager.h"
+#include "gfxPlatform.h"
 
 // for focus
 #include "nsIScrollableFrame.h"
@@ -156,12 +157,6 @@ nsCanvasFrame::RemoveFrame(ChildListID     aListID,
   if (aOldFrame != mFrames.FirstChild())
     return NS_ERROR_FAILURE;
 
-  // It's our one and only child frame
-  // Damage the area occupied by the deleted frame
-  // The child of the canvas probably can't have an outline, but why bother
-  // thinking about that?
-  Invalidate(aOldFrame->GetVisualOverflowRect() + aOldFrame->GetPosition());
-
   // Remove the frame and destroy it
   mFrames.DestroyFrame(aOldFrame);
 
@@ -216,12 +211,32 @@ nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
 #ifndef MOZ_GFX_OPTIMIZE_MOBILE
   if (IsSingleFixedPositionImage(aBuilder, bgClipRect) && aBuilder->IsPaintingToWindow() && !aBuilder->IsCompositingCheap()) {
     surf = static_cast<gfxASurface*>(GetUnderlyingFrame()->Properties().Get(nsIFrame::CachedBackgroundImage()));
-    nsRefPtr<gfxASurface> destSurf = dest->CurrentSurface();
-    if (surf && surf->GetType() == destSurf->GetType()) {
-      BlitSurface(dest, mDestRect, surf);
-      return;
+    if (dest->IsCairo()) {
+      nsRefPtr<gfxASurface> destSurf = dest->CurrentSurface();
+      if (surf && surf->GetType() == destSurf->GetType()) {
+        BlitSurface(dest, mDestRect, surf);
+        return;
+      }
+      surf = destSurf->CreateSimilarSurface(
+          gfxASurface::CONTENT_COLOR_ALPHA,
+          gfxIntSize(ceil(mDestRect.width), ceil(mDestRect.height)));
+    } else {
+      if (surf) {
+        mozilla::gfx::DrawTarget* dt = dest->GetDrawTarget();
+        mozilla::RefPtr<mozilla::gfx::SourceSurface> source =
+            gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, surf);
+        if (source) {
+          // Could be non-integer pixel alignment
+          dt->DrawSurface(source,
+                          mozilla::gfx::Rect(mDestRect.x, mDestRect.y, mDestRect.width, mDestRect.height),
+                          mozilla::gfx::Rect(0, 0, mDestRect.width, mDestRect.height));
+          return;
+        }
+      }
+      surf = gfxPlatform::GetPlatform()->CreateOffscreenImageSurface(
+          gfxIntSize(ceil(mDestRect.width), ceil(mDestRect.height)),
+          gfxASurface::CONTENT_COLOR_ALPHA);
     }
-    surf = destSurf->CreateSimilarSurface(gfxASurface::CONTENT_COLOR_ALPHA, gfxIntSize(ceil(mDestRect.width), ceil(mDestRect.height)));
     if (surf) {
       ctx = new gfxContext(surf);
       ctx->Translate(-gfxPoint(mDestRect.x, mDestRect.y));
@@ -507,15 +522,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       // could also include overflow to our top and left (out of the viewport)
       // which doesn't need to be painted.
       nsIFrame* viewport = PresContext()->GetPresShell()->GetRootFrame();
-      viewport->Invalidate(nsRect(nsPoint(0, 0), viewport->GetSize()));
-    } else {
-      nsRect newKidRect = kidFrame->GetRect();
-      if (newKidRect.TopLeft() == oldKidRect.TopLeft()) {
-        InvalidateRectDifference(oldKidRect, kidFrame->GetRect());
-      } else {
-        Invalidate(oldKidRect);
-        Invalidate(newKidRect);
-      }
+      viewport->InvalidateFrame();
     }
     
     // Return our desired size. Normally it's what we're told, but
@@ -559,7 +566,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
           const nsStyleBackground::Layer& layer = bg->mLayers[i];
           if (layer.mAttachment == NS_STYLE_BG_ATTACHMENT_FIXED &&
               layer.RenderingMightDependOnFrameSize()) {
-            Invalidate(nsRect(nsPoint(0, 0), GetSize()));
+            InvalidateFrame();
             break;
           }
         }

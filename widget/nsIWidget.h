@@ -11,7 +11,6 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsRegion.h"
 #include "nsStringGlue.h"
 
 #include "prthread.h"
@@ -36,6 +35,7 @@ class   gfxASurface;
 class   nsIContent;
 class   ViewWrapper;
 class   nsIWidgetListener;
+class   nsIntRegion;
 
 namespace mozilla {
 namespace dom {
@@ -428,6 +428,10 @@ class nsIWidget : public nsISupports {
      * In practice at least one of aParent and aNativeParent will be null. If
      * both are null the widget isn't parented (e.g. context menus or
      * independent top level windows).
+     *
+     * The dimensions given in aRect are specified in the parent's
+     * coordinate system, or for parentless widgets such as top-level
+     * windows, in global CSS pixels.
      *
      * @param     aParent       parent nsIWidget
      * @param     aNativeParent native parent widget
@@ -1357,6 +1361,7 @@ class nsIWidget : public nsISupports {
 
     /**
      * A shortcut to SynthesizeNativeMouseEvent, abstracting away the native message.
+     * aPoint is location in device pixels to which the mouse pointer moves to.
      */
     virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint) = 0;
 
@@ -1621,6 +1626,12 @@ class nsIWidget : public nsISupports {
      * @return the constraints in device pixels
      */
     virtual const SizeConstraints& GetSizeConstraints() const = 0;
+
+    /**
+     * If this is owned by a TabChild, return that.  Otherwise return
+     * null.
+     */
+    virtual TabChild* GetOwningTabChild() { return nullptr; }
 
 protected:
 
