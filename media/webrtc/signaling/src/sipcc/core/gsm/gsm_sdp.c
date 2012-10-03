@@ -2890,7 +2890,7 @@ gsmsdp_negotiate_codec (fsmdef_dcb_t *dcb_p, cc_sdp_t *sdp_p,
                         GSM_DEBUG(DEB_L_C_F_PREFIX"codec= %d ignored - attribs not accepted\n", 
                              DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, 
                              dcb_p->call_id, fname), media->payload);
-			        explicit_reject = TRUE;
+                        explicit_reject = TRUE;
                         continue; // keep looking
                     }
 
@@ -2963,7 +2963,7 @@ static void
 gsmsdp_negotiate_datachannel_attribs(fsmdef_dcb_t* dcb_p, cc_sdp_t* sdp_p, uint16_t level, fsmdef_media_t* media)
 {
     uint32          num_streams;
-	char           *protocol;
+    char           *protocol;
 
     sdp_attr_get_fmtp_streams (sdp_p->dest_sdp, level, 0, 1, &num_streams);
 
@@ -3953,7 +3953,6 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         return (CC_CAUSE_NO_MEDIA);
     }
 
-
     /*
      * Process each media line in the remote SDP
      */
@@ -3967,7 +3966,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
         port = (uint16_t) sdp_get_media_portnum(sdp_p->dest_sdp, i);
         GSM_DEBUG(DEB_L_C_F_PREFIX"Port is %d at %d %d\n", 
                   DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), 
-				  port, i, initial_offer);
+                  port, i, initial_offer);
 
         switch (media_type) {
         case SDP_MEDIA_AUDIO:
@@ -4002,7 +4001,6 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                     unsupported_line = TRUE;
                     break;
                 }
-
                 /*
                  * This media is a newly added, it is by itself an
                  * initial offer of this line.
@@ -4048,7 +4046,7 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                                                                media)) {
                     unsupported_line = TRUE;
                     GSM_DEBUG(DEB_L_C_F_PREFIX"unable to assign capability entry at %d\n", 
-						DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), i);
+                              DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), i);
                     // Check if we need to update the UI that video has been offered
                     if ( offer && media_type == SDP_MEDIA_VIDEO &&
                           ( ( g_media_table.cap[CC_VIDEO_1].support_direction != 
@@ -4214,9 +4212,9 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
                      if (SDP_MEDIA_APPLICATION != media_type) {
                          gsmsdp_add_remote_stream(i-1, pc_stream_id, dcb_p, media);
                      } else {
-                    	 /*
-                    	  * Inform VCM that a Data Channel has been negotiated
-                    	  */
+                         /*
+                          * Inform VCM that a Data Channel has been negotiated
+                          */
                          lsm_data_channel_negotiated(dcb_p->line, dcb_p->call_id, media, &pc_stream_id);
                      }
                   }
@@ -4288,19 +4286,31 @@ gsmsdp_negotiate_media_lines (fsm_fcb_t *fcb_p, cc_sdp_t *sdp_p,
          * Update UI for Remote Stream Added
          */
         if (sdpmode) {
-        	/*
-        	 * Bubble the stream added event up to the PC UI
-        	 */
-        	if (notify_stream_added) {
 
-        	    for (j=0; j < CC_MAX_STREAMS; j++ ) {
-                // If this stream has been created it should have >0 tracks.
-                if (dcb_p->remote_media_stream_tbl->streams[j].num_tracks) {
-                    ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
-               		        dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
+            /* Fail negotiation if DTLS is not in SDP */
+            cause = gsmsdp_configure_dtls_data_attributes(fcb_p);
+            if (cause != CC_CAUSE_OK) {
+                GSM_DEBUG("gsmsdp_negotiate_media_lines- DTLS negotiation failed\n");
+                return cause;
+            }
+
+            /* ToDO(emannion)
+             * Fail negotiation if ICE is not negotiated.
+             */
+
+            /*
+             * Bubble the stream added event up to the PC UI
+             */
+             if (notify_stream_added) {
+
+                for (j=0; j < CC_MAX_STREAMS; j++ ) {
+                    // If this stream has been created it should have >0 tracks.
+                    if (dcb_p->remote_media_stream_tbl->streams[j].num_tracks) {
+                        ui_on_remote_stream_added(evOnRemoteStreamAdd, dcb_p->line, dcb_p->call_id,
+                               dcb_p->caller_id.call_instance_id, dcb_p->remote_media_stream_tbl->streams[j]);
+                    }
                 }
-        	    }
-        	}
+            }
         }
     }
     /*
@@ -4545,7 +4555,6 @@ gsmsdp_add_media_line (fsmdef_dcb_t *dcb_p, const cc_media_cap_t *media_cap,
          */
         data.open_rcv.media_type = media->type;
         data.open_rcv.media_refid = media->refid;
-
         if (cc_call_action(dcb_p->call_id, dcb_p->line,
                            CC_ACTION_OPEN_RCV,
                            &data) != CC_RC_SUCCESS) {
@@ -5771,7 +5780,7 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
     num_sdp_bodies = gsmsdp_get_sdp_body(msg_body, &sdp_bodies[0],
                                          CC_MAX_BODY_PARTS);
     GSM_DEBUG(DEB_L_C_F_PREFIX"Init is %d\n", 
-		DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), init);
+        DEB_L_C_F_PREFIX_ARGS(GSM, dcb_p->line, dcb_p->call_id, fname), init);
     if (num_sdp_bodies == 0) {
         /*
          * No remote SDP. So we will offer in our response and receive far end
@@ -5831,7 +5840,10 @@ gsmsdp_process_offer_sdp (fsm_fcb_t *fcb_p,
 }
 
 /*
- * gsmsdp_install_peer_ice_attributes(
+ * gsmsdp_install_peer_ice_attributes
+ *
+ * Read ICE parameters from the SDP and set them into
+ * the ice engine. Check SESSION_LEVEL first then each media line.
  *
  * fcb_p - pointer to the fcb
  *
@@ -5851,28 +5863,29 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
     int             level;
     short           result;
 
-    /* TODO(ekr@rtfm.com): Tolerate missing ufrag/pwd b/c it might be
-       at the media level */
+    /* Tolerate missing ufrag/pwd here at the session level
+       because it might be at the media level */
     sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, SDP_SESSION_LEVEL, 0,
       SDP_ATTR_ICE_UFRAG, 1, &ufrag);
     if (sdp_res != SDP_SUCCESS)
       ufrag = NULL;
-    
+
     sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, SDP_SESSION_LEVEL, 0,
       SDP_ATTR_ICE_PWD, 1, &pwd);
     if (sdp_res != SDP_SUCCESS)
       pwd = NULL;
-    
-    vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd);
-    if (vcm_res) 
-      return (CC_CAUSE_ERROR);
-    
-    
+
+    if (ufrag && pwd) {
+        vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd);
+        if (vcm_res)
+            return (CC_CAUSE_ERROR);
+    }
+
     /* Now process all the media lines */
     GSMSDP_FOR_ALL_MEDIA(media, dcb_p) {
       if (!GSMSDP_MEDIA_ENABLED(media))
         continue;
-      
+
       sdp_res = sdp_attr_get_ice_attribute(sdp_p->dest_sdp, media->level, 0,
         SDP_ATTR_ICE_UFRAG, 1, &ufrag);
       if (sdp_res != SDP_SUCCESS)
@@ -5889,8 +5902,10 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
                                           &candidates, &candidate_ct);
       if(!result)
         return (CC_CAUSE_ERROR);
-      
-      vcm_res = vcmSetIceMediaParams(dcb_p->peerconnection, media->level, ufrag, pwd, 
+
+      /* Set ICE parameters into ICE engine */
+
+      vcm_res = vcmSetIceMediaParams(dcb_p->peerconnection, media->level, ufrag, pwd,
                                     candidates, candidate_ct);
 
       /* Clean up */
@@ -5902,7 +5917,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
             cpr_free(candidates[i]);
         }
         cpr_free(candidates);
-      }      
+      }
 
       if (vcm_res)
         return (CC_CAUSE_ERROR);
@@ -5915,7 +5930,7 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
 /*
  * gsmsdp_configure_dtls_data_attributes
  *
- * Sets DTLS alg type and digest in the media streams
+ * Read DTLS algorithm and digest from the SDP.
  * If data is found at session level then that is used for each media stream
  * else each media stream is set with its corresponding DTLS data from the remote SDP
  *
@@ -5925,8 +5940,8 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
 cc_causes_t
 gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
 {
-    char            *fingerprint;
-    char            *session_fingerprint;
+    char            *fingerprint = NULL;
+    char            *session_fingerprint = NULL;
     sdp_result_e    sdp_res;
     sdp_result_e    sdp_session_res;
     short           vcm_res;
@@ -5941,8 +5956,9 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
     char            digest_alg[FSMDEF_MAX_DIGEST_ALG_LEN];
     char            digest[FSMDEF_MAX_DIGEST_LEN];
     char           *strtok_state;
+    cc_causes_t     cause = CC_CAUSE_OK;
 
-    // First check for session level alg and key
+    /* First check for session level algorithm and key */
     sdp_session_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, SDP_SESSION_LEVEL,
                                       0, SDP_ATTR_DTLS_FINGERPRINT, 1, &session_fingerprint);
 
@@ -5951,38 +5967,67 @@ gsmsdp_configure_dtls_data_attributes(fsm_fcb_t *fcb_p)
         if (!GSMSDP_MEDIA_ENABLED(media))
             continue;
 
-        // check for media level alg and key
+        /* check for media level algorithm and key */
         sdp_res = sdp_attr_get_dtls_fingerprint_attribute (sdp_p->dest_sdp, media->level,
                                     0, SDP_ATTR_DTLS_FINGERPRINT, 1, &fingerprint);
 
         if (SDP_SUCCESS == sdp_res ) {
+            if (strlen(fingerprint) >= sizeof(line_to_split))
+                return CC_CAUSE_ERROR;
             sstrncpy(line_to_split, fingerprint, sizeof(line_to_split));
         } else if (SDP_SUCCESS == sdp_session_res) {
-        	sstrncpy(line_to_split, session_fingerprint, sizeof(line_to_split));
+            if (strlen(session_fingerprint) >= sizeof(line_to_split))
+                return CC_CAUSE_ERROR;
+            sstrncpy(line_to_split, session_fingerprint, sizeof(line_to_split));
+        } else {
+            cause = CC_CAUSE_ERROR;
+            continue;
         }
 
         if (SDP_SUCCESS == sdp_res || SDP_SUCCESS == sdp_session_res) {
             if(NULL == (token = PL_strtok_r(line_to_split, delim, &strtok_state)))
                 return CC_CAUSE_ERROR;
 
-            sstrncpy(digest_alg, token, FSMDEF_MAX_DIGEST_ALG_LEN);
+            if (strlen(token) >= sizeof(digest_alg))
+                return CC_CAUSE_ERROR;
+
+            sstrncpy(digest_alg, token, sizeof(digest_alg));
             if(NULL == (token = PL_strtok_r(NULL, delim, &strtok_state)))
-            	return CC_CAUSE_ERROR;
+                return CC_CAUSE_ERROR;
 
-            sstrncpy(digest, token, FSMDEF_MAX_DIGEST_LEN);
+            if (strlen(token) >= sizeof(digest))
+                return CC_CAUSE_ERROR;
 
-            sstrncpy(media->negotiated_crypto.algorithm, digest_alg, FSMDEF_MAX_DIGEST_ALG_LEN);
-            sstrncpy(media->negotiated_crypto.digest, digest, FSMDEF_MAX_DIGEST_LEN);
+            sstrncpy(digest, token, sizeof(digest));
+
+            if (strlen(digest_alg) >= sizeof(media->negotiated_crypto.algorithm))
+                return CC_CAUSE_ERROR;
+
+            sstrncpy(media->negotiated_crypto.algorithm, digest_alg, sizeof(media->negotiated_crypto.algorithm));
+            if (strlen(media->negotiated_crypto.algorithm) == 0) {
+                return CC_CAUSE_ERROR;
+            }
+
+            if (strlen(digest) >= sizeof(media->negotiated_crypto.digest))
+                return CC_CAUSE_ERROR;
+
+            sstrncpy(media->negotiated_crypto.digest, digest, sizeof(media->negotiated_crypto.digest));
+            if (strlen(media->negotiated_crypto.digest) == 0) {
+                return CC_CAUSE_ERROR;
+            }
+
+            /* Here we have DTLS data */
+            cause = CC_CAUSE_OK;
+
         } else {
             GSM_DEBUG(DEB_F_PREFIX"DTLS attribute error\n",
-        	                               DEB_F_PREFIX_ARGS(GSM, __FUNCTION__));
+                                   DEB_F_PREFIX_ARGS(GSM, __FUNCTION__));
             return CC_CAUSE_ERROR;
         }
     }
 
-    return CC_CAUSE_OK;
+    return cause;
 }
-
 
 /*
  * gsmsdp_free

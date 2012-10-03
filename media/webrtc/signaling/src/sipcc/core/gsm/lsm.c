@@ -790,13 +790,12 @@ lsm_close_rx (lsm_lcb_t *lcb, boolean refresh, fsmdef_media_t *media)
                           dcb->line, fname, "port closed", 
                           media->src_port);
 
-                sdpmode = 0;
-            	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-            	if (!sdpmode) {
+                config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+                if (!sdpmode) {
 
-            		vcmRxClose(media->cap_index, dcb->group_id, media->refid,
+                    vcmRxClose(media->cap_index, dcb->group_id, media->refid,
                              lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id));
-            	}
+                }
                 media->rcv_chan = FALSE;
             }
         }
@@ -839,6 +838,8 @@ lsm_close_tx (lsm_lcb_t *lcb, boolean refresh, fsmdef_media_t *media)
     LSM_DEBUG(DEB_L_C_F_PREFIX"called with refresh set to %d\n",
               DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname), refresh);
 
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+
     if (media == NULL) {
         /* NULL value of the given media indicates for all media */
         start_media = GSMSDP_FIRST_MEDIA_ENTRY(dcb);
@@ -860,23 +861,20 @@ lsm_close_tx (lsm_lcb_t *lcb, boolean refresh, fsmdef_media_t *media)
                 (refresh && 
                  gsmsdp_sdp_differs_from_previous_sdp(FALSE, media))) {
 
-            	sdpmode = 0;
-            	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-            	if (!sdpmode) {
-
+                if (!sdpmode) {
                     vcmTxClose(media->cap_index, dcb->group_id, media->refid, 
                         lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id));
-            	}
+                }
 
                 if (dcb->active_tone == VCM_MONITORWARNING_TONE || dcb->active_tone == VCM_RECORDERWARNING_TONE) {
-		            LSM_DEBUG(DEB_L_C_F_PREFIX"%s: Found active_tone: %d being played, current monrec_tone_action: %d. Need stop tone. \n",
+                    LSM_DEBUG(DEB_L_C_F_PREFIX"%s: Found active_tone: %d being played, current monrec_tone_action: %d. Need stop tone. \n",
                               DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname), fname, 
                               dcb->active_tone, dcb->monrec_tone_action);
                     (void) lsm_stop_tone(lcb, NULL);
-	            }
+                }
                 media->xmit_chan = FALSE;
                 LSM_DEBUG(DEB_L_C_F_PREFIX"closed", 
-					DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname));
+                          DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname));
             }
         }
     }
@@ -1030,46 +1028,42 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     pc_stream_id = 0;
                 }
                 pc_track_id = 0;
-                    dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
-                    if (media->local_dynamic_payload_type_value == RTP_NONE) {
-                        media->local_dynamic_payload_type_value = media->payload;
-                    }
+                dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
+                if (media->local_dynamic_payload_type_value == RTP_NONE) {
+                    media->local_dynamic_payload_type_value = media->payload;
+                }
 
-                    sdpmode = 0;
-                	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-                        if (dcb->peerconnection) {
-                          // TODO(emannion): make negotiation fail when the other side
-                          // has not offered DTLS-SRTP
-                           ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
-                            media->level,
-                            pc_stream_id,
-                            pc_track_id,
-                            lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                            dcb->peerconnection,
-                            media->num_payloads,
-                            media->payloads,                            
-                            FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
-                            FSM_NEGOTIATED_CRYPTO_DIGEST(media),
-                            &attrs);
-                        }
-                        else if (!sdpmode) {
-                          ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
-                            lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                            vcmRtpToMediaPayload(media->payload,
-                              media->local_dynamic_payload_type_value,
-                              media->mode),
-                              media->is_multicast ? &media->dest_addr:&media->src_addr,
-                              port,
-                              FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
-                              FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
-                              &attrs);
-                          if (ret_val == -1) {
-                            dcb->dsp_out_of_resources = TRUE;
-                            return;
-                          }
-                	} else {
-                          ret_val = CC_RC_SUCCESS;
-                	}
+                config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+                if (dcb->peerconnection) {
+                    ret_val = vcmRxStartICE(media->cap_index, group_id, media->refid,
+                    media->level,
+                    pc_stream_id,
+                    pc_track_id,
+                    lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                    dcb->peerconnection,
+                    media->num_payloads,
+                    media->payloads,
+                    FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
+                    FSM_NEGOTIATED_CRYPTO_DIGEST(media),
+                    &attrs);
+                } else if (!sdpmode) {
+                    ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
+                                          lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
+                                          vcmRtpToMediaPayload(media->payload,
+                                          media->local_dynamic_payload_type_value,
+                                          media->mode),
+                                          media->is_multicast ? &media->dest_addr:&media->src_addr,
+                                          port,
+                                          FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
+                                          FSM_NEGOTIATED_CRYPTO_RX_KEY(media),
+                                          &attrs);
+                    if (ret_val == -1) {
+                        dcb->dsp_out_of_resources = TRUE;
+                        return;
+                    }
+                } else {
+                    ret_val = CC_RC_ERROR;
+                }
 
                 lsm_update_dscp_value(dcb);
 
@@ -1295,8 +1289,6 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
               }
             }
             else {
-              // TODO(emannion): make negotiation fail when the other side
-              // has not offered DTLS-SRTP
               if (vcmTxStartICE(media->cap_index, group_id,
                   media->refid,
                   media->level,
@@ -1920,6 +1912,8 @@ static void lsm_release_port (lsm_lcb_t *lcb)
         return;
     }
 
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+
     LSM_DEBUG(DEB_L_C_F_PREFIX,
               DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname));
 
@@ -1927,13 +1921,10 @@ static void lsm_release_port (lsm_lcb_t *lcb)
     end_media   = NULL; /* NULL means till the end of the list */
     
     GSMSDP_FOR_MEDIA_LIST(media, start_media, end_media, dcb) {
-
-        config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-    	if (!sdpmode) {
-
-    		vcmRxReleasePort(media->cap_index, dcb->group_id, media->refid,
+        if (!sdpmode) {
+            vcmRxReleasePort(media->cap_index, dcb->group_id, media->refid,
                             lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id), media->src_port);
-    	}
+        }
     }
 }
 
@@ -4035,8 +4026,8 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
     lsm_change_state(lcb, __LINE__, LSM_S_CONNECTED);
     
     if (!sdpmode) {
-	    if (tone_stop_bool == TRUE)
-		    (void) lsm_stop_tone(lcb, NULL);
+        if (tone_stop_bool == TRUE)
+            (void) lsm_stop_tone(lcb, NULL);
     }
     
     /* Start ICE */
@@ -5469,10 +5460,10 @@ cc_call_action (callid_t call_id, line_t line, cc_actions_t action,
 
     lcb = lsm_get_lcb_by_call_id(call_id);
 
-	if ((lcb == NULL) && (action != CC_ACTION_MWI)) {
-		LSM_DEBUG(get_debug_string(DEBUG_INPUT_NULL), fname);
-		return (CC_RC_ERROR);
-	}
+    if ((lcb == NULL) && (action != CC_ACTION_MWI)) {
+        LSM_DEBUG(get_debug_string(DEBUG_INPUT_NULL), fname);
+        return (CC_RC_ERROR);
+    }
 
     switch (action) {
     case CC_ACTION_PLAY_TONE:
@@ -6568,11 +6559,9 @@ static void lsm_util_start_tone(vcm_tones_t tone, short alert_info,
               DEB_F_PREFIX_ARGS(MED_API, fname), line, call_id);
 
     sdpmode = 0;
-	config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
-	if (!sdpmode) {
-
-		//vcmToneStart
-		vcmToneStart(tone, alert_info, call_handle, group_id, stream_id, direction);
+    config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
+    if (!sdpmode) {
+        vcmToneStart(tone, alert_info, call_handle, group_id, stream_id, direction);
 	}
     /*
      * Set delay value for multi-part tones and repeated tones.

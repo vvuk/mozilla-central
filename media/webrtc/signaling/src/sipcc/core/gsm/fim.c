@@ -435,8 +435,8 @@ fim_process_event (void *data, boolean cac_passed)
     callid_t       bw_call_id;
 
     FIM_DEBUG(DEB_L_C_F_PREFIX"Msg name = %s\n", DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname),
-		cc_msg_name(msg_id));
-		
+        cc_msg_name(msg_id));
+
     /*
      * Validate the incoming event.
      */
@@ -530,7 +530,7 @@ fim_process_event (void *data, boolean cac_passed)
         /*
          * No call chain, so get a new call chain,
          * but only if the event is a call establishment event.
-         */   
+         */
         if ((event_id == CC_MSG_SETUP)      ||
             (event_id == CC_MSG_OFFHOOK)    ||
             (event_id == CC_MSG_DIALSTRING) ||
@@ -618,7 +618,7 @@ fim_process_event (void *data, boolean cac_passed)
         if (fsm_event_filtered_by_ui_lock(event_id,
                 ((cc_feature_t *)msg)->feature_id)) {
             FIM_DEBUG(DEB_L_C_F_PREFIX" %s filtered by UI lock\n",
-					DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname),
+                      DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname),
                       cc_feature_name(((cc_feature_t *)msg)->feature_id));
             return(TRUE);
         }
@@ -664,7 +664,7 @@ fim_process_event (void *data, boolean cac_passed)
         }
 
         FIM_DEBUG(DEB_L_C_F_PREFIX" %s(%s:%s)\n",
-				DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname), fsm_type_name(icb->scb->type),
+                  DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname), fsm_type_name(icb->scb->type),
                   fsm_state_name(fcb->fsm_type, event.state),
                   cc_msg_name((cc_msgs_t) (event.event)));
 
@@ -683,7 +683,7 @@ fim_process_event (void *data, boolean cac_passed)
 
         case SM_RC_ERROR:
             FIM_DEBUG(DEB_L_C_F_PREFIX" fsm sm error(%d:%d)\n",
-				DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname), event.state, event.event);
+                      DEB_L_C_F_PREFIX_ARGS(FIM, line, call_id, fname), event.state, event.event);
             done = TRUE;
             cc_call_state(call_id, line, CC_STATE_UNKNOWN, NULL);
             break;
