@@ -19,6 +19,7 @@
               # INTERNAL
 	      'src/event',
 	      'src/log',
+              'src/port/generic/include',
 	      'src/registry',
 	      'src/share',
 	      'src/stats',
@@ -35,6 +36,7 @@
 #              './src/share/nr_startup.c',
 #              './src/share/nr_startup.h',
 #              './src/share/nrappkit_static_plugins.c',
+	       './src/port/generic/include'
 
               # libekr
               './src/util/libekr/assoc.h',
@@ -166,7 +168,6 @@
 		 
 		 'sources': [
               	      './src/port/darwin/include/csi_platform.h',
-	              './src/port/darwin/include/sys/queue.h',
 		 ],
               }],
               
@@ -193,7 +194,6 @@
 
 		 'sources': [
               	      './src/port/win32/include/csi_platform.h',
-	              './src/port/win32/include/sys/queue.h',
 		 ],
               }],
 
@@ -226,7 +226,6 @@
 		 
 		 'sources': [
               	      './src/port/linux/include/csi_platform.h',
-	              './src/port/linux/include/sys/queue.h',
 		 ],
               }]
           ]
@@ -234,79 +233,3 @@
 }
 
 
-
-
-
-# -Werror -I../../util/libekr/ -I../../share/ -DDARWIN -fPIC -DHAVE_STRLCPY -DHAVE_SIN_LEN -DDEBUG -DSANITY_CHECKS -Wno-unused   -DDEBUG_IGNORE_TCP_CKSUM_ERRORS  -c -o captured.o ../../captured/main/captured.c   -I../../captured/main/  -I../../captured/  -I../../codec/  -I../../util/libekr/  -I../../util/libekr/threads/null/  -I../../event/ -I../../log/ -I../../log/  -I../../port/impl/extattr/xattr/  -I../../plugin/  -I../../plugin/api/  -I../../plugin/internal/  -I../../registry/  -I../../scripts/  -I../../share/  -I../../stats/main/  -I../../stats/  -I../../util/ -I../../port/darwin/include -I../../port/ -DLISTEND_CONSUMER='"reassd"' -DHAVE_LIBM=1 -DHAVE_SYS_TIME_H=1 -DSTDC_HEADERS=1 -DTIME_WITH_SYS_TIME=1 -DSIZEOF_SHORT=2 -DSIZEOF_UNSIGNED_SHORT=2 -DSIZEOF_INT=4 -DSIZEOF_UNSIGNED_INT=4 -DSIZEOF_LONG=4 -DSIZEOF_UNSIGNED_LONG=4 -DSIZEOF_LONG_LONG=8 -DSIZEOF_UNSIGNED_LONG_LONG=8 -DRETSIGTYPE=void -DHAVE_VPRINTF=1 -DHAVE_STRDUP=1 -DNEW_STDIO -Werror -Wall -Wno-parentheses -Wno-strict-prototypes -Wmissing-prototypes -DINSTALLED_BINARY_PATH='"/Users/ekr/dev/nrappkit/src/make/darwin/"' -DNR_ROOT_PATH='"/Users/ekr/dev/nrappkit/src/make/darwin/../../root/"' -D__UNUSED__="__attribute__((unused))"  -DCAPTURE_USER='"pcecap"' -Werror -Wno-unused -DNR_SHE_IGNORE_PRIVILEGES./examples/count/count.c
-
-
-#              './src/port/freebsd/include/csi_platform.h',
-#              './src/port/impl/extattr/bsd/bsd_extattr.c',
-#              './src/port/impl/extattr/xattr/xattr_extattr.c',
-#              './src/port/linux/include/csi_platform.h',
-#              './src/port/linux/include/linux_funcs.h',
-#              './src/port/linux/include/sys/queue.h',
-#              './src/port/linux/include/sys/ttycom.h',
-#              './src/port/nr_extattr.h',
-#              './src/port/win32/include/csi_platform.h',
-#              './src/port/win32/include/sys/queue.h',
-
-# NOT NEEDED
-#              './src/stats/main/nrstatsctl.c',
-#              './src/tools/clic/main.c',
-#              './src/tools/clic/types.h',
-#              './src/tools/clic/utils.c',
-#              './src/tools/clic/utils.h',
-#              './src/tools/clim/main.c',
-#              './src/tools/clim/types.h',
-#              './src/tools/clim/utils.c',
-#              './src/tools/clim/utils.h',
-#              './src/she/she.c',
-#              './src/she/she.h',
-#              './src/she/she_action.c',
-#              './src/she/she_complete.c',
-#              './src/she/she_complete.h',
-#              './src/she/she_ctx.c',
-#              './src/she/she_debug.c',
-#              './src/she/she_elide.c',
-#              './src/she/she_gen.c',
-#              './src/she/she_int.h',
-#              './src/she/she_limits.c',
-#              './src/she/she_match.c',
-#              './src/she/she_no.c',
-#              './src/she/she_no.h',
-#              './src/she/she_parse.c',
-#              './src/she/she_plugin.c',
-#              './src/she/she_print.c',
-#              './src/she/she_privileges.c',
-#              './src/she/she_slurp.c',
-#              './src/she/she_stack.c',
-#              './src/nrsh/config/nr_sh_config_clock_timezone_command.c',
-#              './src/nrsh/config/nr_sh_config_clock_timezone_command.h',
-#              './src/nrsh/config/nr_sh_config_logging_command.c',
-#              './src/nrsh/config/nr_sh_config_logging_command.h',
-#              './src/nrsh/config/nr_sh_config_logging_util.c',
-#              './src/nrsh/config/nr_sh_config_logging_util.h',
-#              './src/nrsh/config/nr_sh_config_version_command.c',
-#              './src/nrsh/config/nr_sh_config_version_command.h',
-#              './src/nrsh/nrsh.c',
-#              './examples/demo_plugin/demo_plugin.c',
-#              './examples/demo_plugin/demo_stats.c',
-#              './examples/demo_plugin/demo_stats.h',
-#              './examples/demo_plugin/nr_sh_config_demo.c',
-#              './src/captured/captured.h',
-#              './src/captured/captured_c2r.h',
-#              './src/captured/captured_plugin.c',
-#              './src/captured/captured_reg.c',
-#              './src/captured/captured_reg.h',
-#              './src/captured/main/captured.c',
-#              './src/codec/c_buf.c',
-#              './src/codec/c_buf.h',
-#              './src/codec/c_buf_nb_fill.c',
-#              './src/codec/ed_ssl.c',
-#              './src/codec/ed_ssl.h',
-#              './src/plugin/api/api_force.c',
-#              './src/plugin/api/api_force.h',
-#              './src/plugin/internal/nr_plugin_int.c',
-#              './src/plugin/internal/nr_plugin_int.h',
-#              './src/plugin/nr_plugin.h',

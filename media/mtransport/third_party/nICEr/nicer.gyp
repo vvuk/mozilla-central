@@ -22,6 +22,7 @@
 	      '../nrappkit/src/stats',
 	      '../nrappkit/src/util',
 	      '../nrappkit/src/util/libekr',
+	      '../nrappkit/src/port/generic/include',
 
               # INTERNAL
               "./src/crypto",
@@ -210,35 +211,3 @@
       }]
 }
 
-# gcc -g    -c -o ice_candidate.d /Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/ice_candidate.c -MM -MG -DUSE_TURN -DDARWIN -DHAVE_SIN_LEN  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../net/ -DUSE_ICE -DUSE_RFC_3489_BACKWARDS_COMPATIBLE -DUSE_STUND_0_96 -DUSE_STUN_PEDANTIC -DUSE_TURN -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../stun/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../util/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../crypto/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../ice/test/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../net/test/  -I/Users/ekr/dev/alder/media/mtransport/third_party/nICEr/src/make/darwin/../../stun/test/ -g -Werror -Wall -Wno-parentheses -DHAVE_STRDUP -D__UNUSED__="__attribute__((unused))" -Drestrict=__restrict__ -I../../../../nrappkit/src/make/darwin -I../../../../nrappkit//src/util -I../../../../nrappkit//src/util/libekr -I../../../../nrappkit//src/port/darwin/include -I../../../../nrappkit//src/share -I../../../../nrappkit//src/registry -I../../../../nrappkit//src/stats -DOPENSSL -I../../../../openssl-0.9.8g/include -DSANITY_CHECKS
-
-
-# "./src/ice/test/ice_test.c",
-# "./src/net/test/evil_test.c",
-# "./src/net/test/nr_socket_evil.c",
-# "./src/net/test/nr_socket_evil.h",
-# "./src/net/test/nr_socket_nat.c",
-# "./src/net/test/nr_socket_nat.h",
-# "./src/net/test/nr_socket_nat_test.c",
-# "./src/net/test/nr_socket_test.c",
-# "./src/net/test/transport_addr_reg_test.c",
-# "./src/net/transport_addr.c",
-# "./src/net/transport_addr.h",
-# "./src/net/transport_addr_reg.c",
-# "./src/net/transport_addr_reg.h",
-# "./src/stun/test/client.c",
-# "./src/stun/test/dup_addr_test.c",
-# "./src/stun/test/odd_test_vectors.c",
-# "./src/stun/test/remi_vector_test.c",
-# "./src/stun/test/server.c",
-# "./src/stun/test/stun_loopback_test.c",
-# "./src/stun/test/stun_test_util.c",
-# "./src/stun/test/stun_test_util.h",
-# "./src/stun/test/tlsServer.c",
-# "./src/stun/test/turn_loopback_test.c",
-# "./src/stun/test/turn_test_client.c",
-# "./src/stun/test/turn_test_echo_server.c",
-# "./src/stun/test/turn_test_server.c",
-# "./src/stun/test/turn_test_server_util.c",
-# "./src/stun/test/udp.c",
-# "./src/stun/test/udp.h",
