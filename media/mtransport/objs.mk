@@ -1,3 +1,7 @@
+# -*- Mode: makefile; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- #
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 DEFINES += -DHAVE_STRDUP -DNR_SOCKET_IS_VOID_PTR
 
 LOCAL_INCLUDES += \
@@ -17,18 +21,27 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
- $(NULL)
+ $(nullptr)
 
 ifeq ($(OS_ARCH), Darwin)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+DEFINES += -DDARWIN
 endif
 
 ifeq ($(OS_ARCH), Linux)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+DEFINES += -DLINUX
 endif
 
 ifeq ($(OS_ARCH), WINNT)
-LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/win32/include
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/win32/include \
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+DEFINES += -DWIN
 endif
 
 MTRANSPORT_LCPPSRCS = \
@@ -44,6 +57,7 @@ MTRANSPORT_LCPPSRCS = \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
-  $(NULL)
+  $(nullptr)
 
 MTRANSPORT_CPPSRCS = $(addprefix $(topsrcdir)/media/mtransport/, $(MTRANSPORT_LCPPSRCS))
+
