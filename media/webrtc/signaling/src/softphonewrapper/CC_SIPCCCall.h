@@ -148,8 +148,6 @@ namespace CSF
         virtual int createAnswer(const std::string & hints, const std::string & offersdp);
         virtual int setLocalDescription(cc_jsep_action_t action, const std::string & sdp);
         virtual int setRemoteDescription(cc_jsep_action_t action, const std::string & sdp);
-        virtual void addIceCandidate(const std::string& strCandidate);
-        virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks);
         virtual void setPeerConnection(const std::string& handle);
         virtual const std::string& getPeerConnection() const;
         virtual void addStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type);

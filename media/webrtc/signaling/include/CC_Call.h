@@ -311,10 +311,6 @@ namespace CSF
 
         virtual int setRemoteDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
 
-        virtual void addIceCandidate(const std::string& strCandidate) = 0;
-
-        virtual void setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks) = 0;
-
         virtual void setPeerConnection(const std::string& handle) = 0;
 
         virtual void addStream(cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) = 0;

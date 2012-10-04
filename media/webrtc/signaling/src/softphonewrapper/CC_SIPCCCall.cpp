@@ -583,28 +583,12 @@ int CC_SIPCCCall::setRemoteDescription(cc_jsep_action_t action, const std::strin
 	return CCAPI_SetRemoteDescription(callHandle, action, sdp.c_str());
 }
 
-void CC_SIPCCCall::addIceCandidate(const std::string& strCandidate)
-{
-  CSFLogDebug(logTag, "addIceCandidate %s", strCandidate.c_str());
-
-  // FIX - add info to dcb for use when creating SDP
-}
-
-void CC_SIPCCCall::setLocalSourceAudioVideo(unsigned localSourceAudioTracks, unsigned localSourceVideoTracks)
-{
-  CSFLogDebug(logTag, "setLocalSourceAudioVideo %d, %d", localSourceAudioTracks, localSourceVideoTracks);
-
-  // FIX - add info to dcb for use when creating SDP
-}
-
 void CC_SIPCCCall::setPeerConnection(const std::string& handle)
 {
   CSFLogDebug(logTag, "setPeerConnection");
   
   peerconnection = handle;  // Cache this here. we need it to make the CC_SIPCCCallInfo
   CCAPI_SetPeerConnection(callHandle, handle.c_str());
-
-  // FIX - add info to dcb for use when creating SDP
 }
 
 const std::string& CC_SIPCCCall::getPeerConnection() const {
