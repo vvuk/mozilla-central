@@ -229,8 +229,9 @@ int AudioSendAndReceive::FinishWaveHeader(FILE* outFile)
 }
 
 //Code from xiph.org to generate music of predefined length
-void AudioSendAndReceive::GenerateMusic(int16_t* buf, int len)
+void AudioSendAndReceive::GenerateMusic(short* buf, int len)
 {
+  cerr <<" Generating Input Music " << endl;
   int32_t a1,a2,b1,b2;
   int32_t c1,c2,d1,d2;
   int32_t i,j;
@@ -240,9 +241,9 @@ void AudioSendAndReceive::GenerateMusic(int16_t* buf, int len)
   /*60ms silence */
   for(i=0;i<2880;i++)
   {
-    buf[i*2]=buf[i*2+1]=0;
+    buf[i*2]=buf[(i*2)+1]=0;
   }
-  for(i=2880;i<len;i++)
+  for(i=2880;i<len-1;i+=2)
   {
     int32_t r;
     int32_t v1,v2;
@@ -255,10 +256,11 @@ void AudioSendAndReceive::GenerateMusic(int16_t* buf, int len)
     c2=(30*(c2+b2+d2)+32)>>6;d2=b2;
     v1=(c1+128)>>8;
     v2=(c2+128)>>8;
-    buf[i*2]=v1>32767?32767:(v1<-32768?-32768:v1);
-    buf[i*2+1]=v2>32767?32767:(v2<-32768?-32768:v2);
+    buf[i]=v1>32767?32767:(v1<-32768?-32768:v1);
+    buf[i+1]=v2>32767?32767:(v2<-32768?-32768:v2);
     if(i%6==0)j++;
   }
+  cerr << "Generating Input Music Done " << endl;
 }
 
 //Hardcoded for 16 bit samples for now
@@ -266,7 +268,7 @@ void AudioSendAndReceive::GenerateAndReadSamples()
 {
    int16_t audioInput[PLAYOUT_SAMPLE_LENGTH];
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
-   int16_t* inbuf;
+   short* inbuf;
    int sampleLengthDecoded = 0;
    int SAMPLES = PLAYOUT_SAMPLE_FREQUENCY * 10; //10 milliseconds
    int CHANNELS = 1; //mono audio
@@ -276,8 +278,18 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    memset(audioInput,0,sampleLengthInBytes);
    memset(audioOutput,0,sampleLengthInBytes);
 
-   FILE* inFile    = fopen( iFile.c_str(), "wb+");
-   FILE* outFile   = fopen( oFile.c_str(), "wb+");
+   FILE* inFile = fopen( iFile.c_str(), "wb+");
+   if(!inFile) {
+     cerr << "Input File Creation Failed " << endl;
+     return;
+   }
+
+   FILE* outFile = fopen( oFile.c_str(), "wb+");
+   if(!outFile) {
+     cerr << "Output File Creation Failed " << endl;
+     return;
+   }
+
    //Create input file with the music
    WriteWaveHeader(PLAYOUT_SAMPLE_FREQUENCY, 1, inFile);
    GenerateMusic(inbuf, SAMPLES);
