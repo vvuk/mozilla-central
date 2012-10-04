@@ -521,7 +521,7 @@ void registration_processEvent(int event) {
                 isServiceStopped = TRUE;
                 switch ( mgmtState) {
                     case MGMT_STATE_REGISTERED:
-						CC_Service_destroy();
+                    CC_Service_destroy();
                         processInsToOos();
                     case MGMT_STATE_REGISTERING:
                     case MGMT_STATE_OOS:
@@ -533,9 +533,9 @@ void registration_processEvent(int event) {
                     case MGMT_STATE_OOS_AWAIT_SHUTDOWN_ACK:
                     case MGMT_STATE_OOS_AWAIT_UN_REG_ACK:
                         //setState(MGMT_STATE_DESTROY_AWAIT_SHUTDOWN_ACK);
-                    	setState(MGMT_STATE_IDLE);
-                    	CC_Service_destroy();
-                    	break;
+                        setState(MGMT_STATE_IDLE);
+                        CC_Service_destroy();
+                        break;
                     case MGMT_STATE_CREATED:
                         CC_Service_destroy();
                         break;

@@ -311,63 +311,55 @@ cc_return_t CC_CallFeature_dial(cc_call_handle_t call_handle, cc_sdp_direction_t
 }
 
 cc_return_t CC_CallFeature_CreateOffer(cc_call_handle_t call_handle) {
-	static const char fname[] = "CC_CallFeature_CreateOffer";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEOFFER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, NULL, NULL);
 }
 
 cc_return_t CC_CallFeature_CreateAnswer(cc_call_handle_t call_handle, string_t sdp) {
-	static const char fname[] = "CC_CallFeature_CreateAnswer";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_CREATEANSWER, CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetLocalDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
-	static const char fname[] = "CC_CallFeature_SetLocalDescription";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETLOCALDESC, CC_SDP_DIRECTION_SENDRECV, action, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetRemoteDescription(cc_call_handle_t call_handle, cc_jsep_action_t action, string_t sdp) {
-	static const char fname[] = "CC_CallFeature_SetRemoteDescription";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETREMOTEDESC, CC_SDP_DIRECTION_SENDRECV, action, 0, 0, NO_STREAM, 0, sdp, NULL);
 }
 
 cc_return_t CC_CallFeature_SetPeerConnection(cc_call_handle_t call_handle, cc_peerconnection_t pc) {
-	static const char fname[] = "CC_CallFeature_SetPeerConnection";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_SETPEERCONNECTION,
-          CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, pc, NULL);
-        return 0;
+          CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, 0, 0, NO_STREAM, 0, pc, NULL);
 }
 
 cc_return_t CC_CallFeature_AddStream(cc_call_handle_t call_handle, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
-	static const char fname[] = "CC_CallFeature_AddStream";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_ADDSTREAM,
-			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
+			CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
 }
 
 cc_return_t CC_CallFeature_RemoveStream(cc_call_handle_t call_handle, cc_media_stream_id_t stream_id, cc_media_track_id_t track_id, cc_media_type_t media_type) {
-	static const char fname[] = "CC_CallFeature_RemoveStream";
 	CCAPP_DEBUG(DEB_L_C_F_PREFIX, DEB_L_C_F_PREFIX_ARGS(SIP_CC_PROV, GET_CALL_ID(call_handle),
-			GET_LINE_ID(call_handle), fname));
+			GET_LINE_ID(call_handle), __FUNCTION__));
 
 	return cc_invokeFeatureSDPMode(call_handle, CC_FEATURE_REMOVESTREAM,
-			CC_SDP_MAX_QOS_DIRECTIONS, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
+			CC_SDP_DIRECTION_SENDRECV, JSEP_NO_ACTION, stream_id, track_id, media_type, 0, NULL, NULL);
 }
 
 cc_return_t CC_CallFeature_AddICECandidate(cc_call_handle_t call_handle, const char* candidate, const char *mid, cc_level_t level) {

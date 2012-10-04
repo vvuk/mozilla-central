@@ -573,44 +573,43 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
         int *candidate_ctp /* Out */
 )
 {
-  // TODO(ekr@rtfm.com): handle errors cleanly
   *default_portp = -1;
 
-  CSFLogDebug( logTag, "vcmRxAllocICE(): group_id=%d stream_id=%d call_handle=%d PC = %s",
-    group_id, stream_id, call_handle, peerconnection);
+  CSFLogDebug( logTag, "%s: group_id=%d stream_id=%d call_handle=%d PC = %s",
+    __FUNCTION__, group_id, stream_id, call_handle, peerconnection);
 
   // Note: we don't acquire any media resources here, and we assume that the
   // ICE streams already exist, so we're just acquiring them. Any logic
   // to make them on demand is elsewhere.
-  CSFLogDebug( logTag, "vcmRxAllocPort(): acquiring peerconnection %s", peerconnection);
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
-    // TODO(emannion): handle error
-    
+    CSFLogError(logTag, "%s: AcquireInstance returned NULL", __FUNCTION__);
+    return;
   }
     
-  CSFLogDebug( logTag, "vcmRxAllocPort(): Getting stream %d", level);      
+  CSFLogDebug( logTag, "%s: Getting stream %d", __FUNCTION__, level);      
   mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
-  PR_ASSERT(stream.get());
-  if (!stream.get()) {
+  MOZ_ASSERT(stream);
+  if (!stream) {
     return;
   }
 
   std::vector<std::string> candidates = stream->GetCandidates();
-  CSFLogDebug( logTag, "vcmRxAllocPort(): Got %d candidates", candidates.size());
+  CSFLogDebug( logTag, "%s: Got %d candidates", __FUNCTION__, candidates.size());
 
   std::string default_addr;
   int default_port;
 
   nsresult res = stream->GetDefaultCandidate(1, &default_addr, &default_port);
-  PR_ASSERT(NS_SUCCEEDED(res));
+  MOZ_ASSERT(NS_SUCCEEDED(res));
   if (!NS_SUCCEEDED(res)) {
     return;
   }
     
-  CSFLogDebug( logTag, "vcmRxAllocPort(): Got default candidates %s:%d",
+  CSFLogDebug( logTag, "%s: Got default candidates %s:%d", __FUNCTION__,
     default_addr.c_str(), default_port);
   
   // Note: this leaks memory if we are out of memory. Oh well.
@@ -642,17 +641,17 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
  */
 void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
 {
-  CSFLogDebug( logTag, "vcmRxGetIceParams: PC = %s", peerconnection);
+  CSFLogDebug( logTag, "%s: PC = %s", __FUNCTION__, peerconnection);
 
   *ufragp = *pwdp = NULL;
 
  // Note: we don't acquire any media resources here, and we assume that the
   // ICE streams already exist, so we're just acquiring them. Any logic
   // to make them on demand is elsewhere.
-  CSFLogDebug( logTag, "vcmGetIceParams: acquiring peerconnection %s", peerconnection);
+  CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return;
   }
@@ -664,7 +663,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
   char *pwd = NULL;
  
   for (size_t i=0; i<attrs.size(); i++) {
-    if (attrs[i].compare(0, 9, "ice-ufrag") == 0) {
+    if (attrs[i].compare(0, strlen("ice-ufrag:"), "ice-ufrag:") == 0) {
       if (!ufrag) {
         ufrag = (char *) cpr_malloc(attrs[i].size() + 1);
         if (!ufrag)
@@ -674,7 +673,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
       }
     }
 
-    if (attrs[i].compare(0, 7, "ice-pwd") == 0) {
+    if (attrs[i].compare(0, strlen("ice-pwd:"), "ice-pwd:") == 0) {
       pwd = (char *) cpr_malloc(attrs[i].size() + 1);
       if (!pwd)
         return;
@@ -684,12 +683,10 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
 
   }
   if (!ufrag || !pwd) {
-    PR_ASSERT(PR_FALSE);
-    if (ufrag)
-      free(ufrag);
-    if (pwd)
-      free(pwd);
-    CSFLogDebug( logTag, "vcmRxAllocPort(): no ufrag/passwd");
+    MOZ_ASSERT(PR_FALSE);
+    cpr_free(ufrag);
+    cpr_free(pwd);
+    CSFLogDebug( logTag, "%s: no ufrag or password", __FUNCTION__);
     return;
   }
   
@@ -716,7 +713,7 @@ short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd)
   CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
@@ -753,14 +750,14 @@ short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, u
   CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
 
   CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);      
   mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
-  if (!stream.get())
+  if (!stream)
     return VCM_ERROR;
 
   nsresult res;
@@ -787,7 +784,7 @@ short vcmStartIceChecks(const char *peerconnection)
   CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
@@ -824,14 +821,14 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
   CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
 
   CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);      
   mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
-  if (!stream.get())
+  if (!stream)
     return VCM_ERROR;
 
   std::vector<std::string> attributes;
@@ -879,7 +876,7 @@ short vcmCreateRemoteStream(
 
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
@@ -942,7 +939,7 @@ short vcmGetDtlsIdentity(const char *peerconnection,
   CSFLogDebug( logTag, "%s: acquiring peerconnection %s", __FUNCTION__, peerconnection);
   mozilla::ScopedDeletePtr<sipcc::PeerConnectionWrapper> pc(
       sipcc::PeerConnectionImpl::AcquireInstance(peerconnection));
-  PR_ASSERT(pc);
+  MOZ_ASSERT(pc);
   if (!pc) {
     return VCM_ERROR;
   }
@@ -1296,7 +1293,8 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
         conduit, rtp_flow, rtcp_flow));
 
   } else {
-    ; // Ignore
+    CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
+    return VCM_ERROR;
   }
 
   CSFLogDebug( logTag, "%s success", __FUNCTION__);
@@ -1838,7 +1836,8 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
     // Now we have all the pieces, create the pipeline
     stream->StorePipeline(pc_track_id, pipeline);
   } else {
-    ; // Ignore
+    CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
+    return VCM_ERROR;
   }
 
   CSFLogDebug( logTag, "%s success", __FUNCTION__);

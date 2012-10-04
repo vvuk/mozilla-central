@@ -84,6 +84,7 @@
 #include "ccapi_device_info.h"
 #include "conf_roster.h"
 #include "reset_api.h"
+#include "prlog.h"
 
 /*---------------------------------------------------------
  *
@@ -635,7 +636,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
              cc_setremotedesc (CC_SRC_UI, CC_SRC_GSM, call_id, (line_t)instance, CC_FEATURE_SETREMOTEDESC, ccData.action, data, &featdata);
              break;             
          case CC_FEATURE_SETPEERCONNECTION:
-           // assert(strlen(data) < PC_HANDLE_SIZE);
+           PR_ASSERT(strlen(data) < PC_HANDLE_SIZE);
            if (strlen(data) >= PC_HANDLE_SIZE)
              return;
            
@@ -1076,7 +1077,6 @@ void cleanSessionData(session_data_t *data)
 	strlib_free(data->status);
         data->status = strlib_empty();
         calllogger_free_call_log(&data->call_log);
-        // <libxm2> conf_roster_free_call_conference(&data->call_conference);
     }
 }
 
