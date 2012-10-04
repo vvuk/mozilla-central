@@ -1,3 +1,6 @@
+
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -21,13 +24,15 @@ extern "C" {
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+using namespace mozilla;
+
 MtransportTestUtils test_utils;
 
 namespace {
 
 class TimerTest : public ::testing::Test {
  public:
-  TimerTest() : handle_(NULL), fired_(false) {}
+  TimerTest() : handle_(nullptr), fired_(false) {}
 
   int ArmTimer(int timeout) {
     int ret;
@@ -35,12 +40,26 @@ class TimerTest : public ::testing::Test {
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(this, &TimerTest::ArmTimer_w, timeout, &ret),
         NS_DISPATCH_SYNC);
-    
+
     return ret;
   }
 
   int ArmTimer_w(int timeout) {
     return NR_ASYNC_TIMER_SET(timeout, cb, this, &handle_);
+  }
+
+  int CancelTimer() {
+    int ret;
+
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(this, &TimerTest::CancelTimer_w, &ret),
+        NS_DISPATCH_SYNC);
+
+    return ret;
+  }
+
+  int CancelTimer_w() {
+    return NR_async_timer_cancel(handle_);
   }
 
   static void cb(NR_SOCKET r, int how, void *arg) {
@@ -62,12 +81,19 @@ TEST_F(TimerTest, SimpleTimer) {
   ASSERT_TRUE_WAIT(fired_, 1000);
 }
 
+TEST_F(TimerTest, CancelTimer) {
+  ArmTimer(1000);
+  CancelTimer();
+  PR_Sleep(2000);
+  ASSERT_FALSE(fired_);
+}
+
 int main(int argc, char **argv)
 {
   test_utils.InitServices();
 
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
-  
+
   return RUN_ALL_TESTS();
 }

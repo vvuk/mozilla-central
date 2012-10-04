@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,6 +9,8 @@
 
 #include "transportflow.h"
 #include "transportlayer.h"
+
+namespace mozilla {
 
 TransportFlow::~TransportFlow() {
   for (std::deque<TransportLayer *>::iterator it = layers_.begin();
@@ -21,7 +25,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
     return rv;
 
 
-  TransportLayer *old_layer = layers_.empty() ? NULL : layers_.front();
+  TransportLayer *old_layer = layers_.empty() ? nullptr : layers_.front();
 
   // Re-target my signals to the new layer
   if (old_layer) {
@@ -37,7 +41,7 @@ nsresult TransportFlow::PushLayer(TransportLayer *layer) {
 }
 
 TransportLayer *TransportFlow::top() const {
-  return layers_.empty() ? NULL : layers_.front();
+  return layers_.empty() ? nullptr : layers_.front();
 }
 
 TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
@@ -47,7 +51,7 @@ TransportLayer *TransportFlow::GetLayer(const std::string& id) const {
       return *it;
   }
 
-  return NULL;
+  return nullptr;
 }
 
 TransportLayer::State TransportFlow::state() {
@@ -75,3 +79,4 @@ void TransportFlow::PacketReceived(TransportLayer* layer,
 
 
 
+}  // close namespace

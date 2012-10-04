@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -74,16 +76,18 @@ extern "C" {
 #include "transportflow.h"
 #include "transportlayerice.h"
 
+namespace mozilla {
+
 #ifdef ERROR
 #undef ERROR
 #endif
 
-MLOG_INIT("mtransport");
+MOZ_MTLOG_MODULE("mtransport");
 
 static bool initialized = false;
 
 TransportLayerIce::TransportLayerIce(const std::string& name,
-    mozilla::RefPtr<NrIceCtx> ctx, mozilla::RefPtr<NrIceMediaStream> stream,
+    RefPtr<NrIceCtx> ctx, RefPtr<NrIceMediaStream> stream,
                                      int component)
     : name_(name), ctx_(ctx), stream_(stream), component_(component) {
   stream_->SignalReady.connect(this, &TransportLayerIce::IceReady);
@@ -94,7 +98,7 @@ TransportLayerIce::TransportLayerIce(const std::string& name,
     SetState(TS_OPEN);
   }
 }
-        
+
 TransportLayerIce::~TransportLayerIce() {
   // No need to do anything here, since we use smart pointers
 }
@@ -102,13 +106,13 @@ TransportLayerIce::~TransportLayerIce() {
 TransportResult TransportLayerIce::SendPacket(const unsigned char *data,
                                               size_t len) {
   nsresult res = stream_->SendPacket(component_, data, len);
-  
+
   if (!NS_SUCCEEDED(res)) {
     return (res == NS_BASE_STREAM_WOULD_BLOCK) ?
         TE_WOULDBLOCK : TE_ERROR;
   }
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << " SendPacket(" << len << ") succeeded"); 
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << " SendPacket(" << len << ") succeeded");
 
   return len;
 }
@@ -134,8 +138,9 @@ void TransportLayerIce::IcePacketReceived(NrIceMediaStream *stream, int componen
   if (component_ != component)
     return;
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << stream->name() << ","
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << stream->name() << ","
     << component << "," << len << ")");
   SignalPacketReceived(this, data, len);
 }
 
+}  // close namespace

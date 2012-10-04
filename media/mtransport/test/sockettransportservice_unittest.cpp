@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -78,7 +80,7 @@ class EventReceived : public nsRunnable {
 public:
   EventReceived(SocketTransportServiceTest *test) :
       test_(test) {};
-    
+
   NS_IMETHOD Run() {
     test_->ReceiveEvent();
     return NS_OK;
@@ -93,7 +95,7 @@ class RegisterEvent : public nsRunnable {
 public:
   RegisterEvent(SocketTransportServiceTest *test) :
       test_(test) {};
-    
+
   NS_IMETHOD Run() {
     test_->RegisterHandler();
     return NS_OK;
@@ -109,10 +111,10 @@ class SocketHandler : public nsASocketHandler {
   }
   virtual ~SocketHandler() {}
 
-  void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+  void OnSocketReady(PRFileDesc *fd, int16_t outflags) {
     unsigned char buf[1600];
-    
-    PRInt32 rv;
+
+    int32_t rv;
     rv = PR_Recv(fd, buf, sizeof(buf), 0, PR_INTERVAL_NO_WAIT);
     if (rv > 0) {
       std::cerr << "Read " << rv << " bytes" << std::endl;
@@ -128,7 +130,7 @@ class SocketHandler : public nsASocketHandler {
   }
 
   NS_DECL_ISUPPORTS
-  
+
  private:
   SocketTransportServiceTest *test_;
 };
@@ -162,8 +164,8 @@ void SocketTransportServiceTest::RegisterHandler() {
   nsresult rv;
 
   rv = stservice_->AttachSocket(readpipe_, new SocketHandler(this));
-  ASSERT_TRUE(NS_SUCCEEDED(rv));  
-  
+  ASSERT_TRUE(NS_SUCCEEDED(rv));
+
   registered_ = true;
 }
 
@@ -178,9 +180,9 @@ void SocketTransportServiceTest::SendEvent() {
 void SocketTransportServiceTest::SendPacket() {
   unsigned char buffer[1024];
   memset(buffer, 0, sizeof(buffer));
-  
-  PRInt32 status = PR_Write(writepipe_, buffer, sizeof(buffer));
-  PRUint32 size = status & 0xffff;
+
+  int32_t status = PR_Write(writepipe_, buffer, sizeof(buffer));
+  uint32_t size = status & 0xffff;
   ASSERT_EQ(sizeof(buffer), size);
 }
 
@@ -204,6 +206,6 @@ int main(int argc, char **argv) {
 
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
-  
+
   return RUN_ALL_TESTS();
 }

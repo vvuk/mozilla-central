@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,7 +21,9 @@
 #include "transportflow.h"
 #include "transportlayerprsock.h"
 
-MLOG_INIT("mtransport");
+namespace mozilla {
+
+MOZ_MTLOG_MODULE("mtransport");
 
 nsresult TransportLayerPrsock::InitInternal() {
   // Get the transport service as a transport service
@@ -27,10 +31,10 @@ nsresult TransportLayerPrsock::InitInternal() {
   stservice_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
 
   if (!NS_SUCCEEDED(rv)) {
-    MLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get socket transport service");
     return rv;
   }
-  
+
   return NS_OK;
 }
 
@@ -40,7 +44,7 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
     return;
   }
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Importing()");
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Importing()");
   fd_ = fd;
   handler_ = new SocketHandler(this, fd);
 
@@ -49,63 +53,64 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
     *result = rv;
     return;
   }
-  
+
   SetState(TS_OPEN);
 
   *result = NS_OK;
 }
 
 int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
   if (state_ != TS_OPEN) {
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Can't send packet on closed interface");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Can't send packet on closed interface");
     return TE_INTERNAL;
   }
 
-  PRInt32 status;
+  int32_t status;
   status = PR_Write(fd_, data, len);
   if (status >= 0) {
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << len << " bytes");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Wrote " << len << " bytes");
     return status;
   }
 
   PRErrorCode err = PR_GetError();
   if (err == PR_WOULD_BLOCK_ERROR) {
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write blocked");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Write blocked");
     return TE_WOULDBLOCK;
   }
 
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Write error; channel closed");
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Write error; channel closed");
   SetState(TS_ERROR);
   return TE_ERROR;
 }
 
-void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, int16_t outflags) {
   if (!(outflags & PR_POLL_READ)) {
     return;
   }
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "OnSocketReady(flags=" << outflags << ")");
-  
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "OnSocketReady(flags=" << outflags << ")");
+
   unsigned char buf[1600];
-  PRInt32 rv = PR_Read(fd, buf, sizeof(buf));
+  int32_t rv = PR_Read(fd, buf, sizeof(buf));
 
   if (rv > 0) {
     // Successful read
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Read " << rv << " bytes");
     SignalPacketReceived(this, buf, rv);
   } else if (rv == 0) {
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read 0 bytes; channel closed");
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Read 0 bytes; channel closed");
     SetState(TS_CLOSED);
   } else {
     PRErrorCode err = PR_GetError();
-    
+
     if (err != PR_WOULD_BLOCK_ERROR) {
-      MLOG(PR_LOG_DEBUG, LAYER_INFO << "Read error; channel closed");
+      MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Read error; channel closed");
       SetState(TS_ERROR);
     }
   }
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS0(TransportLayerPrsock::SocketHandler);
+}  // close namespace

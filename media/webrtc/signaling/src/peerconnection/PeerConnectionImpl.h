@@ -47,6 +47,8 @@ namespace mozilla {
 }
 #endif
 
+using namespace mozilla;
+
 namespace sipcc {
 
 /* Temporary for providing audio data */

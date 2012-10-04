@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -35,7 +37,8 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
-MLOG_INIT("mtransport");
+  using namespace mozilla;
+MOZ_MTLOG_MODULE("mtransport");
 
 MtransportTestUtils test_utils;
 
@@ -46,10 +49,10 @@ class TransportLayerLossy : public TransportLayer {
   TransportLayerLossy() : loss_mask_(0), packet_(0) {}
 
   virtual TransportResult SendPacket(const unsigned char *data, size_t len) {
-    MLOG(PR_LOG_NOTICE, LAYER_INFO << "SendPacket(" << len << ")");
+    MOZ_MTLOG(PR_LOG_NOTICE, LAYER_INFO << "SendPacket(" << len << ")");
 
     if (loss_mask_ & (1 << (packet_ % 32))) {
-      MLOG(PR_LOG_NOTICE, "Dropping packet");
+      MOZ_MTLOG(PR_LOG_NOTICE, "Dropping packet");
       ++packet_;
       return len;
     }
@@ -59,7 +62,7 @@ class TransportLayerLossy : public TransportLayer {
     return downward_->SendPacket(data, len);
   }
 
-  void SetLoss(PRUint32 packet) {
+  void SetLoss(uint32_t packet) {
     loss_mask_ |= (1 << (packet & 32));
   }
 
@@ -71,7 +74,7 @@ class TransportLayerLossy : public TransportLayer {
                       size_t len) {
     SignalPacketReceived(this, data, len);
   }
-    
+
   TRANSPORT_LAYER_ID("lossy");
 
  protected:
@@ -87,8 +90,8 @@ class TransportLayerLossy : public TransportLayer {
   }
 
  private:
-  PRUint32 loss_mask_;
-  PRUint32 packet_;
+  uint32_t loss_mask_;
+  uint32_t packet_;
 };
 
 namespace {
@@ -101,13 +104,13 @@ class TransportTestPeer : public sigslot::has_slots<> {
         logging_(new TransportLayerLogging()),
         lossy_(new TransportLayerLossy()),
         dtls_(new TransportLayerDtls()),
-        identity_(DtlsIdentity::Generate(name)),
+        identity_(DtlsIdentity::Generate()),
         ice_ctx_(NrIceCtx::Create(name,
                                   name == "P2" ?
                                   TransportLayerDtls::CLIENT :
                                   TransportLayerDtls::SERVER)),
         streams_(), candidates_(),
-        peer_(NULL),
+        peer_(nullptr),
         gathering_complete_(false)
  {
     dtls_->SetIdentity(identity_);
@@ -131,7 +134,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
   void DestroyFlow() {
     loopback_->Disconnect();
-    flow_ = NULL;
+    flow_ = nullptr;
   }
 
   void SetDtlsAllowAll() {
@@ -191,7 +194,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     // Create the media stream
     mozilla::RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), 1);
-    ASSERT_TRUE(stream != NULL);
+    ASSERT_TRUE(stream != nullptr);
     streams_.push_back(stream);
 
     // Listen for candidates
@@ -281,7 +284,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ++received_;
   }
 
-  void SetLoss(PRUint32 loss) {
+  void SetLoss(uint32_t loss) {
     lossy_->SetLoss(loss);
   }
 
@@ -319,8 +322,8 @@ class TransportTestPeer : public sigslot::has_slots<> {
 class TransportTest : public ::testing::Test {
  public:
   TransportTest() {
-    fds_[0] = NULL;
-    fds_[1] = NULL;
+    fds_[0] = nullptr;
+    fds_[1] = nullptr;
   }
 
   ~TransportTest() {
@@ -473,7 +476,7 @@ TEST_F(TransportTest, TestTransferIce) {
 int main(int argc, char **argv)
 {
   test_utils.InitServices();
-  NSS_NoDB_Init(NULL);
+  NSS_NoDB_Init(nullptr);
   NSS_SetDomesticPolicy();
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);

@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -17,6 +19,8 @@
 
 // A stack of transport layers acts as a flow.
 // Generally, one reads and writes to the top layer.
+namespace mozilla {
+
 class TransportFlow : public sigslot::has_slots<> {
  public:
   TransportFlow() : id_("(anonymous)") {}
@@ -24,7 +28,11 @@ class TransportFlow : public sigslot::has_slots<> {
   ~TransportFlow();
 
   const std::string& id() const { return id_; }
-  // Layer management
+
+  // Layer management. Note PushLayer() is not thread protected, so
+  // either:
+  // (a) Do it in the thread handling the I/O
+  // (b) Do it before you activate the I/O system
   nsresult PushLayer(TransportLayer *layer);
   TransportLayer *top() const;
   TransportLayer *GetLayer(const std::string& id) const;
@@ -50,9 +58,10 @@ class TransportFlow : public sigslot::has_slots<> {
   void StateChange(TransportLayer *layer, TransportLayer::State state);
   void PacketReceived(TransportLayer* layer, const unsigned char *data,
       size_t len);
-  
+
   std::string id_;
   std::deque<TransportLayer *> layers_;
 };
 
+}  // close namespace
 #endif

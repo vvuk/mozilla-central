@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -24,15 +26,18 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
+// A simple loopback transport layer that is used for testing.
+namespace mozilla {
+
 class TransportLayerLoopback : public TransportLayer {
  public:
   TransportLayerLoopback() :
-      peer_(NULL),
-      timer_(NULL),
-      target_(NULL),
+      peer_(nullptr),
+      timer_(nullptr),
+      target_(nullptr),
       packets_(),
-      packets_lock_(NULL),
-      deliverer_(NULL) {}
+      packets_lock_(nullptr),
+      deliverer_(nullptr) {}
 
   ~TransportLayerLoopback() {
     while (!packets_.empty()) {
@@ -57,7 +62,7 @@ class TransportLayerLoopback : public TransportLayer {
   void Disconnect() {
     TransportLayerLoopback *peer = peer_;
 
-    peer_ = NULL;
+    peer_ = nullptr;
     if (peer) {
       peer->Disconnect();
     }
@@ -77,9 +82,9 @@ class TransportLayerLoopback : public TransportLayer {
   // A queued packet
   class QueuedPacket {
    public:
-    QueuedPacket() : data_(NULL), len_(0) {}
+    QueuedPacket() : data_(nullptr), len_(0) {}
     ~QueuedPacket() {
-      delete data_;
+      delete [] data_;
     }
 
     void Assign(const unsigned char *data, size_t len) {
@@ -108,7 +113,7 @@ class TransportLayerLoopback : public TransportLayer {
     virtual ~Deliverer() {
     }
     void Detach() {
-      layer_ = NULL;
+      layer_ = nullptr;
     }
 
     NS_DECL_ISUPPORTS
@@ -131,4 +136,5 @@ class TransportLayerLoopback : public TransportLayer {
   nsRefPtr<Deliverer> deliverer_;
 };
 
+}  // close namespace
 #endif

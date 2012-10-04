@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -38,7 +40,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 
-// Implementation of nICEr/nr_socket that is tied to the Firefox STS
+// Implementation of nICEr/nr_socket that is tied to the Gecko
+// SocketTransportService.
 
 #ifndef nr_socket_prsock__
 #define nr_socket_prsock__
@@ -55,9 +58,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_cpp_utils.h"
 
+namespace mozilla {
+
 class NrSocket : public nsASocketHandler {
 public:
-  NrSocket() : fd_(NULL) {
+  NrSocket() : fd_(nullptr) {
     memset(&my_addr_, 0, sizeof(my_addr_));
     memset(cbs_, 0, sizeof(cbs_));
     memset(cb_args_, 0, sizeof(cb_args_));
@@ -67,7 +72,7 @@ public:
   }
 
   // Implement nsASocket
-  virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
+  virtual void OnSocketReady(PRFileDesc *fd, int16_t outflags);
   virtual void OnSocketDetached(PRFileDesc *fd);
   virtual void IsLocal(bool *aIsLocal);
 
@@ -97,9 +102,10 @@ private:
 
   PRFileDesc *fd_;
   nr_transport_addr my_addr_;
-  NR_async_cb cbs_[2];
-  void *cb_args_[2];
+  NR_async_cb cbs_[NR_ASYNC_WAIT_WRITE + 1];
+  void *cb_args_[NR_ASYNC_WAIT_WRITE + 1];
   nsCOMPtr<nsISocketTransportService> stservice_;
 };
 
+}  // close namespace
 #endif

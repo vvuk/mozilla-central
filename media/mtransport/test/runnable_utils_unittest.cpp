@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -29,6 +31,7 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
+using namespace mozilla;
 MtransportTestUtils test_utils;
 
 namespace {
@@ -117,7 +120,7 @@ class DispatchTest : public ::testing::Test {
                       NS_DISPATCH_SYNC);
     ASSERT_EQ(10, z);
   }
-    
+
  private:
   int ran_;
   TargetClass cl_;
@@ -150,7 +153,7 @@ TEST_F(DispatchTest, TestRet) {
 }
 
 
-} // end of namespace                   
+} // end of namespace
 
 
 int main(int argc, char **argv) {
@@ -158,7 +161,7 @@ int main(int argc, char **argv) {
 
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
-  
+
   return RUN_ALL_TESTS();
 }
 

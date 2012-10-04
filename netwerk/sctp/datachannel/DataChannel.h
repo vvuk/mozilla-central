@@ -18,10 +18,10 @@
 #include "nsITimer.h"
 #include "mozilla/Mutex.h"
 #include "DataChannelProtocol.h"
-#include "mtransport/sigslot.h"
-#include "mtransport/transportflow.h"
-#include "mtransport/transportlayer.h"
-#include "mtransport/transportlayerprsock.h"
+#include "sigslot.h"
+#include "transportflow.h"
+#include "transportlayer.h"
+#include "transportlayerprsock.h"
 
 extern "C" {
   struct socket;

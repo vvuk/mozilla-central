@@ -1,3 +1,8 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 /**
    nricemediastream.h
 
@@ -29,13 +34,15 @@
 #include "m_cpp_utils.h"
 
 
+namespace mozilla {
+
 typedef struct nr_ice_media_stream_ nr_ice_media_stream;
 
 class NrIceCtx;
 
-class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
+class NrIceMediaStream {
  public:
-  static mozilla::RefPtr<NrIceMediaStream> Create(NrIceCtx *ctx,
+  static RefPtr<NrIceMediaStream> Create(NrIceCtx *ctx,
                                            const std::string& name,
                                            int components);
   ~NrIceMediaStream();
@@ -87,6 +94,7 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
   // work for trickle ICE yet--called internally
   void EmitAllCandidates();
 
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceMediaStream);
 
  private:
   NrIceMediaStream(NrIceCtx *ctx,  const std::string& name,
@@ -95,7 +103,7 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
       ctx_(ctx),
       name_(name),
       components_(components),
-      stream_(NULL)  {}
+      stream_(nullptr)  {}
 
   DISALLOW_COPY_ASSIGN(NrIceMediaStream);
 
@@ -107,4 +115,5 @@ class NrIceMediaStream : public mozilla::RefCounted<NrIceMediaStream> {
 };
 
 
+}  // close namespace
 #endif

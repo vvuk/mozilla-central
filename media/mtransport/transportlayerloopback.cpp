@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -21,24 +23,26 @@
 #include "transportflow.h"
 #include "transportlayerloopback.h"
 
-MLOG_INIT("mtransport");
+namespace mozilla {
+
+MOZ_MTLOG_MODULE("mtransport");
 
 nsresult TransportLayerLoopback::Init() {
   timer_ = do_CreateInstance(NS_TIMER_CONTRACTID);
-  PR_ASSERT(timer_);
+  MOZ_ASSERT(timer_);
   if (!timer_)
     return NS_ERROR_FAILURE;
 
   nsresult rv;
   target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
-  PR_ASSERT(NS_SUCCEEDED(rv));
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
   if (!NS_SUCCEEDED(rv))
     return rv;
 
   timer_->SetTarget(target_);
 
   packets_lock_ = PR_NewLock();
-  PR_ASSERT(packets_lock_);
+  MOZ_ASSERT(packets_lock_);
   if (!packets_lock_)
     return NS_ERROR_FAILURE;
 
@@ -58,10 +62,10 @@ void TransportLayerLoopback::Connect(TransportLayerLoopback* peer) {
 
 TransportResult
 TransportLayerLoopback::SendPacket(const unsigned char *data, size_t len) {
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "SendPacket(" << len << ")");
 
   if (!peer_) {
-    MLOG(PR_LOG_ERROR, "Discarding packet because peer not attached");
+    MOZ_MTLOG(PR_LOG_ERROR, "Discarding packet because peer not attached");
     return TE_ERROR;
   }
 
@@ -74,8 +78,8 @@ TransportLayerLoopback::SendPacket(const unsigned char *data, size_t len) {
 
 nsresult TransportLayerLoopback::QueuePacket(const unsigned char *data,
                                          size_t len) {
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << " Enqueuing packet of length " << len);
-  PR_ASSERT(packets_lock_);
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << " Enqueuing packet of length " << len);
+  MOZ_ASSERT(packets_lock_);
 
   PR_Lock(packets_lock_);
 
@@ -83,7 +87,7 @@ nsresult TransportLayerLoopback::QueuePacket(const unsigned char *data,
   packets_.back()->Assign(data, len);
 
   PRStatus r = PR_Unlock(packets_lock_);
-  PR_ASSERT(r == PR_SUCCESS);
+  MOZ_ASSERT(r == PR_SUCCESS);
   if (r != PR_SUCCESS)
     return NS_ERROR_FAILURE;
 
@@ -96,7 +100,7 @@ void TransportLayerLoopback::DeliverPackets() {
     QueuedPacket *packet = packets_.front();
     packets_.pop();
 
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << " Delivering packet of length " <<
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << " Delivering packet of length " <<
          packet->len());
     SignalPacketReceived(this, packet->data(), packet->len());
 
@@ -115,3 +119,4 @@ NS_IMETHODIMP TransportLayerLoopback::Deliverer::Notify(nsITimer *timer) {
 
   return NS_OK;
 }
+}  // close namespace

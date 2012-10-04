@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -66,23 +68,25 @@ extern "C" {
 #include "nricectx.h"
 #include "nricemediastream.h"
 
-MLOG_INIT("mtransport");
+namespace mozilla {
+
+MOZ_MTLOG_MODULE("mtransport");
 
 // NrIceMediaStream
-mozilla::RefPtr<NrIceMediaStream>
+RefPtr<NrIceMediaStream>
 NrIceMediaStream::Create(NrIceCtx *ctx,
                          const std::string& name,
                          int components) {
-  mozilla::RefPtr<NrIceMediaStream> stream =
+  RefPtr<NrIceMediaStream> stream =
     new NrIceMediaStream(ctx, name, components);
 
   int r = nr_ice_add_media_stream(ctx->ctx(),
                                   const_cast<char *>(name.c_str()),
                                   components, &stream->stream_);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't create ICE media stream for '"
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create ICE media stream for '"
          << name << "'");
-    return NULL;
+    return nullptr;
   }
 
   return stream;
@@ -103,17 +107,17 @@ nsresult NrIceMediaStream::ParseAttributes(std::vector<std::string>&
   for (size_t i=0; i<attributes.size(); ++i) {
     attributes_in.push_back(const_cast<char *>(attributes[i].c_str()));
   }
-  
+
   int r = nr_ice_peer_ctx_parse_stream_attributes(ctx_->peer(),
                                                   stream_,
                                                   &attributes_in[0],
                                                   attributes_in.size());
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't parse attributes for stream "
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse attributes for stream "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
-  
+
   return NS_OK;
 }
 
@@ -121,19 +125,19 @@ nsresult NrIceMediaStream::ParseAttributes(std::vector<std::string>&
 nsresult NrIceMediaStream::ParseTrickleCandidate(const std::string& candidate) {
   int r;
 
-  MLOG(PR_LOG_DEBUG, "NrIceCtx(" << ctx_->name() << "): parsing trickle candidate " << candidate);
-  
+  MOZ_MTLOG(PR_LOG_DEBUG, "NrIceCtx(" << ctx_->name() << "): parsing trickle candidate " << candidate);
+
   r = nr_ice_peer_ctx_parse_trickle_candidate(ctx_->peer(),
                                               stream_,
                                               const_cast<char *>(
                                                   candidate.c_str()));
   if (r) {
     if (r == R_ALREADY) {
-      MLOG(PR_LOG_ERROR, "Trickle candidates are redundant for stream '"
+      MOZ_MTLOG(PR_LOG_ERROR, "Trickle candidates are redundant for stream '"
          << name_ << "' because it is completed");
 
     } else {
-      MLOG(PR_LOG_ERROR, "Couldn't parse trickle candidate for stream '"
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse trickle candidate for stream '"
          << name_ << "'");
       return NS_ERROR_FAILURE;
     }
@@ -155,11 +159,11 @@ void NrIceMediaStream::EmitAllCandidates() {
   r = nr_ice_media_stream_get_attributes(stream_,
                                          &attrs, &attrct);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
          << name_ << "'");
     return;
   }
-  
+
   for (size_t i=0; i<attrct; i++) {
     SignalCandidate(this, attrs[i]);
     RFREE(attrs[i]);
@@ -177,19 +181,19 @@ nsresult NrIceMediaStream::GetDefaultCandidate(int component,
   r = nr_ice_media_stream_get_default_candidate(stream_,
                                                 component, &cand);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't get default ICE candidate for '"
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get default ICE candidate for '"
          << name_ << "'");
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  char addr[64];
+  char addr[64];  // Enough for IPv6 with colons.
   r = nr_transport_addr_get_addrstring(&cand->addr,addr,sizeof(addr));
-  if (r) 
+  if (r)
     return NS_ERROR_FAILURE;
 
   int port;
   r=nr_transport_addr_get_port(&cand->addr,&port);
-  if (r) 
+  if (r)
     return NS_ERROR_FAILURE;
 
   *addrp = addr;
@@ -207,7 +211,7 @@ std::vector<std::string> NrIceMediaStream::GetCandidates() const {
   r = nr_ice_media_stream_get_attributes(stream_,
                                          &attrs, &attrct);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get ICE candidates for '"
          << name_ << "'");
     return ret;
   }
@@ -232,7 +236,7 @@ nsresult NrIceMediaStream::SendPacket(int component_id,
                                    component_id,
                                    const_cast<unsigned char *>(data), len);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't send media on '" << name_ << "'");
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't send media on '" << name_ << "'");
     if (r == R_WOULDBLOCK) {
       return NS_BASE_STREAM_WOULD_BLOCK;
     }
@@ -245,13 +249,14 @@ nsresult NrIceMediaStream::SendPacket(int component_id,
 
 
 void NrIceMediaStream::Ready() {
-  MLOG(PR_LOG_DEBUG, "Marking stream ready '" << name_ << "'");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Marking stream ready '" << name_ << "'");
   state_ = ICE_OPEN;
   SignalReady(this);
 }
 
 void NrIceMediaStream::Close() {
-  MLOG(PR_LOG_DEBUG, "Marking stream closed '" << name_ << "'");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Marking stream closed '" << name_ << "'");
   state_ = ICE_CLOSED;
-  stream_ = NULL;
+  stream_ = nullptr;
 }
+}  // close namespace

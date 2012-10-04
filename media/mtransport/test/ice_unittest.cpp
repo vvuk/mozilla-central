@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -28,8 +30,7 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
-MLOG_INIT("ice");
-
+using namespace mozilla;
 MtransportTestUtils test_utils;
 
 bool stream_added = false;
@@ -63,7 +64,7 @@ class IceTestPeer : public sigslot::has_slots<> {
     mozilla::RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), components);
 
-    ASSERT_TRUE(stream != NULL);
+    ASSERT_TRUE(stream != nullptr);
     streams_.push_back(stream);
     stream->SignalCandidate.connect(this, &IceTestPeer::GotCandidate);
     stream->SignalReady.connect(this, &IceTestPeer::StreamReady);
@@ -304,7 +305,7 @@ TEST_F(IceTest, TestSendReceive) {
 int main(int argc, char **argv)
 {
   test_utils.InitServices();
-  NSS_NoDB_Init(NULL);
+  NSS_NoDB_Init(nullptr);
   NSS_SetDomesticPolicy();
 
   // Start the tests

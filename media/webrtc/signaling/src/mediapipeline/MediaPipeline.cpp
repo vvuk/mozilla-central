@@ -34,8 +34,10 @@
 #undef ERROR
 #endif
 
+using namespace mozilla;
+
 // Logging context
-MLOG_INIT("mediapipeline");
+MOZ_MTLOG_MODULE("mediapipeline");
 
 namespace mozilla {
 
@@ -87,7 +89,7 @@ void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state
   // TODO(ekr@rtfm.com): check for double changes. This shouldn't happen,
   // but...
   if (state == TransportLayer::TS_OPEN) {
-    MLOG(PR_LOG_DEBUG, "Flow is ready");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Flow is ready");
     TransportReady(flow);
   } else if (state == TransportLayer::TS_CLOSED ||
              state == TransportLayer::TS_ERROR) {
@@ -99,7 +101,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
   bool rtcp =  flow == rtp_transport_.get() ? false : true;
   nsresult res;
 
-  MLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
+  MOZ_MTLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
 
   // Now instantiate the SRTP objects
   TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
@@ -109,7 +111,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
   PRUint16 cipher_suite;
   res = dtls->GetSrtpCipher(&cipher_suite);
   if (NS_FAILED(res)) {
-    MLOG(PR_LOG_ERROR, "Failed to negotiate DTLS-SRTP. This is an error");
+    MOZ_MTLOG(PR_LOG_ERROR, "Failed to negotiate DTLS-SRTP. This is an error");
     return res;
   }
 
@@ -153,7 +155,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
     rtp_recv_srtp_ = SrtpFlow::Create(cipher_suite, true,
                                       read_key, SRTP_TOTAL_KEY_LENGTH);
     if (!rtp_send_srtp_ || !rtp_recv_srtp_) {
-      MLOG(PR_LOG_ERROR, "Couldn't create SRTP flow for RTCP");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create SRTP flow for RTCP");
       return NS_ERROR_FAILURE;
     }
 
@@ -163,14 +165,14 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
       rtcp_send_srtp_ = rtp_send_srtp_;
       rtcp_recv_srtp_ = rtp_recv_srtp_;
 
-      MLOG(PR_LOG_DEBUG, "Listening for packets received on " <<
+      MOZ_MTLOG(PR_LOG_DEBUG, "Listening for packets received on " <<
         static_cast<void *>(dtls->downward()));
 
       dtls->downward()->SignalPacketReceived.connect(this,
                                                      &MediaPipeline::
                                                      PacketReceived);
     } else {
-      MLOG(PR_LOG_DEBUG, "Listening for RTP packets received on " <<
+      MOZ_MTLOG(PR_LOG_DEBUG, "Listening for RTP packets received on " <<
         static_cast<void *>(dtls->downward()));
 
       dtls->downward()->SignalPacketReceived.connect(this,
@@ -185,11 +187,11 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
     rtcp_recv_srtp_ = SrtpFlow::Create(cipher_suite, true,
                                        read_key, SRTP_TOTAL_KEY_LENGTH);
     if (!rtcp_send_srtp_ || !rtcp_recv_srtp_) {
-      MLOG(PR_LOG_ERROR, "Couldn't create SRTCP flow for RTCP");
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create SRTCP flow for RTCP");
       return NS_ERROR_FAILURE;
     }
 
-    MLOG(PR_LOG_DEBUG, "Listening for RTCP packets received on " <<
+    MOZ_MTLOG(PR_LOG_DEBUG, "Listening for RTCP packets received on " <<
       static_cast<void *>(dtls->downward()));
 
     // Start listening
@@ -204,7 +206,7 @@ nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
 nsresult MediaPipeline::TransportFailed(TransportFlow *flow) {
   bool rtcp =  flow == rtp_transport_.get() ? false : true;
 
-  MLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
+  MOZ_MTLOG(PR_LOG_DEBUG, "Transport ready for flow " << (rtcp ? "rtcp" : "rtp"));
 
   // TODO(ekr@rtfm.com): SECURITY: Figure out how to clean up if the
   // connection was good and now it is bad.
@@ -229,7 +231,7 @@ nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
     if (res == TE_WOULDBLOCK)
       return NS_OK;
 
-    MLOG(PR_LOG_ERROR, "Failed write on stream");
+    MOZ_MTLOG(PR_LOG_ERROR, "Failed write on stream");
     return NS_BASE_STREAM_CLOSED;
   }
 
@@ -239,14 +241,14 @@ nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
 void MediaPipeline::increment_rtp_packets_sent() {
   ++rtp_packets_sent_;
   if (!(rtp_packets_sent_ % 1000)) {
-    MLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
+    MOZ_MTLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
          << ": " << rtp_packets_sent_);
   }
 }
 
 void MediaPipeline::increment_rtcp_packets_sent() {
   if (!(rtcp_packets_sent_ % 1000)) {
-    MLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
+    MOZ_MTLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
          << ": " << rtcp_packets_sent_);
   }
 }
@@ -254,14 +256,14 @@ void MediaPipeline::increment_rtcp_packets_sent() {
 void MediaPipeline::increment_rtp_packets_received() {
   ++rtp_packets_received_;
   if (!(rtp_packets_received_ % 1000)) {
-    MLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
+    MOZ_MTLOG(PR_LOG_DEBUG, "RTP packet count " << static_cast<void *>(this)
          << ": " << rtp_packets_received_);
   }
 }
 
 void MediaPipeline::increment_rtcp_packets_received() {
   if (!(rtcp_packets_received_ % 1000)) {
-    MLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
+    MOZ_MTLOG(PR_LOG_DEBUG, "RTCP packet count " << static_cast<void *>(this)
          << ": " << rtcp_packets_received_);
   }
 }
@@ -271,7 +273,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
                                       const unsigned char *data,
                                       size_t len) {
   if (!transport_->pipeline()) {
-    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
     return;
   }
 
@@ -288,7 +290,7 @@ void MediaPipeline::RtpPacketReceived(TransportLayer *layer,
   }
 
   // Make a copy rather than cast away constness
-  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+  ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[len]);
   memcpy(inner_data, data, len);
   int out_len;
@@ -304,7 +306,7 @@ void MediaPipeline::RtcpPacketReceived(TransportLayer *layer,
                                               const unsigned char *data,
                                               size_t len) {
   if (!transport_->pipeline()) {
-    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
     return;
   }
 
@@ -313,7 +315,7 @@ void MediaPipeline::RtcpPacketReceived(TransportLayer *layer,
   PR_ASSERT(rtcp_recv_srtp_);  // This should never happen
 
   // Make a copy rather than cast away constness
-  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+  ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[len]);
   memcpy(inner_data, data, len);
   int out_len;
@@ -342,7 +344,7 @@ void MediaPipeline::PacketReceived(TransportLayer *layer,
                                    const unsigned char *data,
                                    size_t len) {
   if (!transport_->pipeline()) {
-    MLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Discarding incoming packet; transport disconnected");
     return;
   }
 
@@ -355,14 +357,14 @@ void MediaPipeline::PacketReceived(TransportLayer *layer,
 
 nsresult MediaPipelineTransmit::Init() {
   // TODO(ekr@rtfm.com): Check for errors
-  MLOG(PR_LOG_DEBUG, "Attaching pipeline to stream " << static_cast<void *>(stream_) <<
+  MOZ_MTLOG(PR_LOG_DEBUG, "Attaching pipeline to stream " << static_cast<void *>(stream_) <<
                     " conduit type=" << (conduit_->type() == MediaSessionConduit::AUDIO ?
                                          "audio" : "video") <<
                     " hints=" << stream_->GetHintContents());
 
   if (main_thread_) {
     main_thread_->Dispatch(WrapRunnable(
-      stream_->GetStream(), &mozilla::MediaStream::AddListener, listener_),
+      stream_->GetStream(), &MediaStream::AddListener, listener_),
       NS_DISPATCH_SYNC);
   }
   else {
@@ -378,20 +380,20 @@ nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
     return NS_OK;  // Detached
 
   if (!pipeline_->rtp_send_srtp_) {
-    MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet; SRTP not set up yet");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Couldn't write RTP packet; SRTP not set up yet");
     return NS_OK;
   }
 
   PR_ASSERT(pipeline_->rtp_transport_);
   if (!pipeline_->rtp_transport_) {
-    MLOG(PR_LOG_DEBUG, "Couldn't write RTP packet (null flow)");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Couldn't write RTP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
 
   // libsrtp enciphers in place, so we need a new, big enough
   // buffer.
   int max_len = len + SRTP_MAX_EXPANSION;
-  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+  ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[max_len]);
   memcpy(inner_data, data, len);
 
@@ -414,19 +416,19 @@ nsresult MediaPipeline::PipelineTransport::SendRtcpPacket(
     return NS_OK;  // Detached
 
   if (!pipeline_->rtcp_send_srtp_) {
-    MLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet; SRTCP not set up yet");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet; SRTCP not set up yet");
     return NS_OK;
   }
 
   if (!pipeline_->rtcp_transport_) {
-    MLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet (null flow)");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Couldn't write RTCP packet (null flow)");
     return NS_ERROR_NULL_POINTER;
   }
 
   // libsrtp enciphers in place, so we need a new, big enough
   // buffer.
   int max_len = len + SRTP_MAX_EXPANSION;
-  mozilla::ScopedDeletePtr<unsigned char> inner_data(
+  ScopedDeletePtr<unsigned char> inner_data(
       new unsigned char[max_len]);
   memcpy(inner_data, data, len);
 
@@ -452,12 +454,12 @@ NotifyQueuedTrackChanges(MediaStreamGraph* graph, TrackID tid,
   if (!pipeline_)
     return;  // Detached
 
-  MLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
+  MOZ_MTLOG(PR_LOG_DEBUG, "MediaPipeline::NotifyQueuedTrackChanges()");
 
   // Return early if we are not connected to avoid queueing stuff
   // up in the conduit
   if (pipeline_->rtp_transport_->state() != TransportLayer::TS_OPEN) {
-    MLOG(PR_LOG_DEBUG, "Transport not ready yet, dropping packets");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Transport not ready yet, dropping packets");
     return;
   }
 
@@ -510,7 +512,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
     switch(chunk.mBufferFormat) {
       case nsAudioStream::FORMAT_U8:
       case nsAudioStream::FORMAT_FLOAT32:
-        MLOG(PR_LOG_ERROR, "Can't process audio exceptin 16-bit PCM yet");
+        MOZ_MTLOG(PR_LOG_ERROR, "Can't process audio exceptin 16-bit PCM yet");
         PR_ASSERT(PR_FALSE);
         return;
         break;
@@ -540,7 +542,7 @@ void MediaPipelineTransmit::ProcessAudioChunk(AudioSessionConduit *conduit,
     }
   }
 
-  MLOG(PR_LOG_DEBUG, "Sending an audio frame");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Sending an audio frame");
   conduit->SendAudioFrame(samples.get(), chunk.mDuration, rate, 0);
 }
 
@@ -549,12 +551,12 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
                                               TrackRate rate,
                                               VideoChunk& chunk) {
   // We now need to send the video frame to the other side
-  mozilla::layers::Image *img = chunk.mFrame.GetImage();
+  layers::Image *img = chunk.mFrame.GetImage();
 
   ImageFormat format = img->GetFormat();
 
   if (format != PLANAR_YCBCR) {
-    MLOG(PR_LOG_ERROR, "Can't process non-YCBCR video");
+    MOZ_MTLOG(PR_LOG_ERROR, "Can't process non-YCBCR video");
     PR_ASSERT(PR_FALSE);
     return;
   }
@@ -577,17 +579,17 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 
   // OK, pass it on to the conduit
   // TODO(ekr@rtfm.com): Check return value
-  MLOG(PR_LOG_DEBUG, "Sending a video frame");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Sending a video frame");
   conduit->SendVideoFrame(yuv->mBuffer.get(), yuv->GetDataSize(),
-    yuv->GetSize().width, yuv->GetSize().height, mozilla::kVideoI420, 0);
+    yuv->GetSize().width, yuv->GetSize().height, kVideoI420, 0);
 }
 #endif
 
 nsresult MediaPipelineReceiveAudio::Init() {
-  MLOG(PR_LOG_DEBUG, __FUNCTION__);
+  MOZ_MTLOG(PR_LOG_DEBUG, __FUNCTION__);
   if (main_thread_) {
     main_thread_->Dispatch(WrapRunnable(
-      stream_->GetStream(), &mozilla::MediaStream::AddListener, listener_),
+      stream_->GetStream(), &MediaStream::AddListener, listener_),
       NS_DISPATCH_SYNC);
   }
   else {
@@ -602,12 +604,12 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
   if (!pipeline_)
     return;  // Detached
 
-  mozilla::SourceMediaStream *source =
+  SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
 
   PR_ASSERT(source);
   if (!source) {
-    MLOG(PR_LOG_ERROR, "NotifyPull() called from a non-SourceMediaStream");
+    MOZ_MTLOG(PR_LOG_ERROR, "NotifyPull() called from a non-SourceMediaStream");
     return;
   }
 
@@ -622,7 +624,7 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
   // Doesn't matter what was asked for, always give 160 samples per 10 ms.
   int num_samples = 1;
 
-  MLOG(PR_LOG_DEBUG, "Asking for " << num_samples << "sample from Audio Conduit");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Asking for " << num_samples << "sample from Audio Conduit");
 
   if (num_samples <= 0) {
     return;
@@ -633,35 +635,35 @@ NotifyPull(MediaStreamGraph* graph, StreamTime total) {
     nsRefPtr<SharedBuffer> samples = SharedBuffer::Create(1000);
     int samples_length;
 
-    mozilla::MediaConduitErrorCode err =
-      static_cast<mozilla::AudioSessionConduit*>(pipeline_->conduit_.get())->GetAudioFrame(
+    MediaConduitErrorCode err =
+      static_cast<AudioSessionConduit*>(pipeline_->conduit_.get())->GetAudioFrame(
         static_cast<int16_t *>(samples->Data()),
         16000,  // Sampling rate fixed at 16 kHz for now
         0,  // TODO(ekr@rtfm.com): better estimate of capture delay
         samples_length);
 
-    if (err != mozilla::kMediaConduitNoError)
+    if (err != kMediaConduitNoError)
       return;
 
-    MLOG(PR_LOG_DEBUG, "Audio conduit returned buffer of length " << samples_length);
+    MOZ_MTLOG(PR_LOG_DEBUG, "Audio conduit returned buffer of length " << samples_length);
 
-    mozilla::AudioSegment segment;
+    AudioSegment segment;
     segment.Init(1);
     segment.AppendFrames(samples.forget(), samples_length,
       0, samples_length, nsAudioStream::FORMAT_S16);
 
     char buf[32];
     PR_snprintf(buf, 32, "%p", source);
-    MLOG(PR_LOG_DEBUG, "Appended audio segments to stream " << buf);
+    MOZ_MTLOG(PR_LOG_DEBUG, "Appended audio segments to stream " << buf);
     source->AppendToTrack(1,  // TODO(ekr@rtfm.com): Track ID
       &segment);
   }
 }
 
 nsresult MediaPipelineReceiveVideo::Init() {
-  MLOG(PR_LOG_DEBUG, __FUNCTION__);
+  MOZ_MTLOG(PR_LOG_DEBUG, __FUNCTION__);
 
-  static_cast<mozilla::VideoSessionConduit *>(conduit_.get())->
+  static_cast<VideoSessionConduit *>(conduit_.get())->
       AttachRenderer(renderer_);
 
   return NS_OK;
@@ -674,10 +676,10 @@ MediaPipelineReceiveVideo::PipelineRenderer::PipelineRenderer(
 
 #ifdef MOZILLA_INTERNAL_API
   image_container_ = layers::LayerManager::CreateImageContainer();
-  mozilla::SourceMediaStream *source =
+  SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
-  source->AddTrack(1, 30, 0, new mozilla::VideoSegment());
-  source->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+  source->AddTrack(1, 30, 0, new VideoSegment());
+  source->AdvanceKnownTracksTime(STREAM_TIME_MAX);
 #endif
 }
 
@@ -687,19 +689,19 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
     uint32_t time_stamp,
     int64_t render_time) {
 #ifdef MOZILLA_INTERNAL_API
-  mozilla::SourceMediaStream *source =
+  SourceMediaStream *source =
     pipeline_->stream_->GetStream()->AsSourceStream();
 
   // Create a video frame and append it to the track.
   ImageFormat format = PLANAR_YCBCR;
-  nsRefPtr<mozilla::layers::Image> image = image_container_->CreateImage(&format, 1);
+  nsRefPtr<layers::Image> image = image_container_->CreateImage(&format, 1);
 
-  mozilla::layers::PlanarYCbCrImage* videoImage = static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
+  layers::PlanarYCbCrImage* videoImage = static_cast<layers::PlanarYCbCrImage*>(image.get());
   PRUint8* frame = const_cast<PRUint8*>(static_cast<const PRUint8*> (buffer));
   const PRUint8 lumaBpp = 8;
   const PRUint8 chromaBpp = 4;
 
-  mozilla::layers::PlanarYCbCrImage::Data data;
+  layers::PlanarYCbCrImage::Data data;
   data.mYChannel = frame;
   data.mYSize = gfxIntSize(width_, height_);
   data.mYStride = width_ * lumaBpp/ 8;
@@ -710,14 +712,14 @@ void MediaPipelineReceiveVideo::PipelineRenderer::RenderVideoFrame(
   data.mPicX = 0;
   data.mPicY = 0;
   data.mPicSize = gfxIntSize(width_, height_);
-  data.mStereoMode = mozilla::STEREO_MODE_MONO;
+  data.mStereoMode = STEREO_MODE_MONO;
 
   videoImage->SetData(data);
 
   VideoSegment segment;
   char buf[32];
   PR_snprintf(buf, 32, "%p", source);
-  MLOG(PR_LOG_DEBUG, "Appended video segments to stream " << buf);
+  MOZ_MTLOG(PR_LOG_DEBUG, "Appended video segments to stream " << buf);
 
   segment.AppendFrame(image.forget(), 1, gfxIntSize(width_, height_));
   source->AppendToTrack(1, &(segment));

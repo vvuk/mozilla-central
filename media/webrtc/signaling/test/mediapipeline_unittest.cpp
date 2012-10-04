@@ -34,8 +34,8 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
-
-MLOG_INIT("mediapipeline");
+using namespace mozilla;
+MOZ_MTLOG_MODULE("mediapipeline");
 
 MtransportTestUtils test_utils;
 
@@ -73,7 +73,7 @@ class TestAgent {
     std::vector<PRUint16> ciphers;
     ciphers.push_back(SRTP_AES128_CM_HMAC_SHA1_80);
     audio_dtls_->SetSrtpCiphers(ciphers);
-    audio_dtls_->SetIdentity(DtlsIdentity::Generate("test"));
+    audio_dtls_->SetIdentity(DtlsIdentity::Generate());
     audio_dtls_->SetRole(client ? TransportLayerDtls::CLIENT :
                          TransportLayerDtls::SERVER);
     audio_flow_->PushLayer(audio_dtls_);
@@ -82,7 +82,7 @@ class TestAgent {
   void Start() {
     nsresult ret;
 
-    MLOG(PR_LOG_DEBUG, "Starting");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Starting");
 
     test_utils.sts_target()->Dispatch(
         WrapRunnableRet(audio_->GetStream(),
@@ -100,15 +100,11 @@ class TestAgent {
   }
 
   void Stop() {
-    nsresult ret;
-
-    MLOG(PR_LOG_DEBUG, "Stopping");
+    MOZ_MTLOG(PR_LOG_DEBUG, "Stopping");
 
     test_utils.sts_target()->Dispatch(
         WrapRunnable(this, &TestAgent::StopInt),
         NS_DISPATCH_SYNC);
-    ASSERT_TRUE(NS_SUCCEEDED(ret));
-
     
     PR_Sleep(1000); // Deal with race condition
   }

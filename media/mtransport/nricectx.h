@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -60,6 +62,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "m_cpp_utils.h"
 
+namespace mozilla {
+
 typedef void* NR_SOCKET;
 typedef struct nr_ice_ctx_ nr_ice_ctx;
 typedef struct nr_ice_peer_ctx_ nr_ice_peer_ctx;
@@ -70,7 +74,7 @@ typedef struct nr_ice_cand_pair_ nr_ice_cand_pair;
 
 class NrIceMediaStream;
 
-class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
+class NrIceCtx {
  public:
   enum State { ICE_CTX_INIT,
                ICE_CTX_GATHERING,
@@ -80,7 +84,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
                ICE_CTX_FAILED
   };
 
-  static mozilla::RefPtr<NrIceCtx> Create(const std::string& name,
+  static RefPtr<NrIceCtx> Create(const std::string& name,
                                           bool offerer,
                                           bool set_interface_priorities = true);
   virtual ~NrIceCtx();
@@ -89,7 +93,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   nr_ice_peer_ctx *peer() { return peer_; }
 
   // Create a media stream
-  mozilla::RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
+  RefPtr<NrIceMediaStream> CreateStream(const std::string& name,
                                                  int components);
 
   // The name of the ctx
@@ -122,16 +126,18 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   // The thread to direct method calls to
   nsCOMPtr<nsIEventTarget> thread() { return sts_target_; }
 
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(NrIceCtx);
+
  private:
   NrIceCtx(const std::string& name, bool offerer)
       : state_(ICE_CTX_INIT),
       name_(name),
       offerer_(offerer),
       streams_(),
-      ctx_(NULL),
-      peer_(NULL),
-      ice_handler_vtbl_(NULL),
-      ice_handler_(NULL) {}
+      ctx_(nullptr),
+      peer_(nullptr),
+      ice_handler_vtbl_(nullptr),
+      ice_handler_(nullptr) {}
 
   DISALLOW_COPY_ASSIGN(NrIceCtx);
 
@@ -154,7 +160,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   void EmitAllCandidates();
 
   // Find a media stream by stream ptr. Gross
-  mozilla::RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
+  RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
   // Set the state
   void SetState(State state);
@@ -162,7 +168,7 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
   State state_;
   const std::string name_;
   bool offerer_;
-  std::vector<mozilla::RefPtr<NrIceMediaStream> > streams_;
+  std::vector<RefPtr<NrIceMediaStream> > streams_;
   nr_ice_ctx *ctx_;
   nr_ice_peer_ctx *peer_;
   nr_ice_handler_vtbl* ice_handler_vtbl_;  // Must be pointer
@@ -171,4 +177,5 @@ class NrIceCtx : public mozilla::RefCounted<NrIceCtx> {
 };
 
 
+}  // close namespace
 #endif

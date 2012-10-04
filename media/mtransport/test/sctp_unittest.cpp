@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -23,16 +25,15 @@
 #include "logging.h"
 #include "mtransport_test_utils.h"
 #include "runnable_utils.h"
-
-// XXX FIX
-#include "../../../netwerk/sctp/src/usrsctp.h"
+#include "usrsctp.h"
 
 #define GTEST_HAS_RTTI 0
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
 
-MLOG_INIT("mtransport");
+using namespace mozilla;
+MOZ_MTLOG_MODULE("mtransport");
 
 MtransportTestUtils test_utils;
 static bool sctp_logging = false;
@@ -67,11 +68,11 @@ class TransportTestPeer : public sigslot::has_slots<> {
         sent_(0), received_(0),
         flow_(new TransportFlow()),
         loopback_(new TransportLayerLoopback()),
-        peer_(NULL),
+        peer_(nullptr),
         gathering_complete_(false),
-        sctp_(usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, receive_cb, NULL, 0, NULL)),
+        sctp_(usrsctp_socket(AF_CONN, SOCK_STREAM, IPPROTO_SCTP, receive_cb, nullptr, 0, nullptr)),
         timer_(do_CreateInstance(NS_TIMER_CONTRACTID)),
-        periodic_(NULL) {
+        periodic_(nullptr) {
     std::cerr << "Creating TransportTestPeer; flow=" <<
         static_cast<void *>(flow_.get()) <<
         " local=" << local_port <<
@@ -95,7 +96,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     local_addr_.sconn_len = sizeof(struct sockaddr_conn);
 #endif
     local_addr_.sconn_port = htons(local_port);
-    local_addr_.sconn_addr = NULL;
+    local_addr_.sconn_addr = nullptr;
 
 
     memset(&remote_addr_, 0, sizeof(remote_addr_));
@@ -145,7 +146,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
 
   void DisconnectInt() {
     if (flow_) {
-      flow_ = NULL;
+      flow_ = nullptr;
     }
   }
 
@@ -171,7 +172,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     info.snd_context = 0;
     info.snd_assoc_id = 0;
 
-    int r = usrsctp_sendv(sctp_, buf, sizeof(buf), NULL, 0,
+    int r = usrsctp_sendv(sctp_, buf, sizeof(buf), nullptr, 0,
                           static_cast<void *>(&info),
                           sizeof(info), SCTP_SENDV_SNDINFO, 0);
     ASSERT_EQ(sizeof(buf), r);
@@ -230,7 +231,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
                         struct sctp_rcvinfo rcv, int flags, void *ulp_info) {
     TransportTestPeer *me = static_cast<TransportTestPeer *>(
         addr.sconn.sconn_addr);
-    PR_ASSERT(me);
+    MOZ_ASSERT(me);
 
     if (flags & MSG_NOTIFICATION) {
       union sctp_notification *notif =

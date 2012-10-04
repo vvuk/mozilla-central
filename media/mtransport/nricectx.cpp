@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -79,7 +81,9 @@ extern "C" {
 #include "nricectx.h"
 #include "nricemediastream.h"
 
-MLOG_INIT("mtransport");
+namespace mozilla {
+
+MOZ_MTLOG_MODULE("mtransport");
 
 static bool initialized = false;
 
@@ -98,25 +102,25 @@ static int nr_crypto_nss_hmac(UCHAR *key, int keyl, UCHAR *buf, int bufl,
                               UCHAR *result) {
   CK_MECHANISM_TYPE mech = CKM_SHA_1_HMAC;
   PK11SlotInfo *slot = 0;
-  PR_ASSERT(keyl > 0);
+  MOZ_ASSERT(keyl > 0);
   SECItem keyi = { siBuffer, key, static_cast<unsigned int>(keyl)};
   PK11SymKey *skey = 0;
   PK11Context *hmac_ctx = 0;
   SECStatus status;
   unsigned int hmac_len;
-  SECItem param = { siBuffer, NULL, 0 };
+  SECItem param = { siBuffer, nullptr, 0 };
   int err = R_INTERNAL;
-  
+
   slot = PK11_GetInternalKeySlot();
   if (!slot)
     goto abort;
 
   skey = PK11_ImportSymKey(slot, mech, PK11_OriginUnwrap,
-                          CKA_SIGN, &keyi, NULL);
+                          CKA_SIGN, &keyi, nullptr);
   if (!skey)
     goto abort;
 
-  
+
   hmac_ctx = PK11_CreateContextBySymKey(mech, CKA_SIGN,
                                         skey, &param);
 
@@ -131,9 +135,9 @@ static int nr_crypto_nss_hmac(UCHAR *key, int keyl, UCHAR *buf, int bufl,
   status = PK11_DigestFinal(hmac_ctx, result, &hmac_len, 20);
   if (status != SECSuccess)
     goto abort;
-  
-  PR_ASSERT(hmac_len == 20);
-  
+
+  MOZ_ASSERT(hmac_len == 20);
+
   err = 0;
 
  abort:
@@ -154,24 +158,24 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 // NrIceCtx
 
 // Handler callbacks
-int NrIceCtx::select_pair(void *obj,nr_ice_media_stream *stream, 
+int NrIceCtx::select_pair(void *obj,nr_ice_media_stream *stream,
                    int component_id, nr_ice_cand_pair **potentials,
                    int potential_ct) {
-  MLOG(PR_LOG_DEBUG, "select pair called: potential_ct = " << potential_ct);
+  MOZ_MTLOG(PR_LOG_DEBUG, "select pair called: potential_ct = " << potential_ct);
 
   return 0;
 }
 
 int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
-  MLOG(PR_LOG_DEBUG, "stream_ready called");
-  
+  MOZ_MTLOG(PR_LOG_DEBUG, "stream_ready called");
+
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
-  
-  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+
+  RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
 
   // Streams which do not exist should never be ready.
-  PR_ASSERT(s);
+  MOZ_ASSERT(s);
 
   s->Ready();
 
@@ -179,23 +183,22 @@ int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
 }
 
 int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
-  MLOG(PR_LOG_DEBUG, "stream_failed called");
+  MOZ_MTLOG(PR_LOG_DEBUG, "stream_failed called");
 
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
-  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+  RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
 
   // Streams which do not exist should never fail.
-  PR_ASSERT(s);
+  MOZ_ASSERT(s);
 
   ctx->SetState(ICE_CTX_FAILED);
   s -> SignalFailed(s);
-
   return 0;
 }
 
 int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
-  MLOG(PR_LOG_DEBUG, "ice_completed called");
+  MOZ_MTLOG(PR_LOG_DEBUG, "ice_completed called");
 
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
@@ -213,10 +216,10 @@ int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
                         UCHAR *msg, int len) {
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
-  mozilla::RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+  RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
 
   // Streams which do not exist should never have packets.
-  PR_ASSERT(s);
+  MOZ_ASSERT(s);
 
   s->SignalPacketReceived(s, component_id, msg, len);
 
@@ -224,17 +227,17 @@ int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
 }
 
 
-mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
+RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
                                            bool offerer,
                                            bool set_interface_priorities) {
-  mozilla::RefPtr<NrIceCtx> ctx = new NrIceCtx(name, offerer);
+  RefPtr<NrIceCtx> ctx = new NrIceCtx(name, offerer);
 
   // Initialize the crypto callbacks
   if (!initialized) {
     NR_reg_init(NR_REG_MODE_LOCAL);
     nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
     initialized = true;
-    
+
     // Set the priorites for candidate type preferences
     NR_reg_set_uchar((char *)"ice.pref.type.srv_rflx",100);
     NR_reg_set_uchar((char *)"ice.pref.type.peer_rflx",105);
@@ -268,7 +271,7 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
       NR_reg_set_uchar((char *)"ice.pref.interface.virbr0", 233);
       NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
     }
-    
+
     NR_reg_set_string((char *)"ice.stun.server.0.addr", (char *)"216.93.246.14");
     NR_reg_set_uint2((char *)"ice.stun.server.0.port",3478);
     NR_reg_set_uint4((char *)"stun.client.maximum_transmits",4);
@@ -284,8 +287,8 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   r = nr_ice_ctx_create(const_cast<char *>(name.c_str()), flags,
                         &ctx->ctx_);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name << "'");
-    return NULL;
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name << "'");
+    return nullptr;
   }
 
   // Create the handler objects
@@ -307,31 +310,31 @@ mozilla::RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
                              const_cast<char *>(peer_name.c_str()),
                              &ctx->peer_);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
-    return NULL;
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
+    return nullptr;
   }
 
   nsresult rv;
   ctx->sts_target_ = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
 
   if (!NS_SUCCEEDED(rv))
-    return NULL;
-  
+    return nullptr;
+
   return ctx;
 }
 
 
 NrIceCtx::~NrIceCtx() {
-  MLOG(PR_LOG_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
+  MOZ_MTLOG(PR_LOG_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
   nr_ice_peer_ctx_destroy(&peer_);
   nr_ice_ctx_destroy(&ctx_);
   delete ice_handler_vtbl_;
   delete ice_handler_;
 }
 
-mozilla::RefPtr<NrIceMediaStream>
+RefPtr<NrIceMediaStream>
 NrIceCtx::CreateStream(const std::string& name, int components) {
-  mozilla::RefPtr<NrIceMediaStream> stream =
+  RefPtr<NrIceMediaStream> stream =
     NrIceMediaStream::Create(this, name, components);
 
   streams_.push_back(stream);
@@ -346,7 +349,7 @@ nsresult NrIceCtx::StartGathering() {
                             this);
 
   if (r && r != R_WOULDBLOCK) {
-      MLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
            << name_ << "'");
       this->Release();
       return NS_ERROR_FAILURE;
@@ -358,7 +361,7 @@ nsresult NrIceCtx::StartGathering() {
 }
 
 void NrIceCtx::EmitAllCandidates() {
-  MLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
+  MOZ_MTLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
        << name_ << "'");
 
   for(size_t i=0; i<streams_.size(); ++i) {
@@ -368,7 +371,7 @@ void NrIceCtx::EmitAllCandidates() {
   SignalGatheringCompleted(this);
 }
 
-mozilla::RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
+RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
     nr_ice_media_stream *stream) {
   for (size_t i=0; i<streams_.size(); ++i) {
     if (streams_[i]->stream() == stream) {
@@ -376,7 +379,7 @@ mozilla::RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 std::vector<std::string> NrIceCtx::GetGlobalAttributes() {
@@ -387,7 +390,7 @@ std::vector<std::string> NrIceCtx::GetGlobalAttributes() {
 
   r = nr_ice_get_global_attributes(ctx_, &attrs, &attrct);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't get ufrag and password for '"
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get ufrag and password for '"
          << name_ << "'");
     return ret;
   }
@@ -411,7 +414,7 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
   int r = nr_ice_peer_ctx_parse_global_attributes(peer_, &attrs_in[0],
                                                   attrs.size());
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't parse global attributes for "
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse global attributes for "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
@@ -424,7 +427,7 @@ nsresult NrIceCtx::StartChecks() {
 
   r=nr_ice_peer_ctx_pair_candidates(peer_);
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't pair candidates on "
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't pair candidates on "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
@@ -432,10 +435,10 @@ nsresult NrIceCtx::StartChecks() {
   r = nr_ice_peer_ctx_start_checks2(peer_,1);
   if (r) {
     if (r == R_NOT_FOUND) {
-      MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
            << name_ << "' assuming trickle ICE");
     } else {
-      MLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
+      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
            << name_ << "'");
       return NS_ERROR_FAILURE;
     }
@@ -462,7 +465,7 @@ nsresult NrIceCtx::Finalize() {
   int r = nr_ice_ctx_finalize(ctx_, peer_);
 
   if (r) {
-    MLOG(PR_LOG_ERROR, "Couldn't finalize "
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't finalize "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
@@ -471,10 +474,12 @@ nsresult NrIceCtx::Finalize() {
 }
 
 void NrIceCtx::SetState(State state) {
-  MLOG(PR_LOG_DEBUG, "NrIceCtx(" << name_ << "): state " <<
+  MOZ_MTLOG(PR_LOG_DEBUG, "NrIceCtx(" << name_ << "): state " <<
        state_ << "->" << state);
   state_ = state;
 }
+}  // close namespace
+
 
 extern "C" {
 int nr_bin2hex(UCHAR *in,int len,UCHAR *out);
@@ -487,11 +492,12 @@ void nr_ice_compute_codeword(char *buf, int len,char *codeword) {
 
     r_crc32(buf,len,&c);
     c %= 2048;
-    
+
     cc[0] = (c >> 8) & 0xff;
     cc[1] = c & 0xff;
 
     nr_bin2hex(cc, 2, reinterpret_cast<UCHAR *>(codeword));
-    
+
     return;
 }
+

@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,14 +9,13 @@
 #ifndef transportlayer_h__
 #define transportlayer_h__
 
-// Pull in sigslot from libjingle. If we remove libjingle, we will
-// need to either bring that in separately or refactor this code
-// to not use sigslot
 #include "sigslot.h"
 
 #include "mozilla/RefPtr.h"
 
 #include "m_cpp_utils.h"
+
+namespace mozilla {
 
 class TransportFlow;
 
@@ -37,12 +38,11 @@ class TransportLayer : public sigslot::has_slots<> {
   enum Mode { STREAM, DGRAM };
 
   // Is this a stream or datagram flow
-
   TransportLayer(Mode mode = STREAM) :
     mode_(mode),
     state_(TS_NONE),
-    flow_(NULL),
-    downward_(NULL) {}
+    flow_(nullptr),
+    downward_(nullptr) {}
 
   virtual ~TransportLayer() {}
 
@@ -50,7 +50,7 @@ class TransportLayer : public sigslot::has_slots<> {
   nsresult Init();  // Called by Insert() to set up -- do not override
   virtual nsresult InitInternal() { return NS_OK; } // Called by Init
 
-  // Inserted
+  // Called when inserted into a flow
   virtual void Inserted(TransportFlow *flow, TransportLayer *downward);
 
   // Downward interface
@@ -89,4 +89,5 @@ class TransportLayer : public sigslot::has_slots<> {
 
 #define LAYER_INFO "Flow[" << flow_id() << "(none)" << "]; Layer[" << id() << "]: "
 
+}  // close namespace
 #endif

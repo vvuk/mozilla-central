@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13,63 +15,67 @@
 
 #include "nspr.h"
 #include "prio.h"
+#include "hasht.h"
 
 #include "mozilla/RefPtr.h"
 #include "mozilla/Scoped.h"
 #include "nsCOMPtr.h"
 #include "nsIEventTarget.h"
 #include "nsITimer.h"
-
+#include "ScopedNSSTypes.h"
 #include "m_cpp_utils.h"
 #include "dtlsidentity.h"
 #include "transportflow.h"
 #include "transportlayer.h"
 
+namespace mozilla {
+
 struct Packet;
 
-class NSPRHelper {
+class TransportLayerNSPRAdapter {
  public:
-  NSPRHelper(TransportLayer *output) :
-      output_(output),
-      input_() {}
+  TransportLayerNSPRAdapter(TransportLayer *output) :
+  output_(output),
+  input_() {}
 
-  void PacketReceived(const void *data, PRInt32 len);
-  PRInt32 Read(void *data, PRInt32 len);
-  PRInt32 Write(const void *buf, PRInt32 length);
+  void PacketReceived(const void *data, int32_t len);
+  int32_t Read(void *data, int32_t len);
+  int32_t Write(const void *buf, int32_t length);
 
  private:
-  DISALLOW_COPY_ASSIGN(NSPRHelper);
+  DISALLOW_COPY_ASSIGN(TransportLayerNSPRAdapter);
 
   TransportLayer *output_;
   std::queue<Packet *> input_;
 };
 
 class TransportLayerDtls : public TransportLayer {
-public:
- TransportLayerDtls() :
-     TransportLayer(DGRAM),
-     identity_(NULL),
-     role_(CLIENT),
-     verification_mode_(VERIFY_UNSET),
-     digests_(),
-     pr_fd_(NULL),
-     ssl_fd_(NULL),
-     helper_(NULL),
-     peer_cert_(NULL),
-     auth_hook_called_(false) {}
+ public:
+  TransportLayerDtls() :
+      TransportLayer(DGRAM),
+      identity_(nullptr),
+      role_(CLIENT),
+      verification_mode_(VERIFY_UNSET),
+      digests_(),
+      pr_fd_(nullptr),
+      ssl_fd_(nullptr),
+      nspr_io_adapter_(nullptr),
+      peer_cert_(nullptr),
+      auth_hook_called_(false),
+      cert_ok_(false) {}
 
   virtual ~TransportLayerDtls();
 
 
   enum Role { CLIENT, SERVER};
   enum Verification { VERIFY_UNSET, VERIFY_ALLOW_ALL, VERIFY_DIGEST};
-  const static int kMaxDigestLength = 64;
+  const static int kMaxDigestLength = HASH_LENGTH_MAX;
 
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
   Role role() { return role_; }
 
-  void SetIdentity(mozilla::RefPtr<DtlsIdentity> identity) {
+  void SetIdentity(const RefPtr<DtlsIdentity>& identity) {
     identity_ = identity;
   }
   nsresult SetVerificationAllowAll();
@@ -77,8 +83,8 @@ public:
                                  const unsigned char *digest_value,
                                  size_t digest_len);
 
-  nsresult SetSrtpCiphers(std::vector<PRUint16> ciphers);
-  nsresult GetSrtpCipher(PRUint16 *cipher);
+  nsresult SetSrtpCiphers(std::vector<uint16_t> ciphers);
+  nsresult GetSrtpCipher(uint16_t *cipher);
 
   nsresult ExportKeyingMaterial(const std::string& label,
                                 bool use_context,
@@ -86,7 +92,9 @@ public:
                                 unsigned char *out,
                                 unsigned int outlen);
 
-  const CERTCertificate *GetPeerCert() const { return peer_cert_; }
+  const CERTCertificate *GetPeerCert() const {
+    return peer_cert_;
+  }
 
   // Transport layer overrides.
   virtual nsresult InitInternal();
@@ -96,11 +104,11 @@ public:
   // Signals
   void StateChange(TransportLayer *layer, State state);
   void PacketReceived(TransportLayer* layer, const unsigned char *data,
-      size_t len);
+                      size_t len);
 
   TRANSPORT_LAYER_ID("dtls")
 
-private:
+  private:
   DISALLOW_COPY_ASSIGN(TransportLayerDtls);
 
   // A single digest to check
@@ -108,7 +116,7 @@ private:
    public:
     VerificationDigest(std::string algorithm,
                        const unsigned char *value, size_t len) {
-      PR_ASSERT(len <= sizeof(value_));
+      MOZ_ASSERT(len <= sizeof(value_));
 
       algorithm_ = algorithm;
       memcpy(value_, value, len);
@@ -143,26 +151,29 @@ private:
 
   static void TimerCallback(nsITimer *timer, void *arg);
 
-  SECStatus CheckDigest(mozilla::RefPtr<VerificationDigest> digest,
+  SECStatus CheckDigest(const RefPtr<VerificationDigest>& digest,
                         CERTCertificate *cert);
 
-  mozilla::RefPtr<DtlsIdentity> identity_;
-  std::vector<PRUint16> srtp_ciphers_;
+  RefPtr<DtlsIdentity> identity_;
+  std::vector<uint16_t> srtp_ciphers_;
 
   Role role_;
   Verification verification_mode_;
-  std::vector<mozilla::RefPtr<VerificationDigest> > digests_;
+  std::vector<RefPtr<VerificationDigest> > digests_;
 
   PRFileDesc *pr_fd_;
   PRFileDesc *ssl_fd_;
-  mozilla::ScopedDeletePtr<NSPRHelper> helper_;
-  CERTCertificate *peer_cert_;
+  ScopedDeletePtr<TransportLayerNSPRAdapter> nspr_io_adapter_;
+
+  ScopedCERTCertificate peer_cert_;
   nsCOMPtr<nsIEventTarget> target_;
   nsCOMPtr<nsITimer> timer_;
   bool auth_hook_called_;
+  bool cert_ok_;
 
   static PRDescIdentity nspr_layer_identity;  // The NSPR layer identity
 };
 
 
+}  // close namespace
 #endif

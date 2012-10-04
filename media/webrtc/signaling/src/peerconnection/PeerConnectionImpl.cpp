@@ -457,7 +457,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   peerconnections[mHandle] = this;
 
   // Create the DTLS Identity
-  mIdentity = DtlsIdentity::Generate("self");
+  mIdentity = DtlsIdentity::Generate();
 
   if (!mIdentity) {
     CSFLogErrorS(logTag, __FUNCTION__ << ": Generate returned NULL");

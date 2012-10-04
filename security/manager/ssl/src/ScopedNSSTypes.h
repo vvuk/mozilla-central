@@ -28,6 +28,9 @@ MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTCertificateRequest,
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTCertList,
                                           CERTCertList,
                                           CERT_DestroyCertList)
+MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTName,
+                                          CERTName,
+                                          CERT_DestroyName)
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedCERTCertNicknames,
                                           CERTCertNicknames,
                                           CERT_FreeNicknames)
@@ -66,5 +69,6 @@ MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedSECKEYPrivateKey,
 MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(ScopedSECKEYPublicKey,
                                           SECKEYPublicKey,
                                           SECKEY_DestroyPublicKey)
+
 
 #endif // mozilla_ScopedNSSTypes_h

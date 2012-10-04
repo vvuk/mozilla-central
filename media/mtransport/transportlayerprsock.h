@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,9 +21,11 @@
 #include "transportflow.h"
 #include "transportlayer.h"
 
+namespace mozilla {
+
 class TransportLayerPrsock : public TransportLayer {
  public:
-  TransportLayerPrsock() : fd_(NULL), handler_() {}
+  TransportLayerPrsock() : fd_(nullptr), handler_() {}
 
   virtual ~TransportLayerPrsock() {
     Detach();
@@ -56,11 +60,11 @@ class TransportLayerPrsock : public TransportLayer {
 
       void Detach() {
         mCondition = NS_BASE_STREAM_CLOSED;
-        prsock_ = NULL;
+        prsock_ = nullptr;
       }
 
       // Implement nsASocket
-      virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outflags) {
+      virtual void OnSocketReady(PRFileDesc *fd, int16_t outflags) {
         if (prsock_) {
           prsock_->OnSocketReady(fd, outflags);
         }
@@ -92,7 +96,7 @@ class TransportLayerPrsock : public TransportLayer {
   friend class SocketHandler;
 
   // Functions to be called by SocketHandler
-  void OnSocketReady(PRFileDesc *fd, PRInt16 outflags);
+  void OnSocketReady(PRFileDesc *fd, int16_t outflags);
   void OnSocketDetached(PRFileDesc *fd) {
     SetState(TS_CLOSED);
   }
@@ -109,4 +113,5 @@ class TransportLayerPrsock : public TransportLayer {
 
 
 
+}  // close namespace
 #endif

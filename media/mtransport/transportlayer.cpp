@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,7 +12,9 @@
 #include "transportlayer.h"
 
 // Logging context
-MLOG_INIT("mtransport");
+namespace mozilla {
+
+MOZ_MTLOG_MODULE("mtransport");
 
 nsresult TransportLayer::Init() {
   if (state_ != TS_NONE)
@@ -31,22 +35,23 @@ void TransportLayer::Inserted(TransportFlow *flow, TransportLayer *downward) {
   flow_ = flow;
   downward_ = downward;
 
-  MLOG(PR_LOG_DEBUG, LAYER_INFO << "Inserted: downward='" << 
+  MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "Inserted: downward='" <<
     (downward ? downward->id(): "none") << "'");
-  
+
   WasInserted();
 }
 
 void TransportLayer::SetState(State state) {
   if (state != state_) {
-    MLOG(PR_LOG_DEBUG, LAYER_INFO << "state " << state_ << "->" << state);
+    MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "state " << state_ << "->" << state);
     state_ = state;
     SignalStateChange(this, state);
   }
 }
 
-const std::string& TransportLayer::flow_id() { 
-    static std::string empty;
+const std::string& TransportLayer::flow_id() {
+    static const std::string empty;
 
     return flow_ ? flow_->id() : empty;
   }
+}  // close namespace
