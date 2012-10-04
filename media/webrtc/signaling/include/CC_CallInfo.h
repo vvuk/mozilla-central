@@ -362,9 +362,10 @@ namespace CSF
 
         /**
            get media streams
-           @param [in] handle - call info handle
            @return media stream table
+           Note:Ownership of the MediaStreamTable is responsibiliy of 
+           the caller.
          */
-        virtual MediaStreamTable* getMediaStreams() = 0;
+        virtual MediaStreamTable* getMediaStreams() const = 0;
     };
 };

@@ -73,8 +73,8 @@ class PeerConnectionCtx : public CSF::CC_Observer {
   nsresult Initialize();
   nsresult Cleanup();
 
-  void ChangeSipccState(PeerConnectionImpl::SipccState state) {
-    mSipccState = state;
+  void ChangeSipccState(PeerConnectionImpl::SipccState aState) {
+    mSipccState = aState;
   }
 
   // SIPCC objects

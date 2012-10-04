@@ -73,8 +73,8 @@ void PeerConnectionCtx::Destroy() {
 
 nsresult PeerConnectionCtx::Initialize() {
   mCCM = CSF::CallControlManager::create();
-  if (!mCCM.get())
-    return NS_ERROR_FAILURE;
+
+  NS_ENSURE_TRUE(mCCM.get(), NS_ERROR_FAILURE);
 
   // Add the local audio codecs
   // FIX - Get this list from MediaEngine instead
@@ -93,7 +93,7 @@ nsresult PeerConnectionCtx::Initialize() {
   codecMask = 0;
   // Only adding codecs supported
   //codecMask |= VCM_CODEC_RESOURCE_H263;
- 
+
   //codecMask |= VCM_CODEC_RESOURCE_H264;
   codecMask |= VCM_CODEC_RESOURCE_VP8;
   //codecMask |= VCM_CODEC_RESOURCE_I420;
@@ -104,11 +104,8 @@ nsresult PeerConnectionCtx::Initialize() {
 
   mCCM->addCCObserver(this);
   mDevice = mCCM->getActiveDevice();
-  if (!mDevice.get())
-    return NS_ERROR_FAILURE;
-
+  NS_ENSURE_TRUE(mDevice.get(), NS_ERROR_FAILURE);
   ChangeSipccState(PeerConnectionImpl::kStarting);
-
   return NS_OK;
 }
 
@@ -122,33 +119,42 @@ CSF::CC_CallPtr PeerConnectionCtx::createCall() {
   return mDevice->createCall();
 }
 
-void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e deviceEvent, CSF::CC_DevicePtr device, CSF::CC_DeviceInfoPtr info ) {
+void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
+                                      CSF::CC_DevicePtr aDevice,
+                                      CSF::CC_DeviceInfoPtr aInfo ) {
   CSFLogDebug(logTag, "onDeviceEvent()");
-  cc_service_state_t state = info->getServiceState();
+  cc_service_state_t state = aInfo->getServiceState();
 
   if (CC_STATE_INS == state) {
     // SIPCC is up
     if (PeerConnectionImpl::kStarting == mSipccState ||
         PeerConnectionImpl::kIdle == mSipccState) {
       ChangeSipccState(PeerConnectionImpl::kStarted);
+    } else {
+      CSFLogError(logTag, "%s PeerConnection in wrong state", __FUNCTION__);
+      Cleanup();
+      MOZ_ASSERT(PR_FALSE);
     }
+  } else {
+    Cleanup();
+    NS_NOTREACHED("Unsupported Signaling State Transition");
   }
 }
 
 // Demux the call event to the right PeerConnection
-void PeerConnectionCtx::onCallEvent(ccapi_call_event_e callEvent,
-                                    CSF::CC_CallPtr call,
-                                    CSF::CC_CallInfoPtr info) {
+void PeerConnectionCtx::onCallEvent(ccapi_call_event_e aCallEvent,
+                                    CSF::CC_CallPtr aCall,
+                                    CSF::CC_CallInfoPtr aInfo) {
   CSFLogDebug(logTag, "onCallEvent()");
   mozilla::ScopedDeletePtr<PeerConnectionWrapper> pc(
     PeerConnectionImpl::AcquireInstance(
-      call->getPeerConnection()));
+      aCall->getPeerConnection()));
 
   if (!pc)  // This must be an event on a dead PC. Ignore
     return;
 
   CSFLogDebug(logTag, "Calling PC");
-  pc->impl()->onCallEvent(callEvent, call, info);
+  pc->impl()->onCallEvent(aCallEvent, aCall, aInfo);
 }
 
 }  // namespace sipcc

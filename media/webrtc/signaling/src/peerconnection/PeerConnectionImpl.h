@@ -69,8 +69,8 @@ Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
 
     nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(4000);
-    for (int i=0; i<1600; i++) {
-      reinterpret_cast<int16_t *>(samples->Data())[i] = ((gen->mCount % 8) * 4000) - 16000;
+    for (int i=0; i<1600*2; i++) {
+      reinterpret_cast<int16_t *>(samples->Data())[i] = ((gen->mCount % 8) * 4000) - (7*4000)/2;
       ++gen->mCount;
     }
 
@@ -188,11 +188,13 @@ public:
   virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
     mozilla::StreamTime aDesiredTime) {}
 
-  nsDOMMediaStream* GetMediaStream();
-  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
+  nsDOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
+  void StorePipeline(int aTrack, mozilla::RefPtr<mozilla::MediaPipeline> aPipeline);
 
-  void ExpectAudio();
-  void ExpectVideo();
+  void ExpectAudio(const mozilla::TrackID);
+  void ExpectVideo(const mozilla::TrackID);
   unsigned AudioTrackCount();
   unsigned VideoTrackCount();
 
@@ -222,8 +224,10 @@ class RemoteSourceStreamInfo {
       mMediaStream(aMediaStream),
       mPipelines() {}
 
-  nsDOMMediaStream* GetMediaStream();
-  void StorePipeline(int track, mozilla::RefPtr<mozilla::MediaPipeline> pipeline);
+  nsDOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
+  void StorePipeline(int aTrack, mozilla::RefPtr<mozilla::MediaPipeline> aPipeline);
 
   void Detach() {
     // walk through all the MediaPipelines and disconnect them.
@@ -288,29 +292,29 @@ public:
   static void Shutdown();
 
   Role GetRole() const { return mRole; }
-  nsresult CreateRemoteSourceStreamInfo(PRUint32 hint, RemoteSourceStreamInfo** info);
+  nsresult CreateRemoteSourceStreamInfo(PRUint32 aHint, RemoteSourceStreamInfo** aInfo);
 
   // Implementation of the only observer we need
   virtual void onCallEvent(
-    ccapi_call_event_e callEvent,
-    CSF::CC_CallPtr call,
-    CSF::CC_CallInfoPtr info
+    ccapi_call_event_e aCallEvent,
+    CSF::CC_CallPtr aCall,
+    CSF::CC_CallInfoPtr aInfo
   );
 
   // DataConnection observers
   void NotifyConnection();
   void NotifyClosedConnection();
-  void NotifyDataChannel(mozilla::DataChannel *channel);
+  void NotifyDataChannel(mozilla::DataChannel *aChannel);
 
   // Handle system to allow weak references to be passed through C code
-  static PeerConnectionWrapper *AcquireInstance(const std::string& handle);
+  static PeerConnectionWrapper *AcquireInstance(const std::string& aHandle);
   virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
 
   // ICE events
-  void IceGatheringCompleted(NrIceCtx *ctx);
-  void IceCompleted(NrIceCtx *ctx);
-  void IceStreamReady(NrIceMediaStream *stream);
+  void IceGatheringCompleted(NrIceCtx *aCtx);
+  void IceCompleted(NrIceCtx *aCtx);
+  void IceStreamReady(NrIceMediaStream *aStream);
 
   mozilla::RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
   mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
@@ -323,17 +327,18 @@ public:
   }
 
   // Get a specific local stream
-  nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int index);
+  nsRefPtr<LocalSourceStreamInfo> GetLocalStream(int aIndex);
 
   // Get a specific remote stream
-  nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int index);
+  nsRefPtr<RemoteSourceStreamInfo> GetRemoteStream(int aIndex);
 
   // Add a remote stream. Returns the index in index
-  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> info, int *index);
+  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo, int *aIndex);
 
-  // Get a transport flow
-  mozilla::RefPtr<TransportFlow> GetTransportFlow(int index, bool rtcp) {
-    int index_inner = index * 2 + (rtcp ? 1 : 0);
+  // Get a transport flow either RTP/RTCP for a particular stream
+  // A stream can be of audio/video/datachannel/budled(?) types
+  mozilla::RefPtr<TransportFlow> GetTransportFlow(int aStreamIndex, bool aIsRtcp) {
+    int index_inner = aStreamIndex * 2 + (aIsRtcp ? 1 : 0);
 
     if (mTransportFlows.find(index_inner) == mTransportFlows.end())
       return NULL;
@@ -342,14 +347,14 @@ public:
   }
 
   // Add a transport flow
-  void AddTransportFlow(int index, bool rtcp, mozilla::RefPtr<TransportFlow> flow) {
-    int index_inner = index * 2 + (rtcp ? 1 : 0);
+  void AddTransportFlow(int aIndex, bool aRtcp, mozilla::RefPtr<TransportFlow> aFlow) {
+    int index_inner = aIndex * 2 + (aRtcp ? 1 : 0);
 
-    mTransportFlows[index_inner] = flow;
+    mTransportFlows[index_inner] = aFlow;
   }
 
-  static void ListenThread(void *data);
-  static void ConnectThread(void *data);
+  static void ListenThread(void *aData);
+  static void ConnectThread(void *aData);
 
   // Get the main thread
   nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
@@ -364,8 +369,8 @@ private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
 
-  void ChangeReadyState(ReadyState ready_state);
-  void CheckApiState() {
+  void ChangeReadyState(ReadyState aReadyState);
+  void CheckIceState() {
     PR_ASSERT(mIceState != kIceGathering);
   }
 
@@ -379,8 +384,8 @@ private:
   // Shutdown media transport. Must be called on STS thread.
   void ShutdownMediaTransport();
 
-  nsresult MakeMediaStream(PRUint32 hint, nsIDOMMediaStream** stream);
-  nsresult MakeRemoteSource(nsDOMMediaStream* stream, RemoteSourceStreamInfo** info);
+  nsresult MakeMediaStream(PRUint32 aHint, nsIDOMMediaStream** aStream);
+  nsresult MakeRemoteSource(nsDOMMediaStream* aStream, RemoteSourceStreamInfo** aInfo);
 
   // The role we are adopting
   Role mRole;
@@ -439,7 +444,7 @@ private:
   static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 
 public:
-
+  //these are temporary until the DataChannel Listen/Connect API is removed
   unsigned short listenPort;
   unsigned short connectPort;
   char *connectStr; // XXX ownership/free

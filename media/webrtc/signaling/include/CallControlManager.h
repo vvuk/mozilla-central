@@ -160,7 +160,4 @@ namespace CSF
         CallControlManager(const CallControlManager&);
         CallControlManager& operator=(const CallControlManager&);
     };
-
-
 } //end namespace CSF
-

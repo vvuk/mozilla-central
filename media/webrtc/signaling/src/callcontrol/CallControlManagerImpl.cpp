@@ -173,7 +173,6 @@ AuthenticationStatusEnum::AuthenticationStatus CallControlManagerImpl::getAuthen
     return authenticationStatus;
 }
 
-
 bool CallControlManagerImpl::registerUser( const std::string& deviceName, const std::string& user, const std::string& password, const std::string& domain )
 {
 	setConnectionState(ConnectionStatusEnum::eRegistering);
@@ -241,7 +240,7 @@ bool CallControlManagerImpl::startSDPMode()
     CSFLogInfoS(logTag, "startSDPMode");
     if(phone != NULL)
     {
-        CSFLogErrorS(logTag, "startSDPMode() failed - already started in SDP mode!");
+        CSFLogError(logTag, "%s failed - already started in SDP mode!",__FUNCTION__);
         return false;
     }
 
@@ -304,12 +303,12 @@ CC_DevicePtr CallControlManagerImpl::getActiveDevice()
 PhoneDetailsVtrPtr CallControlManagerImpl::getAvailablePhoneDetails()
 {
   PhoneDetailsVtrPtr result = PhoneDetailsVtrPtr(new PhoneDetailsVtr());
-    for(PhoneDetailsMap::iterator it = phoneDetailsMap.begin(); it != phoneDetailsMap.end(); it++)
-    {
-        PhoneDetailsPtr details = it->second;
-        result->push_back(details);
-    }
-    return result;
+  for(PhoneDetailsMap::iterator it = phoneDetailsMap.begin(); it != phoneDetailsMap.end(); it++)
+  {
+    PhoneDetailsPtr details = it->second;
+    result->push_back(details);
+  }
+  return result;
 }
 
 PhoneDetailsPtr CallControlManagerImpl::getAvailablePhoneDetails(const std::string& deviceName)
@@ -337,8 +336,6 @@ AudioControlPtr CallControlManagerImpl::getAudioControl()
 
     return AudioControlPtr();
 }
-
-
 
 bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyKeys key, std::string& value)
 {

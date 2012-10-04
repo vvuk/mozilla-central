@@ -299,17 +299,17 @@ namespace CSF
            @param [in] digits - digits to be dialed. can be empty then this API simply goes offhook
            @param [in] ip address - the ip address of the peer to call
 
-           @return true or false.
-         */
-        virtual bool originateP2PCall (cc_sdp_direction_t video_pref, const std::string & digits, const std::string & ip) = 0;
+           @return void
+          */
+        virtual void originateP2PCall (cc_sdp_direction_t video_pref, const std::string & digits, const std::string & ip) = 0;
 
-        virtual int createOffer (const std::string & hints) = 0;
+        virtual void createOffer (const std::string & hints) = 0;
 
-        virtual int createAnswer(const std::string & hints, const std::string & offersdp) = 0;
+        virtual void createAnswer(const std::string & hints, const std::string & offersdp) = 0;
 
-        virtual int setLocalDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
+        virtual void setLocalDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
 
-        virtual int setRemoteDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
+        virtual void setRemoteDescription(cc_jsep_action_t action, const std::string & sdp) = 0;
 
         virtual void setPeerConnection(const std::string& handle) = 0;
 
