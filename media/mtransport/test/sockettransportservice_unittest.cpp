@@ -36,7 +36,7 @@ class SocketTransportServiceTest : public ::testing::Test {
   SocketTransportServiceTest() : received_(0),
                                  readpipe_(NULL),
                                  writepipe_(NULL),
-                                 registered_(NULL) {
+                                 registered_(false) {
   }
 
   ~SocketTransportServiceTest() {
