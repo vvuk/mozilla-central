@@ -381,10 +381,10 @@ std::string CallControlManagerImpl::getProperty(ConfigPropertyKeysEnum::ConfigPr
   CSFLogInfoS(logTag, "getProperty()");
 
   if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
-    snprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_local_voip_port());
+    csf_sprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_local_voip_port());
     retValue = tmpString;
   } else if (key == ConfigPropertyKeysEnum::eRemoteVoipPort) {
-    snprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_remote_voip_port());
+    csf_sprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_remote_voip_port());
     retValue = tmpString;
   } else if (key == ConfigPropertyKeysEnum::eVersion) {
     const char* version = CCAPI_Config_get_version();

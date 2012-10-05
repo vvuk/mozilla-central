@@ -45,6 +45,7 @@
 #include <map>
 
 #include "common/Wrapper.h"
+#include "common/csf_common.h"
 #include "mozilla/Mutex.h"
 #include "base/lock.h"
 
@@ -103,7 +104,7 @@ namespace CSF
         virtual inline std::string toString() {
             std::string result;
             char tmpString[11];
-            snprintf(tmpString, sizeof(tmpString), "%X", callHandle);
+            csf_sprintf(tmpString, sizeof(tmpString), "%X", callHandle);
             result = tmpString;
             return result;
         };

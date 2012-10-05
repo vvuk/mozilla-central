@@ -43,6 +43,7 @@
 #include "CC_Line.h"
 #include <map>
 
+#include "common/csf_common.h"
 #include "common/Wrapper.h"
 
 namespace CSF
@@ -60,7 +61,7 @@ namespace CSF
         virtual std::string toString() {
             std::string result;
             char tmpString[11];
-            snprintf(tmpString, sizeof(tmpString), "%X", lineId);
+            csf_sprintf(tmpString, sizeof(tmpString), "%X", lineId);
             result = tmpString;
             return result;
         };

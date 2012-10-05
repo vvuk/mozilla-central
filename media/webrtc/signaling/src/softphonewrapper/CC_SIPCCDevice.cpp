@@ -99,7 +99,7 @@ std::string CC_SIPCCDevice::toString()
 {
     std::string result;
     char tmpString[11];
-    snprintf(tmpString, sizeof(tmpString), "%X", deviceHandle);
+    csf_sprintf(tmpString, sizeof(tmpString), "%X", deviceHandle);
     result = tmpString;
     return result;
 }
