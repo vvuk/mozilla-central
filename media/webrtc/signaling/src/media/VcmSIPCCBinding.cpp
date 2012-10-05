@@ -947,14 +947,16 @@ short vcmGetDtlsIdentity(const char *peerconnection,
   unsigned char digest[TransportLayerDtls::kMaxDigestLength];
   size_t digest_len;
   
-  nsresult res = pc->impl()->GetIdentity()->ComputeFingerprint("sha-1", digest,
+  nsresult res = pc->impl()->GetIdentity()->ComputeFingerprint("sha-256", digest,
                                                                sizeof(digest),
                                                                &digest_len);
   if (!NS_SUCCEEDED(res)) {
     CSFLogError( logTag, "%s: Could not compute identity fingerprint", __FUNCTION__);
     return VCM_ERROR;
   }
-  PR_ASSERT(digest_len == 20);
+
+  // digest_len should be 32 for SHA-256
+  PR_ASSERT(digest_len == 32);
   std::string fingerprint_txt = DtlsIdentity::FormatFingerprint(digest, digest_len);
   if (max_digest_len <= fingerprint_txt.size()) {
     CSFLogError( logTag, "%s: Formatted digest will not fit in provided buffer",
@@ -962,7 +964,7 @@ short vcmGetDtlsIdentity(const char *peerconnection,
     return VCM_ERROR;
   }
   
-  sstrncpy(digest_algp, "sha-1", max_digest_alg_len);
+  sstrncpy(digest_algp, "sha-256", max_digest_alg_len);
   sstrncpy(digestp, fingerprint_txt.c_str(), max_digest_len);
 
   return 0;

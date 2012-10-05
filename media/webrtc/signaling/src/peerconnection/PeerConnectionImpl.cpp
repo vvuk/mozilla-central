@@ -466,7 +466,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   // DTLS identity
   unsigned char fingerprint[DTLS_FINGERPRINT_LENGTH];
   size_t fingerprint_length;
-  res = mIdentity->ComputeFingerprint("sha-1",
+  res = mIdentity->ComputeFingerprint("sha-256",
                                       fingerprint,
                                       sizeof(fingerprint),
                                       &fingerprint_length);
@@ -476,7 +476,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
     return res;
   }
 
-  mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
+  mFingerprint = "sha-256 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
 
   // Find the STS thread
@@ -912,7 +912,7 @@ PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerpri
   MOZ_ASSERT(hash);
   MOZ_ASSERT(fingerprint);
 
-  if (fingerprint != NULL && (strcmp(hash, "sha-1") == 0)) {
+  if (fingerprint != NULL && (strcmp(hash, "sha-256") == 0)) {
     mRemoteFingerprint = std::string(fingerprint);
     CSFLogDebugS(logTag, "Setting remote fingerprint to " << mRemoteFingerprint);
     return NS_OK;
