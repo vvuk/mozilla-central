@@ -97,9 +97,11 @@ CC_DeviceInfoPtr CC_SIPCCDevice::getDeviceInfo ()
 
 std::string CC_SIPCCDevice::toString()
 {
-    std::stringstream sstream;
-    sstream << "0x" << std::setw( 5 ) << std::setfill( '0' ) << std::hex << deviceHandle;
-    return sstream.str();
+    std::string result;
+    char tmpString[11];
+    snprintf(tmpString, sizeof(tmpString), "%X", deviceHandle);
+    result = tmpString;
+    return result;
 }
 
 CC_CallPtr CC_SIPCCDevice::createCall ()

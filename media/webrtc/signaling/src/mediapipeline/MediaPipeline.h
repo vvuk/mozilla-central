@@ -7,7 +7,6 @@
 #ifndef mediapipeline_h__
 #define mediapipeline_h__
 
-#include <iostream>
 #include "sigslot.h"
 
 #ifdef USE_FAKE_MEDIA_STREAMS

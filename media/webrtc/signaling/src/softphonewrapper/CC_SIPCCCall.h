@@ -43,8 +43,6 @@
 #include "CC_Call.h"
 
 #include <map>
-#include <iomanip>
-#include <sstream>
 
 #include "common/Wrapper.h"
 #include "mozilla/Mutex.h"
@@ -103,9 +101,11 @@ namespace CSF
 
     public:
         virtual inline std::string toString() {
-        	std::stringstream sstream;
-            sstream << "0x" << std::setw( 5 ) << std::setfill( '0' ) << std::hex << callHandle;
-            return sstream.str();
+            std::string result;
+            char tmpString[11];
+            snprintf(tmpString, sizeof(tmpString), "%X", callHandle);
+            result = tmpString;
+            return result;
         };
 
         virtual void setRemoteWindow (VideoWindowHandle window);

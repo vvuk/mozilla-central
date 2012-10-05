@@ -49,7 +49,10 @@ extern "C"
 }
 
 #include "CSFLogStream.h"
+
+#ifdef DEBUG
 static const char* logTag = "CC_SIPCCCallInfo";
+#endif
 
 using namespace std;
 using namespace CSF;

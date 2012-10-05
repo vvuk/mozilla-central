@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <errno.h>
+#include <string>
 
 #include "CC_SIPCCDevice.h"
 #include "CC_SIPCCDeviceInfo.h"
@@ -374,25 +375,23 @@ bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyK
 
 std::string CallControlManagerImpl::getProperty(ConfigPropertyKeysEnum::ConfigPropertyKeys key)
 {
-	CSFLogInfoS(logTag, "getProperty()");
+  std::string retValue = "NONESET";
+  char tmpString[11];
 
-	std::string retValue = "NONESET";
-	if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
-		int tmpValue = CCAPI_Config_get_local_voip_port();
-		std::stringstream out;
-		out << tmpValue;
-		retValue = out.str();
-	} else if (key == ConfigPropertyKeysEnum::eRemoteVoipPort) {
-		int tmpValue = CCAPI_Config_get_remote_voip_port();
-		std::stringstream out;
-		out << tmpValue;
-		retValue = out.str();
-	} else if (key == ConfigPropertyKeysEnum::eVersion) {
-		const char* version = CCAPI_Config_get_version();
-		retValue = version;
-	}
+  CSFLogInfoS(logTag, "getProperty()");
 
-	return retValue;
+  if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
+    snprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_local_voip_port());
+    retValue = tmpString;
+  } else if (key == ConfigPropertyKeysEnum::eRemoteVoipPort) {
+    snprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_remote_voip_port());
+    retValue = tmpString;
+  } else if (key == ConfigPropertyKeysEnum::eVersion) {
+    const char* version = CCAPI_Config_get_version();
+    retValue = version;
+  }
+
+  return retValue;
 }
 /*
   There are a number of factors that determine PhoneAvailabilityType::PhoneAvailability. The supported states for this enum are:
