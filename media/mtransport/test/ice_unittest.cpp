@@ -64,7 +64,7 @@ class IceTestPeer : public sigslot::has_slots<> {
     mozilla::RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), components);
 
-    ASSERT_TRUE(stream != nullptr);
+    ASSERT_TRUE(stream);
     streams_.push_back(stream);
     stream->SignalCandidate.connect(this, &IceTestPeer::GotCandidate);
     stream->SignalReady.connect(this, &IceTestPeer::StreamReady);

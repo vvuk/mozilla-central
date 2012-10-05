@@ -25,6 +25,8 @@ namespace mozilla {
 
 class DtlsIdentity {
  public:
+  ~DtlsIdentity();
+
   // Generate an identity with a random name.
   static RefPtr<DtlsIdentity> Generate();
 
@@ -61,7 +63,8 @@ class DtlsIdentity {
   DISALLOW_COPY_ASSIGN(DtlsIdentity);
 
   ScopedSECKEYPrivateKey privkey_;
-  ScopedCERTCertificate cert_;
+  CERTCertificate *cert_;  // TODO: Using a smart pointer here causes link
+                           // errors.
 };
 }  // close namespace
 #endif

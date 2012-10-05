@@ -21,34 +21,10 @@ namespace mozilla {
 
 MOZ_MTLOG_MODULE("mtransport");
 
-// Helper class to avoid having a pile of if (!nullptr) statements at
-// the end to clean up. The way you use this is you instantiate the
-// object as scoped_c_ptr<PtrType> obj(value, destructor);
-// TODO: Move this to some generic location
-template <class T> class scoped_c_ptr {
- public:
-  scoped_c_ptr(T *t, void (*d)(T *)) : t_(t), d_(d) {}
-  scoped_c_ptr(void (*d)(T *)) : t_(nullptr), d_(d) {}
-
-  void reset(T *t) { t_ = t; }
-  T* forget() { T* t = t_; t_ = nullptr; return t; }
-  T *get() { return t_; }
-  ~scoped_c_ptr() {
-    if (t_) {
-      d_(t_);
-    }
-  }
-  void operator=(T *t) {
-    t_ = t;
-  }
-
- private:
-  // TODO: implement copy and assignment operators
-  // to remove danger
-  T *t_;
-  void (*d_)(T *);
-};
-
+DtlsIdentity::~DtlsIdentity() {
+  if (cert_)
+    CERT_DestroyCertificate(cert_);
+}
 
 RefPtr<DtlsIdentity> DtlsIdentity::Generate() {
   uint8_t random_name[16];

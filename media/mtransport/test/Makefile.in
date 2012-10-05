@@ -21,7 +21,7 @@ LIBS = $(EXTRA_DSO_LIBS) \
   $(DEPTH)/media/mtransport/third_party/nICEr/nicer_nicer/$(LIB_PREFIX)nicer.$(LIB_SUFFIX) \
   $(DEPTH)/media/mtransport/third_party/nrappkit/nrappkit_nrappkit/$(LIB_PREFIX)nrappkit.$(LIB_SUFFIX) \
   $(DEPTH)/media/webrtc/trunk/testing/gtest_gtest/$(LIB_PREFIX)gtest.$(LIB_SUFFIX) \
-  $(nullptr)
+  $(NULL)
 
 ifdef MOZ_SCTP
 LIBS += $(DEPTH)/netwerk/sctp/src/$(LIB_PREFIX)nksctp_s.$(LIB_SUFFIX)
@@ -32,8 +32,7 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/webrtc/trunk/testing/gtest/include/ \
   -I$(topsrcdir)/media/mtransport/ \
   -I$(topsrcdir)/netwerk/sctp/src/ \
-
- $(nullptr)
+ $(NULL)
 
 LOCAL_INCLUDES += \
  -I. \
@@ -51,7 +50,7 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
- $(nullptr)
+ $(NULL)
 
 # SCTP DEFINES
 ifeq ($(OS_TARGET),WINNT)
@@ -77,7 +76,7 @@ ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES +=  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include
 DEFINES += \
   -DGTEST_USE_OWN_TR1_TUPLE=1 \
-  $(nullptr)
+  $(NULL)
 endif
 
 ifeq ($(OS_ARCH), Linux)
@@ -91,7 +90,7 @@ CPP_UNIT_TESTS = \
   sockettransportservice_unittest.cpp \
   transport_unittests.cpp \
   runnable_utils_unittest.cpp \
-  $(nullptr)
+  $(NULL)
 ifdef MOZ_SCTP
 CPP_UNIT_TESTS += sctp_unittest.cpp
 endif

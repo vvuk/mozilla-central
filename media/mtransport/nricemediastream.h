@@ -43,8 +43,8 @@ class NrIceCtx;
 class NrIceMediaStream {
  public:
   static RefPtr<NrIceMediaStream> Create(NrIceCtx *ctx,
-                                           const std::string& name,
-                                           int components);
+                                         const std::string& name,
+                                         int components);
   ~NrIceMediaStream();
 
   enum State { ICE_CONNECTING, ICE_OPEN, ICE_CLOSED};
@@ -84,11 +84,11 @@ class NrIceMediaStream {
   void Close();
 
   sigslot::signal2<NrIceMediaStream *, const std::string& >
-    SignalCandidate;  // A new ICE candidate:
+  SignalCandidate;  // A new ICE candidate:
   sigslot::signal1<NrIceMediaStream *> SignalReady;  // Candidate pair ready.
   sigslot::signal1<NrIceMediaStream *> SignalFailed;  // Candidate pair failed.
   sigslot::signal4<NrIceMediaStream *, int, const unsigned char *, int>
-    SignalPacketReceived;  // Incoming packet
+  SignalPacketReceived;  // Incoming packet
 
   // Emit all the ICE candidates. Note that this doesn't
   // work for trickle ICE yet--called internally

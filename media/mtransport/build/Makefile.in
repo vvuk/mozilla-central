@@ -37,11 +37,12 @@ EXPORTS_mtransport = \
   ../transportlayerprsock.h \
   ../m_cpp_utils.h \
   ../runnable_utils.h \
-  $(nullptr)
+  ../sigslot.h \
+  $(NULL)
 
 CPPSRCS = \
 	$(MTRANSPORT_LCPPSRCS) \
-	$(nullptr)
+	$(NULL)
 
 include $(srcdir)/../objs.mk
 
@@ -49,5 +50,15 @@ include $(srcdir)/../objs.mk
 # Make a copy into the local directory for dual compilation
 export:: $(MTRANSPORT_CPPSRCS)
 	$(INSTALL) $^ .
+
+# for stun.h
+ifeq (WINNT,$(OS_TARGET))
+DEFINES += \
+  -DWIN32 \
+  -DNOMINMAX \
+  $(NULL)
+else ifeq (Linux,$(OS_TARGET))
+DEFINES += -DLINUX
+endif
 
 include $(topsrcdir)/config/rules.mk

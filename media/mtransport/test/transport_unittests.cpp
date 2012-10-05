@@ -37,7 +37,7 @@
 #include "gtest/gtest.h"
 #include "gtest_utils.h"
 
-  using namespace mozilla;
+using namespace mozilla;
 MOZ_MTLOG_MODULE("mtransport");
 
 MtransportTestUtils test_utils;

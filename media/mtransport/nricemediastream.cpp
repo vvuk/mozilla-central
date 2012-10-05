@@ -107,10 +107,12 @@ nsresult NrIceMediaStream::ParseAttributes(std::vector<std::string>&
   for (size_t i=0; i<attributes.size(); ++i) {
     attributes_in.push_back(const_cast<char *>(attributes[i].c_str()));
   }
-
+  
+  // Still need to call nr_ice_ctx_parse_stream_attributes.
   int r = nr_ice_peer_ctx_parse_stream_attributes(ctx_->peer(),
                                                   stream_,
-                                                  &attributes_in[0],
+                                                  attributes_in.size() ?
+                                                  &attributes_in[0] : nullptr,
                                                   attributes_in.size());
   if (r) {
     MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse attributes for stream "

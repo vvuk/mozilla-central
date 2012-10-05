@@ -21,26 +21,29 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/stats \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/plugin \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
- $(nullptr)
+ $(NULL)
 
 ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include \
-  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
+  $(NULL)
 DEFINES += -DDARWIN
 endif
 
 ifeq ($(OS_ARCH), Linux)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include \
-  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
+  $(NULL)
 DEFINES += -DLINUX
 endif
 
 ifeq ($(OS_ARCH), WINNT)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/win32/include \
-  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include
+  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
+  $(NULL)
 DEFINES += -DWIN
 endif
 
@@ -57,7 +60,7 @@ MTRANSPORT_LCPPSRCS = \
   transportlayerlog.cpp \
   transportlayerloopback.cpp \
   transportlayerprsock.cpp \
-  $(nullptr)
+  $(NULL)
 
 MTRANSPORT_CPPSRCS = $(addprefix $(topsrcdir)/media/mtransport/, $(MTRANSPORT_LCPPSRCS))
 

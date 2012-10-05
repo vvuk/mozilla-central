@@ -153,13 +153,13 @@ static PRStatus TransportLayerSync(PRFileDesc *f) {
 }
 
 static int32_t TransportLayerSeek(PRFileDesc *f, int32_t offset,
-                                     PRSeekWhence how) {
+                                  PRSeekWhence how) {
   UNIMPLEMENTED;
   return -1;
 }
 
 static int64_t TransportLayerSeek64(PRFileDesc *f, int64_t offset,
-                                       PRSeekWhence how) {
+                                    PRSeekWhence how) {
   UNIMPLEMENTED;
   return -1;
 }

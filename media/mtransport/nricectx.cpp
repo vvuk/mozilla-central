@@ -411,8 +411,10 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
     attrs_in.push_back(const_cast<char *>(attrs[i].c_str()));
   }
 
-  int r = nr_ice_peer_ctx_parse_global_attributes(peer_, &attrs_in[0],
-                                                  attrs.size());
+  int r = nr_ice_peer_ctx_parse_global_attributes(peer_,
+                                                  attrs_in.size() ?
+                                                  &attrs_in[0] : nullptr,
+                                                  attrs_in.size());
   if (r) {
     MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse global attributes for "
          << name_ << "'");
