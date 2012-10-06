@@ -45,8 +45,8 @@
 
 /* SDP Defines */
 
-#define SDP_MAX_STRING_LEN      80  /* Max len for SDP string       */
-#define SDP_MAX_CANDIDATE_LEN      150  /* Max len for SDP string       */
+#define SDP_MAX_STRING_LEN      256  /* Max len for SDP string       */
+#define SDP_MAX_CANDIDATE_LEN      256  /* Max len for SDP string       */
 #define SDP_MAX_SHORT_STRING_LEN      12  /* Max len for a short SDP string  */
 #define SDP_MAX_PAYLOAD_TYPES   23  /* Max payload types in m= line */
 #define SDP_TOKEN_LEN           2   /* Len of <token>=              */
@@ -74,7 +74,7 @@
 #define SDP_MAGIC_NUM           0xabcdabcd
 
 #define SDP_UNSUPPORTED         "Unsupported"
-#define SDP_MAX_LINE_LEN   80 /* Max len for SDP Line */
+#define SDP_MAX_LINE_LEN   256 /* Max len for SDP Line */
 
 #define SDP_MAX_PROFILE_VALUE  10
 #define SDP_MAX_LEVEL_VALUE    100
