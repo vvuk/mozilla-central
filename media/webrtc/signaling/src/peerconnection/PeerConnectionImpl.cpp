@@ -387,7 +387,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* observer,
   }
 
   // Generate a random handle
-  unsigned char handle_bin[4];
+  unsigned char handle_bin[8];
   PK11_GenerateRandom(handle_bin, sizeof(handle_bin));
 
   char hex[17];
