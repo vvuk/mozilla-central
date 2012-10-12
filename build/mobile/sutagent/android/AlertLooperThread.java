@@ -12,7 +12,7 @@ import android.os.Looper;
 import android.os.Message;
 
 class AlertLooperThread extends Thread
-    {
+{
     public Handler mHandler;
     private Looper looper = null;
     private DoAlert da    = null;
@@ -20,44 +20,44 @@ class AlertLooperThread extends Thread
     private ContextWrapper contextWrapper = null;
 
     AlertLooperThread(ContextWrapper ctxW)
-        {
+    {
         this.contextWrapper = ctxW;
-        }
+    }
 
     public Timer getAlertTimer()
-        {
+    {
         return alertTimer;
-        }
+    }
 
     public void term()
-        {
-        if (da != null)
+    {
+        if (da != null) {
             da.term();
         }
+    }
 
     public void quit()
-        {
-        if (looper != null)
+    {
+        if (looper != null) {
             looper.quit();
         }
+    }
 
     public void run()
-        {
+    {
         Looper.prepare();
 
         looper = Looper.myLooper();
 
-        mHandler = new Handler()
-            {
-            public void handleMessage(Message msg)
-                {
+        mHandler = new Handler() {
+            public void handleMessage(Message msg) {
                 // process incoming messages here
-                }
-            };
+            }
+        };
 
         alertTimer = new Timer();
         da = new DoAlert(contextWrapper);
         alertTimer.scheduleAtFixedRate(da, 0, 5000);
         Looper.loop();
-        }
     }
+}

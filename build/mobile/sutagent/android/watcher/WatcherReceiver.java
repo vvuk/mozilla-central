@@ -8,10 +8,12 @@ import android.content.Context;
 import android.content.Intent;
 // import android.os.Debug;
 
-public class WatcherReceiver extends BroadcastReceiver {
+public class WatcherReceiver extends BroadcastReceiver
+{
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(Context context, Intent intent)
+    {
 //        Debug.waitForDebugger();
         Intent serviceIntent = new Intent();
         serviceIntent.putExtra("command", "start");

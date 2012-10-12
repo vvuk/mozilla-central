@@ -26,7 +26,8 @@ import java.util.BitSet;
  * security configuration. Android will not necessarily support
  * all of these security schemes initially.
  */
-public class WifiConfiguration implements Parcelable {
+public class WifiConfiguration implements Parcelable
+{
 
     /** {@hide} */
     public static final String ssidVarName = "ssid";
@@ -43,24 +44,29 @@ public class WifiConfiguration implements Parcelable {
     /** {@hide} */
     public static final String hiddenSSIDVarName = "scan_ssid";
 
-    public class EnterpriseField {
+    public class EnterpriseField
+    {
         private String varName;
         private String value;
 
-        private EnterpriseField(String varName) {
+        private EnterpriseField(String varName)
+        {
             this.varName = varName;
             this.value = null;
         }
 
-        public void setValue(String value) {
+        public void setValue(String value)
+        {
             this.value = value;
         }
 
-        public String varName() {
+        public String varName()
+        {
             return varName;
         }
 
-        public String value() {
+        public String value()
+        {
             return value;
         }
     }
@@ -75,13 +81,15 @@ public class WifiConfiguration implements Parcelable {
     public EnterpriseField ca_cert = new EnterpriseField("ca_cert");
 
     public EnterpriseField[] enterpriseFields = {
-            eap, phase2, identity, anonymous_identity, password, client_cert,
-            private_key, ca_cert };
+        eap, phase2, identity, anonymous_identity, password, client_cert,
+        private_key, ca_cert
+    };
 
     /**
      * Recognized key management schemes.
      */
-    public static class KeyMgmt {
+    public static class KeyMgmt
+    {
         private KeyMgmt() { }
 
         /** WPA is not used; plaintext or static WEP could be used. */
@@ -102,7 +110,8 @@ public class WifiConfiguration implements Parcelable {
     /**
      * Recognized security protocols.
      */
-    public static class Protocol {
+    public static class Protocol
+    {
         private Protocol() { }
 
         /** WPA/IEEE 802.11i/D3.0 */
@@ -118,7 +127,8 @@ public class WifiConfiguration implements Parcelable {
     /**
      * Recognized IEEE 802.11 authentication algorithms.
      */
-    public static class AuthAlgorithm {
+    public static class AuthAlgorithm
+    {
         private AuthAlgorithm() { }
 
         /** Open System authentication (required for WPA/WPA2) */
@@ -136,7 +146,8 @@ public class WifiConfiguration implements Parcelable {
     /**
      * Recognized pairwise ciphers for WPA.
      */
-    public static class PairwiseCipher {
+    public static class PairwiseCipher
+    {
         private PairwiseCipher() { }
 
         /** Use only Group keys (deprecated) */
@@ -160,7 +171,8 @@ public class WifiConfiguration implements Parcelable {
      * WEP40 = WEP (Wired Equivalent Privacy) with 40-bit key (original 802.11)
      * </pre>
      */
-    public static class GroupCipher {
+    public static class GroupCipher
+    {
         private GroupCipher() { }
 
         /** WEP40 = WEP (Wired Equivalent Privacy) with 40-bit key (original 802.11) */
@@ -178,7 +190,8 @@ public class WifiConfiguration implements Parcelable {
     }
 
     /** Possible status of a network configuration. */
-    public static class Status {
+    public static class Status
+    {
         private Status() { }
 
         /** this is the network we are currently connected to */
@@ -285,7 +298,8 @@ public class WifiConfiguration implements Parcelable {
     public BitSet allowedGroupCiphers;
 
 
-    public WifiConfiguration() {
+    public WifiConfiguration()
+    {
         networkId = -1;
         SSID = null;
         BSSID = null;
@@ -297,14 +311,16 @@ public class WifiConfiguration implements Parcelable {
         allowedPairwiseCiphers = new BitSet();
         allowedGroupCiphers = new BitSet();
         wepKeys = new String[4];
-        for (int i = 0; i < wepKeys.length; i++)
+        for (int i = 0; i < wepKeys.length; i++) {
             wepKeys[i] = null;
+        }
         for (EnterpriseField field : enterpriseFields) {
             field.setValue(null);
         }
     }
 
-    public String toString() {
+    public String toString()
+    {
         StringBuffer sbuf = new StringBuffer();
         if (this.status == WifiConfiguration.Status.CURRENT) {
             sbuf.append("* ");
@@ -312,8 +328,8 @@ public class WifiConfiguration implements Parcelable {
             sbuf.append("- ");
         }
         sbuf.append("ID: ").append(this.networkId).append(" SSID: ").append(this.SSID).
-                append(" BSSID: ").append(this.BSSID).append(" PRIO: ").append(this.priority).
-                append('\n');
+        append(" BSSID: ").append(this.BSSID).append(" PRIO: ").append(this.priority).
+        append('\n');
         sbuf.append(" KeyMgmt:");
         for (int k = 0; k < this.allowedKeyManagement.size(); k++) {
             if (this.allowedKeyManagement.get(k)) {
@@ -380,7 +396,9 @@ public class WifiConfiguration implements Parcelable {
         for (EnterpriseField field : enterpriseFields) {
             sbuf.append('\n').append(" " + field.varName() + ": ");
             String value = field.value();
-            if (value != null) sbuf.append(value);
+            if (value != null) {
+                sbuf.append(value);
+            }
         }
         sbuf.append('\n');
         return sbuf.toString();
@@ -398,39 +416,46 @@ public class WifiConfiguration implements Parcelable {
     }
     */
 
-    private static BitSet readBitSet(Parcel src) {
+    private static BitSet readBitSet(Parcel src)
+    {
         int cardinality = src.readInt();
 
         BitSet set = new BitSet();
-        for (int i = 0; i < cardinality; i++)
+        for (int i = 0; i < cardinality; i++) {
             set.set(src.readInt());
+        }
 
         return set;
     }
 
-    private static void writeBitSet(Parcel dest, BitSet set) {
+    private static void writeBitSet(Parcel dest, BitSet set)
+    {
         int nextSetBit = -1;
 
         dest.writeInt(set.cardinality());
 
-        while ((nextSetBit = set.nextSetBit(nextSetBit + 1)) != -1)
+        while ((nextSetBit = set.nextSetBit(nextSetBit + 1)) != -1) {
             dest.writeInt(nextSetBit);
+        }
     }
 
     /** Implement the Parcelable interface {@hide} */
-    public int describeContents() {
+    public int describeContents()
+    {
         return 0;
     }
 
     /** Implement the Parcelable interface {@hide} */
-    public void writeToParcel(Parcel dest, int flags) {
+    public void writeToParcel(Parcel dest, int flags)
+    {
         dest.writeInt(networkId);
         dest.writeInt(status);
         dest.writeString(SSID);
         dest.writeString(BSSID);
         dest.writeString(preSharedKey);
-        for (String wepKey : wepKeys)
+        for (String wepKey : wepKeys) {
             dest.writeString(wepKey);
+        }
         dest.writeInt(wepTxKeyIndex);
         dest.writeInt(priority);
         dest.writeInt(hiddenSSID ? 1 : 0);
@@ -448,33 +473,35 @@ public class WifiConfiguration implements Parcelable {
 
     /** Implement the Parcelable interface {@hide} */
     public static final Creator<WifiConfiguration> CREATOR =
-        new Creator<WifiConfiguration>() {
-            public WifiConfiguration createFromParcel(Parcel in) {
-                WifiConfiguration config = new WifiConfiguration();
-                config.networkId = in.readInt();
-                config.status = in.readInt();
-                config.SSID = in.readString();
-                config.BSSID = in.readString();
-                config.preSharedKey = in.readString();
-                for (int i = 0; i < config.wepKeys.length; i++)
-                    config.wepKeys[i] = in.readString();
-                config.wepTxKeyIndex = in.readInt();
-                config.priority = in.readInt();
-                config.hiddenSSID = in.readInt() != 0;
-                config.allowedKeyManagement   = readBitSet(in);
-                config.allowedProtocols       = readBitSet(in);
-                config.allowedAuthAlgorithms  = readBitSet(in);
-                config.allowedPairwiseCiphers = readBitSet(in);
-                config.allowedGroupCiphers    = readBitSet(in);
-
-                for (EnterpriseField field : config.enterpriseFields) {
-                    field.setValue(in.readString());
-                }
-                return config;
+        new Creator<WifiConfiguration>()
+    {
+        public WifiConfiguration createFromParcel(Parcel in) {
+            WifiConfiguration config = new WifiConfiguration();
+            config.networkId = in.readInt();
+            config.status = in.readInt();
+            config.SSID = in.readString();
+            config.BSSID = in.readString();
+            config.preSharedKey = in.readString();
+            for (int i = 0; i < config.wepKeys.length; i++) {
+                config.wepKeys[i] = in.readString();
             }
+            config.wepTxKeyIndex = in.readInt();
+            config.priority = in.readInt();
+            config.hiddenSSID = in.readInt() != 0;
+            config.allowedKeyManagement   = readBitSet(in);
+            config.allowedProtocols       = readBitSet(in);
+            config.allowedAuthAlgorithms  = readBitSet(in);
+            config.allowedPairwiseCiphers = readBitSet(in);
+            config.allowedGroupCiphers    = readBitSet(in);
 
-            public WifiConfiguration[] newArray(int size) {
-                return new WifiConfiguration[size];
+            for (EnterpriseField field : config.enterpriseFields) {
+                field.setValue(in.readString());
             }
-        };
+            return config;
+        }
+
+        public WifiConfiguration[] newArray(int size) {
+            return new WifiConfiguration[size];
+        }
+    };
 }

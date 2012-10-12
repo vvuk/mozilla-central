@@ -28,7 +28,8 @@ import android.widget.Toast;
 import javax.jmdns.JmDNS;
 import javax.jmdns.ServiceInfo;
 
-public class ASMozStub extends android.app.Service {
+public class ASMozStub extends android.app.Service
+{
     private final static int COMMAND_PORT = 20701;
     private final static int DATA_PORT = 20700;
 
@@ -42,13 +43,16 @@ public class ASMozStub extends android.app.Service {
 
     @SuppressWarnings("unchecked")
     private static final Class<?>[] mSetForegroundSignature = new Class[] {
-    boolean.class};
+        boolean.class
+    };
     @SuppressWarnings("unchecked")
     private static final Class<?>[] mStartForegroundSignature = new Class[] {
-        int.class, Notification.class};
+        int.class, Notification.class
+    };
     @SuppressWarnings("unchecked")
     private static final Class<?>[] mStopForegroundSignature = new Class[] {
-        boolean.class};
+        boolean.class
+    };
 
     private NotificationManager mNM;
     private Method mSetForeground;
@@ -60,38 +64,38 @@ public class ASMozStub extends android.app.Service {
 
     @Override
     public IBinder onBind(Intent intent)
-        {
+    {
         return null;
-        }
+    }
 
     @Override
-    public void onCreate() {
+    public void onCreate()
+    {
         super.onCreate();
 
         mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         try {
             mStartForeground = getClass().getMethod("startForeground", mStartForegroundSignature);
             mStopForeground = getClass().getMethod("stopForeground", mStopForegroundSignature);
-            }
-        catch (NoSuchMethodException e) {
+        } catch (NoSuchMethodException e) {
             // Running on an older platform.
             mStartForeground = mStopForeground = null;
-            }
+        }
 
         try {
             mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
-            }
-        catch (NoSuchMethodException e) {
+        } catch (NoSuchMethodException e) {
             mSetForeground = null;
-            }
+        }
 
         doToast("Listener Service created...");
-        }
+    }
 
     WifiManager.MulticastLock multicastLock;
     JmDNS jmdns;
 
-    void startZeroConf() {
+    void startZeroConf()
+    {
         if (multicastLock == null) {
             WifiManager wifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
             multicastLock = wifi.createMulticastLock("SUTAgent");
@@ -124,21 +128,21 @@ public class ASMozStub extends android.app.Service {
                 name += " [ip:" + inetAddress.getHostAddress().toString().replace('.', '_') + "]";
 
                 final ServiceInfo serviceInfo = ServiceInfo.create("_sutagent._tcp.local.",
-                                                                   name,
-                                                                   COMMAND_PORT,
-                                                                   "Android SUTAgent");
+                                                name,
+                                                COMMAND_PORT,
+                                                "Android SUTAgent");
                 final JmDNS dns = jmdns;
                 // we want to call registerService on a new thread, because it can block
                 // for a little while.
                 Thread registerThread = new Thread() {
-                        public void run() {
-                            try {
-                                dns.registerService(serviceInfo);
-                            } catch (IOException e) {
-                                Log.e("SUTAgent", "Failed to register JmDNS service!", e);
-                            }
+                    public void run() {
+                        try {
+                            dns.registerService(serviceInfo);
+                        } catch (IOException e) {
+                            Log.e("SUTAgent", "Failed to register JmDNS service!", e);
                         }
-                    };
+                    }
+                };
                 registerThread.setDaemon(true);
                 registerThread.start();
             }
@@ -147,7 +151,8 @@ public class ASMozStub extends android.app.Service {
         }
     }
 
-    void stopZeroConf() {
+    void stopZeroConf()
+    {
         if (jmdns != null) {
             try {
                 jmdns.unregisterAllServices();
@@ -164,7 +169,8 @@ public class ASMozStub extends android.app.Service {
         }
     }
 
-    public void onStart(Intent intent, int startId) {
+    public void onStart(Intent intent, int startId)
+    {
         super.onStart(intent, startId);
 
         try {
@@ -182,30 +188,27 @@ public class ASMozStub extends android.app.Service {
 
             Notification notification = new Notification();
             startForegroundCompat(R.string.foreground_service_started, notification);
-            }
-        catch (Exception e) {
+        } catch (Exception e) {
             doToast(e.toString());
 //            Toast.makeText(getApplication().getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
-            }
-
-        return;
         }
 
+        return;
+    }
+
     public void onDestroy()
-        {
+    {
         super.onDestroy();
 
         stopZeroConf();
 
-        if (runCmdThrd.isAlive())
-            {
+        if (runCmdThrd.isAlive()) {
             runCmdThrd.StopListening();
-            }
+        }
 
-        if (runDataThrd.isAlive())
-            {
+        if (runDataThrd.isAlive()) {
             runDataThrd.StopListening();
-            }
+        }
 
         NotificationManager notificationManager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(1959);
@@ -215,15 +218,17 @@ public class ASMozStub extends android.app.Service {
         doToast("Listener Service destroyed...");
 
         System.exit(0);
-        }
+    }
 
     public void SendToDataChannel(String strToSend)
-        {
-        if (runDataThrd.isAlive())
+    {
+        if (runDataThrd.isAlive()) {
             runDataThrd.SendToDataChannel(strToSend);
         }
+    }
 
-    public void doToast(String sMsg) {
+    public void doToast(String sMsg)
+    {
         Toast toast = Toast.makeText(this, sMsg, Toast.LENGTH_LONG);
         toast.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL, 0, 100);
         toast.show();
@@ -233,7 +238,8 @@ public class ASMozStub extends android.app.Service {
      * This is a wrapper around the new startForeground method, using the older
      * APIs if it is not available.
      */
-    void startForegroundCompat(int id, Notification notification) {
+    void startForegroundCompat(int id, Notification notification)
+    {
         // If we have the new startForeground API, then use it.
         if (mStartForeground != null) {
             mStartForegroundArgs[0] = Integer.valueOf(id);
@@ -270,7 +276,8 @@ public class ASMozStub extends android.app.Service {
      * This is a wrapper around the new stopForeground method, using the older
      * APIs if it is not available.
      */
-    void stopForegroundCompat(int id) {
+    void stopForegroundCompat(int id)
+    {
         // If we have the new stopForeground API, then use it.
         if (mStopForeground != null) {
             mStopForegroundArgs[0] = Boolean.TRUE;

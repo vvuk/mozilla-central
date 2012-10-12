@@ -62,13 +62,16 @@ public class WatcherService extends Service
 
     @SuppressWarnings("unchecked")
     private static final Class<?>[] mSetForegroundSignature = new Class[] {
-    boolean.class};
+        boolean.class
+    };
     @SuppressWarnings("unchecked")
     private static final Class[] mStartForegroundSignature = new Class[] {
-        int.class, Notification.class};
+        int.class, Notification.class
+    };
     @SuppressWarnings("unchecked")
     private static final Class[] mStopForegroundSignature = new Class[] {
-        boolean.class};
+        boolean.class
+    };
 
     private NotificationManager mNM;
     private Method mSetForeground;
@@ -79,21 +82,22 @@ public class WatcherService extends Service
     private Object[] mStopForegroundArgs = new Object[1];
 
 
-    private IWatcherService.Stub stub = new IWatcherService.Stub() {
-        public int UpdateApplication(String sAppName, String sFileName, String sOutFile, int bReboot) throws RemoteException
-            {
+    private IWatcherService.Stub stub = new IWatcherService.Stub()
+    {
+        public int UpdateApplication(String sAppName, String sFileName, String sOutFile, int bReboot) throws RemoteException {
             return UpdtApp(sAppName, sFileName, sOutFile, bReboot);
-            }
+        }
     };
 
     @Override
-    public IBinder onBind(Intent arg0) {
+    public IBinder onBind(Intent arg0)
+    {
         return stub;
     }
 
     @Override
     public void onCreate()
-        {
+    {
         super.onCreate();
 
         myContext = this;
@@ -121,7 +125,7 @@ public class WatcherService extends Service
 
         sHold = GetIniData("watcher", "stayon", sIniFile,"0");
         int nStayOn = Integer.parseInt(sHold.trim());
-        
+
         try {
             if (nStayOn != 0) {
                 if (!Settings.System.putInt(getContentResolver(), Settings.System.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB)) {
@@ -135,10 +139,10 @@ public class WatcherService extends Service
         }
 
         doToast("WatcherService created");
-        }
+    }
 
     public String GetIniData(String sSection, String sKey, String sFile, String sDefault)
-        {
+    {
         String sRet = sDefault;
         String sComp = "";
         String sLine = "";
@@ -149,159 +153,145 @@ public class WatcherService extends Service
         try {
             in = new BufferedReader(new FileReader(sTmpFileName));
             sComp = "[" + sSection + "]";
-            while ((sLine = in.readLine()) != null)
-                {
-                if (sLine.equalsIgnoreCase(sComp))
-                    {
+            while ((sLine = in.readLine()) != null) {
+                if (sLine.equalsIgnoreCase(sComp)) {
                     bFound = true;
                     break;
-                    }
                 }
+            }
 
-            if (bFound)
-                {
+            if (bFound) {
                 sComp = (sKey + " =").toLowerCase();
-                while ((sLine = in.readLine()) != null)
-                    {
-                    if (sLine.toLowerCase().contains(sComp))
-                        {
+                while ((sLine = in.readLine()) != null) {
+                    if (sLine.toLowerCase().contains(sComp)) {
                         String [] temp = null;
                         temp = sLine.split("=");
-                        if (temp != null)
-                            {
-                            if (temp.length > 1)
+                        if (temp != null) {
+                            if (temp.length > 1) {
                                 sRet = temp[1].trim();
                             }
-                        break;
                         }
+                        break;
                     }
                 }
+            }
             in.close();
-            }
-        catch (FileNotFoundException e)
-            {
+        } catch (FileNotFoundException e) {
             sComp = e.toString();
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sComp = e.toString();
-            }
-        return (sRet);
         }
+        return (sRet);
+    }
 
     private void handleCommand(Intent intent)
-        {
+    {
         // Note: intent can be null "if the service is being restarted after its process
         // has gone away". In this case, we will consider that to be equivalent to a start
         // http://developer.android.com/reference/android/app/Service.html#onStartCommand%28android.content.Intent,%20int,%20int%29
 
         String sCmd = "start";
-        if (intent != null)
-            {
+        if (intent != null) {
             sCmd = intent.getStringExtra("command");
-            }
+        }
 
-        if (sCmd != null)
-            {
-            if (sCmd.equalsIgnoreCase("updt"))
-                {
+        if (sCmd != null) {
+            if (sCmd.equalsIgnoreCase("updt")) {
                 String sPkgName = intent.getStringExtra("pkgName");
                 String sPkgFile = intent.getStringExtra("pkgFile");
                 String sOutFile = intent.getStringExtra("outFile");
                 boolean bReboot = intent.getBooleanExtra("reboot", true);
                 int nReboot = bReboot ? 1 : 0;
-                   SendNotification("WatcherService updating " + sPkgName + " using file " + sPkgFile, "WatcherService updating " + sPkgName + " using file " + sPkgFile);
+                SendNotification("WatcherService updating " + sPkgName + " using file " + sPkgFile, "WatcherService updating " + sPkgName + " using file " + sPkgFile);
 
-                   UpdateApplication worker = new UpdateApplication(sPkgName, sPkgFile, sOutFile, nReboot);
-                }
-            else if (sCmd.equalsIgnoreCase("start"))
-                {
+                UpdateApplication worker = new UpdateApplication(sPkgName, sPkgFile, sOutFile, nReboot);
+            } else if (sCmd.equalsIgnoreCase("start")) {
                 doToast("WatcherService started");
                 myTimer = new Timer();
                 myTimer.scheduleAtFixedRate(new MyTime(), lDelay, lPeriod);
-                }
-            else
-                {
+            } else {
                 doToast("WatcherService unknown command");
-                }
             }
-        else
+        } else {
             doToast("WatcherService created");
         }
+    }
 
 
     @Override
-    public void onStart(Intent intent, int startId) {
+    public void onStart(Intent intent, int startId)
+    {
         handleCommand(intent);
         return;
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(Intent intent, int flags, int startId)
+    {
         handleCommand(intent);
         return START_STICKY;
-        }
+    }
 
     @Override
-    public void onDestroy() {
+    public void onDestroy()
+    {
         super.onDestroy();
         doToast("WatcherService destroyed");
-        if (pwl != null)
+        if (pwl != null) {
             pwl.release();
+        }
         stopForegroundCompat(R.string.foreground_service_started);
     }
 
     protected void getKeyGuardAndWakeLock()
-        {
+    {
         // Fire off a thread to do some work that we shouldn't do directly in the UI thread
         Thread t = new Thread() {
             public void run() {
                 // Keep phone from locking or remove lock on screen
                 KeyguardManager km = (KeyguardManager)getSystemService(Context.KEYGUARD_SERVICE);
-                if (km != null)
-                    {
+                if (km != null) {
                     KeyguardManager.KeyguardLock kl = km.newKeyguardLock("watcher");
-                    if (kl != null)
+                    if (kl != null) {
                         kl.disableKeyguard();
                     }
+                }
 
                 // No sleeping on the job
                 PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-                if (pm != null)
-                    {
+                if (pm != null) {
                     pwl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, "watcher");
-                    if (pwl != null)
+                    if (pwl != null) {
                         pwl.acquire();
                     }
+                }
 
                 mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
                 try {
                     mStartForeground = getClass().getMethod("startForeground", mStartForegroundSignature);
                     mStopForeground = getClass().getMethod("stopForeground", mStopForegroundSignature);
-                    }
-                catch (NoSuchMethodException e)
-                    {
+                } catch (NoSuchMethodException e) {
                     // Running on an older platform.
                     mStartForeground = mStopForeground = null;
-                    }
+                }
                 try {
                     mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
-                    }
-                catch (NoSuchMethodException e) {
+                } catch (NoSuchMethodException e) {
                     mSetForeground = null;
-                    }
+                }
                 Notification notification = new Notification();
                 startForegroundCompat(R.string.foreground_service_started, notification);
-                }
-            };
+            }
+        };
         t.start();
-        }
+    }
 
     /**
      * This is a wrapper around the new startForeground method, using the older
      * APIs if it is not available.
      */
-    void startForegroundCompat(int id, Notification notification) {
+    void startForegroundCompat(int id, Notification notification)
+    {
         // If we have the new startForeground API, then use it.
         if (mStartForeground != null) {
             mStartForegroundArgs[0] = Integer.valueOf(id);
@@ -338,7 +328,8 @@ public class WatcherService extends Service
      * This is a wrapper around the new stopForeground method, using the older
      * APIs if it is not available.
      */
-    void stopForegroundCompat(int id) {
+    void stopForegroundCompat(int id)
+    {
         // If we have the new stopForeground API, then use it.
         if (mStopForeground != null) {
             mStopForegroundArgs[0] = Boolean.TRUE;
@@ -372,14 +363,15 @@ public class WatcherService extends Service
     }
 
     public void doToast(String sMsg)
-        {
+    {
         Toast toast = Toast.makeText(this, sMsg, Toast.LENGTH_LONG);
         toast.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL, 0, 100);
         toast.show();
-        }
+    }
 
-    public void CheckMem() {
-           System.gc();
+    public void CheckMem()
+    {
+        System.gc();
         long lFreeMemory = Runtime.getRuntime().freeMemory();
         long lTotMemory = Runtime.getRuntime().totalMemory();
         long lMaxMemory = Runtime.getRuntime().maxMemory();
@@ -388,7 +380,7 @@ public class WatcherService extends Service
     }
 
     public int UpdtApp(String sPkgName, String sPkgFileName, String sOutFile, int bReboot)
-        {
+    {
         int nRet = 1;
         int lcv = 0;
         String sRet = "";
@@ -397,82 +389,76 @@ public class WatcherService extends Service
 
         FileOutputStream f = null;
 
-           try {
-               SendNotification("Killing " + sPkgName, "Step 1: Kill " + sPkgName + " if running");
+        try {
+            SendNotification("Killing " + sPkgName, "Step 1: Kill " + sPkgName + " if running");
             while (!IsProcessDead(sPkgName) && (lcv < 5)) {
-                if (KillProcess(sPkgName, null).startsWith("Successfully"))
+                if (KillProcess(sPkgName, null).startsWith("Successfully")) {
                     break;
-                else
+                } else {
                     lcv++;
-                   Thread.sleep(2000);
-                   }
+                }
+                Thread.sleep(2000);
+            }
 
-               CheckMem();
+            CheckMem();
 
             if ((sOutFile != null) && (sOutFile.length() > 0)) {
                 File outFile = new File(sOutFile);
                 if (outFile.exists() && outFile.canWrite()) {
                     f = new FileOutputStream(outFile, true);
                 } else {
-                       SendNotification("File not found or cannot write to " + sOutFile, "File not found or cannot write to " + sOutFile);
+                    SendNotification("File not found or cannot write to " + sOutFile, "File not found or cannot write to " + sOutFile);
                 }
             }
         } catch (InterruptedException e) {
-               e.printStackTrace();
+            e.printStackTrace();
         } catch (FileNotFoundException e) {
-               SendNotification("File not found " + sOutFile, "Couldn't open " + sOutFile + " " + e.getLocalizedMessage());
+            SendNotification("File not found " + sOutFile, "Couldn't open " + sOutFile + " " + e.getLocalizedMessage());
             e.printStackTrace();
-           } catch (SecurityException e) {
-               SendNotification("Security excepetion for " + sOutFile, "Exception message " + e.getLocalizedMessage());
+        } catch (SecurityException e) {
+            SendNotification("Security excepetion for " + sOutFile, "Exception message " + e.getLocalizedMessage());
             e.printStackTrace();
-           }
+        }
 
-        if ((sPkgName != null) && (sPkgName.length() > 0))
-            {
-               SendNotification("Uninstalling " + sPkgName, "Step 2: Uninstall " + sPkgName);
+        if ((sPkgName != null) && (sPkgName.length() > 0)) {
+            SendNotification("Uninstalling " + sPkgName, "Step 2: Uninstall " + sPkgName);
             sRet = UnInstallApp(sPkgName, null);
-               CheckMem();
-            if ((sRet.length() > 0) && (f != null))
-                {
+            CheckMem();
+            if ((sRet.length() > 0) && (f != null)) {
                 try {
                     f.write(sRet.getBytes());
                     f.flush();
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     e.printStackTrace();
-                    }
                 }
             }
+        }
 
-        if ((sPkgFileName != null) && (sPkgFileName.length() > 0))
-            {
-               SendNotification("Installing " + sPkgFileName, "Step 3: Install " + sPkgFileName);
+        if ((sPkgFileName != null) && (sPkgFileName.length() > 0)) {
+            SendNotification("Installing " + sPkgFileName, "Step 3: Install " + sPkgFileName);
             sRet = InstallApp(sPkgFileName, null);
-               SendNotification("Installed " + sPkgFileName, "" + sRet);
-               CheckMem();
-            if ((sRet.length() > 0) && (f != null))
-                {
+            SendNotification("Installed " + sPkgFileName, "" + sRet);
+            CheckMem();
+            if ((sRet.length() > 0) && (f != null)) {
                 try {
                     f.write(sRet.getBytes());
                     f.flush();
                     f.close();
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     e.printStackTrace();
-                    }
                 }
             }
-
-        if (bReboot > 0)
-            RunReboot(null);
-
-        return(nRet);
         }
 
+        if (bReboot > 0) {
+            RunReboot(null);
+        }
+
+        return(nRet);
+    }
+
     public boolean GetProcessInfo(String sProcName)
-        {
+    {
         boolean bRet = false;
         ActivityManager aMgr = (ActivityManager) getApplicationContext().getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
@@ -480,23 +466,22 @@ public class WatcherService extends Service
         int lcv = 0;
         String strProcName = "";
 
-        if (lProcesses != null)
+        if (lProcesses != null) {
             nProcs = lProcesses.size();
-
-        for (lcv = 0; lcv < nProcs; lcv++)
-            {
-            strProcName = lProcesses.get(lcv).processName;
-            if (strProcName.contains(sProcName))
-                {
-                bRet = true;
-                }
-            }
-
-        return (bRet);
         }
 
+        for (lcv = 0; lcv < nProcs; lcv++) {
+            strProcName = lProcesses.get(lcv).processName;
+            if (strProcName.contains(sProcName)) {
+                bRet = true;
+            }
+        }
+
+        return (bRet);
+    }
+
     public String RunReboot(OutputStream out)
-        {
+    {
         String sRet = "";
         String [] theArgs = new String [3];
 
@@ -505,28 +490,23 @@ public class WatcherService extends Service
         theArgs[2] = "reboot";
         Log.i("Watcher", "Running reboot!");
 
-        try
-            {
+        try {
             pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             outThrd.join(10000);
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
-            }
-        catch (InterruptedException e)
-            {
+        } catch (InterruptedException e) {
             e.printStackTrace();
-            }
-
-        return (sRet);
         }
 
+        return (sRet);
+    }
+
     public String KillProcess(String sProcName, OutputStream out)
-        {
+    {
         String [] theArgs = new String [3];
 
         theArgs[0] = "su";
@@ -541,75 +521,64 @@ public class WatcherService extends Service
         int    nPID = 0;
         int nProcs = 0;
 
-        if (lProcesses != null)
+        if (lProcesses != null) {
             nProcs = lProcesses.size();
+        }
 
-        for (lcv = 0; lcv < nProcs; lcv++)
-            {
-            if (lProcesses.get(lcv).processName.contains(sProcName))
-                {
+        for (lcv = 0; lcv < nProcs; lcv++) {
+            if (lProcesses.get(lcv).processName.contains(sProcName)) {
                 strProcName = lProcesses.get(lcv).processName;
                 nPID = lProcesses.get(lcv).pid;
                 sRet = sErrorPrefix + "Failed to kill " + nPID + " " + strProcName + "\n";
 
                 theArgs[2] += " " + nPID;
 
-                try
-                    {
+                try {
                     pProc = Runtime.getRuntime().exec(theArgs);
                     RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
                     outThrd.start();
                     outThrd.join(5000);
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     sRet = e.getMessage();
                     e.printStackTrace();
-                    }
-                catch (InterruptedException e)
-                    {
+                } catch (InterruptedException e) {
                     e.printStackTrace();
-                    }
+                }
 
                 // Give the messages a chance to be processed
                 try {
                     Thread.sleep(2000);
-                    }
-                catch (InterruptedException e)
-                    {
+                } catch (InterruptedException e) {
                     e.printStackTrace();
-                    }
-                break;
                 }
+                break;
             }
+        }
 
-        if (nPID > 0)
-            {
+        if (nPID > 0) {
             sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
             lProcesses = aMgr.getRunningAppProcesses();
             nProcs = 0;
-            if (lProcesses != null)
+            if (lProcesses != null) {
                 nProcs = lProcesses.size();
-            for (lcv = 0; lcv < nProcs; lcv++)
-                {
-                if (lProcesses.get(lcv).processName.contains(sProcName))
-                    {
+            }
+            for (lcv = 0; lcv < nProcs; lcv++) {
+                if (lProcesses.get(lcv).processName.contains(sProcName)) {
                     sRet = sErrorPrefix + "Unable to kill " + nPID + " " + strProcName + "\n";
                     break;
-                    }
                 }
             }
-
-        return (sRet);
         }
 
+        return (sRet);
+    }
+
     public String GetAppRoot(String AppName)
-        {
+    {
         String sRet = sErrorPrefix + " internal error [no context]";
         Context ctx = getApplicationContext();
 
-        if (ctx != null)
-            {
+        if (ctx != null) {
             try {
                 Context appCtx = ctx.createPackageContext(AppName, 0);
                 ContextWrapper appCtxW = new ContextWrapper(appCtx);
@@ -618,74 +587,68 @@ public class WatcherService extends Service
                 appCtx = null;
                 ctx = null;
                 System.gc();
-                }
-            catch (NameNotFoundException e)
-                {
+            } catch (NameNotFoundException e) {
                 e.printStackTrace();
-                }
             }
-        return(sRet);
         }
+        return(sRet);
+    }
 
     public boolean IsProcessDead(String sProcName)
-        {
+    {
         boolean bRet = true;
         ActivityManager aMgr = (ActivityManager) getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses(); //    .getProcessesInErrorState();
         int lcv = 0;
 
-        if (lProcesses != null)
-            {
-            for (lcv = 0; lcv < lProcesses.size(); lcv++)
-                {
-                if (lProcesses.get(lcv).processName.contentEquals(sProcName))
-                    {
+        if (lProcesses != null) {
+            for (lcv = 0; lcv < lProcesses.size(); lcv++) {
+                if (lProcesses.get(lcv).processName.contentEquals(sProcName)) {
                     bRet = false;
                     break;
-                    }
                 }
             }
-
-        return (bRet);
         }
 
+        return (bRet);
+    }
+
     public String fixFileName(String fileName)
-        {
+    {
         String    sRet = "";
         String    sTmpFileName = "";
 
         sRet = fileName.replace('\\', '/');
 
-        if (sRet.startsWith("/"))
+        if (sRet.startsWith("/")) {
             sTmpFileName = sRet;
-        else
+        } else {
             sTmpFileName = currentDir + "/" + sRet;
+        }
 
         sRet = sTmpFileName.replace('\\', '/');
         sTmpFileName = sRet;
         sRet = sTmpFileName.replace("//", "/");
 
         return(sRet);
-        }
+    }
 
     public String GetTmpDir()
-        {
+    {
         String     sRet = "";
         Context ctx = getApplicationContext();
         File dir = ctx.getFilesDir();
         ctx = null;
         try {
             sRet = dir.getCanonicalPath();
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             e.printStackTrace();
-            }
-        return(sRet);
         }
+        return(sRet);
+    }
 
     public String UnInstallApp(String sApp, OutputStream out)
-        {
+    {
         String sRet = "";
         String [] theArgs = new String [3];
 
@@ -693,8 +656,7 @@ public class WatcherService extends Service
         theArgs[1] = "-c";
         theArgs[2] = "pm uninstall " + sApp + ";exit";
 
-        try
-            {
+        try {
             pProc = Runtime.getRuntime().exec(theArgs);
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
@@ -702,22 +664,18 @@ public class WatcherService extends Service
             outThrd.join(60000);
             int nRet = pProc.exitValue();
             sRet = "\nuninst complete [" + nRet + "]";
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
-            }
-        catch (InterruptedException e)
-            {
+        } catch (InterruptedException e) {
             e.printStackTrace();
-            }
-
-        return (sRet);
         }
 
+        return (sRet);
+    }
+
     public String InstallApp(String sApp, OutputStream out)
-        {
+    {
         String sRet = "";
         String sHold = "";
         String [] theArgs = new String [3];
@@ -726,8 +684,7 @@ public class WatcherService extends Service
         theArgs[1] = "-c";
         theArgs[2] = "pm install -r " + sApp + ";exit";
 
-        try
-            {
+        try {
             pProc = Runtime.getRuntime().exec(theArgs);
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
@@ -737,22 +694,18 @@ public class WatcherService extends Service
             sRet += "\ninstall complete [" + nRet + "]";
             sHold = outThrd.strOutput;
             sRet += "\nSuccess";
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
-            }
-        catch (InterruptedException e)
-            {
+        } catch (InterruptedException e) {
             e.printStackTrace();
-            }
-
-        return (sRet);
         }
 
+        return (sRet);
+    }
+
     private String SendPing(String sIPAddr)
-        {
+    {
         Process    pProc;
         String sRet = "";
         String [] theArgs = new String [4];
@@ -768,115 +721,97 @@ public class WatcherService extends Service
         theArgs[3] = sIPAddr;
         Log.i("Watcher", "Pinging " + sIPAddr);
 
-        try
-            {
+        try {
             pProc = Runtime.getRuntime().exec(theArgs);
             InputStream sutOut = pProc.getInputStream();
             InputStream sutErr = pProc.getErrorStream();
 
-            while (bStillRunning)
-                {
-                try
-                    {
-                    if ((nBytesOut = sutOut.available()) > 0)
-                        {
-                        if (nBytesOut > buffer.length)
-                            {
+            while (bStillRunning) {
+                try {
+                    if ((nBytesOut = sutOut.available()) > 0) {
+                        if (nBytesOut > buffer.length) {
                             buffer = null;
                             System.gc();
                             buffer = new byte[nBytesOut];
-                            }
+                        }
                         nBytesRead = sutOut.read(buffer, 0, nBytesOut);
-                        if (nBytesRead == -1)
+                        if (nBytesRead == -1) {
                             bStillRunning = false;
-                        else
-                            {
+                        } else {
                             String sRep = new String(buffer,0,nBytesRead).replace("\n", "\r\n");
                             sRet += sRep;
                             sRep = null;
-                            }
                         }
+                    }
 
-                    if ((nBytesErr = sutErr.available()) > 0)
-                        {
-                        if (nBytesErr > buffer.length)
-                            {
+                    if ((nBytesErr = sutErr.available()) > 0) {
+                        if (nBytesErr > buffer.length) {
                             buffer = null;
                             System.gc();
                             buffer = new byte[nBytesErr];
-                            }
+                        }
                         nBytesRead = sutErr.read(buffer, 0, nBytesErr);
-                        if (nBytesRead == -1)
+                        if (nBytesRead == -1) {
                             bStillRunning = false;
-                        else
-                            {
+                        } else {
                             String sRep = new String(buffer,0,nBytesRead).replace("\n", "\r\n");
                             sRet += sRep;
                             sRep = null;
-                            }
                         }
+                    }
 
                     bStillRunning = (IsProcRunning(pProc) || (sutOut.available() > 0) || (sutErr.available() > 0));
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     e.printStackTrace();
-                    }
+                }
 
-                if ((bStillRunning == true) && (nBytesErr == 0) && (nBytesOut == 0))
-                    {
+                if ((bStillRunning == true) && (nBytesErr == 0) && (nBytesOut == 0)) {
                     try {
                         Thread.sleep(2000);
-                        }
-                    catch (InterruptedException e) {
+                    } catch (InterruptedException e) {
                         e.printStackTrace();
-                        }
                     }
                 }
+            }
 
             pProc.destroy();
             pProc = null;
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
-            }
+        }
 
         Log.i("Watcher", String.format("Ping result was: '%s'", sRet.trim()));
         return (sRet);
-        }
+    }
 
     private boolean IsProcRunning(Process pProc)
-        {
+    {
         boolean bRet = false;
         @SuppressWarnings("unused")
         int nExitCode = 0;
 
-        try
-            {
+        try {
             nExitCode = pProc.exitValue();
-            }
-        catch (IllegalThreadStateException z)
-            {
+        } catch (IllegalThreadStateException z) {
             bRet = true;
-            }
-        catch (Exception e)
-            {
+        } catch (Exception e) {
             e.printStackTrace();
-            }
-
-        return(bRet);
         }
 
-    private class UpdateApplication implements Runnable {
+        return(bRet);
+    }
+
+    private class UpdateApplication implements Runnable
+    {
         Thread    runner;
         String    msPkgName = "";
         String    msPkgFileName = "";
         String    msOutFile = "";
         int        mbReboot = 0;
 
-        public UpdateApplication(String sPkgName, String sPkgFileName, String sOutFile, int bReboot) {
+        public UpdateApplication(String sPkgName, String sPkgFileName, String sOutFile, int bReboot)
+        {
             runner = new Thread(this);
             msPkgName = sPkgName;
             msPkgFileName = sPkgFileName;
@@ -885,54 +820,50 @@ public class WatcherService extends Service
             runner.start();
         }
 
-        public void run() {
-               bInstalling = true;
+        public void run()
+        {
+            bInstalling = true;
             UpdtApp(msPkgName, msPkgFileName, msOutFile, mbReboot);
-               bInstalling = false;
+            bInstalling = false;
         }
     }
 
     private class MyTime extends TimerTask
-        {
+    {
         int    nStrikes = 0;
 
         public MyTime()
-            {
-            }
+        {
+        }
 
         @Override
         public void run()
-            {
-            if (bInstalling)
+        {
+            if (bInstalling) {
                 return;
+            }
 
             // See if the network is up, if not reboot after a configurable
             // number of tries
-            if (nMaxStrikes > 0)
-                {
-                    String sRet = SendPing(sPingTarget);
-                    if (!sRet.contains("3 received"))
-                        {
-                            Log.i("Watcher", String.format("Failed ping attempt (remaining: %s)!",
-                                                           nMaxStrikes - nStrikes));
-                            if (++nStrikes >= nMaxStrikes)
-                                {
-                                    Log.e("Watcher", String.format("Number of failed ping attempts to %s (%s) exceeded maximum (%s), running reboot!", sPingTarget, nStrikes, nMaxStrikes));
-                                    RunReboot(null);
-                                }
-                        }
-                    else
-                        {
-                            nStrikes = 0;
-                        }
+            if (nMaxStrikes > 0) {
+                String sRet = SendPing(sPingTarget);
+                if (!sRet.contains("3 received")) {
+                    Log.i("Watcher", String.format("Failed ping attempt (remaining: %s)!",
+                                                   nMaxStrikes - nStrikes));
+                    if (++nStrikes >= nMaxStrikes) {
+                        Log.e("Watcher", String.format("Number of failed ping attempts to %s (%s) exceeded maximum (%s), running reboot!", sPingTarget, nStrikes, nMaxStrikes));
+                        RunReboot(null);
+                    }
+                } else {
+                    nStrikes = 0;
                 }
+            }
 
             String sProgramName = "com.mozilla.SUTAgentAndroid";
 
 //            Debug.waitForDebugger();
 
-            if (bStartSUTAgent && !GetProcessInfo(sProgramName))
-                {
+            if (bStartSUTAgent && !GetProcessInfo(sProgramName)) {
                 Intent agentIntent = new Intent();
                 agentIntent.setPackage(sProgramName);
                 agentIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -941,33 +872,27 @@ public class WatcherService extends Service
                     PackageManager pm = myContext.getPackageManager();
                     PackageInfo pi = pm.getPackageInfo(sProgramName, PackageManager.GET_ACTIVITIES | PackageManager.GET_INTENT_FILTERS);
                     ActivityInfo [] ai = pi.activities;
-                    for (int i = 0; i < ai.length; i++)
-                        {
+                    for (int i = 0; i < ai.length; i++) {
                         ActivityInfo a = ai[i];
-                        if (a.name.length() > 0)
-                            {
+                        if (a.name.length() > 0) {
                             agentIntent.setClassName(a.packageName, a.name);
                             break;
-                            }
                         }
                     }
-                catch (NameNotFoundException e)
-                    {
+                } catch (NameNotFoundException e) {
                     e.printStackTrace();
-                    }
-                try
-                    {
+                }
+                try {
                     myContext.startActivity(agentIntent);
-                    }
-                catch(ActivityNotFoundException anf)
-                    {
+                } catch(ActivityNotFoundException anf) {
                     anf.printStackTrace();
-                    }
                 }
             }
         }
+    }
 
-    private void SendNotification(String tickerText, String expandedText) {
+    private void SendNotification(String tickerText, String expandedText)
+    {
         NotificationManager notificationManager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         int icon = R.drawable.ateamlogo;
         long when = System.currentTimeMillis();
@@ -990,7 +915,8 @@ public class WatcherService extends Service
         notificationManager.notify(NOTIFICATION_ID, notification);
     }
 
-    private void CancelNotification() {
+    private void CancelNotification()
+    {
         NotificationManager notificationManager = (NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(NOTIFICATION_ID);
     }

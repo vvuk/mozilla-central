@@ -26,96 +26,86 @@ public class DataWorkerThread extends Thread
     SimpleDateFormat sdf = null;
 
     public DataWorkerThread(RunDataThread theParent, Socket workerSocket)
-        {
+    {
         super("DataWorkerThread");
         this.theParent = theParent;
         this.socket = workerSocket;
         this.sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
-        }
+    }
 
     public void StopListening()
-        {
+    {
         bListening = false;
-        }
+    }
 
     public void SendString(String strToSend)
-        {
-        if (this.out != null)
-            {
+    {
+        if (this.out != null) {
             Calendar cal = Calendar.getInstance();
             String strOut = sdf.format(cal.getTime());
             strOut += " " + strToSend + "\r\n";
 
             out.write(strOut);
             out.flush();
-            }
         }
+    }
 
     private String readLine(BufferedInputStream in)
-        {
+    {
         String sRet = "";
         int nByte = 0;
         char cChar = 0;
 
-        try
-            {
+        try {
             nByte = in.read();
-            while (nByte != -1)
-                {
+            while (nByte != -1) {
                 cChar = ((char)(nByte & 0xFF));
-                if ((cChar != '\r') && (cChar != '\n'))
+                if ((cChar != '\r') && (cChar != '\n')) {
                     sRet += cChar;
-                else
+                } else {
                     break;
-                nByte = in.read();
                 }
+                nByte = in.read();
+            }
 
-            if (in.available() > 0)
-                {
+            if (in.available() > 0) {
                 in.mark(1024);
                 nByte = in.read();
 
-                while (nByte != -1)
-                    {
+                while (nByte != -1) {
                     cChar = ((char)(nByte & 0xFF));
-                    if ((cChar == '\r') || (cChar == '\n'))
-                        {
-                        if (in.available() > 0)
-                            {
+                    if ((cChar == '\r') || (cChar == '\n')) {
+                        if (in.available() > 0) {
                             in.mark(1024);
                             nByte = in.read();
-                            }
-                        else
+                        } else {
                             nByte = -1;
                         }
-                    else
-                        {
+                    } else {
                         in.reset();
                         break;
-                        }
                     }
                 }
             }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            }
-
-        if (sRet.length() == 0)
-            sRet = null;
-
-        return(sRet);
         }
 
+        if (sRet.length() == 0) {
+            sRet = null;
+        }
+
+        return(sRet);
+    }
+
     public void run()
-        {
+    {
         String    sRet = "";
         long lEndTime = System.currentTimeMillis() + 60000;
 
         try {
-            while(bListening)
-                {
+            while(bListening) {
                 OutputStream cmdOut = socket.getOutputStream();
                 InputStream cmdIn = socket.getInputStream();
                 this.out = new PrintWriter(cmdOut, true);
@@ -132,10 +122,8 @@ public class DataWorkerThread extends Thread
                 int nAvail = cmdIn.available();
                 cmdIn.skip(nAvail);
 
-                while (bListening)
-                    {
-                    if (System.currentTimeMillis() > lEndTime)
-                        {
+                while (bListening) {
+                    if (System.currentTimeMillis() > lEndTime) {
                         cal = Calendar.getInstance();
                         sRet = sdf.format(cal.getTime());
                         sRet += " Thump thump - " + SUTAgentAndroid.sUniqueID + "\r\n";
@@ -144,61 +132,52 @@ public class DataWorkerThread extends Thread
                         out.flush();
 
                         lEndTime = System.currentTimeMillis() + 60000;
-                        }
+                    }
 
-                    if (!(in.available() > 0))
-                        {
+                    if (!(in.available() > 0)) {
                         socket.setSoTimeout(500);
                         try {
                             int nRead = cmdIn.read();
-                            if (nRead == -1)
-                                {
+                            if (nRead == -1) {
                                 bListening = false;
                                 continue;
-                                }
-                            else
+                            } else {
                                 inputLine = (char)nRead + "";
                             }
-                        catch(SocketTimeoutException toe)
-                            {
+                        } catch(SocketTimeoutException toe) {
                             continue;
-                            }
                         }
-                    else
+                    } else {
                         inputLine = "";
+                    }
 
-                    if ((inputLine += readLine(in)) != null)
-                        {
+                    if ((inputLine += readLine(in)) != null) {
                         outputLine = dc.processCommand(inputLine, out, in, cmdOut);
                         out.print(outputLine + "\n");
                         out.flush();
-                        if (outputLine.equals("exit"))
-                            {
+                        if (outputLine.equals("exit")) {
                             theParent.StopListening();
                             bListening = false;
-                            }
-                        if (outputLine.equals("quit"))
-                            {
+                        }
+                        if (outputLine.equals("quit")) {
                             bListening = false;
-                            }
+                        }
                         outputLine = null;
                         System.gc();
-                        }
-                    else
+                    } else {
                         break;
                     }
+                }
 
                 out.close();
                 out = null;
                 in.close();
                 in = null;
                 socket.close();
-                }
             }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            }
         }
+    }
 }

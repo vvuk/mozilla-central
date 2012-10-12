@@ -12,9 +12,9 @@ public class SUTStartupIntentReceiver extends BroadcastReceiver
 {
     @Override
     public void onReceive(Context context, Intent intent)
-        {
+    {
         Intent mySUTAgentIntent = new Intent(context, SUTAgentAndroid.class);
         mySUTAgentIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(mySUTAgentIntent);
-        }
+    }
 }

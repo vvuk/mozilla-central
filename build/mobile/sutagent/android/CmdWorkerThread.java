@@ -26,7 +26,7 @@ public class CmdWorkerThread extends Thread
     boolean bListening    = true;
 
     public CmdWorkerThread(RunCmdThread theParent, Socket workerSocket)
-        {
+    {
         super("CmdWorkerThread");
         this.theParent = theParent;
         this.socket = workerSocket;
@@ -35,61 +35,56 @@ public class CmdWorkerThread extends Thread
         pr[1] = '>';
         pr[2] = 0;
         prompt = new String(pr,0,3);
-        }
+    }
 
     public void StopListening()
-        {
+    {
         bListening = false;
-        }
+    }
 
     private String readLine(BufferedInputStream in)
-        {
+    {
         String sRet = "";
         int nByte = 0;
         char cChar = 0;
 
-        try
-            {
+        try {
             nByte = in.read();
-            while (nByte != -1)
-                {
+            while (nByte != -1) {
                 cChar = ((char)(nByte & 0xFF));
-                if ((cChar != '\r') && (cChar != '\n'))
+                if ((cChar != '\r') && (cChar != '\n')) {
                     sRet += cChar;
-                else
+                } else {
                     break;
-                nByte = in.read();
                 }
+                nByte = in.read();
+            }
 
-            if ((in.available() > 0) && (cChar != '\n'))
-                {
+            if ((in.available() > 0) && (cChar != '\n')) {
                 in.mark(1024);
                 nByte = in.read();
 
-                if (nByte != -1)
-                    {
+                if (nByte != -1) {
                     cChar = ((char)(nByte & 0xFF));
-                    if (cChar != '\n')
-                        {
+                    if (cChar != '\n') {
                         in.reset();
-                        }
                     }
                 }
             }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            }
-
-        if (sRet.length() == 0)
-            sRet = null;
-
-        return(sRet);
         }
 
+        if (sRet.length() == 0) {
+            sRet = null;
+        }
+
+        return(sRet);
+    }
+
     public void run()
-        {
+    {
         try {
             OutputStream cmdOut = socket.getOutputStream();
             InputStream cmdIn = socket.getInputStream();
@@ -106,72 +101,59 @@ public class CmdWorkerThread extends Thread
             out.print(prompt);
             out.flush();
 
-            while (bListening)
-                {
-                if (!(in.available() > 0))
-                    {
+            while (bListening) {
+                if (!(in.available() > 0)) {
                     socket.setSoTimeout(500);
                     try {
                         int nRead = cmdIn.read();
-                        if (nRead == -1)
-                            {
+                        if (nRead == -1) {
                             bListening = false;
                             continue;
-                            }
-                        else
-                            {
+                        } else {
                             inputLine = ((char)nRead) + "";
                             socket.setSoTimeout(120000);
-                            }
                         }
-                    catch(SocketTimeoutException toe)
-                        {
+                    } catch(SocketTimeoutException toe) {
                         continue;
-                        }
                     }
-                else
+                } else {
                     inputLine = "";
+                }
 
-                if ((inputLine += readLine(in)) != null)
-                    {
+                if ((inputLine += readLine(in)) != null) {
                     String message = String.format("%s : %s",
-                                     socket.getInetAddress().getHostAddress(), inputLine);
+                                                   socket.getInetAddress().getHostAddress(), inputLine);
                     SUTAgentAndroid.log(dc, message);
 
                     outputLine = dc.processCommand(inputLine, out, in, cmdOut);
-                    if (outputLine.length() > 0)
-                        {
+                    if (outputLine.length() > 0) {
                         out.print(outputLine + "\n" + prompt);
-                        }
-                    else
+                    } else {
                         out.print(prompt);
+                    }
                     out.flush();
-                    if (outputLine.equals("exit"))
-                        {
+                    if (outputLine.equals("exit")) {
                         theParent.StopListening();
                         bListening = false;
-                        }
-                    if (outputLine.equals("quit"))
-                        {
+                    }
+                    if (outputLine.equals("quit")) {
                         bListening = false;
-                        }
+                    }
                     outputLine = null;
                     System.gc();
-                    }
-                else
+                } else {
                     break;
                 }
+            }
             out.close();
             out = null;
             in.close();
             in = null;
             socket.close();
             SUTAgentAndroid.log(dc, "CmdWorkerThread ends: "+getId());
-        }
-    catch (IOException e)
-        {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
     }
 }

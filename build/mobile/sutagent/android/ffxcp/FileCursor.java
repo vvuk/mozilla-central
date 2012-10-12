@@ -11,15 +11,16 @@ import java.io.IOException;
 import android.database.AbstractWindowedCursor;
 import android.database.CursorWindow;
 
-public class FileCursor extends AbstractWindowedCursor {
+public class FileCursor extends AbstractWindowedCursor
+{
     public static final String _ID = "_id";
     public static final String CHUNK = "chunk";
     public static final String LENGTH = "length";
     static final String[] DEFCOLUMNS = new String[] {
-            _ID,
-            CHUNK,
-            LENGTH
-         };
+        _ID,
+        CHUNK,
+        LENGTH
+    };
     private String filePath = null;
     private String [] theColumns = null;
 
@@ -31,7 +32,8 @@ public class FileCursor extends AbstractWindowedCursor {
     private long lOffset = 0;
     private long lLength = -1;
 
-    public FileCursor(String[] columnNames, String sFilePath, String [] selectionArgs) {
+    public FileCursor(String[] columnNames, String sFilePath, String [] selectionArgs)
+    {
         super();
         theColumns = (columnNames == null ? DEFCOLUMNS : columnNames);
         filePath = sFilePath;
@@ -60,8 +62,9 @@ public class FileCursor extends AbstractWindowedCursor {
 
                 if (lLength != 0) {
                     nCount = (int) (lFileSize / BUFSIZE);
-                    if ((lFileSize % BUFSIZE) > 0)
+                    if ((lFileSize % BUFSIZE) > 0) {
                         nCount++;
+                    }
                 } else {
                     nCount = 1;
                 }
@@ -71,22 +74,26 @@ public class FileCursor extends AbstractWindowedCursor {
         }
     }
 
-    public String getColumnName (int columnIndex) {
+    public String getColumnName (int columnIndex)
+    {
         return theColumns[columnIndex];
     }
 
     @Override
-    public String[] getColumnNames() {
+    public String[] getColumnNames()
+    {
         return theColumns;
     }
 
     @Override
-    public int getCount() {
+    public int getCount()
+    {
         return nCount;
     }
 
     @Override
-    public boolean onMove(int oldPosition, int newPosition) {
+    public boolean onMove(int oldPosition, int newPosition)
+    {
         boolean bRet = true;
 
         // get rid of old data
@@ -98,7 +105,8 @@ public class FileCursor extends AbstractWindowedCursor {
     }
 
     @Override
-    public void fillWindow (int pos, CursorWindow window) {
+    public void fillWindow (int pos, CursorWindow window)
+    {
         int    nNumRows = window.getNumRows();
         int nCIndex = 0;
         window.setStartPosition(0);
@@ -131,7 +139,8 @@ public class FileCursor extends AbstractWindowedCursor {
         return;
     }
 
-    public byte[] getABlob (int row, int column) {
+    public byte[] getABlob (int row, int column)
+    {
         int    nRead = 0;
         int    nOffset = 0;
         int nBufSize = 0;
@@ -157,7 +166,7 @@ public class FileCursor extends AbstractWindowedCursor {
                     }
                 }
 
-            fin.close();
+                fin.close();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {

@@ -23,7 +23,7 @@ import android.content.Intent;
 import android.os.Handler;
 
 public class RunCmdThread extends Thread
-    {
+{
     private ServerSocket SvrSocket = null;
     private Socket socket    = null;
     private Handler handler = null;
@@ -33,51 +33,45 @@ public class RunCmdThread extends Thread
     android.app.Service    svc = null;
 
     public RunCmdThread(ServerSocket socket, android.app.Service service, Handler handler)
-        {
+    {
         super("RunCmdThread");
         this.SvrSocket = socket;
         this.svc = service;
         this.handler = handler;
-        }
+    }
 
     public void StopListening()
-        {
+    {
         bListening = false;
-        }
+    }
 
-    public void run() {
+    public void run()
+    {
         try {
             SvrSocket.setSoTimeout(5000);
-            while (bListening)
-                {
-                try
-                    {
+            while (bListening) {
+                try {
                     socket = SvrSocket.accept();
                     CmdWorkerThread theWorker = new CmdWorkerThread(this, socket);
                     theWorker.start();
                     theWorkers.add(theWorker);
-                    }
-                catch (SocketTimeoutException toe)
-                    {
+                } catch (SocketTimeoutException toe) {
                     continue;
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     e.printStackTrace();
                     continue;
-                    }
                 }
+            }
 
             int nNumWorkers = theWorkers.size();
-            for (int lcv = 0; lcv < nNumWorkers; lcv++)
-                {
-                if (theWorkers.get(lcv).isAlive())
-                    {
+            for (int lcv = 0; lcv < nNumWorkers; lcv++) {
+                if (theWorkers.get(lcv).isAlive()) {
                     theWorkers.get(lcv).StopListening();
-                    while(theWorkers.get(lcv).isAlive())
+                    while(theWorkers.get(lcv).isAlive()) {
                         ;
                     }
                 }
+            }
 
             theWorkers.clear();
 
@@ -86,16 +80,14 @@ public class RunCmdThread extends Thread
             svc.stopSelf();
 
 //            SUTAgentAndroid.me.finish();
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             e.printStackTrace();
-            }
-        return;
         }
+        return;
+    }
 
     private String SendPing(String sIPAddr)
-        {
+    {
         Process    pProc;
         String sRet = "";
         String [] theArgs = new String [4];
@@ -110,109 +102,89 @@ public class RunCmdThread extends Thread
         theArgs[2] = "3";
         theArgs[3] = sIPAddr;
 
-        try
-            {
+        try {
             pProc = Runtime.getRuntime().exec(theArgs);
 
             InputStream sutOut = pProc.getInputStream();
             InputStream sutErr = pProc.getErrorStream();
 
-            while (bStillRunning)
-                {
-                try
-                    {
-                    if ((nBytesOut = sutOut.available()) > 0)
-                        {
-                        if (nBytesOut > buffer.length)
-                            {
+            while (bStillRunning) {
+                try {
+                    if ((nBytesOut = sutOut.available()) > 0) {
+                        if (nBytesOut > buffer.length) {
                             buffer = null;
                             System.gc();
                             buffer = new byte[nBytesOut];
-                            }
+                        }
                         nBytesRead = sutOut.read(buffer, 0, nBytesOut);
-                        if (nBytesRead == -1)
+                        if (nBytesRead == -1) {
                             bStillRunning = false;
-                        else
-                            {
+                        } else {
                             String sRep = new String(buffer,0,nBytesRead).replace("\n", "\r\n");
                             sRet += sRep;
                             sRep = null;
-                            }
                         }
+                    }
 
-                    if ((nBytesErr = sutErr.available()) > 0)
-                        {
-                        if (nBytesErr > buffer.length)
-                            {
+                    if ((nBytesErr = sutErr.available()) > 0) {
+                        if (nBytesErr > buffer.length) {
                             buffer = null;
                             System.gc();
                             buffer = new byte[nBytesErr];
-                            }
+                        }
                         nBytesRead = sutErr.read(buffer, 0, nBytesErr);
-                        if (nBytesRead == -1)
+                        if (nBytesRead == -1) {
                             bStillRunning = false;
-                        else
-                            {
+                        } else {
                             String sRep = new String(buffer,0,nBytesRead).replace("\n", "\r\n");
                             sRet += sRep;
                             sRep = null;
-                            }
                         }
+                    }
 
                     bStillRunning = (IsProcRunning(pProc) || (sutOut.available() > 0) || (sutErr.available() > 0));
-                    }
-                catch (IOException e)
-                    {
+                } catch (IOException e) {
                     e.printStackTrace();
-                    }
+                }
 
-                if ((bStillRunning == true) && (nBytesErr == 0) && (nBytesOut == 0))
-                    {
+                if ((bStillRunning == true) && (nBytesErr == 0) && (nBytesOut == 0)) {
                     try {
                         sleep(2000);
-                        }
-                    catch (InterruptedException e) {
+                    } catch (InterruptedException e) {
                         e.printStackTrace();
-                        }
                     }
                 }
+            }
 
             pProc.destroy();
             pProc = null;
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
-            }
-
-        return (sRet);
         }
 
+        return (sRet);
+    }
+
     private boolean IsProcRunning(Process pProc)
-        {
+    {
         boolean bRet = false;
         @SuppressWarnings("unused")
         int nExitCode = 0;
 
-        try
-            {
+        try {
             nExitCode = pProc.exitValue();
-            }
-        catch (IllegalThreadStateException z)
-            {
+        } catch (IllegalThreadStateException z) {
             bRet = true;
-            }
-        catch (Exception e)
-            {
+        } catch (Exception e) {
             e.printStackTrace();
-            }
-
-        return(bRet);
         }
 
+        return(bRet);
+    }
+
     private void SendNotification(String tickerText, String expandedText)
-        {
+    {
         NotificationManager notificationManager = (NotificationManager)svc.getSystemService(Context.NOTIFICATION_SERVICE);
 
 //        int icon = android.R.drawable.stat_notify_more;
@@ -238,36 +210,36 @@ public class RunCmdThread extends Thread
         notification.setLatestEventInfo(context, tickerText, expandedText, launchIntent);
 
         notificationManager.notify(1959, notification);
-        }
+    }
 
     private void CancelNotification()
-        {
+    {
         NotificationManager notificationManager = (NotificationManager)svc.getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancel(1959);
-        }
+    }
 
     class doCancelNotification implements Runnable
-        {
+    {
         public void run()
-            {
+        {
             CancelNotification();
-            }
-        };
+        }
+    };
 
     class doSendNotification implements Runnable
-        {
+    {
         private String sTitle = "";
         private String sBText = "";
 
         doSendNotification(String sTitle, String sBodyText)
-            {
+        {
             this.sTitle = sTitle;
             this.sBText = sBodyText;
-            }
+        }
 
         public void run()
-            {
+        {
             SendNotification(sTitle, sBText);
-            }
-        };
+        }
+    };
 }

@@ -52,7 +52,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class SUTAgentAndroid extends Activity
-    {
+{
     final Handler mHandler = new Handler();
 
     public static final int START_PRG = 1959;
@@ -84,28 +84,27 @@ public class SUTAgentAndroid extends Activity
     private TextView  tv = null;
 
     public boolean onCreateOptionsMenu(Menu menu)
-        {
+    {
         mExitMenuItem = menu.add("Exit");
         mExitMenuItem.setIcon(android.R.drawable.ic_menu_close_clear_cancel);
         return super.onCreateOptionsMenu(menu);
-        }
+    }
 
     public boolean onMenuItemSelected(int featureId, MenuItem item)
-        {
-        if (item == mExitMenuItem)
-            {
+    {
+        if (item == mExitMenuItem) {
             finish();
-            }
-        return super.onMenuItemSelected(featureId, item);
         }
+        return super.onMenuItemSelected(featureId, item);
+    }
 
     public static String getRegSvrIPAddr()
-        {
+    {
         return(RegSvrIPAddr);
-        }
+    }
 
     public void pruneCommandLog(String datestamp, String testroot)
-        {
+    {
 
         String today = "";
         String yesterday = "";
@@ -120,31 +119,35 @@ public class SUTAgentAndroid extends Activity
 
         File dir = new File(testroot);
 
-        if (!dir.isDirectory())
+        if (!dir.isDirectory()) {
             return;
+        }
 
         File [] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
 
         for (int iter = 0; iter < files.length; iter++) {
             String fName = files[iter].getName();
             if (fName.endsWith("sutcommands.txt")) {
-                if (fName.endsWith(today + "-sutcommands.txt") || fName.endsWith(yesterday + "-sutcommands.txt"))
+                if (fName.endsWith(today + "-sutcommands.txt") || fName.endsWith(yesterday + "-sutcommands.txt")) {
                     continue;
+                }
 
-                if (files[iter].delete())
+                if (files[iter].delete()) {
                     Log.i("SUTAgentAndroid", "Deleted old command logfile: " + files[iter]);
-                else
+                } else {
                     Log.e("SUTAgentAndroid", "Unable to delete old command logfile: " + files[iter]);
+                }
             }
         }
-        }
+    }
 
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
-        {
+    {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.main);
@@ -170,99 +173,81 @@ public class SUTAgentAndroid extends Activity
 
         tv = (TextView) this.findViewById(R.id.Textview01);
 
-        if (getLocalIpAddress() == null)
+        if (getLocalIpAddress() == null) {
             setUpNetwork(sIniFile);
+        }
 
         String macAddress = "Unknown";
         if (android.os.Build.VERSION.SDK_INT > 8) {
             try {
                 NetworkInterface iface = NetworkInterface.getByInetAddress(InetAddress.getAllByName(getLocalIpAddress())[0]);
-                if (iface != null)
-                    {
-                        byte[] mac = iface.getHardwareAddress();
-                        if (mac != null)
-                            {
-                                StringBuilder sb = new StringBuilder();
-                                Formatter f = new Formatter(sb);
-                                for (int i = 0; i < mac.length; i++)
-                                    {
-                                        f.format("%02x%s", mac[i], (i < mac.length - 1) ? ":" : "");
-                                    }
-                                macAddress = sUniqueID = sb.toString();
-                            }
+                if (iface != null) {
+                    byte[] mac = iface.getHardwareAddress();
+                    if (mac != null) {
+                        StringBuilder sb = new StringBuilder();
+                        Formatter f = new Formatter(sb);
+                        for (int i = 0; i < mac.length; i++) {
+                            f.format("%02x%s", mac[i], (i < mac.length - 1) ? ":" : "");
+                        }
+                        macAddress = sUniqueID = sb.toString();
                     }
-            }
-            catch (UnknownHostException ex) {}
+                }
+            } catch (UnknownHostException ex) {}
             catch (SocketException ex) {}
-        }
-        else
-            {
-                // Fall back to getting info from wifiman on older versions of Android,
-                // which don't support the NetworkInterface interface
-                WifiManager wifiMan = (WifiManager)getSystemService(Context.WIFI_SERVICE);
-                if (wifiMan != null)
-                    {
-                        WifiInfo wifi = wifiMan.getConnectionInfo();
-                        if (wifi != null)
-                            macAddress = wifi.getMacAddress();
-                        if (macAddress != null)
-                            sUniqueID = macAddress;
-                    }
+        } else {
+            // Fall back to getting info from wifiman on older versions of Android,
+            // which don't support the NetworkInterface interface
+            WifiManager wifiMan = (WifiManager)getSystemService(Context.WIFI_SERVICE);
+            if (wifiMan != null) {
+                WifiInfo wifi = wifiMan.getConnectionInfo();
+                if (wifi != null) {
+                    macAddress = wifi.getMacAddress();
+                }
+                if (macAddress != null) {
+                    sUniqueID = macAddress;
+                }
             }
+        }
 
-        if (sUniqueID == null)
-            {
+        if (sUniqueID == null) {
             BluetoothAdapter ba = BluetoothAdapter.getDefaultAdapter();
-            if ((ba != null) && (ba.isEnabled() != true))
-                {
+            if ((ba != null) && (ba.isEnabled() != true)) {
                 ba.enable();
-                while(ba.getState() != BluetoothAdapter.STATE_ON)
-                    {
+                while(ba.getState() != BluetoothAdapter.STATE_ON) {
                     try {
                         Thread.sleep(1000);
-                        }
-                    catch (InterruptedException e)
-                        {
+                    } catch (InterruptedException e) {
                         e.printStackTrace();
-                        }
                     }
+                }
 
                 sUniqueID = ba.getAddress();
 
                 ba.disable();
-                while(ba.getState() != BluetoothAdapter.STATE_OFF)
-                    {
+                while(ba.getState() != BluetoothAdapter.STATE_OFF) {
                     try {
                         Thread.sleep(1000);
-                        }
-                    catch (InterruptedException e)
-                        {
+                    } catch (InterruptedException e) {
                         e.printStackTrace();
-                        }
                     }
                 }
-            else
-                {
-                if (ba != null)
-                    {
+            } else {
+                if (ba != null) {
                     sUniqueID = ba.getAddress();
                     sUniqueID.toLowerCase();
-                    }
                 }
             }
+        }
 
-        if (sUniqueID == null)
-            {
+        if (sUniqueID == null) {
             TelephonyManager mTelephonyMgr = (TelephonyManager)getSystemService(TELEPHONY_SERVICE);
-            if (mTelephonyMgr != null)
-                {
+            if (mTelephonyMgr != null) {
                 sUniqueID = mTelephonyMgr.getDeviceId();
-                if (sUniqueID == null)
-                    {
+                if (sUniqueID == null) {
                     sUniqueID = "0011223344556677";
-                    }
                 }
             }
+        }
 
         String hwid = getHWID(this);
 
@@ -302,15 +287,14 @@ public class SUTAgentAndroid extends Activity
 
         pruneCommandLog(dc.GetSystemTime(), dc.GetTestRoot());
 
-        if (!bNetworkingStarted)
-            {
+        if (!bNetworkingStarted) {
             Thread thread = new Thread(null, doStartService, "StartServiceBkgnd");
             thread.start();
             bNetworkingStarted = true;
 
             Thread thread2 = new Thread(null, doRegisterDevice, "RegisterDeviceBkgnd");
             thread2.start();
-            }
+        }
 
         monitorBatteryState();
 
@@ -322,49 +306,51 @@ public class SUTAgentAndroid extends Activity
         goButton.setOnClickListener(new OnClickListener() {
             public void onClick(View v) {
                 finish();
-                }
-            });
-        }
+            }
+        });
+    }
 
-    private class UpdateStatus implements Runnable {
+    private class UpdateStatus implements Runnable
+    {
         public String sText = "";
 
-        UpdateStatus(String sStatus) {
+        UpdateStatus(String sStatus)
+        {
             sText = sStatus;
         }
 
-        public void run() {
+        public void run()
+        {
             displayStatus(sText);
         }
     }
 
-    public synchronized void displayStatus(String sStatus) {
+    public synchronized void displayStatus(String sStatus)
+    {
         String sTVText = (String) tv.getText();
         sTVText += sStatus;
         tv.setText(sTVText);
     }
 
     public void fixScreenOrientation()
-        {
+    {
         setRequestedOrientation((getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) ?
                                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        }
+    }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data)
-        {
-        if (requestCode == START_PRG)
-            {
-               Toast.makeText(getApplication().getApplicationContext(), "SUTAgent startprg finished ...", Toast.LENGTH_LONG).show();
-            }
+    {
+        if (requestCode == START_PRG) {
+            Toast.makeText(getApplication().getApplicationContext(), "SUTAgent startprg finished ...", Toast.LENGTH_LONG).show();
         }
+    }
 
     @Override
     public void onDestroy()
-        {
+    {
         DoCommand dc = new DoCommand(getApplication());
         super.onDestroy();
-        if (isFinishing())
-            {
+        if (isFinishing()) {
             log(dc, "onDestroy - finishing");
             Intent listenerSvc = new Intent(this, ASMozStub.class);
             listenerSvc.setAction("com.mozilla.SUTAgentAndroid.service.LISTENER_SERVICE");
@@ -373,56 +359,46 @@ public class SUTAgentAndroid extends Activity
 
             unregisterReceiver(battReceiver);
 
-            if (wl != null)
+            if (wl != null) {
                 wl.release();
+            }
 
             System.exit(0);
-            }
-        else
-            {
+        } else {
             log(dc, "onDestroy - not finishing");
-            }
         }
+    }
 
     @Override
     public void onLowMemory()
-        {
+    {
         System.gc();
         DoCommand dc = new DoCommand(getApplication());
-        if (dc != null)
-            {
+        if (dc != null) {
             log(dc, "onLowMemory");
             log(dc, dc.GetMemoryInfo());
             String procInfo = dc.GetProcessInfo();
-            if (procInfo != null)
-                {
+            if (procInfo != null) {
                 String lines[] = procInfo.split("\n");
-                for (String line : lines) 
-                    {
-                    if (line.contains("mozilla"))
-                        {
+                for (String line : lines) {
+                    if (line.contains("mozilla")) {
                         log(dc, line);
                         String words[] = line.split("\t");
-                        if ((words != null) && (words.length > 1))
-                            {
+                        if ((words != null) && (words.length > 1)) {
                             log(dc, dc.StatProcess(words[1]));
-                            }
                         }
                     }
                 }
             }
-        else
-            {
+        } else {
             Log.e("SUTAgentAndroid", "onLowMemory: unable to log to file!");
-            }
         }
+    }
 
     private void monitorBatteryState()
-        {
-        battReceiver = new BroadcastReceiver()
-            {
-            public void onReceive(Context context, Intent intent)
-                {
+    {
+        battReceiver = new BroadcastReceiver() {
+            public void onReceive(Context context, Intent intent) {
                 StringBuilder sb = new StringBuilder();
 
                 int rawlevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1); // charge level from 0 to scale inclusive
@@ -436,72 +412,70 @@ public class SUTAgentAndroid extends Activity
 //                String technology = intent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY);
 
                 nChargeLevel = -1;  // percentage, or -1 for unknown
-                if (rawlevel >= 0 && scale > 0)
-                    {
+                if (rawlevel >= 0 && scale > 0) {
                     nChargeLevel = (rawlevel * 100) / scale;
-                    }
+                }
 
-                if (plugged > 0)
+                if (plugged > 0) {
                     sACStatus = "ONLINE";
-                else
+                } else {
                     sACStatus = "OFFLINE";
+                }
 
-                if (present == false)
+                if (present == false) {
                     sb.append("NO BATTERY");
-                else
-                    {
-                    if (nChargeLevel < 10)
+                } else {
+                    if (nChargeLevel < 10) {
                         sb.append("Critical");
-                    else if (nChargeLevel < 33)
+                    } else if (nChargeLevel < 33) {
                         sb.append("LOW");
-                    else if (nChargeLevel > 80)
+                    } else if (nChargeLevel > 80) {
                         sb.append("HIGH");
                     }
+                }
 
-                if (BatteryManager.BATTERY_HEALTH_OVERHEAT == health)
-                    {
+                if (BatteryManager.BATTERY_HEALTH_OVERHEAT == health) {
                     sb.append("Overheated ");
                     sb.append((((float)(nBatteryTemp))/10));
                     sb.append("(C)");
-                    }
-                else
-                    {
-                    switch(status)
-                        {
-                        case BatteryManager.BATTERY_STATUS_UNKNOWN:
-                            // old emulator; maybe also when plugged in with no battery
-                            if (present == true)
-                                sb.append(" UNKNOWN");
-                            break;
-                        case BatteryManager.BATTERY_STATUS_CHARGING:
-                            sb.append(" CHARGING");
-                            break;
-                        case BatteryManager.BATTERY_STATUS_DISCHARGING:
-                            sb.append(" DISCHARGING");
-                            break;
-                        case BatteryManager.BATTERY_STATUS_NOT_CHARGING:
-                            sb.append(" NOTCHARGING");
-                            break;
-                        case BatteryManager.BATTERY_STATUS_FULL:
-                            sb.append(" FULL");
-                            break;
-                        default:
-                            if (present == true)
-                                sb.append("Unknown");
-                            break;
+                } else {
+                    switch(status) {
+                    case BatteryManager.BATTERY_STATUS_UNKNOWN:
+                        // old emulator; maybe also when plugged in with no battery
+                        if (present == true) {
+                            sb.append(" UNKNOWN");
                         }
+                        break;
+                    case BatteryManager.BATTERY_STATUS_CHARGING:
+                        sb.append(" CHARGING");
+                        break;
+                    case BatteryManager.BATTERY_STATUS_DISCHARGING:
+                        sb.append(" DISCHARGING");
+                        break;
+                    case BatteryManager.BATTERY_STATUS_NOT_CHARGING:
+                        sb.append(" NOTCHARGING");
+                        break;
+                    case BatteryManager.BATTERY_STATUS_FULL:
+                        sb.append(" FULL");
+                        break;
+                    default:
+                        if (present == true) {
+                            sb.append("Unknown");
+                        }
+                        break;
                     }
+                }
 
                 sPowerStatus = sb.toString();
-                }
-            };
+            }
+        };
 
         IntentFilter battFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
         registerReceiver(battReceiver, battFilter);
-        }
+    }
 
     public boolean setUpNetwork(String sIniFile)
-        {
+    {
         boolean    bRet = false;
         int    lcv    = 0;
         int    lcv2 = 0;
@@ -517,51 +491,48 @@ public class SUTAgentAndroid extends Activity
         String adhoc = tmpdc.GetIniData("Network Settings", "ADHOC", sIniFile);
 
         Toast.makeText(getApplication().getApplicationContext(), "Starting and configuring network", Toast.LENGTH_LONG).show();
-/*
-        ContentResolver cr = getContentResolver();
-        int nRet;
-        try {
-            nRet = Settings.System.getInt(cr, Settings.System.WIFI_USE_STATIC_IP);
-            String foo2 = "" + nRet;
-        } catch (SettingNotFoundException e1) {
-            e1.printStackTrace();
-        }
-*/
-/*
-        wc.SSID = "\"Mozilla-Build\"";
-        wc.preSharedKey  = "\"MozillaBuildQA500\"";
-        wc.hiddenSSID = true;
-        wc.status = WifiConfiguration.Status.ENABLED;
-        wc.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
-        wc.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
-        wc.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
-        wc.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-        wc.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
-        wc.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
-        wc.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
-*/
+        /*
+                ContentResolver cr = getContentResolver();
+                int nRet;
+                try {
+                    nRet = Settings.System.getInt(cr, Settings.System.WIFI_USE_STATIC_IP);
+                    String foo2 = "" + nRet;
+                } catch (SettingNotFoundException e1) {
+                    e1.printStackTrace();
+                }
+        */
+        /*
+                wc.SSID = "\"Mozilla-Build\"";
+                wc.preSharedKey  = "\"MozillaBuildQA500\"";
+                wc.hiddenSSID = true;
+                wc.status = WifiConfiguration.Status.ENABLED;
+                wc.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
+                wc.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
+                wc.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
+                wc.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+                wc.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
+                wc.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
+                wc.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
+        */
         wc.SSID = "\"" + ssid + "\"";
 //        wc.SSID = "\"Mozilla-G\"";
 //        wc.SSID = "\"Mozilla\"";
 
-        if (auth.contentEquals("wpa2"))
-            {
+        if (auth.contentEquals("wpa2")) {
             wc.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
             wc.preSharedKey  = null;
-            }
+        }
 
-        if (encr.contentEquals("aes"))
-            {
+        if (encr.contentEquals("aes")) {
             wc.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
             wc.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
-            }
+        }
 
-        if (eap.contentEquals("peap"))
-            {
+        if (eap.contentEquals("peap")) {
             wc.eap.setValue("PEAP");
             wc.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
             wc.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
-            }
+        }
 
         wc.hiddenSSID = false;
         wc.status = WifiConfiguration.Status.ENABLED;
@@ -569,47 +540,44 @@ public class SUTAgentAndroid extends Activity
         wc.password.setValue("\"password\"");
         wc.identity.setValue("\"bmoss@mozilla.com\"");
 
-        if (!wifi.isWifiEnabled())
+        if (!wifi.isWifiEnabled()) {
             wifi.setWifiEnabled(true);
+        }
 
-        while(wifi.getWifiState() != WifiManager.WIFI_STATE_ENABLED)
-            {
+        while(wifi.getWifiState() != WifiManager.WIFI_STATE_ENABLED) {
             Thread.yield();
-            if (++lcv > 10000)
+            if (++lcv > 10000) {
                 return(bRet);
             }
+        }
 
         wl = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL, "SUTAgent");
-        if (wl != null)
+        if (wl != null) {
             wl.acquire();
+        }
 
         WifiConfiguration    foo = null;
         int                    nNetworkID = -1;
 
         List<WifiConfiguration> connsLst =  wifi.getConfiguredNetworks();
         int nConns = connsLst.size();
-        for (int i = 0; i < nConns; i++)
-            {
+        for (int i = 0; i < nConns; i++) {
 
             foo = connsLst.get(i);
-            if (foo.SSID.equalsIgnoreCase(wc.SSID))
-                {
+            if (foo.SSID.equalsIgnoreCase(wc.SSID)) {
                 nNetworkID = foo.networkId;
                 wc.networkId = foo.networkId;
                 break;
-                }
             }
+        }
 
         int res;
 
-        if (nNetworkID != -1)
-            {
+        if (nNetworkID != -1) {
             res = wifi.updateNetwork(wc);
-            }
-        else
-            {
+        } else {
             res = wifi.addNetwork(wc);
-            }
+        }
 
         Log.d("WifiPreference", "add Network returned " + res );
 
@@ -624,69 +592,65 @@ public class SUTAgentAndroid extends Activity
         lcv = 0;
         lcv2 = 0;
 
-        while (ss.compareTo(SupplicantState.COMPLETED) != 0)
-            {
+        while (ss.compareTo(SupplicantState.COMPLETED) != 0) {
             try {
                 Thread.sleep(1000);
-                }
-            catch (InterruptedException e)
-                {
+            } catch (InterruptedException e) {
                 e.printStackTrace();
-                }
+            }
 
-            if (wi != null)
+            if (wi != null) {
                 wi = null;
-            if (ss != null)
+            }
+            if (ss != null) {
                 ss = null;
+            }
             wi = wifi.getConnectionInfo();
             ss = wi.getSupplicantState();
-            if (++lcv > 60)
-                {
-                if (++lcv2 > 5)
-                    {
+            if (++lcv > 60) {
+                if (++lcv2 > 5) {
                     Toast.makeText(getApplication().getApplicationContext(), "Unable to start and configure network", Toast.LENGTH_LONG).show();
                     return(bRet);
-                    }
-                else
-                    {
+                } else {
                     Toast.makeText(getApplication().getApplicationContext(), "Resetting wifi interface", Toast.LENGTH_LONG).show();
-                    if (wl != null)
+                    if (wl != null) {
                         wl.release();
+                    }
                     wifi.setWifiEnabled(false);
-                    while(wifi.getWifiState() != WifiManager.WIFI_STATE_DISABLED)
-                        {
+                    while(wifi.getWifiState() != WifiManager.WIFI_STATE_DISABLED) {
                         Thread.yield();
-                        }
+                    }
 
                     wifi.setWifiEnabled(true);
-                    while(wifi.getWifiState() != WifiManager.WIFI_STATE_ENABLED)
-                        {
+                    while(wifi.getWifiState() != WifiManager.WIFI_STATE_ENABLED) {
                         Thread.yield();
-                        }
+                    }
                     b = wifi.enableNetwork(res, true);
                     Log.d("WifiPreference", "enableNetwork returned " + b );
-                    if (wl != null)
+                    if (wl != null) {
                         wl.acquire();
-                    lcv = 0;
                     }
+                    lcv = 0;
                 }
             }
+        }
 
         lcv = 0;
-        while(getLocalIpAddress() == null)
-            {
-            if (++lcv > 10000)
+        while(getLocalIpAddress() == null) {
+            if (++lcv > 10000) {
                 return(bRet);
             }
+        }
 
         Toast.makeText(getApplication().getApplicationContext(), "Network started and configured", Toast.LENGTH_LONG).show();
         bRet = true;
 
         return(bRet);
-        }
+    }
 
     // If there is an update.info file callback the server and send the status
-    private Runnable doUpdateCallback = new Runnable() {
+    private Runnable doUpdateCallback = new Runnable()
+    {
         public void run() {
             DoCommand dc = new DoCommand(getApplication());
             String sRet = dc.UpdateCallBack("update.info");
@@ -699,14 +663,16 @@ public class SUTAgentAndroid extends Activity
                     sRet = "Callback Server NOT contacted successfully" + lineSep;
                 }
             }
-            if (sRet.length() > 0)
+            if (sRet.length() > 0) {
                 mHandler.post(new UpdateStatus(sRet));
+            }
             dc = null;
         }
     };
 
     // registers with the reg server defined in the SUTAgent.ini file
-    private Runnable doRegisterDevice = new Runnable() {
+    private Runnable doRegisterDevice = new Runnable()
+    {
         public void run() {
             DoCommand dc = new DoCommand(getApplication());
             String sRet = "";
@@ -715,8 +681,9 @@ public class SUTAgentAndroid extends Activity
                 if (sRegRet.contains("ok")) {
                     sRet += "Registered with testserver" + lineSep;
                     sRet += "\tIPAddress: " + RegSvrIPAddr + lineSep;
-                    if (RegSvrIPPort.length() > 0)
+                    if (RegSvrIPPort.length() > 0) {
                         sRet += "\tPort: " + RegSvrIPPort + lineSep;
+                    }
                 } else {
                     sRet += "Not registered with testserver" + lineSep;
                 }
@@ -724,35 +691,38 @@ public class SUTAgentAndroid extends Activity
                 sRet += "Not registered with testserver" + lineSep;
             }
 
-        if (sRet.length() > 0)
-            mHandler.post(new UpdateStatus(sRet));
-        dc = null;
+            if (sRet.length() > 0) {
+                mHandler.post(new UpdateStatus(sRet));
+            }
+            dc = null;
         }
     };
 
     // this starts the listener service for the command and data channels
     private Runnable doStartService = new Runnable()
-        {
-        public void run()
-            {
+    {
+        public void run() {
             Intent listenerService = new Intent();
             listenerService.setAction("com.mozilla.SUTAgentAndroid.service.LISTENER_SERVICE");
             startService(listenerService);
-            }
-        };
+        }
+    };
 
     static String sHWID = null;
-    public static String getHWID(Context cx) {
-        if (sHWID != null)
+    public static String getHWID(Context cx)
+    {
+        if (sHWID != null) {
             return sHWID;
+        }
 
         // If we're on SDK version >= 8, use Build.SERIAL
         if (android.os.Build.VERSION.SDK_INT >= 8) {
             sHWID = android.os.Build.SERIAL;
         }
 
-        if (sHWID != null)
+        if (sHWID != null) {
             return sHWID;
+        }
 
         // Otherwise, try from the telephony manager
         TelephonyManager mTelephonyMgr = (TelephonyManager) cx.getSystemService(TELEPHONY_SERVICE);
@@ -760,8 +730,9 @@ public class SUTAgentAndroid extends Activity
             sHWID = mTelephonyMgr.getDeviceId();
         }
 
-        if (sHWID != null)
+        if (sHWID != null) {
             return sHWID;
+        }
 
         // Otherwise, try WIFI_SERVICE and use the wifi manager
         WifiManager wifiMan = (WifiManager) cx.getSystemService(Context.WIFI_SERVICE);
@@ -772,8 +743,9 @@ public class SUTAgentAndroid extends Activity
             }
         }
 
-        if (sHWID != null)
+        if (sHWID != null) {
             return sHWID;
+        }
 
         sHWID = "0011223344556677";
 
@@ -781,87 +753,72 @@ public class SUTAgentAndroid extends Activity
     }
 
     public static InetAddress getLocalInetAddress() throws SocketException
-        {
-        for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();)
-            {
+    {
+        for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
             NetworkInterface intf = en.nextElement();
-            for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();)
-                {
+            for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
                 InetAddress inetAddress = enumIpAddr.nextElement();
-                if (!inetAddress.isLoopbackAddress() && InetAddressUtils.isIPv4Address(inetAddress.getHostAddress()))
-                    {
-                        return inetAddress;
-                    }
+                if (!inetAddress.isLoopbackAddress() && InetAddressUtils.isIPv4Address(inetAddress.getHostAddress())) {
+                    return inetAddress;
                 }
             }
+        }
 
         return null;
-        }
+    }
 
     public String getLocalIpAddress()
-        {
+    {
         try {
             InetAddress inetAddress = getLocalInetAddress();
-            if (inetAddress != null)
+            if (inetAddress != null) {
                 return inetAddress.getHostAddress().toString();
             }
-        catch (SocketException ex)
-            {
+        } catch (SocketException ex) {
             Toast.makeText(getApplication().getApplicationContext(), ex.toString(), Toast.LENGTH_LONG).show();
-            }
-        return null;
         }
+        return null;
+    }
 
     public static void log(DoCommand dc, String message)
-        {
+    {
         Log.i("SUTAgentAndroid", message);
 
-        if (SUTAgentAndroid.LogCommands == false)
-            {
+        if (SUTAgentAndroid.LogCommands == false) {
             return;
-            }
+        }
 
-        if (message == null)
-            {
+        if (message == null) {
             Log.e("SUTAgentAndroid", "bad arguments in log()!");
             return;
-            }
+        }
         String fileDateStr = "00";
         String testRoot = dc.GetTestRoot();
         String datestamp = dc.GetSystemTime();
-        if (testRoot == null || datestamp == null)
-            {
+        if (testRoot == null || datestamp == null) {
             Log.e("SUTAgentAndroid", "Unable to get testRoot or datestamp in log!");
             return;
-            }
+        }
 
 
-        try 
-            {
+        try {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss:SSS");
             Date dateStr = sdf.parse(datestamp);
             SimpleDateFormat sdf_file = new SimpleDateFormat("yyyy-MM-dd");
             fileDateStr = sdf_file.format(dateStr);
-            } 
-        catch (ParseException pe) {}
+        } catch (ParseException pe) {}
         String logFile = testRoot + "/" + fileDateStr + "-sutcommands.txt";
         PrintWriter pw = null;
-        try 
-            {
+        try {
             pw = new PrintWriter(new FileWriter(logFile, true));
             pw.println(datestamp + " : " + message);
-            } 
-            catch (IOException ioe) 
-            {
-                Log.e("SUTAgentAndroid", "exception with file writer on: " + logFile);
-            } 
-            finally 
-            {
-                if (pw != null)
-                {
-                    pw.close();
-                }
+        } catch (IOException ioe) {
+            Log.e("SUTAgentAndroid", "exception with file writer on: " + logFile);
+        } finally {
+            if (pw != null) {
+                pw.close();
             }
-
         }
+
+    }
 }

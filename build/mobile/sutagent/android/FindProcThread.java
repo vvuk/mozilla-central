@@ -10,20 +10,23 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.ContextWrapper;
 
-public class FindProcThread extends Thread {
+public class FindProcThread extends Thread
+{
     ContextWrapper    contextWrapper = null;
     String sProcNameToFind = "";
     boolean bFoundIt = false;
     boolean bStillRunning = true;
 
-    public FindProcThread(ContextWrapper ctx, String sProcessName) {
+    public FindProcThread(ContextWrapper ctx, String sProcessName)
+    {
         super("FindProcThread");
         this.contextWrapper = ctx;
         this.sProcNameToFind = sProcessName;
         this.bFoundIt = false;
     }
 
-    public void run() {
+    public void run()
+    {
         ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses;
         int lcv = 0;
@@ -31,8 +34,9 @@ public class FindProcThread extends Thread {
         String strProcName = "";
         int    nPID = 0;
 
-        if (aMgr == null)
+        if (aMgr == null) {
             return;
+        }
 
 
         // While we are still looping looking for the process in the list and we haven't found it
@@ -47,8 +51,9 @@ public class FindProcThread extends Thread {
                         break;
                     }
                 }
-                if (bFoundIt)             // This saves you half a second of wait time if we've found it in the list
+                if (bFoundIt) {           // This saves you half a second of wait time if we've found it in the list
                     continue;
+                }
             }
             try {
                 Thread.sleep(500);         // Sleep half a second

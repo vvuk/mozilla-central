@@ -8,7 +8,8 @@ import java.io.IOException;
 
 import android.database.MatrixCursor;
 
-public class DirCursor extends MatrixCursor {
+public class DirCursor extends MatrixCursor
+{
     public static final String _ID = "_id";
     public static final String ISDIR = "isdir";
     public static final String FILENAME = "filename";
@@ -16,51 +17,57 @@ public class DirCursor extends MatrixCursor {
     public static final String TIMESTAMP = "ts";
     public static final String WRITABLE = "writable";
     static final String[] DEFCOLUMNS = new String[] {
-            _ID,
-            ISDIR,
-            FILENAME,
-            LENGTH,
-            TIMESTAMP,
-            WRITABLE
-         };
+        _ID,
+        ISDIR,
+        FILENAME,
+        LENGTH,
+        TIMESTAMP,
+        WRITABLE
+    };
     private String dirPath = null;
     private String [] theColumns = null;
 
-    public DirCursor(String[] columnNames, String sPath) {
+    public DirCursor(String[] columnNames, String sPath)
+    {
         super((columnNames == null ? DEFCOLUMNS : columnNames));
         theColumns = (columnNames == null ? DEFCOLUMNS : columnNames);
         dirPath = sPath;
         doLoadCursor(dirPath);
     }
 
-    public DirCursor(String[] columnNames, int initialCapacity, String sPath) {
+    public DirCursor(String[] columnNames, int initialCapacity, String sPath)
+    {
         super((columnNames == null ? DEFCOLUMNS : columnNames), initialCapacity);
         theColumns = (columnNames == null ? DEFCOLUMNS : columnNames);
         dirPath = sPath;
         doLoadCursor(dirPath);
     }
-    
-    private void doLoadCursor(String sDir) {
+
+    private void doLoadCursor(String sDir)
+    {
         File dir = new File(sDir);
         int    nFiles = 0;
         int nCols = theColumns.length;
         int    lcvFiles = 0;
         int    nCIndex = 0;
         Object [] vals = new Object[nCols];
-        
-        if (vals == null)
+
+        if (vals == null) {
             return;
-        
+        }
+
         if (dir.isDirectory()) {
             try {
                 nCIndex = getColumnIndex(_ID);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = -1;
+                }
 
                 nCIndex = getColumnIndex(ISDIR);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = 1;
-                
+                }
+
                 nCIndex = getColumnIndex(FILENAME);
                 if (nCIndex > -1)
                     try {
@@ -70,42 +77,48 @@ public class DirCursor extends MatrixCursor {
                     }
 
                 nCIndex = getColumnIndex(LENGTH);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = 0;
-                
-                nCIndex = getColumnIndex(TIMESTAMP);
-                if (nCIndex > -1)
-                    vals[nCIndex] = 0;
-                
-                nCIndex = getColumnIndex(WRITABLE);
-                if (nCIndex > -1)
-                    vals[nCIndex] = (dir.canWrite() ? 1 : 0);
-                
-                addRow(vals);
                 }
-            catch (IllegalArgumentException iae) {
+
+                nCIndex = getColumnIndex(TIMESTAMP);
+                if (nCIndex > -1) {
+                    vals[nCIndex] = 0;
+                }
+
+                nCIndex = getColumnIndex(WRITABLE);
+                if (nCIndex > -1) {
+                    vals[nCIndex] = (dir.canWrite() ? 1 : 0);
+                }
+
+                addRow(vals);
+            } catch (IllegalArgumentException iae) {
                 iae.printStackTrace();
             }
-            
+
             File [] files = dir.listFiles();
             if (files != null) {
                 if ((nFiles = files.length) > 0) {
                     for (lcvFiles = 0; lcvFiles < nFiles; lcvFiles++) {
                         nCIndex = getColumnIndex(_ID);
-                        if (nCIndex > -1)
+                        if (nCIndex > -1) {
                             vals[nCIndex] = lcvFiles;
+                        }
 
                         nCIndex = getColumnIndex(ISDIR);
-                        if (nCIndex > -1)
+                        if (nCIndex > -1) {
                             vals[nCIndex] = (files[lcvFiles].isDirectory() ? 1 : 0);
-                        
+                        }
+
                         nCIndex = getColumnIndex(FILENAME);
-                        if (nCIndex > -1)
-                                vals[nCIndex] = files[lcvFiles].getName();
+                        if (nCIndex > -1) {
+                            vals[nCIndex] = files[lcvFiles].getName();
+                        }
 
                         nCIndex = getColumnIndex(LENGTH);
-                        if (nCIndex > -1)
+                        if (nCIndex > -1) {
                             vals[nCIndex] = (files[lcvFiles].isDirectory() ? -1 : files[lcvFiles].length());
+                        }
 
                         try {
                             addRow(vals);
@@ -118,58 +131,64 @@ public class DirCursor extends MatrixCursor {
         } else {
             if (dir.isFile()) {
                 nCIndex = getColumnIndex(_ID);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = -1;
+                }
 
                 nCIndex = getColumnIndex(ISDIR);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = 0;
-                
+                }
+
                 nCIndex = getColumnIndex(FILENAME);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = dir.getName();
+                }
 
                 nCIndex = getColumnIndex(LENGTH);
-                if (nCIndex > -1)
+                if (nCIndex > -1) {
                     vals[nCIndex] = dir.length();
+                }
 
                 nCIndex = getColumnIndex(TIMESTAMP);
                 if (nCIndex > -1) {
                     vals[nCIndex] = dir.lastModified();
                 }
-                
+
                 try {
                     addRow(vals);
-                    }
-                catch (IllegalArgumentException iae) {
+                } catch (IllegalArgumentException iae) {
                     iae.printStackTrace();
                 }
-            }
-            else {
+            } else {
                 try {
                     nCIndex = getColumnIndex(_ID);
-                    if (nCIndex > -1)
+                    if (nCIndex > -1) {
                         vals[nCIndex] = -1;
+                    }
 
                     nCIndex = getColumnIndex(ISDIR);
-                    if (nCIndex > -1)
+                    if (nCIndex > -1) {
                         vals[nCIndex] = 0;
-                    
+                    }
+
                     nCIndex = getColumnIndex(FILENAME);
-                    if (nCIndex > -1)
+                    if (nCIndex > -1) {
                         vals[nCIndex] = null;
+                    }
 
                     nCIndex = getColumnIndex(LENGTH);
-                    if (nCIndex > -1)
+                    if (nCIndex > -1) {
                         vals[nCIndex] = 0;
-                    
-                    nCIndex = getColumnIndex(TIMESTAMP);
-                    if (nCIndex > -1)
-                        vals[nCIndex] = 0;
-                    
-                    addRow(vals);
                     }
-                catch (IllegalArgumentException iae) {
+
+                    nCIndex = getColumnIndex(TIMESTAMP);
+                    if (nCIndex > -1) {
+                        vals[nCIndex] = 0;
+                    }
+
+                    addRow(vals);
+                } catch (IllegalArgumentException iae) {
                     iae.printStackTrace();
                 }
             }

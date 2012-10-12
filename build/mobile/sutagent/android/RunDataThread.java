@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Timer;
 
 public class RunDataThread extends Thread
-    {
+{
     Timer heartBeatTimer;
 
     private ServerSocket SvrSocket = null;
@@ -23,70 +23,62 @@ public class RunDataThread extends Thread
     android.app.Service    svc = null;
 
     public RunDataThread(ServerSocket socket, android.app.Service service)
-        {
+    {
         super("RunDataThread");
         this.SvrSocket = socket;
         this.svc = service;
-        }
+    }
 
     public void StopListening()
-        {
+    {
         bListening = false;
-        }
+    }
 
     public void SendToDataChannel(String strToSend)
-        {
+    {
         int nNumWorkers = theWorkers.size();
-        for (int lcv = 0; lcv < nNumWorkers; lcv++)
-            {
-            if (theWorkers.get(lcv).isAlive())
-                {
+        for (int lcv = 0; lcv < nNumWorkers; lcv++) {
+            if (theWorkers.get(lcv).isAlive()) {
                 theWorkers.get(lcv).SendString(strToSend);
-                }
             }
-        return;
         }
+        return;
+    }
 
-    public void run() {
+    public void run()
+    {
         try {
             SvrSocket.setSoTimeout(5000);
-            while (bListening)
-                {
-                try
-                    {
+            while (bListening) {
+                try {
                     socket = SvrSocket.accept();
                     DataWorkerThread theWorker = new DataWorkerThread(this, socket);
                     theWorker.start();
                     theWorkers.add(theWorker);
-                    }
-                catch (SocketTimeoutException toe)
-                    {
+                } catch (SocketTimeoutException toe) {
                     continue;
-                    }
                 }
+            }
 
             int nNumWorkers = theWorkers.size();
-            for (int lcv = 0; lcv < nNumWorkers; lcv++)
-                {
-                if (theWorkers.get(lcv).isAlive())
-                    {
+            for (int lcv = 0; lcv < nNumWorkers; lcv++) {
+                if (theWorkers.get(lcv).isAlive()) {
                     theWorkers.get(lcv).StopListening();
-                    while(theWorkers.get(lcv).isAlive())
+                    while(theWorkers.get(lcv).isAlive()) {
                         ;
                     }
                 }
+            }
 
             theWorkers.clear();
 
             SvrSocket.close();
 
             svc.stopSelf();
-            }
-        catch (IOException e)
-            {
+        } catch (IOException e) {
 //            Toast.makeText(SUTAgentAndroid.me.getApplicationContext(), e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
-            }
-        return;
         }
+        return;
     }
+}

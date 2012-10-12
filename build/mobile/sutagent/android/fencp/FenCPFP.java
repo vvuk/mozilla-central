@@ -14,7 +14,8 @@ import android.content.UriMatcher;
 import android.database.Cursor;
 import android.net.Uri;
 
-public class FenCPFP extends ContentProvider {
+public class FenCPFP extends ContentProvider
+{
     public static final String PROVIDER_NAME = "org.mozilla.fencp";
     public static final Uri CONTENT_URI = Uri.parse("content://" + PROVIDER_NAME + "/file");
 
@@ -28,24 +29,26 @@ public class FenCPFP extends ContentProvider {
         ISDIR,
         FILENAME,
         LENGTH
-     };
+    };
 
     static String[] filecolumns = new String[] {
         _ID,
         CHUNK
-     };
+    };
 
     private static final int DIR = 1;
     private static final int FILE_NAME = 2;
 
     private static final UriMatcher uriMatcher;
-    static {
+    static
+    {
         uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
-           uriMatcher.addURI(PROVIDER_NAME, "dir", DIR);
-           uriMatcher.addURI(PROVIDER_NAME, "file", FILE_NAME);
-        }
+        uriMatcher.addURI(PROVIDER_NAME, "dir", DIR);
+        uriMatcher.addURI(PROVIDER_NAME, "file", FILE_NAME);
+    }
 
-    public int PruneDir(String sTmpDir) {
+    public int PruneDir(String sTmpDir)
+    {
         int    nRet = 0;
         int nFiles = 0;
         String sSubDir = null;
@@ -60,8 +63,7 @@ public class FenCPFP extends ContentProvider {
                         if (files[lcv].isDirectory()) {
                             sSubDir = files[lcv].getAbsolutePath();
                             nRet += PruneDir(sSubDir);
-                        }
-                        else {
+                        } else {
                             if (files[lcv].delete()) {
                                 nRet++;
                             }
@@ -77,116 +79,122 @@ public class FenCPFP extends ContentProvider {
             }
         }
 
-    return(nRet);
+        return(nRet);
     }
 
     @Override
-    public int delete(Uri uri, String selection, String[] selectionArgs) {
+    public int delete(Uri uri, String selection, String[] selectionArgs)
+    {
         int nFiles = 0;
         switch (uriMatcher.match(uri)) {
-            case FILE_NAME:
-                File f = new File(selection);
-                if (f.delete())
-                    nFiles = 1;
-                break;
+        case FILE_NAME:
+            File f = new File(selection);
+            if (f.delete()) {
+                nFiles = 1;
+            }
+            break;
 
-            case DIR:
-                nFiles = PruneDir(selection);
-                break;
+        case DIR:
+            nFiles = PruneDir(selection);
+            break;
 
-            default:
-                break;
+        default:
+            break;
         }
         return nFiles;
     }
 
     @Override
     public String getType(Uri uri)
-        {
-        switch (uriMatcher.match(uri))
-            {
+    {
+        switch (uriMatcher.match(uri)) {
             //---get directory---
-            case DIR:
-                return "vnd.android.cursor.dir/vnd.mozilla.dir ";
+        case DIR:
+            return "vnd.android.cursor.dir/vnd.mozilla.dir ";
             //---get a particular file---
-            case FILE_NAME:
-                return "vnd.android.cursor.item/vnd.mozilla.file ";
+        case FILE_NAME:
+            return "vnd.android.cursor.item/vnd.mozilla.file ";
             //---Unknown---
-            default:
-                throw new IllegalArgumentException("Unsupported URI: " + uri);
-            }
+        default:
+            throw new IllegalArgumentException("Unsupported URI: " + uri);
+        }
     }
 
     @Override
-    public Uri insert(Uri uri, ContentValues values) {
+    public Uri insert(Uri uri, ContentValues values)
+    {
         return null;
     }
 
     @Override
-    public boolean onCreate() {
+    public boolean onCreate()
+    {
         return true;
     }
 
     @Override
-    public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+    public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder)
+    {
         Cursor retCursor = null;
 
         switch(uriMatcher.match(uri)) {
-            case DIR:
-                retCursor = new DirCursor(projection, selection);
-                break;
+        case DIR:
+            retCursor = new DirCursor(projection, selection);
+            break;
 
-            case FILE_NAME:
-                retCursor = new FileCursor(projection, selection, selectionArgs);
-                break;
+        case FILE_NAME:
+            retCursor = new FileCursor(projection, selection, selectionArgs);
+            break;
 
-            default:
-                break;
+        default:
+            break;
         }
         return (retCursor);
     }
 
     @Override
-    public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+    public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs)
+    {
         int    nRet = 0;
         FileOutputStream dstFile = null;
 
         switch(uriMatcher.match(uri)) {
-            case DIR:
-                File dir = new File(selection);
-                if (dir.mkdirs())
-                    nRet = 1;
-                break;
+        case DIR:
+            File dir = new File(selection);
+            if (dir.mkdirs()) {
+                nRet = 1;
+            }
+            break;
 
-            case FILE_NAME:
-                try {
-                    long lOffset = values.getAsLong("offset");
-                    byte [] buf = values.getAsByteArray(CHUNK);
-                    int    nLength = values.getAsInteger(LENGTH);
-                    if ((buf != null) && (nLength > 0)) {
-                        File f = new File(selection);
-                        dstFile = new FileOutputStream(f, (lOffset == 0 ? false : true));
-                        dstFile.write(buf,0, nLength);
-                        dstFile.flush();
-                        dstFile.close();
-                        nRet = nLength;
-                    }
-                } catch (FileNotFoundException fnfe) {
-                    fnfe.printStackTrace();
-                } catch (IOException ioe) {
-                    try {
-                        dstFile.flush();
-                    } catch (IOException e) {
-                    }
-                    try {
-                        dstFile.close();
-                    } catch (IOException e) {
-                    }
+        case FILE_NAME:
+            try {
+                long lOffset = values.getAsLong("offset");
+                byte [] buf = values.getAsByteArray(CHUNK);
+                int    nLength = values.getAsInteger(LENGTH);
+                if ((buf != null) && (nLength > 0)) {
+                    File f = new File(selection);
+                    dstFile = new FileOutputStream(f, (lOffset == 0 ? false : true));
+                    dstFile.write(buf,0, nLength);
+                    dstFile.flush();
+                    dstFile.close();
+                    nRet = nLength;
                 }
-                break;
+            } catch (FileNotFoundException fnfe) {
+                fnfe.printStackTrace();
+            } catch (IOException ioe) {
+                try {
+                    dstFile.flush();
+                } catch (IOException e) {
+                }
+                try {
+                    dstFile.close();
+                } catch (IOException e) {
+                }
+            }
+            break;
 
-            default:
-                break;
+        default:
+            break;
         }
         return nRet;
     }
