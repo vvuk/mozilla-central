@@ -118,6 +118,7 @@ public class DoCommand {
         EXECCWDSU ("execcwdsu"),
         ENVRUN ("envrun"),
         KILL ("kill"),
+        KILLPACKAGE ("killpackage"),
         PS ("ps"),
         DEVINFO ("info"),
         OS ("os"),
@@ -774,6 +775,13 @@ public class DoCommand {
                     strReturn = KillProcess(Argv[1], cmdOut);
                 else
                     strReturn = sErrorPrefix + "Wrong number of arguments for kill command!";
+                break;
+
+            case KILLPACKAGE:
+                if (Argc == 2)
+                    strReturn = KillPackageProcesses(Argv[1], cmdOut);
+                else
+                    strReturn = sErrorPrefix + "Wrong number of arguments for killpackage command!";
                 break;
 
             case DISK:
@@ -2528,6 +2536,39 @@ private void CancelNotification()
         return (sRet);
         }
 
+    public String KillPackageProcesses(String sPackageName, OutputStream out)
+    {
+        String sRet = "did something";
+
+        // Kill all background processes associated with package.  We first need to
+        // bring SUTAgent back to the front.
+        ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
+
+        // first move SUTAgent to the front
+        List<ActivityManager.RunningTaskInfo> runningTasks = aMgr.getRunningTasks(10000);
+        for (ActivityManager.RunningTaskInfo task : runningTasks) {
+            if (task.baseActivity.getPackageName().startsWith("com.mozilla.SUTAgentAndroid")) {
+                // this is us
+                aMgr.moveTaskToFront(task.id, ActivityManager.MOVE_TASK_WITH_HOME, null);
+                try {
+                    // make sure that the moveTaskToFront has happened
+                    Thread.sleep(2000);
+                } catch (InterruptedException iex) {
+                    // nothing
+                }
+
+                break;
+            }
+        }
+
+
+        // then try to kill the other package
+        aMgr.killBackgroundProcesses(sPackageName);
+
+        // XXX we should decide how to determine success!
+        return sRet;
+    }
+
     public boolean IsProcessDead(String sProcName)
         {
         boolean bRet = false;
@@ -3837,7 +3878,8 @@ private void CancelNotification()
             "execcwd [env pairs] [cmdline]   - start program from specified directory\n" +
             "execsu [env pairs] [cmdline]    - start program as privileged user\n" +
             "execcwdsu [env pairs] [cmdline] - start program from specified directory as privileged user\n" +
-            "kill [program name]             - kill program no path\n" +
+            "kill [program name]             - kill program (no path)\n" +
+            "killpackage [package name]      - kill all processes associated with package\n" +
             "killall                         - kill all processes started\n" +
             "ps                              - list of running processes\n" +
             "info                            - list of device info\n" +
