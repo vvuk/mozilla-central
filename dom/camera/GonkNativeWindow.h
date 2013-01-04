@@ -23,11 +23,14 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#if ANDROID_VERSION < 14
 #include <ui/egl/android_natives.h>
+#endif
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
+#include <ui/ANativeObjectBase.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
@@ -47,7 +50,11 @@ public:
     virtual void OnNewFrame() = 0;
 };
 
+#if ANDROID_VERSION >= 14
+class GonkNativeWindow : public ANativeObjectBase<ANativeWindow, GonkNativeWindow, RefBase>
+#else
 class GonkNativeWindow : public EGLNativeBase<ANativeWindow, GonkNativeWindow, RefBase>
+#endif
 {
     typedef mozilla::layers::SurfaceDescriptor SurfaceDescriptor;
     typedef mozilla::layers::GraphicBufferLocked GraphicBufferLocked;
@@ -63,13 +70,19 @@ public:
     ~GonkNativeWindow(); // this class cannot be overloaded
 
     // ANativeWindow hooks
-    static int hook_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
-    static int hook_dequeueBuffer(ANativeWindow* window, ANativeWindowBuffer** buffer);
-    static int hook_lockBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
     static int hook_perform(ANativeWindow* window, int operation, ...);
     static int hook_query(const ANativeWindow* window, int what, int* value);
-    static int hook_queueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
     static int hook_setSwapInterval(ANativeWindow* window, int interval);
+#if ANDROID_VERSION >= 14
+    static int hook_dequeueBuffer(ANativeWindow* window, ANativeWindowBuffer** buffer, int* fenceFD);
+    static int hook_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFD);
+    static int hook_queueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFD);
+#else
+    static int hook_dequeueBuffer(ANativeWindow* window, ANativeWindowBuffer** buffer);
+    static int hook_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
+    static int hook_lockBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
+    static int hook_queueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
+#endif
 
     // Get next frame from the queue and mark it as RENDERING, caller
     // owns the returned buffer.
@@ -85,12 +98,12 @@ public:
     SurfaceDescriptor *getSurfaceDescriptorFromBuffer(ANativeWindowBuffer* buffer);
 
 protected:
-    virtual int cancelBuffer(ANativeWindowBuffer* buffer);
-    virtual int dequeueBuffer(ANativeWindowBuffer** buffer);
+    virtual int cancelBuffer(ANativeWindowBuffer* buffer, int fenceFD);
+    virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFD);
     virtual int lockBuffer(ANativeWindowBuffer* buffer);
     virtual int perform(int operation, va_list args);
     virtual int query(int what, int* value) const;
-    virtual int queueBuffer(ANativeWindowBuffer* buffer);
+    virtual int queueBuffer(ANativeWindowBuffer* buffer, int fenceFD);
     virtual int setSwapInterval(int interval);
 
     virtual int setBufferCount(int bufferCount);

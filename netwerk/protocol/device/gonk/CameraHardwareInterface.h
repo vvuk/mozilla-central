@@ -19,7 +19,7 @@
 
 #include <binder/IMemory.h>
 #include <utils/RefBase.h>
-#include <surfaceflinger/ISurface.h>
+#include <ISurface.h>
 #include "Camera.h"
 #include "CameraParameters.h"
 

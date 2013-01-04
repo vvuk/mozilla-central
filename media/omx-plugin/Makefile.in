@@ -60,11 +60,10 @@ INCLUDES        += \
                 -I$(ANDROID_SOURCE)/frameworks/base/include/ \
                 -I$(ANDROID_SOURCE)/frameworks/base/include/binder/ \
                 -I$(ANDROID_SOURCE)/frameworks/base/include/utils/ \
-                -I$(ANDROID_SOURCE)/frameworks/base/include/media/ \
-                -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright/openmax \
-                -I$(ANDROID_SOURCE)/frameworks/base/media/libstagefright/include \
-                -I$(ANDROID_SOURCE)/frameworks/base/native/include \
-                -I$(ANDROID_SOURCE)/system/core/include \
+                -I$(ANDROID_SOURCE)/frameworks/native/include/media/openmax \
+                -I$(ANDROID_SOURCE)/frameworks/av/include/media/ \
+                -I$(ANDROID_SOURCE)/frameworks/av/include/media/stagefright \
+                -I$(ANDROID_SOURCE)/frameworks/av/media/libstagefright/include \
                 -I$(ANDROID_SOURCE)/hardware/libhardware/include \
                 $(NULL)
 else

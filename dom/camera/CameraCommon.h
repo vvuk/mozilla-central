@@ -23,6 +23,12 @@
 #include "nsIDOMCameraManager.h"
 #include "prlog.h"
 
+#if ANDROID_VERSION >= 14
+#include <mozilla/Assertions.h>
+#define CHECK_EQ(a,b)  MOZ_ASSERT((a) == (b), "failed")
+#define CHECK(a)       MOZ_ASSERT((a), "failed")
+#endif
+
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetCameraLog();
 #define DOM_CAMERA_LOG( type, ... ) PR_LOG(GetCameraLog(), (PRLogModuleLevel)type, ( __VA_ARGS__ ))

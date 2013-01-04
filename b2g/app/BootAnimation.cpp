@@ -563,11 +563,19 @@ AnimationThread(void *)
     return nullptr;
 }
 
+#if ANDROID_VERSION >= 14
+static int
+CancelBufferNoop(ANativeWindow* aWindow, android_native_buffer_t* aBuffer, int fenceFd)
+{
+    return 0;
+}
+#else
 static int
 CancelBufferNoop(ANativeWindow* aWindow, android_native_buffer_t* aBuffer)
 {
     return 0;
 }
+#endif
 
 __attribute__ ((visibility ("default")))
 FramebufferNativeWindow*
@@ -577,6 +585,7 @@ NativeWindow()
         return gNativeWindow.get();
     }
 
+#if ANDROID_VERSION < 14
     // Some gralloc HALs need this in order to open the
     // framebuffer device after we restart with the screen off.
     //
@@ -584,6 +593,9 @@ NativeWindow()
     // FramebufferNativeWindow.  Do not separate these two C++
     // statements.
     set_screen_state(1);
+#else
+#warning I don't know what to do!
+#endif
 
     // For some devices, it takes a while for the framebuffer to become
     // usable. So we wait until the framebuffer has woken up before we

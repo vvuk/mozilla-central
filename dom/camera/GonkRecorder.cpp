@@ -16,9 +16,7 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "GonkRecorder"
 
-#include <utils/Log.h>
 #include <media/AudioParameter.h>
 #include "GonkRecorder.h"
 
@@ -26,7 +24,9 @@
 #include <media/stagefright/AMRWriter.h>
 #include <media/stagefright/MPEG2TSWriter.h>
 #include <media/stagefright/MPEG4Writer.h>
+#ifndef ANDROID_VERSION < 14
 #include <media/stagefright/MediaDebug.h>
+#endif
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <OMX.h>
@@ -45,6 +45,14 @@
 
 #include <cutils/properties.h>
 #include "GonkCameraSource.h"
+
+#define DOM_CAMERA_LOG_LEVEL        3
+#include "CameraCommon.h"
+#define LOGD DOM_CAMERA_LOGA
+#define LOGV DOM_CAMERA_LOGI
+#define LOGI DOM_CAMERA_LOGI
+#define LOGW DOM_CAMERA_LOGW
+#define LOGE DOM_CAMERA_LOGE
 
 namespace android {
 

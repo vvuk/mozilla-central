@@ -355,7 +355,7 @@ pref("content.ime.strict_policy", true);
 // $ adb shell stop
 // $ adb shell setprop log.redirect-stdio true
 // $ adb shell start
-pref("browser.dom.window.dump.enabled", false);
+pref("browser.dom.window.dump.enabled", true);
 
 // Default Content Security Policy to apply to privileged and certified apps
 pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");

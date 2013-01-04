@@ -223,9 +223,38 @@ if test -n "$gonkdir" ; then
         ;;
     esac
 
-    CPPFLAGS="-DANDROID -isystem $gonkdir/bionic/libc/$ARCH_DIR/include -isystem $gonkdir/bionic/libc/include/ -isystem $gonkdir/bionic/libc/kernel/common -isystem $gonkdir/bionic/libc/kernel/$ARCH_DIR -isystem $gonkdir/bionic/libm/include -I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/hardware/libhardware/include -I$gonkdir/hardware/libhardware_legacy/include -I$gonkdir/system -I$gonkdir/system/core/include -isystem $gonkdir/bionic -I$gonkdir/frameworks/base/include -I$gonkdir/external/dbus -I$gonkdir/external/bluetooth/bluez/lib $CPPFLAGS -I$gonkdir/frameworks/base/services/sensorservice -I$gonkdir/frameworks/base/services/camera -I$gonkdir/system/media/wilhelm/include -I$gonkdir/frameworks/base/include/media/stagefright -I$gonkdir/frameworks/base/include/media/stagefright/openmax -I$gonkdir/frameworks/base/media/libstagefright/rtsp -I$gonkdir/frameworks/base/media/libstagefright/include -I$gonkdir/dalvik/libnativehelper/include/nativehelper"
-    CFLAGS="-mandroid -fno-short-enums -fno-exceptions $CFLAGS"
-    CXXFLAGS="-mandroid -fno-short-enums -fno-exceptions -Wno-psabi $CXXFLAGS $STLPORT_CPPFLAGS"
+    ANDROID_VERSION=14
+
+    CPPFLAGS="-DANDROID \
+-isystem $gonkdir/bionic/libc/$ARCH_DIR/include \
+-isystem $gonkdir/bionic/libc/include \
+-isystem $gonkdir/bionic/libc/kernel/common \
+-isystem $gonkdir/bionic/libc/kernel/$ARCH_DIR \
+-isystem $gonkdir/bionic/libm/include \
+-isystem $gonkdir/prebuilts/ndk/current/platforms/android-$ANDROID_VERSION/$ARCH_DIR/usr/include \
+-I$gonkdir/frameworks/native/include \
+-I$gonkdir/frameworks/native/include/media \
+-I$gonkdir/frameworks/native/include/media/hardware \
+-I$gonkdir/frameworks/native/include/media/openmax \
+-I$gonkdir/frameworks/native/opengl/include \
+-I$gonkdir/frameworks/native/include/gui \
+-I$gonkdir/frameworks/av/include \
+-I$gonkdir/frameworks/av/services/camera/ \
+-I$gonkdir/frameworks/av/include/media \
+-I$gonkdir/frameworks/av/include/media/stagefright \
+-I$gonkdir/frameworks/av/media/libstagefright/rtsp \
+-I$gonkdir/frameworks/av/media/libstagefright/include \
+-I$gonkdir/hardware/libhardware/include \
+-I$gonkdir/hardware/libhardware_legacy/include \
+-I$gonkdir/system \
+-I$gonkdir/system/core/include \
+-isystem $gonkdir/bionic \
+-I$gonkdir/frameworks/base/include \
+-I$gonkdir/external/dbus \
+$CPPFLAGS"
+
+    CFLAGS="-mandroid -fno-short-enums -fno-exceptions -DANDROID_4_2 $CFLAGS"
+    CXXFLAGS="-mandroid -fno-short-enums -fno-exceptions -Wno-psabi -DANDROID_4_2 $CXXFLAGS $STLPORT_CPPFLAGS"
     dnl Add -llog by default, since we use it all over the place.
     LIBS="$LIBS -llog $STLPORT_LIBS"
 
@@ -246,6 +275,8 @@ if test -n "$gonkdir" ; then
     fi
 
     AC_DEFINE(ANDROID)
+    AC_DEFINE_UNQUOTED(ANDROID_VERSION, $ANDROID_VERSION)
+    AC_SUBST(ANDROID_VERSION)
     AC_DEFINE(HAVE_SYS_UIO_H)
     AC_DEFINE(HAVE_PTHREADS)
     CROSS_COMPILE=1
@@ -2014,8 +2045,11 @@ ia64*-hpux*)
     if test -n "$gonkdir"; then
         _PLATFORM_DEFAULT_TOOLKIT=cairo-gonk
         MOZ_B2G_RIL=1
-        MOZ_B2G_BT=1
-        MOZ_B2G_FM=1
+	MOZ_B2G_FM=1
+
+	if test "$ANDROID_VERSION" -lt 14  ; then
+   	     MOZ_B2G_BT=1
+	fi
     else
         _PLATFORM_DEFAULT_TOOLKIT=cairo-android
         MOZ_LINKER=1

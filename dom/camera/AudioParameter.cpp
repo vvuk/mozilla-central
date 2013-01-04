@@ -14,21 +14,30 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AudioParameter"
-//#define LOG_NDEBUG 0
-
-#include <utils/Log.h>
-
 #include <media/AudioParameter.h>
+
+#define DOM_CAMERA_LOG_LEVEL        3
+#include "CameraCommon.h"
+#define LOGD DOM_CAMERA_LOGA
+#define LOGV DOM_CAMERA_LOGI
+#define LOGI DOM_CAMERA_LOGI
+#define LOGW DOM_CAMERA_LOGW
+#define LOGE DOM_CAMERA_LOGE
 
 namespace android {
 
-const char *AudioParameter::keyRouting = "routing";
-const char *AudioParameter::keySamplingRate = "sampling_rate";
-const char *AudioParameter::keyFormat = "format";
-const char *AudioParameter::keyChannels = "channels";
-const char *AudioParameter::keyFrameCount = "frame_count";
-const char *AudioParameter::keyInputSource = "input_source";
+#if ANDROID_VERSION >= 14
+#define EXTRA_CONST const
+#else
+#define EXTRA_CONST
+#endif
+
+const char * EXTRA_CONST AudioParameter::keyRouting = "routing";
+const char * EXTRA_CONST AudioParameter::keySamplingRate = "sampling_rate";
+const char * EXTRA_CONST AudioParameter::keyFormat = "format";
+const char * EXTRA_CONST AudioParameter::keyChannels = "channels";
+const char * EXTRA_CONST AudioParameter::keyFrameCount = "frame_count";
+const char * EXTRA_CONST AudioParameter::keyInputSource = "input_source";
 
 AudioParameter::AudioParameter(const String8& keyValuePairs)
 {

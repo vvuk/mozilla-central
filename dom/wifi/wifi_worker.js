@@ -13,7 +13,7 @@ var hwaddr = ctypes.uint8_t.array(6)();
 var len = ctypes.size_t();
 var ints = ctypes.int.array(8)();
 
-let DEBUG = false;
+let DEBUG = true;
 
 let debug;
 if (DEBUG) {
@@ -42,7 +42,7 @@ self.onmessage = function(e) {
   switch (cmd) {
   case "command":
     len.value = 4096;
-    var ret = libhardware_legacy.command(data.request, cbuf, len.address());
+    var ret = libhardware_legacy.command("wlan0", data.request, cbuf, len.address());
     var reply = "";
     if (!ret) {
       // The return value from libhardware_legacy.command is not guaranteed to
@@ -67,7 +67,7 @@ self.onmessage = function(e) {
     postMessage({ id: id, status: ret, reply: reply });
     break;
   case "wait_for_event":
-    var ret = libhardware_legacy.wait_for_event(cbuf, 4096);
+    var ret = libhardware_legacy.wait_for_event("wlan0", cbuf, 4096);
     var event = cbuf.readString().substr(0, ret.value);
     postMessage({ id: id, event: event });
     break;
@@ -119,7 +119,18 @@ self.onmessage = function(e) {
     postMessage({ id: id, status: ret });
     break;
   case "close_supplicant_connection":
-    libhardware_legacy.close_supplicant_connection();
+    var ret = libhardware_legacy.close_supplicant_connection("wlan0");
+    debug("WIFI: close_supplicant_connection: " + ret + "\n");
+    postMessage({ id: id, status: ret });
+    break;
+  case "start_supplicant":
+    var ret = libhardware_legacy.start_supplicant(1);
+    debug("WIFI: start_supplicant: " + ret + "\n");
+    postMessage({ id: id, status: ret });
+    break;
+  case "connect_to_supplicant":
+    var ret = libhardware_legacy.connect_to_supplicant("wlan0");
+    debug("WIFI: connect_to_supplicant: " + ret + "\n");
     postMessage({ id: id, status: ret });
     break;
   default:

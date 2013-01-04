@@ -9,9 +9,14 @@ extern "C" {
 #include "sydney_audio.h"
 }
 
+#if ANDROID_VERSION < 14
 #include "gonk/AudioTrack.h"
+#else
+#include "AudioTrack.h"
+#endif
 #include "android/log.h"
 
+#undef ALOG
 #if defined(DEBUG) || defined(FORCE_ALOG)
 #define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gecko - SYDNEY_AUDIO" , ## args)
 #else
@@ -94,7 +99,7 @@ sa_stream_create_pcm(
 
   s->bufferSize = 0;
 
-  s->streamType = AudioSystem::SYSTEM;
+  s->streamType = AUDIO_STREAM_SYSTEM;
 
   *_s = s;
   return SA_SUCCESS;
@@ -111,35 +116,37 @@ sa_stream_set_stream_type(sa_stream_t *s,  const sa_stream_type_t stream_type)
   switch (stream_type)
  {
     case SA_STREAM_TYPE_VOICE_CALL:
-      s->streamType = AudioSystem::VOICE_CALL;
+      s->streamType = AUDIO_STREAM_VOICE_CALL;
       break;
     case SA_STREAM_TYPE_SYSTEM:
-      s->streamType = AudioSystem::SYSTEM;
+      s->streamType = AUDIO_STREAM_SYSTEM;
       break;
     case SA_STREAM_TYPE_RING:
-      s->streamType = AudioSystem::RING;
+      s->streamType = AUDIO_STREAM_RING;
       break;
     case SA_STREAM_TYPE_MUSIC:
-      s->streamType = AudioSystem::MUSIC;
+      s->streamType = AUDIO_STREAM_MUSIC;
       break;
     case SA_STREAM_TYPE_ALARM:
-      s->streamType = AudioSystem::ALARM;
+      s->streamType = AUDIO_STREAM_ALARM;
       break;
     case SA_STREAM_TYPE_NOTIFICATION:
-      s->streamType = AudioSystem::NOTIFICATION;
+      s->streamType = AUDIO_STREAM_NOTIFICATION;
       break;
     case SA_STREAM_TYPE_BLUETOOTH_SCO:
-      s->streamType = AudioSystem::BLUETOOTH_SCO;
+      s->streamType = AUDIO_STREAM_BLUETOOTH_SCO;
       break;
     case SA_STREAM_TYPE_ENFORCED_AUDIBLE:
-      s->streamType = AudioSystem::ENFORCED_AUDIBLE;
+      s->streamType = AUDIO_STREAM_ENFORCED_AUDIBLE;
       break;
     case SA_STREAM_TYPE_DTMF:
-      s->streamType = AudioSystem::DTMF;
+      s->streamType = AUDIO_STREAM_DTMF;
       break;
+#if ANDROID_VERSION < 14
     case SA_STREAM_TYPE_FM:
       s->streamType = AudioSystem::FM;
       break;
+#endif
     default:
       return SA_ERROR_INVALID;
  }
@@ -158,10 +165,10 @@ sa_stream_open(sa_stream_t *s) {
   }
 
   int32_t chanConfig = s->channels == 1 ?
-    AudioSystem::CHANNEL_OUT_MONO : AudioSystem::CHANNEL_OUT_STEREO;
+    AUDIO_CHANNEL_OUT_MONO : AUDIO_CHANNEL_OUT_STEREO;
 
   int frameCount;
-  if (AudioTrack::getMinFrameCount(&frameCount, s->streamType,
+  if (AudioTrack::getMinFrameCount(&frameCount, static_cast<audio_stream_type_t>(s->streamType),
                                    s->rate) != NO_ERROR) {
     return SA_ERROR_INVALID;
   }
@@ -175,7 +182,7 @@ sa_stream_open(sa_stream_t *s) {
   AudioTrack *track =
     new AudioTrack(s->streamType,
                    s->rate,
-                   AudioSystem::PCM_16_BIT,
+                   AUDIO_FORMAT_PCM_16_BIT,
                    chanConfig,
                    frameCount,
                    0,

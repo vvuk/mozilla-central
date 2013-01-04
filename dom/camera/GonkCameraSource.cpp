@@ -28,7 +28,9 @@
 #include "GonkCameraSource.h"
 #include "GonkCameraListener.h"
 #include "GonkCameraHwMgr.h"
+#if ANDROID_VERSION < 14
 #include <media/stagefright/MediaDebug.h>
+#endif
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>

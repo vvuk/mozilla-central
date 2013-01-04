@@ -73,11 +73,13 @@ void GonkNativeWindow::init()
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
     ANativeWindow::dequeueBuffer    = hook_dequeueBuffer;
     ANativeWindow::cancelBuffer     = hook_cancelBuffer;
-    ANativeWindow::lockBuffer       = hook_lockBuffer;
     ANativeWindow::queueBuffer      = hook_queueBuffer;
     ANativeWindow::query            = hook_query;
     ANativeWindow::perform          = hook_perform;
-
+#if ANDROID_VERSION < 14
+    ANativeWindow::lockBuffer       = hook_lockBuffer;
+#endif
+ 
     mDefaultWidth = 0;
     mDefaultHeight = 0;
     mPixelFormat = 0;
@@ -95,18 +97,50 @@ int GonkNativeWindow::hook_setSwapInterval(ANativeWindow* window, int interval)
     return c->setSwapInterval(interval);
 }
 
+#if ANDROID_VERSION >= 14
+int GonkNativeWindow::hook_dequeueBuffer(ANativeWindow* window,
+                                         ANativeWindowBuffer** buffer,
+                                         int* fenceFd)
+{
+    GonkNativeWindow* c = getSelf(window);
+    return c->dequeueBuffer(buffer, fenceFd);
+}
+
+int GonkNativeWindow::hook_cancelBuffer(ANativeWindow* window,
+                                        ANativeWindowBuffer* buffer,
+                                        int fenceFd)
+{
+    GonkNativeWindow* c = getSelf(window);
+    return c->cancelBuffer(buffer, fenceFd);
+}
+
+int GonkNativeWindow::hook_queueBuffer(ANativeWindow* window,
+                                       ANativeWindowBuffer* buffer,
+                                       int fenceFd)
+{
+    GonkNativeWindow* c = getSelf(window);
+    return c->queueBuffer(buffer, fenceFd);
+}
+#else
 int GonkNativeWindow::hook_dequeueBuffer(ANativeWindow* window,
         ANativeWindowBuffer** buffer)
 {
     GonkNativeWindow* c = getSelf(window);
-    return c->dequeueBuffer(buffer);
+    return c->dequeueBuffer(buffer, NULL);
 }
 
 int GonkNativeWindow::hook_cancelBuffer(ANativeWindow* window,
         ANativeWindowBuffer* buffer)
 {
     GonkNativeWindow* c = getSelf(window);
-    return c->cancelBuffer(buffer);
+    return c->cancelBuffer(buffer, -1);
+}
+
+int GonkNativeWindow::hook_queueBuffer(ANativeWindow* window,
+        ANativeWindowBuffer* buffer)
+{
+    GonkNativeWindow* c = getSelf(window);
+    return c->queueBuffer(buffer, -1);
 }
 
 int GonkNativeWindow::hook_lockBuffer(ANativeWindow* window,
@@ -115,13 +149,7 @@ int GonkNativeWindow::hook_lockBuffer(ANativeWindow* window,
     GonkNativeWindow* c = getSelf(window);
     return c->lockBuffer(buffer);
 }
-
-int GonkNativeWindow::hook_queueBuffer(ANativeWindow* window,
-        ANativeWindowBuffer* buffer)
-{
-    GonkNativeWindow* c = getSelf(window);
-    return c->queueBuffer(buffer);
-}
+#endif
 
 int GonkNativeWindow::hook_query(const ANativeWindow* window,
                                 int what, int* value)
@@ -227,7 +255,7 @@ int GonkNativeWindow::setBufferCount(int bufferCount)
     return OK;
 }
 
-int GonkNativeWindow::dequeueBuffer(android_native_buffer_t** buffer)
+int GonkNativeWindow::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd)
 {
     uint32_t defaultWidth;
     uint32_t defaultHeight;
@@ -236,6 +264,9 @@ int GonkNativeWindow::dequeueBuffer(android_native_buffer_t** buffer)
     uint32_t generation;
     bool alloc = false;
     int buf = INVALID_BUFFER_SLOT;
+
+    if (fenceFd)
+        *fenceFd = -1;
 
     {
         Mutex::Autolock lock(mMutex);
@@ -390,11 +421,17 @@ GonkNativeWindow::getSurfaceDescriptorFromBuffer(ANativeWindowBuffer* buffer)
   return &mSlots[buf].mSurfaceDescriptor;
 }
 
-int GonkNativeWindow::queueBuffer(ANativeWindowBuffer* buffer)
+int GonkNativeWindow::queueBuffer(ANativeWindowBuffer* buffer, int fenceFd)
 {
     {
         Mutex::Autolock lock(mMutex);
         CNW_LOGD("queueBuffer: E");
+
+#if ANDROID_VERSION >= 14 
+        sp<Fence> fence(new Fence(fenceFd));
+        fence->wait(Fence::TIMEOUT_NEVER);
+#endif
+
         int buf = getSlotFromBufferLocked(buffer);
 
         if (buf < 0 || buf >= mBufferCount) {
@@ -496,9 +533,15 @@ int GonkNativeWindow::lockBuffer(ANativeWindowBuffer* buffer)
     return OK;
 }
 
-int GonkNativeWindow::cancelBuffer(ANativeWindowBuffer* buffer)
+int GonkNativeWindow::cancelBuffer(ANativeWindowBuffer* buffer, int fenceFd)
 {
     Mutex::Autolock lock(mMutex);
+
+#if ANDROID_VERSION >= 14 
+    sp<Fence> fence(new Fence(fenceFd));
+    fence->wait(Fence::TIMEOUT_NEVER);
+#endif
+
     int buf = getSlotFromBufferLocked(buffer);
 
     CNW_LOGD("cancelBuffer: slot=%d", buf);

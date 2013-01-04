@@ -201,6 +201,7 @@ this.libnetutils = (function () {
     let dns1buf = ctypes.char.array(4096)();
     let dns2buf = ctypes.char.array(4096)();
     let serverbuf = ctypes.char.array(4096)();
+    let vendorInfo = ctypes.char.array(4096)();
     let lease = ctypes.int();
     let c_dhcp_do_request =
       library.declare("dhcp_do_request", ctypes.default_abi,
@@ -212,7 +213,8 @@ this.libnetutils = (function () {
                       ctypes.char.ptr, // dns1
                       ctypes.char.ptr, // dns2
                       ctypes.char.ptr, // server
-                      ctypes.int.ptr); // lease
+                      ctypes.int.ptr, // lease
+                      ctypes.char.ptr); // vendorInfo
 
 
     iface.dhcp_do_request = function dhcp_do_request(ifname) {
@@ -223,7 +225,7 @@ this.libnetutils = (function () {
                                   dns1buf,
                                   dns2buf,
                                   serverbuf,
-                                  lease.address());
+                                  lease.address(), vendorInfo);
 
       if (ret && DEBUG) {
         let error = iface.dhcp_get_errmsg();
@@ -237,7 +239,8 @@ this.libnetutils = (function () {
         dns1_str: dns1buf.readString(),
         dns2_str: dns2buf.readString(),
         server_str: serverbuf.readString(),
-        lease: lease.value | 0
+        lease: lease.value | 0,
+        server_str: ""
       };
       obj.ipaddr = netHelpers.stringToIP(obj.ipaddr_str);
       obj.mask_str = netHelpers.ipToString(obj.mask);
@@ -246,6 +249,7 @@ this.libnetutils = (function () {
       obj.dns1 = netHelpers.stringToIP(obj.dns1_str);
       obj.dns2 = netHelpers.stringToIP(obj.dns2_str);
       obj.server = netHelpers.stringToIP(obj.server_str);
+      obj.vendorInfo = "";
       return obj;
     };
     // dhcp_do_request_renew() went away in newer libnetutils.
@@ -262,7 +266,7 @@ this.libnetutils = (function () {
       return c_ifc_reset_connections(ifname, reset_mask) | 0;
     }
   } else {
-    let ints = ctypes.int.array(8)();
+    let ints = ctypes.int.array(9)();
     let c_dhcp_do_request =
       library.declare("dhcp_do_request", ctypes.default_abi,
                       ctypes.int,      // return value
@@ -273,7 +277,8 @@ this.libnetutils = (function () {
                       ctypes.int.ptr,  // dns1
                       ctypes.int.ptr,  // dns2
                       ctypes.int.ptr,  // server
-                      ctypes.int.ptr); // lease
+                      ctypes.int.ptr, // lease
+                      ctypes.int.ptr);  // vendorInfo
     let c_dhcp_do_request_renew =
       library.declare("dhcp_do_request_renew", ctypes.default_abi,
                       ctypes.int,      // return value
@@ -295,7 +300,8 @@ this.libnetutils = (function () {
                        ints.addressOfElement(3),
                        ints.addressOfElement(4),
                        ints.addressOfElement(5),
-                       ints.addressOfElement(6));
+                       ints.addressOfElement(6),
+                       ints.addressOfElement(7));
         if (ret && DEBUG) {
           let error = iface.dhcp_get_errmsg();
           dump("dhcp_do_request_* failed - " + error.readString());
@@ -307,7 +313,8 @@ this.libnetutils = (function () {
                 dns1: ints[3] | 0,
                 dns2: ints[4] | 0,
                 server: ints[5] | 0,
-                lease: ints[6] | 0};
+                lease: ints[6] | 0,
+                vendorInfo: ints[7] | 0};
       };
     };
     iface.dhcp_do_request = wrapCFunc(c_dhcp_do_request);

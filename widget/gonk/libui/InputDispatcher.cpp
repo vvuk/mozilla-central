@@ -53,7 +53,7 @@
 
 #include "InputDispatcher.h"
 
-#include <ui/PowerManager.h>
+#include <androidfw/PowerManager.h>
 
 #include <stddef.h>
 #include <unistd.h>
@@ -62,6 +62,12 @@
 
 #define INDENT "  "
 #define INDENT2 "    "
+
+#if ANDROID_VERSION >= 14
+#define POWER_MANAGER_OTHER_EVENT  USER_ACTIVITY_EVENT_OTHER
+#define POWER_MANAGER_BUTTON_EVENT USER_ACTIVITY_EVENT_BUTTON
+#define POWER_MANAGER_TOUCH_EVENT  USER_ACTIVITY_EVENT_TOUCH
+#endif
 
 namespace android {
 

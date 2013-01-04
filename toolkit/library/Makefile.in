@@ -457,6 +457,7 @@ OS_LIBS += \
   -lstagefright \
   -lstagefright_omx \
   -lbinder \
+  -lz \
   $(NULL)
 endif
 

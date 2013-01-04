@@ -19,6 +19,11 @@
 #include <hardware/hardware.h>
 #include <EGL/egl.h>
 
+#if ANDROID_VERSION >= 14
+#define LOGW_IF ALOGW_IF
+#define LOGE_IF ALOGE_IF
+#endif
+
 namespace android {
 // ---------------------------------------------------------------------------
 

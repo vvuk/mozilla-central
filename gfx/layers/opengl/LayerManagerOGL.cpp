@@ -1532,7 +1532,7 @@ LayerManagerOGL::CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
     msg.AppendInt(aRect.width);
     msg.Append(", aRect.height ");
     msg.AppendInt(aRect.height);
-    NS_RUNTIMEABORT(msg.get());
+    NS_WARNING(msg.get());
   }
 
   SetupPipeline(aRect.width, aRect.height, DontApplyWorldTransform);

@@ -17,15 +17,27 @@
 
 #include "mozilla/Hal.h"
 #include "AudioManager.h"
-#include "gonk/AudioSystem.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "AudioChannelService.h"
+
+#if ANDROID_VERSION < 14
+#include "gonk/AudioSystem.h"
+#else
+#include "AudioSystem.h"
+#define AUDIO_DEVICE_OUT_FM  AUDIO_DEVICE_OUT_USB_ACCESSORY
+#endif
 
 using namespace mozilla::dom::gonk;
 using namespace android;
 using namespace mozilla::hal;
 using namespace mozilla;
+
+#if ANDROID_VERSION >= 14
+#define DEFAULT_AUDIO_DEVICE_OUT_ARG   , AUDIO_DEVICE_OUT_DEFAULT
+#else
+#define DEFAULT_AUDIO_DEVICE_OUT_ARG   /* nothing */
+#endif
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args)
 
@@ -48,7 +60,9 @@ static int sMaxStreamVolumeTbl[AUDIO_STREAM_CNT] = {
   15,  // enforced audible
   15,  // DTMF
   15,  // TTS
+#if ANDROID_VERSION < 14
   15,  // FM
+#endif
 };
 // A bitwise variable for recording what kind of headset is attached.
 static int sHeadsetState;
@@ -57,6 +71,10 @@ static int kBtSampleRate = 8000;
 static bool
 IsDeviceOn(audio_devices_t device)
 {
+#if ANDROID_VERSION >= 14
+  return AudioSystem::getDeviceConnectionState(device, "") ==
+      AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
+#else
   if (static_cast<
       audio_policy_dev_state_t (*) (audio_devices_t, const char *)
       >(AudioSystem::getDeviceConnectionState))
@@ -64,10 +82,27 @@ IsDeviceOn(audio_devices_t device)
            AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
 
   return false;
+#endif
 }
 
 NS_IMPL_ISUPPORTS2(AudioManager, nsIAudioManager, nsIObserver)
 
+#if ANDROID_VERSION >= 14
+static audio_devices_t
+GetRoutingMode(int aType) {
+  if (aType == nsIAudioManager::FORCE_SPEAKER) {
+    return AUDIO_DEVICE_OUT_SPEAKER;
+  } else if (aType == nsIAudioManager::FORCE_HEADPHONES) {
+    return AUDIO_DEVICE_OUT_WIRED_HEADSET;
+  } else if (aType == nsIAudioManager::FORCE_BT_SCO) {
+    return AUDIO_DEVICE_OUT_BLUETOOTH_SCO;
+  } else if (aType == nsIAudioManager::FORCE_BT_A2DP) {
+    return AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+  } else {
+    return AUDIO_DEVICE_IN_DEFAULT;
+  }
+}
+#else
 static AudioSystem::audio_devices
 GetRoutingMode(int aType) {
   if (aType == nsIAudioManager::FORCE_SPEAKER) {
@@ -82,6 +117,7 @@ GetRoutingMode(int aType) {
     return AudioSystem::DEVICE_IN_DEFAULT;
   }
 }
+#endif
 
 static void
 InternalSetAudioRoutesICS(SwitchState aState)
@@ -102,13 +138,22 @@ InternalSetAudioRoutesICS(SwitchState aState)
 
   // The audio volume is not consistent when we plug and unplug the headset.
   // Set the fm volume again here.
+#if 0
   if (IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
+#if ANDROID_VERSION < 14
     float masterVolume;
     AudioSystem::getMasterVolume(&masterVolume);
     AudioSystem::setFmVolume(masterVolume);
+#else
+    int index;
+    AudioSystem::getStreamVolumeIndex(AUDIO_STREAM_DEFAULT, &index, AUDIO_DEVICE_OUT_DEFAULT);
+    AudioSystem::setStreamVolume(AUDIO_STREAM_FM, index, AUDIO_DEVICE_OUT_DEFAULT);
+#endif
   }
+#endif
 }
 
+#if ANDROID_VERSION < 14
 static void
 InternalSetAudioRoutesGB(SwitchState aState)
 {
@@ -124,10 +169,14 @@ InternalSetAudioRoutesGB(SwitchState aState)
 
   AudioSystem::setParameters(handle, cmd);
 }
+#endif
 
 static void
 InternalSetAudioRoutes(SwitchState aState)
 {
+#if ANDROID_VERSION >= 14
+  InternalSetAudioRoutesICS(aState);
+#else
   if (static_cast<
     status_t (*)(audio_devices_t, audio_policy_dev_state_t, const char*)
     >(AudioSystem::setDeviceConnectionState)) {
@@ -137,6 +186,7 @@ InternalSetAudioRoutes(SwitchState aState)
     >(AudioSystem::getOutput)) {
     InternalSetAudioRoutesGB(aState);
   }
+#endif
 }
 
 nsresult
@@ -262,10 +312,12 @@ AudioManager::SetMasterVolume(float aMasterVolume)
     return NS_ERROR_FAILURE;
   }
 
+#if 0
   if (IsDeviceOn(AUDIO_DEVICE_OUT_FM) &&
       AudioSystem::setFmVolume(aMasterVolume)) {
     return NS_ERROR_FAILURE;
   }
+#endif
 
   return NS_OK;
 }
@@ -302,7 +354,7 @@ AudioManager::SetPhoneState(int32_t aState)
     return NS_OK;
   }
 
-  if (AudioSystem::setPhoneState(aState)) {
+  if (AudioSystem::setPhoneState(static_cast<audio_mode_t>(aState))) {
     return NS_ERROR_FAILURE;
   }
 
@@ -346,6 +398,10 @@ AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
     aForce = nsIAudioManager::FORCE_BT_SCO;
   }
 
+#if ANDROID_VERSION >= 14
+  status = AudioSystem::setForceUse((audio_policy_force_use_t)aUsage,
+                                    (audio_policy_forced_cfg_t)aForce);
+#else
   if (static_cast<
       status_t (*)(AudioSystem::force_use, AudioSystem::forced_config)
       >(AudioSystem::setForceUse)) {
@@ -359,12 +415,16 @@ AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
     status = AudioSystem::setForceUse((audio_policy_force_use_t)aUsage,
                                       (audio_policy_forced_cfg_t)aForce);
   }
+#endif
 
   return status ? NS_ERROR_FAILURE : NS_OK;
 }
 
 NS_IMETHODIMP
 AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
+#if ANDROID_VERSION >= 14
+    *aForce = AudioSystem::getForceUse((audio_policy_force_use_t)aUsage);
+#else
   if (static_cast<
       AudioSystem::forced_config (*)(AudioSystem::force_use)
       >(AudioSystem::getForceUse)) {
@@ -376,6 +436,7 @@ AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
     // Dynamically resolved the ICS signature.
     *aForce = AudioSystem::getForceUse((audio_policy_force_use_t)aUsage);
   }
+#endif
   return NS_OK;
 }
 
@@ -389,6 +450,7 @@ AudioManager::GetFmRadioAudioEnabled(bool *aFmRadioAudioEnabled)
 NS_IMETHODIMP
 AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
 {
+#if ANDROID_VERSION < 14
   if (static_cast<
       status_t (*) (AudioSystem::audio_devices, AudioSystem::device_connection_state, const char *)
       >(AudioSystem::setDeviceConnectionState)) {
@@ -399,28 +461,31 @@ AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
     // sync volume with music after powering on fm radio
     if (aFmRadioAudioEnabled) {
       int32_t volIndex = 0;
-      AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC), &volIndex);
-      AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), volIndex);
+      AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_MUSIC), &volIndex DEFAULT_AUDIO_DEVICE_OUT_ARG);
+      AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), volIndex DEFAULT_AUDIO_DEVICE_OUT_ARG);
     }
     return NS_OK;
-  } else {
-    return NS_ERROR_NOT_IMPLEMENTED;
   }
+#endif
+
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
   status_t status =
-    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex);
+      AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex DEFAULT_AUDIO_DEVICE_OUT_ARG);
 
+#if ANDROID_VERSION < 14
   // sync the fm stream volume with music volume, except set fm volume by audioChannelServices
   if (aStream == AUDIO_STREAM_FM && IsDeviceOn(AUDIO_DEVICE_OUT_FM)) {
     mFMChannelIsMuted = aIndex == 0;
   }
   // sync fm volume with music stream type
   if (aStream == AUDIO_STREAM_MUSIC && IsDeviceOn(AUDIO_DEVICE_OUT_FM) && !mFMChannelIsMuted) {
-    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), aIndex);
+    AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_FM), aIndex DEFAULT_AUDIO_DEVICE_OUT_ARG);
   }
+#endif
 
   return status ? NS_ERROR_FAILURE : NS_OK;
 }
@@ -428,7 +493,7 @@ AudioManager::SetStreamVolumeIndex(int32_t aStream, int32_t aIndex) {
 NS_IMETHODIMP
 AudioManager::GetStreamVolumeIndex(int32_t aStream, int32_t* aIndex) {
   status_t status =
-    AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex);
+    AudioSystem::getStreamVolumeIndex(static_cast<audio_stream_type_t>(aStream), aIndex DEFAULT_AUDIO_DEVICE_OUT_ARG);
   return status ? NS_ERROR_FAILURE : NS_OK;
 }
 
