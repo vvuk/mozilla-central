@@ -256,6 +256,7 @@ AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
     NS_WARNING("Failed to add bluetooth-sco-status-changed oberver!");
   }
 
+#if ANDROID_VERSION < 14
   for (int loop = 0; loop < AUDIO_STREAM_CNT; loop++) {
     AudioSystem::initStreamVolume(static_cast<audio_stream_type_t>(loop), 0,
                                   sMaxStreamVolumeTbl[loop]);
@@ -263,6 +264,9 @@ AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
   // Force publicnotification to output at maximal volume
   AudioSystem::setStreamVolumeIndex(static_cast<audio_stream_type_t>(AUDIO_STREAM_ENFORCED_AUDIBLE),
                                     sMaxStreamVolumeTbl[AUDIO_STREAM_ENFORCED_AUDIBLE]);
+#else
+#warning Unimplemented for ANDROID_VERSION >= 14
+#endif
 }
 
 AudioManager::~AudioManager() {

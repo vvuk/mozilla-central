@@ -14,7 +14,7 @@
 
 #define NS_EXPORT __attribute__ ((visibility("default")))
 
-/* Android doesn't have pthread_atfork(), so we need to use our own. */
+/* Android < 16 doesn't have pthread_atfork(), so we need to use our own. */
 struct AtForkFuncs {
   void (*prepare)(void);
   void (*parent)(void);
@@ -22,7 +22,7 @@ struct AtForkFuncs {
 };
 static std::vector<AtForkFuncs> atfork;
 
-#ifdef MOZ_WIDGET_GONK
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION < 16
 #include "cpuacct.h"
 #define WRAP(x) x
 

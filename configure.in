@@ -223,7 +223,10 @@ if test -n "$gonkdir" ; then
         ;;
     esac
 
-    ANDROID_VERSION=14
+    # the actual version we're building for
+    ANDROID_VERSION=17
+    # the version of the prebuilt stuff, which may be lower than ANDROID_VERSION
+    PREBUILT_ANDROID_VERSION=14
 
     CPPFLAGS="-DANDROID \
 -isystem $gonkdir/bionic/libc/$ARCH_DIR/include \
@@ -231,7 +234,7 @@ if test -n "$gonkdir" ; then
 -isystem $gonkdir/bionic/libc/kernel/common \
 -isystem $gonkdir/bionic/libc/kernel/$ARCH_DIR \
 -isystem $gonkdir/bionic/libm/include \
--isystem $gonkdir/prebuilts/ndk/current/platforms/android-$ANDROID_VERSION/$ARCH_DIR/usr/include \
+-isystem $gonkdir/prebuilts/ndk/current/platforms/android-$PREBUILT_ANDROID_VERSION/$ARCH_DIR/usr/include \
 -I$gonkdir/frameworks/native/include \
 -I$gonkdir/frameworks/native/include/media \
 -I$gonkdir/frameworks/native/include/media/hardware \
@@ -2047,7 +2050,7 @@ ia64*-hpux*)
         MOZ_B2G_RIL=1
 	MOZ_B2G_FM=1
 
-	if test "$ANDROID_VERSION" -lt 14  ; then
+	if test "$ANDROID_VERSION" -lt 17  ; then
    	     MOZ_B2G_BT=1
 	fi
     else

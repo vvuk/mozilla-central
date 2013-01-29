@@ -265,6 +265,7 @@ public:
         printf_stderr("Initializing context %p surface %p on display %p\n", mContext, mSurface, EGL_DISPLAY());
 #endif
 #ifdef MOZ_WIDGET_GONK
+#if ANDROID_VERSION < 17
         if (!aIsOffscreen) {
             mHwc = HwcComposer2D::GetInstance();
             MOZ_ASSERT(!mHwc->Initialized());
@@ -274,6 +275,9 @@ public:
                 mHwc = nullptr;
             }
         }
+#else
+#warning HWComposer disabled on Android 4.2 for B2G; fixme!
+#endif
 #endif
     }
 

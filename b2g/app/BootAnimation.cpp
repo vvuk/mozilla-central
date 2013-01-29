@@ -38,6 +38,11 @@ using namespace android;
 using namespace mozilla;
 using namespace std;
 
+#if ANDROID_VERSION >= 14
+#define dequeueBuffer dequeueBuffer_DEPRECATED
+#define queueBuffer queueBuffer_DEPRECATED
+#endif
+
 static sp<FramebufferNativeWindow> gNativeWindow;
 static pthread_t sAnimationThread;
 static bool sRunAnimation;
@@ -519,11 +524,13 @@ AnimationThread(void *)
                     LOGW("Failed to get an ANativeWindowBuffer");
                     break;
                 }
+#if ANDROID_VERSION < 14
                 if (window->lockBuffer(window, buf)) {
                     LOGW("Failed to lock ANativeWindowBuffer");
                     window->queueBuffer(window, buf);
                     break;
                 }
+#endif
 
                 void *vaddr;
                 if (grmodule->lock(grmodule, buf->handle,
@@ -594,7 +601,7 @@ NativeWindow()
     // statements.
     set_screen_state(1);
 #else
-#warning I don't know what to do!
+#warning Not sure what to do!  Does not seem to be necessary.
 #endif
 
     // For some devices, it takes a while for the framebuffer to become

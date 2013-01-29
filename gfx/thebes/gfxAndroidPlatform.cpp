@@ -97,7 +97,6 @@ gfxAndroidPlatform::gfxAndroidPlatform()
     screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
     mScreenDepth = 24;
     screen->GetColorDepth(&mScreenDepth);
-    LOG(">>>>>>>>>>>>>>>>>SCREEEN DEPTH:%i", mScreenDepth);
 
     mOffscreenFormat = mScreenDepth == 16
                        ? gfxASurface::ImageFormatRGB16_565
