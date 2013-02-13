@@ -48,6 +48,7 @@ DIRS += \
   google-breakpad/src/client/linux/crash_generation \
   google-breakpad/src/client/linux/handler \
   google-breakpad/src/client/linux/minidump_writer \
+  google-breakpad/src/processor \
   google-breakpad/src/tools/linux/dump_syms \
   $(NULL)
 endif

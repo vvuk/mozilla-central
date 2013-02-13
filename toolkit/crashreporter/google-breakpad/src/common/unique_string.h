@@ -34,6 +34,9 @@
 #include <string>
 #include "common/using_std_string.h"
 
+// FIXME-remove, only for is_power_of_2
+#include <inttypes.h>
+
 namespace google_breakpad {
 
 // Abstract type
@@ -337,5 +340,8 @@ class UniqueStringMap
 };
 
 }  // namespace google_breakpad
+
+// FIXME: MOVE THIS SOMEWHERE SANE
+bool is_power_of_2 ( uint64_t x_in );
 
 #endif  // COMMON_UNIQUE_STRING_H_

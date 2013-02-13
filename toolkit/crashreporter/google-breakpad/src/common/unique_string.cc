@@ -108,3 +108,18 @@ bool LessThan_UniqueString(const UniqueString* us1, const UniqueString* us2) {
 }
 
 }  // namespace google_breakpad
+
+// FIXME: MOVE THIS SOMEWHERE SANE
+bool is_power_of_2 ( uint64_t x_in )
+{
+  uint64_t x = x_in;
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >> 16);
+  x = x | (x >> 32);
+  x = x - (x >> 1);
+  // x has now been rounded down to the nearest power of 2 <= x_in.
+  return x == x_in;
+}

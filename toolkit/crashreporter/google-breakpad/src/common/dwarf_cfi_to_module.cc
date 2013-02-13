@@ -38,6 +38,9 @@
 
 #include "common/dwarf_cfi_to_module.h"
 
+// FIXME: only needed for is_power_of_2
+#include "common/unique_string.h"
+
 namespace google_breakpad {
 
 using std::ostringstream;
@@ -250,12 +253,17 @@ void DwarfCFIToModule::Reporter::UndefinedNotSupported(
 void DwarfCFIToModule::Reporter::ExpressionsNotSupported(
     size_t offset,
     const UniqueString* reg) {
+  static uint64_t n_complaints = 0; // This isn't threadsafe
+  n_complaints++;
+  if (!is_power_of_2(n_complaints))
+    return;
   fprintf(stderr, "%s, section '%s': "
           "the call frame entry at offset 0x%zx uses a DWARF expression to"
           " describe how to recover register '%s', "
           " but this translator cannot yet translate DWARF expressions to"
-          " Breakpad postfix expressions\n",
-          file_.c_str(), section_.c_str(), offset, FromUniqueString(reg));
+          " Breakpad postfix expressions (shown %u times)\n",
+          file_.c_str(), section_.c_str(), offset, FromUniqueString(reg),
+          (unsigned int)n_complaints);
 }
 
 } // namespace google_breakpad

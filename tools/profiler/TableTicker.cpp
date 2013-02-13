@@ -82,13 +82,13 @@ using namespace mozilla;
 
 static const int DYNAMIC_MAX_STRING = 512;
 
-mozilla::ThreadLocal<ProfileStack *> tlsStack;
-mozilla::ThreadLocal<TableTicker *> tlsTicker;
+//mozilla::ThreadLocal<PseudoStack *> tlsPseudoStack; // supplied by TableTicker2.cpp
+static mozilla::ThreadLocal<TableTicker *> tlsTicker;
 // We need to track whether we've been initialized otherwise
 // we end up using tlsStack without initializing it.
 // Because tlsStack is totally opaque to us we can't reuse
 // it as the flag itself.
-bool stack_key_initialized;
+// bool stack_key_initialized; // supplied by TableTicker2.cpp
 
 TimeStamp sLastTracerEvent;
 int sFrameNumber = 0;
@@ -155,7 +155,7 @@ typedef void (*IterateTagsCallback)(const ProfileEntry& entry, const char* tagSt
 class ThreadProfile
 {
 public:
-  ThreadProfile(int aEntrySize, ProfileStack *aStack)
+  ThreadProfile(int aEntrySize, PseudoStack *aStack)
     : mWritePos(0)
     , mLastFlushPos(0)
     , mReadPos(0)
@@ -416,7 +416,7 @@ public:
     }
   }
 
-  ProfileStack* GetStack()
+  PseudoStack* GetStack()
   {
     return mStack;
   }
@@ -428,7 +428,7 @@ private:
   int mLastFlushPos; // points to the next entry since the last flush()
   int mReadPos;  // points to the next entry we will read to
   int mEntrySize;
-  ProfileStack *mStack;
+  PseudoStack *mStack;
 };
 
 class SaveProfileTask;
@@ -444,7 +444,7 @@ hasFeature(const char** aFeatures, uint32_t aFeatureCount, const char* aFeature)
 
 class TableTicker: public Sampler {
  public:
-  TableTicker(int aInterval, int aEntrySize, ProfileStack *aStack,
+  TableTicker(int aInterval, int aEntrySize, PseudoStack *aStack,
               const char** aFeatures, uint32_t aFeatureCount)
     : Sampler(aInterval, true)
     , mPrimaryThreadProfile(aEntrySize, aStack)
@@ -586,7 +586,7 @@ public:
       // being thread safe. Bug 750989.
       if (stream.is_open()) {
         JSAutoCompartment autoComp(cx, obj);
-        JSObject* profileObj = mozilla_sampler_get_profile_data(cx);
+        JSObject* profileObj = mozilla_sampler_get_profile_data1(cx);
         jsval val = OBJECT_TO_JSVAL(profileObj);
         JS_Stringify(cx, &val, nullptr, JSVAL_NULL, WriteCallback, &stream);
         stream.close();
@@ -729,7 +729,7 @@ void addDynamicTag(ThreadProfile &aProfile, char aTagName, const char *aStr)
 
 static
 void addProfileEntry(volatile StackEntry &entry, ThreadProfile &aProfile,
-                     ProfileStack *stack, void *lastpc)
+                     PseudoStack *stack, void *lastpc)
 {
   int lineno = -1;
 
@@ -843,7 +843,7 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
   if (NS_SUCCEEDED(rv)) {
     aProfile.addTag(ProfileEntry('s', "(root)"));
 
-    ProfileStack* stack = aProfile.GetStack();
+    PseudoStack* stack = aProfile.GetStack();
     uint32_t pseudoStackPos = 0;
 
     /* We have two stacks, the native C stack we extracted from unwinding,
@@ -882,7 +882,7 @@ void TableTicker::doBacktrace(ThreadProfile &aProfile, TickSample* aSample)
 #endif
 
 static
-void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSample *sample)
+void doSampleStackTrace(PseudoStack *aStack, ThreadProfile &aProfile, TickSample *sample)
 {
   // Sample
   // 's' tag denotes the start of a sample block
@@ -916,7 +916,7 @@ unsigned int sCurrentEventGeneration = 0;
 void TableTicker::Tick(TickSample* sample)
 {
   // Marker(s) come before the sample
-  ProfileStack* stack = mPrimaryThreadProfile.GetStack();
+  PseudoStack* stack = mPrimaryThreadProfile.GetStack();
   for (int i = 0; stack->getMarker(i) != NULL; i++) {
     addDynamicTag(mPrimaryThreadProfile, 'm', stack->getMarker(i));
   }
@@ -973,48 +973,64 @@ void TableTicker::Tick(TickSample* sample)
   }
 }
 
-std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
+// Use the versions in TableTicker2.cpp instead, which are identical to these
+//std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
+//{
+//  int readPos = profile.mReadPos;
+//  while (readPos != profile.mLastFlushPos) {
+//    stream << profile.mEntries[readPos];
+//    readPos = (readPos + 1) % profile.mEntrySize;
+//  }
+//  return stream;
+//}
+//
+//std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
+//{
+//  if (entry.mTagName == 'r' || entry.mTagName == 't') {
+//    stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
+//  } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
+//    // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
+//    // Additionally, stringstream seemed to be ignoring formatter flags.
+//    char tagBuff[1024];
+//    unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
+//    snprintf(tagBuff, 1024, "%c-%#llx\n", entry.mTagName, pc);
+//    stream << tagBuff;
+//  } else if (entry.mTagName == 'd') {
+//    // TODO implement 'd' tag for text profile
+//  } else {
+//    stream << entry.mTagName << "-" << entry.mTagData << "\n";
+//  }
+//  return stream;
+//}
+
+bool sps_version2()
 {
-  int readPos = profile.mReadPos;
-  while (readPos != profile.mLastFlushPos) {
-    stream << profile.mEntries[readPos];
-    readPos = (readPos + 1) % profile.mEntrySize;
+  static int version = 0;
+  if (version == 0) {
+    if (getenv("SPS_NEW")) {
+      version = 2;
+      LOG("---------------------- SPS_NEW set ----------------------");
+    } else {
+      version = 1;
+      LOG("-------------------- SPS_NEW not set --------------------");
+    }
   }
-  return stream;
+  return version == 2;
 }
 
-std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
-{
-  if (entry.mTagName == 'r' || entry.mTagName == 't') {
-    stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
-  } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
-    // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
-    // Additionally, stringstream seemed to be ignoring formatter flags.
-    char tagBuff[1024];
-    unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
-    snprintf(tagBuff, 1024, "%c-%#llx\n", entry.mTagName, pc);
-    stream << tagBuff;
-  } else if (entry.mTagName == 'd') {
-    // TODO implement 'd' tag for text profile
-  } else {
-    stream << entry.mTagName << "-" << entry.mTagData << "\n";
-  }
-  return stream;
-}
-
-void mozilla_sampler_init()
+void mozilla_sampler_init1()
 {
   if (stack_key_initialized)
     return;
 
-  if (!tlsStack.init() || !tlsTicker.init()) {
+  if (!tlsPseudoStack.init() || !tlsTicker.init()) {
     LOG("Failed to init.");
     return;
   }
   stack_key_initialized = true;
 
-  ProfileStack *stack = new ProfileStack();
-  tlsStack.set(stack);
+  PseudoStack *stack = new PseudoStack();
+  tlsPseudoStack.set(stack);
 
   // Allow the profiler to be started using signals
   OS::RegisterStartHandler();
@@ -1032,11 +1048,11 @@ void mozilla_sampler_init()
                          , "stackwalk"
 #endif
                          };
-  mozilla_sampler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
-                        features, sizeof(features)/sizeof(const char*));
+  mozilla_sampler_start1(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
+                         features, sizeof(features)/sizeof(const char*));
 }
 
-void mozilla_sampler_shutdown()
+void mozilla_sampler_shutdown1()
 {
   TableTicker *t = tlsTicker.get();
   if (t) {
@@ -1051,13 +1067,13 @@ void mozilla_sampler_shutdown()
     }
   }
 
-  mozilla_sampler_stop();
+  mozilla_sampler_stop1();
   // We can't delete the Stack because we can be between a
   // sampler call_enter/call_exit point.
   // TODO Need to find a safe time to delete Stack
 }
 
-void mozilla_sampler_save()
+void mozilla_sampler_save1()
 {
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -1070,7 +1086,7 @@ void mozilla_sampler_save()
   t->HandleSaveRequest();
 }
 
-char* mozilla_sampler_get_profile()
+char* mozilla_sampler_get_profile1()
 {
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -1088,7 +1104,7 @@ char* mozilla_sampler_get_profile()
   return rtn;
 }
 
-JSObject *mozilla_sampler_get_profile_data(JSContext *aCx)
+JSObject *mozilla_sampler_get_profile_data1(JSContext *aCx)
 {
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -1099,7 +1115,7 @@ JSObject *mozilla_sampler_get_profile_data(JSContext *aCx)
 }
 
 
-const char** mozilla_sampler_get_features()
+const char** mozilla_sampler_get_features1()
 {
   static const char* features[] = {
 #if defined(MOZ_PROFILING) && (defined(USE_BACKTRACE) || defined(USE_NS_STACKWALK))
@@ -1117,19 +1133,19 @@ const char** mozilla_sampler_get_features()
 }
 
 // Values are only honored on the first start
-void mozilla_sampler_start(int aProfileEntries, int aInterval,
-                           const char** aFeatures, uint32_t aFeatureCount)
+void mozilla_sampler_start1(int aProfileEntries, int aInterval,
+                            const char** aFeatures, uint32_t aFeatureCount)
 {
   if (!stack_key_initialized)
-    mozilla_sampler_init();
+    mozilla_sampler_init1();
 
-  ProfileStack *stack = tlsStack.get();
+  PseudoStack *stack = tlsPseudoStack.get();
   if (!stack) {
     ASSERT(false);
     return;
   }
 
-  mozilla_sampler_stop();
+  mozilla_sampler_stop1();
 
   TableTicker *t = new TableTicker(aInterval ? aInterval : PROFILE_DEFAULT_INTERVAL,
                                    aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
@@ -1144,10 +1160,10 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
     os->NotifyObservers(nullptr, "profiler-started", nullptr);
 }
 
-void mozilla_sampler_stop()
+void mozilla_sampler_stop1()
 {
   if (!stack_key_initialized)
-    mozilla_sampler_init();
+    mozilla_sampler_init1();
 
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -1159,7 +1175,7 @@ void mozilla_sampler_stop()
   t->Stop();
   delete t;
   tlsTicker.set(NULL);
-  ProfileStack *stack = tlsStack.get();
+  PseudoStack *stack = tlsPseudoStack.get();
   ASSERT(stack != NULL);
 
   if (disableJS)
@@ -1170,10 +1186,10 @@ void mozilla_sampler_stop()
     os->NotifyObservers(nullptr, "profiler-stopped", nullptr);
 }
 
-bool mozilla_sampler_is_active()
+bool mozilla_sampler_is_active1()
 {
   if (!stack_key_initialized)
-    mozilla_sampler_init();
+    mozilla_sampler_init1();
 
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -1183,10 +1199,9 @@ bool mozilla_sampler_is_active()
   return t->IsActive();
 }
 
-double sResponsivenessTimes[100];
-double sCurrResponsiveness = 0.f;
-unsigned int sResponsivenessLoc = 0;
-void mozilla_sampler_responsiveness(TimeStamp aTime)
+static double sResponsivenessTimes[100];
+static unsigned int sResponsivenessLoc = 0;
+void mozilla_sampler_responsiveness1(TimeStamp aTime)
 {
   if (!sLastTracerEvent.IsNull()) {
     if (sResponsivenessLoc == 100) {
@@ -1203,17 +1218,17 @@ void mozilla_sampler_responsiveness(TimeStamp aTime)
   sLastTracerEvent = aTime;
 }
 
-const double* mozilla_sampler_get_responsiveness()
+const double* mozilla_sampler_get_responsiveness1()
 {
   return sResponsivenessTimes;
 }
 
-void mozilla_sampler_frame_number(int frameNumber)
+void mozilla_sampler_frame_number1(int frameNumber)
 {
   sFrameNumber = frameNumber;
 }
 
-void print_callback(const ProfileEntry& entry, const char* tagStringData) {
+static void print_callback(const ProfileEntry& entry, const char* tagStringData) {
   switch (entry.mTagName) {
     case 's':
     case 'c':
@@ -1221,12 +1236,12 @@ void print_callback(const ProfileEntry& entry, const char* tagStringData) {
   }
 }
 
-void mozilla_sampler_print_location()
+void mozilla_sampler_print_location1()
 {
   if (!stack_key_initialized)
-    mozilla_sampler_init();
+    mozilla_sampler_init1();
 
-  ProfileStack *stack = tlsStack.get();
+  PseudoStack *stack = tlsPseudoStack.get();
   if (!stack) {
     MOZ_ASSERT(false);
     return;
@@ -1241,15 +1256,15 @@ void mozilla_sampler_print_location()
   threadProfile.IterateTags(print_callback);
 }
 
-void mozilla_sampler_lock()
+void mozilla_sampler_lock1()
 {
-  mozilla_sampler_stop();
+  mozilla_sampler_stop1();
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)
     os->NotifyObservers(nullptr, "profiler-locked", nullptr);
 }
 
-void mozilla_sampler_unlock()
+void mozilla_sampler_unlock1()
 {
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)

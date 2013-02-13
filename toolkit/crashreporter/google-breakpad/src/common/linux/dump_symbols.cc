@@ -38,7 +38,9 @@
 #include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <link.h>
+#if !defined(ANDROID)
+# include <link.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,6 +68,7 @@
 #include "common/stabs_reader.h"
 #include "common/stabs_to_module.h"
 #include "common/using_std_string.h"
+#include "processor/logging.h"
 
 // This namespace contains helper functions.
 namespace {
@@ -418,8 +421,12 @@ string ReadDebugLink(const char* debuglink,
   }
 
   if (!found) {
-    fprintf(stderr, "Failed to open debug ELF file '%s' for '%s': %s\n",
-            debuglink_path.c_str(), obj_file.c_str(), strerror(errno));
+    fprintf(stderr, "Failed to find debug ELF file for '%s' after trying:\n",
+            obj_file.c_str());
+    for (it = debug_dirs.begin(); it < debug_dirs.end(); it++) {
+      const std::string debug_dir = *it;
+      fprintf(stderr, "  %s/%s\n", debug_dir.c_str(), debuglink);
+    }
     return "";
   }
 
@@ -517,6 +524,9 @@ bool LoadSymbols(const string& obj_file,
   typedef typename ElfClass::Phdr Phdr;
   typedef typename ElfClass::Shdr Shdr;
 
+  BPLOG(INFO) << "";
+  BPLOG(INFO) << "LoadSymbols: BEGIN " << obj_file;
+
   Addr loading_addr = GetLoadingAddress<ElfClass>(
       GetOffset<ElfClass, Phdr>(elf_header, elf_header->e_phoff),
       elf_header->e_phnum);
@@ -584,6 +594,8 @@ bool LoadSymbols(const string& obj_file,
                                  dwarf_cfi_section, false, 0, 0, big_endian,
                                  module);
       found_usable_info = found_usable_info || result;
+      if (result)
+        BPLOG(INFO) << "LoadSymbols:   read CFI from .debug_frame";
     }
 
     // Linux C++ exception handling information can also provide
@@ -610,10 +622,12 @@ bool LoadSymbols(const string& obj_file,
                                  eh_frame_section, true,
                                  got_section, text_section, big_endian, module);
       found_usable_info = found_usable_info || result;
+      if (result)
+        BPLOG(INFO) << "LoadSymbols:   read CFI from .eh_frame";
     }
   }
 
-  if (!found_debug_info_section) {
+  if (!found_debug_info_section && !found_usable_info) {
     fprintf(stderr, "%s: file contains no debugging information"
             " (no \".stab\" or \".debug_info\" sections)\n",
             obj_file.c_str());
@@ -673,14 +687,18 @@ bool LoadSymbols(const string& obj_file,
 
       // Return true if some usable information was found, since
       // the caller doesn't want to use .gnu_debuglink.
+      BPLOG(INFO) << "LoadSymbols: END-1 " << obj_file
+                  << (found_usable_info ? " (SUCCESS)" : " (FAILURE)");
       return found_usable_info;
     }
 
     // No debug info was found, let the user try again with .gnu_debuglink
     // if present.
+    BPLOG(INFO) << "LoadSymbols: END-2 " << obj_file << " (FAILURE)";
     return false;
   }
 
+  BPLOG(INFO) << "LoadSymbols: END-3 " << obj_file << " (SUCCESS)";
   return true;
 }
 

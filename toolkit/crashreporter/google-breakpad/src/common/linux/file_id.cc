@@ -32,6 +32,12 @@
 // See file_id.h for documentation
 //
 
+#if defined(ANDROID)
+# include "common/android/include/elf.h"
+#else
+# include <elf.h>
+#endif
+
 #include "common/linux/file_id.h"
 
 #include <arpa/inet.h>

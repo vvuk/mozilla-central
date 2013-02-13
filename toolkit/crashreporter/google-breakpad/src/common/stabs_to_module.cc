@@ -32,7 +32,9 @@
 // dump_stabs.cc --- implement the StabsToModule class.
 
 #include <assert.h>
-#include <cxxabi.h>
+#if !defined(ANDROID)
+# include <cxxabi.h>
+#endif
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -41,18 +43,23 @@
 #include "common/stabs_to_module.h"
 #include "common/using_std_string.h"
 
+using std::sort;
+using std::stable_sort;
+
 namespace google_breakpad {
 
 // Demangle using abi call.
 // Older GCC may not support it.
 static string Demangle(const string &mangled) {
   int status = 0;
+# if !defined(ANDROID)
   char *demangled = abi::__cxa_demangle(mangled.c_str(), NULL, NULL, &status);
   if (status == 0 && demangled != NULL) {
     string str(demangled);
     free(demangled);
     return str;
   }
+# endif
   return string(mangled);
 }
 

@@ -1,0 +1,69 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+MODULE		= breakpad_sps_common
+LIBRARY_NAME	= breakpad_sps_common_s
+HOST_LIBRARY_NAME = host_breakpad_sps_common_s
+
+LOCAL_INCLUDES 	= -I$(srcdir)/../.. -I$(srcdir)/..
+
+CPPSRCS	= \
+  stackwalker.cc \
+  stackwalker_amd64.cc \
+  stackwalker_arm.cc \
+  stackwalker_ppc.cc \
+  stackwalker_x86.cc \
+  stackwalker_sparc.cc \
+  minidump.cc \
+  basic_source_line_resolver.cc \
+  basic_code_modules.cc \
+  cfi_frame_info.cc \
+  call_stack.cc \
+  logging.cc \
+  pathname_stripper.cc \
+  tokenize.cc \
+  source_line_resolver_base.cc \
+  stack_frame_symbolizer.cc \
+  ../common/linux/dump_symbols.cc \
+  ../common/linux/elf_symbols_to_module.cc \
+  ../common/module.cc \
+  ../common/dwarf/bytereader.cc \
+  ../common/dwarf_cfi_to_module.cc \
+  ../common/dwarf/dwarf2reader.cc \
+  ../common/dwarf_cu_to_module.cc \
+  ../common/language.cc \
+  ../common/dwarf/dwarf2diehandler.cc \
+  ../common/stabs_to_module.cc \
+  ../common/stabs_reader.cc \
+  ../common/dwarf_line_to_module.cc \
+  ../common/unique_string.cc \
+  $(NULL)
+
+#ifneq (Android,$(OS_TARGET))
+#CPPSRCS += http_upload.cc
+#endif
+#
+#ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+#DEFINES += -DELFSIZE=32
+#endif
+
+HOST_CPPSRCS = \
+  logging.cc \
+  pathname_stripper.cc \
+  $(NULL)
+
+# need static lib
+FORCE_STATIC_LIB = 1
+
+include $(topsrcdir)/config/rules.mk
+
+# See https://bugzilla.mozilla.org/show_bug.cgi?id=741348#c11
+##file_id.$(OBJ_SUFFIX): STL_FLAGS=

@@ -34,12 +34,26 @@
 #include "common/stabs_reader.h"
 
 #include <assert.h>
-#include <stab.h>
 #include <string.h>
 
 #include <string>
 
 #include "common/using_std_string.h"
+
+// Building this on Android is utterly pointless, but anyway, for
+// the sake of not having to mess with the build system ..
+#if defined(ANDROID)
+# define N_SO    0x64
+# define N_FUN   0x24
+# define N_SLINE 0x44
+# define N_SOL   0x84
+#else
+# include <stab.h>
+#endif
+
+#if !defined(N_UNDF)
+# define N_UNDF 0
+#endif
 
 using std::vector;
 

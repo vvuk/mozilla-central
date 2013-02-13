@@ -37,9 +37,11 @@
 extern "C" {
 #endif  // __cplusplus
 
-#define ElfW(type)      _ElfW (Elf, ELFSIZE, type)
-#define _ElfW(e,w,t)    _ElfW_1 (e, w, _##t)
-#define _ElfW_1(e,w,t)  e##w##t
+#if !defined(ElfW)
+# define ElfW(type)      _ElfW (Elf, ELFSIZE, type)
+# define _ElfW(e,w,t)    _ElfW_1 (e, w, _##t)
+# define _ElfW_1(e,w,t)  e##w##t
+#endif
 
 struct r_debug {
   int              r_version;

@@ -58,6 +58,7 @@
 #define PROCESSOR_LOGGING_H__
 
 #include <iostream>
+#include <sstream>
 #include <string>
 
 #include "common/using_std_string.h"
@@ -94,12 +95,15 @@ class LogStream {
   // Finish logging by printing a newline and flushing the output stream.
   ~LogStream();
 
+  // Accumulate text in the str_.  It will be emitted to stream_ when
+  // the object is destructed.
   template<typename T> std::ostream& operator<<(const T &t) {
-    return stream_ << t;
+    return str_ << t;
   }
 
  private:
   std::ostream &stream_;
+  std::ostringstream str_;
 
   // Disallow copy constructor and assignment operator
   explicit LogStream(const LogStream &that);

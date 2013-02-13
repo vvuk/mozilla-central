@@ -52,10 +52,11 @@ extern "C" {
 #define Elf32_auxv_t  __bionic_Elf32_auxv_t
 #define Elf64_auxv_t  __bionic_Elf64_auxv_t
 
-#define Elf32_Dyn     __bionic_Elf32_Dyn
-#define Elf64_Dyn     __bionic_Elf64_Dyn
+//jrs #define Elf32_Dyn     __bionic_Elf32_Dyn
+//jrs #define Elf64_Dyn     __bionic_Elf64_Dyn
 
-#include_next <elf.h>
+//jrs #include_next <elf.h>
+#include "/usr/include/elf.h"
 
 #undef Elf32_Nhdr
 #undef Elf64_Nhdr
@@ -89,25 +90,24 @@ typedef struct {
     } a_un;
 } Elf64_auxv_t;
 
-#undef Elf32_Dyn
-#undef Elf64_Dyn
-
-typedef struct {
-  Elf32_Sword   d_tag;
-  union {
-    Elf32_Word  d_val;
-    Elf32_Addr  d_ptr;
-  } d_un;
-} Elf32_Dyn;
-
-typedef struct {
-  Elf64_Sxword   d_tag;
-  union {
-    Elf64_Xword  d_val;
-    Elf64_Addr   d_ptr;
-  } d_un;
-} Elf64_Dyn;
-
+//jrs #undef Elf32_Dyn
+//jrs #undef Elf64_Dyn
+//jrs 
+//jrs typedef struct {
+//jrs   Elf32_Sword   d_tag;
+//jrs   union {
+//jrs     Elf32_Word  d_val;
+//jrs     Elf32_Addr  d_ptr;
+//jrs   } d_un;
+//jrs } Elf32_Dyn;
+//jrs 
+//jrs typedef struct {
+//jrs   Elf64_Sxword   d_tag;
+//jrs   union {
+//jrs     Elf64_Xword  d_val;
+//jrs     Elf64_Addr   d_ptr;
+//jrs   } d_un;
+//jrs } Elf64_Dyn;
 
 // __WORDSIZE is GLibc-specific and used by Google Breakpad on Linux.
 // All Android platforms are 32-bit for now.
@@ -150,6 +150,10 @@ typedef struct {
 
 #if !defined(NT_FPREGSET)
 #define NT_FPREGSET 2
+#endif
+
+#if !defined(ElfW)
+# define ElfW(type) Elf32_##type
 #endif
 
 #ifdef __cplusplus

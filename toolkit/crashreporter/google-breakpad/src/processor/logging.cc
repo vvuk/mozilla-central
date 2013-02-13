@@ -41,6 +41,10 @@
 
 #include <string>
 
+#ifdef ANDROID
+# include <android/log.h>
+#endif
+
 #include "common/using_std_string.h"
 #include "processor/logging.h"
 #include "processor/pathname_stripper.h"
@@ -75,12 +79,18 @@ LogStream::LogStream(std::ostream &stream, Severity severity,
       break;
   }
 
-  stream_ << time_string << ": " << PathnameStripper::File(file) << ":" <<
-             line << ": " << severity_string << ": ";
+  str_ << time_string << ": " << PathnameStripper::File(file) << ":" <<
+          line << ": " << severity_string << ": ";
 }
 
 LogStream::~LogStream() {
+#ifdef ANDROID
+  __android_log_print(ANDROID_LOG_ERROR,
+                      "Profiler", "%s", str_.str().c_str());
+#else
+  stream_ << str_.str();
   stream_ << std::endl;
+#endif
 }
 
 string HexString(u_int32_t number) {

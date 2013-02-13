@@ -57,6 +57,7 @@ using std::map;
 using std::pair;
 using std::set;
 using std::vector;
+using std::sort;
 
 // Data provided by a DWARF specification DIE.
 //

@@ -33,9 +33,13 @@
 #ifndef COMMON_LINUX_ELFUTILS_H__
 #define COMMON_LINUX_ELFUTILS_H__
 
-#include <elf.h>
-#include <link.h>
 #include <stdint.h>
+#if defined(ANDROID)
+# include "common/android/include/elf.h"
+#else
+# include <elf.h>
+# include <link.h>
+#endif
 
 namespace google_breakpad {
 

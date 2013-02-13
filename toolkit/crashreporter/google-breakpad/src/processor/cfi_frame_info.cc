@@ -128,7 +128,7 @@ string CFIFrameInfo::Serialize() const {
        name != rr_names.end();
        ++name) {
     const UniqueString* nm = *name;
-    Module::Expr rule = register_rules_.at(nm);
+    Module::Expr rule = register_rules_.find(nm)->second;
     if (static_cast<std::streamoff>(stream.tellp()) != 0)
       stream << " ";
     stream << FromUniqueString(nm) << ": " << rule;
