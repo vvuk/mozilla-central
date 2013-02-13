@@ -143,7 +143,7 @@ LayerManagerOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
 }
 
 static const double kFpsWindowMs = 250.0;
-static const size_t kNumFrameTimeStamps = 16;
+static const size_t kNumFrameTimeStamps = 128;
 struct FPSCounter {
   FPSCounter() : mCurrentFrameIndex(0) {}
 
@@ -166,6 +166,43 @@ struct FPSCounter {
 
   double GetFpsAt(TimeStamp aNow) {
     return EstimateFps(aNow);
+  }
+
+  void FillFrameGraph(GLfloat *vertices,
+                      uint32_t numVerts,
+                      GLfloat xoffset,
+                      GLfloat xstep,
+                      GLfloat yoffset,
+                      GLfloat ysize,
+                      float msRange)
+  {
+    size_t curFrameIndex = mCurrentFrameIndex == 0 ? kNumFrameTimeStamps - 1 : mCurrentFrameIndex - 1;
+    size_t pointsToShow = std::min(kNumFrameTimeStamps - 1, numVerts);
+    TimeStamp curFrameTime = mFrames[curFrameIndex];
+
+    // we're going to fill in the vertices array backwards;
+    // so initialize this to the last Y coordinate
+    GLfloat *lastValue = &vertices[numVerts*2 - 1];
+
+    for (size_t i = 0; i < pointsToShow; ++i) {
+      size_t prevFrameIndex = curFrameIndex == 0 ? kNumFrameTimeStamps - 1 : curFrameIndex - 1;
+      TimeStamp prevFrameTime = mFrames[prevFrameIndex];
+      double frameTime = 0.0f;
+      if (!curFrameTime.IsNull() && !prevFrameTime.IsNull()) {
+        frameTime = (curFrameTime - prevFrameTime).ToMilliseconds();
+      }
+
+      *lastValue-- = yoffset + ysize * (float) std::min(frameTime / msRange, 1.0);
+      *lastValue-- = xoffset + i * xstep;
+
+      curFrameIndex = prevFrameIndex;
+      curFrameTime = prevFrameTime;
+    }
+
+    for (size_t i = pointsToShow; i < numVerts; ++i) {
+      *lastValue-- = yoffset + ysize;
+      *lastValue-- = xoffset + i * xstep;
+    }
   }
 
 private:
@@ -376,6 +413,32 @@ FPSState::DrawFPS(TimeStamp aNow,
                                 0, texCoords2);
 
   context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
+
+  context->fDisableVertexAttribArray(tcattr);
+  context->fVertexAttrib2f(tcattr, 0.0f, 0.0f);
+
+  size_t deltaCount = kNumFrameTimeStamps - 1;
+  GLfloat graphVerts[deltaCount * 2];
+
+  mCompositionFps.FillFrameGraph(graphVerts, deltaCount,
+                                 -1.0f + deltaCount * 2.0f / viewport[2], - 2.0f / viewport[2],
+                                 1.0f - 46.f / viewport[3], - 24.f / viewport[3],
+                                 50.f);
+  context->fVertexAttribPointer(vcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, graphVerts);
+  context->fDrawArrays(LOCAL_GL_LINE_STRIP, 0, deltaCount);
+
+  mTransactionFps.FillFrameGraph(graphVerts, deltaCount,
+                                 -1.0f + deltaCount * 2.0f / viewport[2], - 2.0f / viewport[2],
+                                 1.0f - 70.f / viewport[3], - 24.f / viewport[3],
+                                 50.f);
+  context->fVertexAttribPointer(vcattr,
+                                2, LOCAL_GL_FLOAT,
+                                LOCAL_GL_FALSE,
+                                0, graphVerts);
+  context->fDrawArrays(LOCAL_GL_LINE_STRIP, 0, deltaCount);
 }
 
 /**
