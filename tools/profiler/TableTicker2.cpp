@@ -211,9 +211,9 @@ WriteCallback(const jschar *buf, uint32_t len, void *data)
  * This is an event used to save the profile on the main thread
  * to be sure that it is not being modified while saving.
  */
-class SaveProfileTask : public nsRunnable {
+class SaveProfileTask2 : public nsRunnable {
 public:
-  SaveProfileTask() {}
+  SaveProfileTask2() {}
 
   NS_IMETHOD Run() {
     TableTicker2 *t = tlsTicker.get();
@@ -226,7 +226,7 @@ public:
     t->SetPaused(true);
 
     // Get file path
-#   if defined(SPS_PLAT_arm_android)
+#   if defined(MOZ_WIDGET_ANDROID)
     nsCString tmpPath;
     tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
 #   else
@@ -309,7 +309,7 @@ void TableTicker2::HandleSaveRequest()
 
   // TODO: Use use the ipc/chromium Tasks here to support processes
   // without XPCOM.
-  nsCOMPtr<nsIRunnable> runnable = new SaveProfileTask();
+  nsCOMPtr<nsIRunnable> runnable = new SaveProfileTask2();
   NS_DispatchToMainThread(runnable);
 }
 
@@ -396,7 +396,7 @@ JSObject* TableTicker2::ToJSObject(JSContext *aCx)
   return b.GetJSObject(profile);
 }
 
-// END SaveProfileTask et al
+// END SaveProfileTask2 et al
 ////////////////////////////////////////////////////////////////////////
 
 

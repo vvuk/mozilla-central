@@ -417,26 +417,26 @@ static void do_SFENCE ( void )
 static void spinLock_acquire ( SpinLock* sl )
 {
    UWord* val = &sl->val;
-   VALGRIND_HG_MUTEX_LOCK_PRE(sl, 0/*!isTryLock*/);
+   //VALGRIND_HG_MUTEX_LOCK_PRE(sl, 0/*!isTryLock*/);
    while (1) {
       int ok = do_CASW( val, 0, 1 );
       if (ok) break;
       do_PAUSE();
    }
    do_LFENCE();
-   VALGRIND_HG_MUTEX_LOCK_POST(sl);
+   //VALGRIND_HG_MUTEX_LOCK_POST(sl);
 }
 
 static void spinLock_release ( SpinLock* sl )
 {
    UWord* val = &sl->val;
-   VALGRIND_HG_MUTEX_UNLOCK_PRE(sl);
+   //VALGRIND_HG_MUTEX_UNLOCK_PRE(sl);
    do_SFENCE();
    int ok = do_CASW( val, 1, 0 );
    /* This must succeed at the first try.  To fail would imply that
       the lock was unheld. */
    assert(ok);
-   VALGRIND_HG_MUTEX_UNLOCK_POST(sl);
+   //VALGRIND_HG_MUTEX_UNLOCK_POST(sl);
 }
 
 static void sleep_ms ( unsigned int ms )
@@ -663,7 +663,7 @@ static void release_full_buffer(ThreadProfile* aProfile,
       if (0) LOGF("BPUnw nToCopy %lu", nToCopy);
       if (nToCopy > 0) {
         memcpy(&buff->stackImg[0], (void*)start, nToCopy);
-        (void)VALGRIND_MAKE_MEM_DEFINED(&buff->stackImg[0], nToCopy);
+        //(void)VALGRIND_MAKE_MEM_DEFINED(&buff->stackImg[0], nToCopy);
       }
     }
   } /* if (buff->haveNativeInfo) */
@@ -1177,7 +1177,7 @@ static void* unwind_thr_fn ( void* exit_nowV )
       buff->entsPages[i] = ProfEntsPage_INVALID;
     }
 
-    (void)VALGRIND_MAKE_MEM_UNDEFINED(&buff->stackImg[0], N_STACK_BYTES);
+    //(void)VALGRIND_MAKE_MEM_UNDEFINED(&buff->stackImg[0], N_STACK_BYTES);
     spinLock_acquire(&g_spinLock);
     assert(buff->state == S_EMPTYING);
     buff->state = S_EMPTY;

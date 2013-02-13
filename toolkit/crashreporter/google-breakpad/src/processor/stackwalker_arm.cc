@@ -219,15 +219,19 @@ StackFrameARM* StackwalkerARM::GetCallerByFramePointer(
 
   u_int32_t caller_fp = 0;
   if (last_fp && !memory_->GetMemoryAtAddress(last_fp, &caller_fp)) {
+#if 0
     BPLOG(ERROR) << "Unable to read caller_fp from last_fp: 0x"
                  << std::hex << last_fp;
+#endif
     return NULL;
   }
 
   u_int32_t caller_lr = 0;
   if (last_fp && !memory_->GetMemoryAtAddress(last_fp + 4, &caller_lr)) {
+#if 0
     BPLOG(ERROR) << "Unable to read caller_lr from last_fp + 4: 0x"
                  << std::hex << (last_fp + 4);
+#endif
     return NULL;
   }
 
