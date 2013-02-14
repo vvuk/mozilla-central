@@ -8,7 +8,7 @@
 
 #include <stack>
 #include <set>
-#include "mozilla/Mutex.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Attributes.h"
 #include "gfxPoint.h"
 #include "SurfaceTypes.h"
@@ -48,7 +48,7 @@ protected:
     SharedSurface* mProducer;
     std::set<SharedSurface*> mSurfaces;
     std::stack<SharedSurface*> mScraps;
-    mutable Mutex mMutex;
+    mutable Monitor mMonitor;
     bool mIsAlive;
 
     // |previous| can be null, indicating this is the first one.
@@ -56,7 +56,7 @@ protected:
     SurfaceStream(SurfaceStreamType type, SurfaceStream* prevStream)
         : mType(type)
         , mProducer(nullptr)
-        , mMutex("SurfaceStream mutex")
+        , mMonitor("SurfaceStream monitor")
         , mIsAlive(true)
     {
         MOZ_ASSERT(!prevStream || mType != prevStream->mType,
@@ -167,7 +167,10 @@ class SurfaceStream_TripleBuffer
 {
 protected:
     SharedSurface* mStaging;
+    SharedSurface* mTransit;
     SharedSurface* mConsumer;
+
+    void WaitForCompositor();
 
 public:
     SurfaceStream_TripleBuffer(SurfaceStream* prevStream);
@@ -178,6 +181,8 @@ public:
                                         const gfxIntSize& size);
 
     virtual SharedSurface* SwapConsumer_NoWait();
+
+    virtual SharedSurface* SwapTransit();
 
     virtual void SurrenderSurfaces(SharedSurface*& producer, SharedSurface*& consumer);
 };

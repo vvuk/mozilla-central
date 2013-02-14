@@ -403,7 +403,9 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
                            CanvasSurface* aNewBack)
 {
   if (mDestroyed) {
-    *aNewBack = aNewFront;
+    if (aNewBack) {
+      *aNewBack = aNewFront;
+    }
     return;
   }
 
@@ -423,8 +425,10 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
     }
 
     mTexImage = texImage;
-    *aNewBack = IsSurfaceDescriptorValid(mFrontBufferDescriptor) ?
-                CanvasSurface(mFrontBufferDescriptor) : CanvasSurface(null_t());
+    if (aNewBack) {
+      *aNewBack = IsSurfaceDescriptorValid(mFrontBufferDescriptor) ?
+                  CanvasSurface(mFrontBufferDescriptor) : CanvasSurface(null_t());
+    }
     mFrontBufferDescriptor = aNewFront;
     mNeedsYFlip = needYFlip;
   } else if (IsValidSharedTexDescriptor(aNewFront)) {
@@ -435,7 +439,9 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
                                                        nsIntSize(0, 0),
                                                        false);
     }
-    *aNewBack = mFrontBufferDescriptor;
+    if (aNewBack) {
+      *aNewBack = mFrontBufferDescriptor;
+    }
     mFrontBufferDescriptor = aNewFront;
     mNeedsYFlip = needYFlip;
   } else if (IsValidSurfaceStreamDescriptor(frontDesc)) {
@@ -444,7 +450,8 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
       SurfaceStreamHandle handle = (SurfaceStreamHandle)nullptr;
       mFrontBufferDescriptor = SurfaceStreamDescriptor(handle, false);
     }
-    *aNewBack = mFrontBufferDescriptor;
+    // We do not provide a new back buffer
+    MOZ_ASSERT(!aNewBack);
     mFrontBufferDescriptor = aNewFront;
     mNeedsYFlip = needYFlip;
   } else {

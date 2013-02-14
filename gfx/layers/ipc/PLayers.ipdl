@@ -256,6 +256,7 @@ struct OpPaintCanvas  {
   PLayer layer;
   CanvasSurface newFrontBuffer;
   bool needYFlip;
+  bool needNewBackBuffer;
 };
 
 struct OpPaintImage  {

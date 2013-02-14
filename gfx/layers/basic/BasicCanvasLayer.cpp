@@ -425,6 +425,7 @@ BasicShadowableCanvasLayer::Initialize(const Data& aData)
 void
 BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 {
+  SAMPLE_LABEL("BasicShadowableCanvasLayer", "Paint");
   if (!HasShadow()) {
     BasicCanvasLayer::Paint(aContext, aMaskLayer);
     return;
@@ -444,6 +445,7 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     // and forward Gralloc handle. Signal WaitSync complete with XPC mutex?
     if (!isCrossProcess) {
       GLScreenBuffer* screen = mGLContext->Screen();
+      ((SurfaceStream_TripleBuffer*)screen->Stream())->SwapTransit();
       SurfaceStreamHandle handle = screen->Stream()->GetShareHandle();
 
       mBackBuffer = SurfaceStreamDescriptor(handle, false);
@@ -453,6 +455,7 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
       FireDidTransactionCallback();
       BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
                                     mNeedsYFlip,
+                                    false,
                                     mBackBuffer);
       // Move SharedTextureHandle ownership to ShadowLayer
       mBackBuffer = SurfaceDescriptor();
@@ -487,6 +490,7 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
         FireDidTransactionCallback();
         BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
                                       mNeedsYFlip,
+                                      false,
                                       mBackBuffer);
         // Move SharedTextureHandle ownership to ShadowLayer
         mBackBuffer = SurfaceDescriptor();
@@ -521,7 +525,7 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   FireDidTransactionCallback();
 
   BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
-                                mNeedsYFlip, mBackBuffer);
+                                mNeedsYFlip, true, mBackBuffer);
 }
 
 class BasicShadowCanvasLayer : public ShadowCanvasLayer,
@@ -593,10 +597,12 @@ BasicShadowCanvasLayer::Swap(const CanvasSurface& aNewFront, bool needYFlip,
 
   mNeedsYFlip = needYFlip;
   // If mFrontBuffer
-  if (IsSurfaceDescriptorValid(mFrontSurface)) {
-    *aNewBack = mFrontSurface;
-  } else {
-    *aNewBack = null_t();
+  if (aNewBack) {
+    if (IsSurfaceDescriptorValid(mFrontSurface)) {
+      *aNewBack = mFrontSurface;
+    } else {
+      *aNewBack = null_t();
+    }
   }
   mFrontSurface = aNewFront;
 }

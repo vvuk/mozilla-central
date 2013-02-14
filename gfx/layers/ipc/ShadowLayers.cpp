@@ -285,11 +285,20 @@ ShadowLayerForwarder::PaintedImage(ShadowableLayer* aImage,
 void
 ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
                                     bool aNeedYFlip,
+                                    bool aNeedNewBackBuffer,
                                     const SurfaceDescriptor& aNewFrontSurface)
 {
-  mTxn->AddPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
-                               aNewFrontSurface,
-                               aNeedYFlip));
+  if (aNeedNewBackBuffer) {
+    mTxn->AddPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
+                                 aNewFrontSurface,
+                                 aNeedYFlip,
+                                 aNeedNewBackBuffer));
+  } else {
+    mTxn->AddNoSwapPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
+                                       aNewFrontSurface,
+                                       aNeedYFlip,
+                                       aNeedNewBackBuffer));
+  }
 }
 
 bool

@@ -9,6 +9,7 @@
 #include "SharedSurface.h"
 #include "SurfaceFactory.h"
 #include "SurfaceStreamIPC.h"
+#include "sampler.h"
 
 namespace mozilla {
 namespace gfx {
@@ -203,7 +204,7 @@ SharedSurface*
 SurfaceStream_SingleBuffer::SwapProducer(SurfaceFactory* factory,
                                          const gfxIntSize& size)
 {
-    MutexAutoLock lock(mMutex);
+    MonitorAutoLock lock(mMonitor);
     if (mConsumer) {
         Recycle(factory, mConsumer);
     }
@@ -241,7 +242,7 @@ SurfaceStream_SingleBuffer::SwapProducer(SurfaceFactory* factory,
 SharedSurface*
 SurfaceStream_SingleBuffer::SwapConsumer_NoWait()
 {
-    MutexAutoLock lock(mMutex);
+    MonitorAutoLock lock(mMonitor);
 
     // Use Cons, if present.
     // Otherwise, just use Prod directly.
@@ -296,7 +297,7 @@ SharedSurface*
 SurfaceStream_TripleBuffer_Copy::SwapProducer(SurfaceFactory* factory,
                                               const gfxIntSize& size)
 {
-    MutexAutoLock lock(mMutex);
+    MonitorAutoLock lock(mMonitor);
 
     RecycleScraps(factory);
     if (mProducer) {
@@ -329,7 +330,7 @@ SurfaceStream_TripleBuffer_Copy::SwapProducer(SurfaceFactory* factory,
 SharedSurface*
 SurfaceStream_TripleBuffer_Copy::SwapConsumer_NoWait()
 {
-    MutexAutoLock lock(mMutex);
+    MonitorAutoLock lock(mMonitor);
 
     if (mStaging) {
         Scrap(mConsumer);
@@ -344,6 +345,7 @@ SurfaceStream_TripleBuffer_Copy::SwapConsumer_NoWait()
 SurfaceStream_TripleBuffer::SurfaceStream_TripleBuffer(SurfaceStream* prevStream)
     : SurfaceStream(SurfaceStreamType::TripleBuffer, prevStream)
     , mStaging(nullptr)
+    , mTransit(nullptr)
     , mConsumer(nullptr)
 {
     if (!prevStream)
@@ -383,13 +385,21 @@ SharedSurface*
 SurfaceStream_TripleBuffer::SwapProducer(SurfaceFactory* factory,
                                          const gfxIntSize& size)
 {
-    MutexAutoLock lock(mMutex);
+    SAMPLE_LABEL("SurfaceStream_TripleBuffer", "SwapProducer");
+
+    MonitorAutoLock lock(mMonitor);
     if (mProducer) {
         RecycleScraps(factory);
 
-        if (mStaging)
-            Recycle(factory, mStaging);
+        // When finished, transit is null and likely moved to cons
+        WaitForCompositor();
 
+        if (mStaging) {
+            // This means we're about to render another frame before sending a layer transaction. Boo.
+            Recycle(factory, mStaging);
+        }
+        
+        MOZ_ASSERT(!mStaging);
         Move(mProducer, mStaging);
         mStaging->Fence();
     }
@@ -400,13 +410,36 @@ SurfaceStream_TripleBuffer::SwapProducer(SurfaceFactory* factory,
     return mProducer;
 }
 
+void
+SurfaceStream_TripleBuffer::WaitForCompositor()
+{
+    SAMPLE_LABEL("SurfaceStream_TripleBuffer", "WaitForCompositor");
+
+    // We are assumed to be locked
+    while (mTransit)
+        mMonitor.Wait();
+}
+
+SharedSurface*
+SurfaceStream_TripleBuffer::SwapTransit()
+{
+    MonitorAutoLock lock(mMonitor);
+    if (mStaging) {
+        Scrap(mTransit);
+        Move(mStaging, mTransit);
+    }
+
+    return mTransit;
+}
+
 SharedSurface*
 SurfaceStream_TripleBuffer::SwapConsumer_NoWait()
 {
-    MutexAutoLock lock(mMutex);
-    if (mStaging) {
+    MonitorAutoLock lock(mMonitor);
+    if (mTransit) {
         Scrap(mConsumer);
-        Move(mStaging, mConsumer);
+        Move(mTransit, mConsumer);
+        mMonitor.NotifyAll();
     }
 
     return mConsumer;

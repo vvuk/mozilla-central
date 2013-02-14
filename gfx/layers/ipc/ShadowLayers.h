@@ -218,6 +218,7 @@ public:
                     const SharedImage& aNewFrontImage);
   void PaintedCanvas(ShadowableLayer* aCanvas,
                      bool aNeedYFlip,
+                     bool aNeedNewBackBuffer,
                      const SurfaceDescriptor& aNewFrontSurface);
 
   /**
