@@ -1259,9 +1259,11 @@ class BufferMemoryRegion : public google_breakpad::MemoryRegion {
   template<typename T> bool GetMemoryAtAddressInternal (
                                u_int64_t address, T* value) const {
     /* Range check .. */
-    if ( ((UWord)address) >= ((UWord)buff_->stackImgAddr)
-         && (((UWord)address) + sizeof(T) - 1)
-            <= (((UWord)buff_->stackImgAddr) + buff_->stackImgUsed - 1)) {
+    if ( buff_->stackImgUsed >= sizeof(T)
+         && ((UWord)address) >= ((UWord)buff_->stackImgAddr)
+         && ((UWord)address) <= ((UWord)buff_->stackImgAddr)
+                                + buff_->stackImgUsed
+                                - sizeof(T) ) {
       UWord offset = (UWord)address - (UWord)buff_->stackImgAddr;
       if (0) LOGF("GMAA %lx ok", (UWord)address);
       *value = *reinterpret_cast<const T*>(&buff_->stackImg[offset]);
@@ -1536,7 +1538,7 @@ void do_breakpad_unwind_Buffer ( /*OUT*/PCandSP** pairs,
 # elif defined(SPS_PLAT_arm_android)
   google_breakpad::StackwalkerARM* sw
    = new google_breakpad::StackwalkerARM(NULL, context,
-                                         -1/*FP reg*/,
+                                         MD_CONTEXT_ARM_REG_IOS_FP,
                                          memory, sModules,
                                          sSymbolizer);
 # else
