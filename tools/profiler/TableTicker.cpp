@@ -1043,13 +1043,24 @@ void mozilla_sampler_init1()
     return;
   }
 
-  const char* features[] = {"js", "leaf"
+  const char *features[5] = {0};
+  int featureCount = 0;
+
+  const char *envfeatures = PR_GetEnv("MOZ_PROFILER_FEATURES");
+  if (envfeatures) {
+    if (strstr(envfeatures, "js"))
+      features[featureCount++] = "js";
+    if (strstr(envfeatures, "stackwalk"))
+      features[featureCount++] = "stackwalk";
+  } else {
+    features[featureCount++] = "js";
 #if defined(XP_WIN) || defined(XP_MACOSX)
-                         , "stackwalk"
+    features[featureCount++] = "stackwalk";
 #endif
-                         };
+  }
+
   mozilla_sampler_start1(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
-                         features, sizeof(features)/sizeof(const char*));
+                         features, featureCount);
 }
 
 void mozilla_sampler_shutdown1()
