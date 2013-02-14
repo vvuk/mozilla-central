@@ -1303,6 +1303,12 @@ BasicShadowLayerManager::ClearCachedResources(Layer* aSubtree)
   BasicLayerManager::ClearCachedResources(aSubtree);
 }
 
+void
+BasicShadowLayerManager::Flush()
+{
+  ShadowLayerForwarder::Flush();
+}
+
 bool
 BasicShadowLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                                    gfx::Rect& aViewport,

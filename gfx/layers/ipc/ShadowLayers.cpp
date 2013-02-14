@@ -559,6 +559,11 @@ ShadowLayerForwarder::ConstructShadowFor(ShadowableLayer* aLayer)
   return mShadowManager->SendPLayerConstructor(new ShadowLayerChild(aLayer));
 }
 
+void
+ShadowLayerForwarder::Flush() {
+  GetShadowManager()->SendFlush();
+}
+
 
 void
 ShadowLayerManager::DestroySharedSurface(gfxSharedImageSurface* aSurface,

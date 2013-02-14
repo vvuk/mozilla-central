@@ -10,8 +10,13 @@
 #include "gfxPlatform.h"
 #include "mozilla/Preferences.h"
 #include "SurfaceStream.h"
+#include "SurfaceStreamIPC.h"
 #include "SharedSurfaceGL.h"
 #include "SharedSurfaceEGL.h"
+#ifdef MOZ_B2G
+#include "SharedSurfaceGralloc.h"
+#endif
+#include "sampler.h"
 
 #include "BasicLayersImpl.h"
 #include "nsXULAppAPI.h"
@@ -192,8 +197,9 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
         readSurf = GetTempSurface(readSize, format);
       }
 
-      // Readback handles Flush/MarkDirty.
+      readSurf->Flush();
       mGLContext->Screen()->Readback(surfGL, readSurf);
+      readSurf->MarkDirty();
     }
     MOZ_ASSERT(readSurf);
 
@@ -384,8 +390,13 @@ BasicShadowableCanvasLayer::Initialize(const Data& aData)
             // [Basic/OGL Layers, OMTC] WebGL layer init.
             factory = SurfaceFactory_EGLImage::Create(mGLContext, screen->Caps());
           } else {
+#ifdef MOZ_B2G
             // [Basic/OGL Layers, OOPC] WebGL layer init. (Out Of Process Compositing)
-            // Fall back to readback.
+            streamType = SurfaceStreamType::IPC;
+            factory = new SurfaceFactory_Gralloc(mGLContext, screen->Caps(), BasicManager());
+#else
+            NS_NOTREACHED("isCrossProcess but not on B2G!");
+#endif
           }
         } else {
           // [Basic Layers, OMTC] WebGL layer init.
@@ -397,6 +408,9 @@ BasicShadowableCanvasLayer::Initialize(const Data& aData)
 
     if (factory) {
       screen->Morph(factory, streamType);
+      if (streamType == SurfaceStreamType::IPC) {
+          ((SurfaceStream_IPC*)screen->Stream())->SetLayerManager(BasicManager());
+      }
     }
   }
 
@@ -419,6 +433,8 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   if (!IsDirty())
     return;
 
+  FirePreTransactionCallback();
+
   if (mGLContext &&
       !mForceReadback &&
       BasicManager()->GetParentBackendType() == mozilla::layers::LAYERS_OPENGL)
@@ -427,7 +443,6 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     // Todo: If isCrossProcess (OMPC), spin off mini-thread to RequestFrame
     // and forward Gralloc handle. Signal WaitSync complete with XPC mutex?
     if (!isCrossProcess) {
-      FirePreTransactionCallback();
       GLScreenBuffer* screen = mGLContext->Screen();
       SurfaceStreamHandle handle = screen->Stream()->GetShareHandle();
 
@@ -443,6 +458,42 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
       mBackBuffer = SurfaceDescriptor();
       return;
     }
+
+#ifdef MOZ_B2G
+    // IPC:
+    GLScreenBuffer* screen = mGLContext->Screen();
+    SurfaceStream* stream = screen->Stream();
+    if (stream->mType == SurfaceStreamType::IPC) {
+      mGLContext->fFinish();
+
+      SharedSurface* surf = ((SurfaceStream_IPC*)stream)->SwapTransit();
+      if (!surf) {
+        printf_stderr("surf is null");
+        return;
+      }
+
+      bool backBufferReady = false;
+      switch (surf->Type()) {
+        case SharedSurfaceType::Gralloc: {
+          SharedSurface_Gralloc* grallocSurf = SharedSurface_Gralloc::Cast(surf);
+          mBackBuffer = *grallocSurf->GetDescriptor();
+          backBufferReady = true;
+          break;
+        }
+      }
+
+      if (backBufferReady) {
+        Painted();
+        FireDidTransactionCallback();
+        BasicManager()->PaintedCanvas(BasicManager()->Hold(this),
+                                      mNeedsYFlip,
+                                      mBackBuffer);
+        // Move SharedTextureHandle ownership to ShadowLayer
+        mBackBuffer = SurfaceDescriptor();
+        return;
+      }
+    }
+#endif
   }
 
   bool isOpaque = (GetContentFlags() & CONTENT_OPAQUE);
@@ -466,7 +517,6 @@ BasicShadowableCanvasLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
       ->Paint(aContext, nullptr);
   }
-  FirePreTransactionCallback();
   UpdateSurface(autoBackSurface.Get(), nullptr);
   FireDidTransactionCallback();
 

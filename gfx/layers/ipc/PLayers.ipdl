@@ -345,6 +345,8 @@ parent:
   // side.
   async ClearCachedResources();
 
+  sync Flush();
+
   async __delete__();
 };
 

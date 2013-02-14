@@ -318,6 +318,8 @@ public:
 
   static void PlatformSyncBeforeUpdate();
 
+  void Flush();
+
 protected:
   ShadowLayerForwarder();
 
@@ -412,6 +414,8 @@ public:
   virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer() { return nullptr; }
 
   virtual void NotifyShadowTreeTransaction() {}
+
+  virtual void Flush() {}
 
   /**
    * Try to open |aDescriptor| for direct texturing.  If the

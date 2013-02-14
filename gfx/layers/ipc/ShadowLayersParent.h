@@ -67,6 +67,8 @@ protected:
   virtual PLayerParent* AllocPLayer() MOZ_OVERRIDE;
   virtual bool DeallocPLayer(PLayerParent* actor) MOZ_OVERRIDE;
 
+  virtual bool RecvFlush() MOZ_OVERRIDE;
+
 private:
   nsRefPtr<ShadowLayerManager> mLayerManager;
   ShadowLayersManager* mShadowLayersManager;

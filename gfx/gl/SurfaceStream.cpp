@@ -8,6 +8,7 @@
 #include "gfxPoint.h"
 #include "SharedSurface.h"
 #include "SurfaceFactory.h"
+#include "SurfaceStreamIPC.h"
 
 namespace mozilla {
 namespace gfx {
@@ -39,6 +40,8 @@ SurfaceStream::CreateForType(SurfaceStreamType type, SurfaceStream* prevStream)
             return new SurfaceStream_TripleBuffer_Copy(prevStream);
         case SurfaceStreamType::TripleBuffer:
             return new SurfaceStream_TripleBuffer(prevStream);
+        case SurfaceStreamType::IPC:
+            return new SurfaceStream_IPC(prevStream);
         default:
             MOZ_NOT_REACHED("Invalid Type.");
             return nullptr;

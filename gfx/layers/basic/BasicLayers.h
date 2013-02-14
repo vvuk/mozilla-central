@@ -275,6 +275,8 @@ public:
   // if we have one.
   virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
 
+  virtual void Flush();
+
   void SetRepeatTransaction() { mRepeatTransaction = true; }
   bool GetRepeatTransaction() { return mRepeatTransaction; }
 

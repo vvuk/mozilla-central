@@ -491,6 +491,12 @@ ShadowLayersParent::RecvClearCachedResources()
   return true;
 }
 
+bool
+ShadowLayersParent::RecvFlush()
+{
+  return true;
+}
+
 PGrallocBufferParent*
 ShadowLayersParent::AllocPGrallocBuffer(const gfxIntSize& aSize,
                                         const gfxContentType& aContent,

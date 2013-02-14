@@ -79,6 +79,7 @@ MOZ_BEGIN_ENUM_CLASS(SurfaceStreamType, uint8_t)
     SingleBuffer,
     TripleBuffer_Copy,
     TripleBuffer,
+    IPC,
     Max
 MOZ_END_ENUM_CLASS(SurfaceStreamType)
 
