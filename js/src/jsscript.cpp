@@ -977,6 +977,14 @@ SourceCompressorThread::internalCompress()
 {
     JS_ASSERT(state == COMPRESSING);
     JS_ASSERT(tok);
+    static int compress_limit = -1;
+
+    if (compress_limit == -1) {
+      if (getenv("JS_COMPRESS_LIMIT"))
+        compress_limit = atoi(getenv("JS_COMPRESS_LIMIT"));
+      else
+        compress_limit = 0;
+    }
 
     ScriptSource *ss = tok->ss;
     JS_ASSERT(!ss->ready());
@@ -988,7 +996,7 @@ SourceCompressorThread::internalCompress()
 
 #ifdef USE_ZLIB
     const size_t COMPRESS_THRESHOLD = 512;
-    if (nbytes >= COMPRESS_THRESHOLD) {
+    if (nbytes >= COMPRESS_THRESHOLD && (!compress_limit || nbytes < compress_limit)) {
         // Try to keep the maximum memory usage down by only allocating half the
         // size of the string, first.
         size_t firstSize = nbytes / 2;
