@@ -34,6 +34,8 @@ RenderColorLayer(ColorLayer* aLayer, LayerManagerOGL *aManager,
   color.b *= opacity;
   color.a = opacity;
 
+  aManager->DebugSendColor(aLayer, color, visibleRect.Size());
+
   ShaderProgramOGL *program = aManager->GetProgram(gl::ColorLayerProgramType,
                                                    aLayer->GetMaskLayer());
   program->Activate();

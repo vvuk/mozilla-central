@@ -50,6 +50,10 @@ typedef char realGLboolean;
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Mutex.h"
 
+#ifdef DEBUG
+#define MOZ_ENABLE_GL_TRACKING 1
+#endif
+
 namespace android {
     class GraphicBuffer;
 }
@@ -126,6 +130,11 @@ public:
         mOwningThread = NS_GetCurrentThread();
 
         mTexBlit_UseDrawNotCopy = Preferences::GetBool("gl.blit-draw-not-copy", false);
+
+        mReadTextureImagePrograms[0] = 0;
+        mReadTextureImagePrograms[1] = 0;
+        mReadTextureImagePrograms[2] = 0;
+        mReadTextureImagePrograms[3] = 0;
     }
 
     virtual ~GLContext() {
@@ -779,9 +788,19 @@ public:
      * critical path.
      */
     already_AddRefed<gfxImageSurface> ReadTextureImage(GLuint aTexture,
+                                                       GLenum aTextureTarget,
                                                        const gfxIntSize& aSize,
-                                                       GLenum aTextureFormat,
+                                                       ShaderProgramType aShader = BGRALayerProgramType,
                                                        bool aYInvert = false);
+
+    already_AddRefed<gfxImageSurface> ReadTextureImage(GLuint aTexture,
+                                                       const gfxIntSize& aSize,
+                                                       GLenum aTextureFormat, /* ignored! */
+                                                       bool aYInvert = false,
+                                                       ShaderProgramType aShader = BGRALayerProgramType)
+    {
+        return ReadTextureImage(aTextureFormat, LOCAL_GL_TEXTURE_2D, aSize, aShader, aYInvert);
+    }
 
     already_AddRefed<gfxImageSurface> GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader);
 
@@ -1329,6 +1348,8 @@ public:
 
 protected:
     nsDataHashtable<nsPtrHashKey<void>, void*> mUserData;
+
+    GLuint mReadTextureImagePrograms[4];
 
     void SetIsGLES2(bool aIsGLES2) {
         NS_ASSERTION(!mInitialized, "SetIsGLES2 can only be called before initialization!");
@@ -2536,7 +2557,7 @@ public:
 
 
 private:
-#ifdef DEBUG
+#ifdef MOZ_ENABLE_GL_TRACKING
     GLContext *TrackingContext() {
         GLContext *tip = this;
         while (tip->mSharedContext)
@@ -2781,7 +2802,7 @@ public:
 
 #undef ASSERT_SYMBOL_PRESENT
 
-#ifdef DEBUG
+#ifdef MOZ_ENABLE_GL_TRACKING
     void THEBES_API CreatedProgram(GLContext *aOrigin, GLuint aName);
     void THEBES_API CreatedShader(GLContext *aOrigin, GLuint aName);
     void THEBES_API CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames);

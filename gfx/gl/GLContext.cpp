@@ -1360,6 +1360,10 @@ GLContext::MarkDestroyed()
         fDeleteFramebuffers(1, &mBlitFramebuffer);
         mBlitFramebuffer = 0;
 
+        fDeleteProgram(mReadTextureImagePrograms[0]);
+        fDeleteProgram(mReadTextureImagePrograms[1]);
+        fDeleteProgram(mReadTextureImagePrograms[2]);
+
         mTexGarbageBin->GLContextTeardown();
     } else {
         NS_WARNING("MakeCurrent() failed during MarkDestroyed! Skipping GL object teardown.");
@@ -1431,32 +1435,73 @@ GLContext::GetTexImage(GLuint aTexture, bool aYInvert, ShaderProgramType aShader
 
 already_AddRefed<gfxImageSurface>
 GLContext::ReadTextureImage(GLuint aTexture,
+                            GLenum aTextureTarget,
                             const gfxIntSize& aSize,
-                            GLenum aTextureFormat,
+                            ShaderProgramType aShader,
                             bool aYInvert)
 {
     MakeCurrent();
 
     nsRefPtr<gfxImageSurface> isurf;
 
-    GLint oldrb, oldfb, oldprog, oldPackAlignment;
+    GLint oldrb, oldfb, oldprog, oldPackAlignment, oldBlend, oldScissor;
+    GLint oldTex, oldTexUnit = -1;
     GLint success;
 
     GLuint rb = 0, fb = 0;
     GLuint vs = 0, fs = 0, prog = 0;
+
+    int programIndex;
+
+    if (aTextureTarget != LOCAL_GL_TEXTURE_2D &&
+        aTextureTarget != LOCAL_GL_TEXTURE_EXTERNAL &&
+        aTextureTarget != LOCAL_GL_TEXTURE_RECTANGLE_ARB)
+    {
+        NS_WARNING("ReadTextureImage target is not TEXTURE_2D || TEXTURE_EXTERNAL || TEXTURE_RECTANGLE");
+        return NULL;
+    }
 
     const char *vShader =
         "attribute vec4 aVertex;\n"
         "attribute vec2 aTexCoord;\n"
         "varying vec2 vTexCoord;\n"
         "void main() { gl_Position = aVertex; vTexCoord = aTexCoord; }";
-    const char *fShader =
+
+    const char *fShader[] = {
+        /* TEXTURE_2D */
         "#ifdef GL_ES\n"
         "precision mediump float;\n"
         "#endif\n"
         "varying vec2 vTexCoord;\n"
         "uniform sampler2D uTexture;\n"
-        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord); }";
+        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord); }"
+        ,
+        /* TEXTURE_2D with R/B swizzilng */
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying vec2 vTexCoord;\n"
+        "uniform sampler2D uTexture;\n"
+        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord).bgra; }"
+        ,
+        /* TEXTURE_EXTERNAL */
+        "#extension GL_OES_EGL_image_external : require\n"
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying vec2 vTexCoord;\n"
+        "uniform samplerExternalOES uTexture;\n"
+        "void main() { gl_FragColor = texture2D(uTexture, vTexCoord); }"
+        ,
+        /* TEXTURE_RECTANGLE */
+        "#extension GL_ARB_texture_rectangle\n"
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
+        "varying vec2 vTexCoord;\n"
+        "uniform sampler2DRect uTexture;\n"
+        "void main() { gl_FragColor = texture2DRect(uTexture, vTexCoord).bgra; }"
+    };
 
     float verts[4*4] = {
         -1.0f, -1.0f, 0.0f, 1.0f,
@@ -1469,17 +1514,46 @@ GLContext::ReadTextureImage(GLuint aTexture,
         0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f
     };
 
+    float texcoordsrect[2*4] = {
+        0.0f, 0.0f, (float) aSize.width, 0.0f,
+        0.0f, (float) aSize.height, (float) aSize.width, (float) aSize.height
+    };
+
+    float texcoordsFlip[2*4] = {
+        0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f
+    };
+
+    float texcoordsrectFlip[2*4] = {
+        0.0f, (float) aSize.height, (float) aSize.width, (float) aSize.height,
+        0.0f, 0.0f, (float) aSize.width, 0.0f
+    };
+
     fGetIntegerv(LOCAL_GL_RENDERBUFFER_BINDING, &oldrb);
     fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &oldfb);
     fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &oldprog);
     fGetIntegerv(LOCAL_GL_PACK_ALIGNMENT, &oldPackAlignment);
+    oldBlend = fIsEnabled(LOCAL_GL_BLEND);
+    oldScissor = fIsEnabled(LOCAL_GL_SCISSOR_TEST);
+
+    fDisable(LOCAL_GL_BLEND);
+    fDisable(LOCAL_GL_SCISSOR_TEST);
 
     PushViewportRect(nsIntRect(0, 0, aSize.width, aSize.height));
 
     fGenRenderbuffers(1, &rb);
     fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, rb);
-    fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA,
-                         aSize.width, aSize.height);
+    if (IsGLES2()) {
+        if (IsExtensionSupported(OES_rgb8_rgba8)) {
+            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA8,
+                                 aSize.width, aSize.height);
+        } else {
+            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA4,
+                                 aSize.width, aSize.height);
+        }
+    } else {
+        fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, LOCAL_GL_RGBA,
+                             aSize.width, aSize.height);
+    }
 
     fGenFramebuffers(1, &fb);
     fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fb);
@@ -1492,34 +1566,72 @@ GLContext::ReadTextureImage(GLuint aTexture,
         goto cleanup;
     }
 
-    vs = fCreateShader(LOCAL_GL_VERTEX_SHADER);
-    fs = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
-    fShaderSource(vs, 1, (const GLchar**) &vShader, NULL);
-    fShaderSource(fs, 1, (const GLchar**) &fShader, NULL);
-    fCompileShader(vs);
-    fCompileShader(fs);
-    prog = fCreateProgram();
-    fAttachShader(prog, vs);
-    fAttachShader(prog, fs);
-    fBindAttribLocation(prog, 0, "aVertex");
-    fBindAttribLocation(prog, 1, "aTexCoord");
-    fLinkProgram(prog);
+    // this is actually red, since the resulting surface
+    // has R/B in opposite order
+    fClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    fClear(LOCAL_GL_COLOR_BUFFER_BIT);
 
-    fGetProgramiv(prog, LOCAL_GL_LINK_STATUS, &success);
-    if (!success) {
-        goto cleanup;
+    if (aTextureTarget == LOCAL_GL_TEXTURE_2D) {
+        if (aShader == BGRALayerProgramType ||
+            aShader == BGRXLayerProgramType) {
+            // Need to swizzle R/B.
+            programIndex = 1;
+        } else {
+            programIndex = 0;
+        }
+    } else if (aTextureTarget == LOCAL_GL_TEXTURE_EXTERNAL) {
+        programIndex = 2;
+    } else if (aTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
+        programIndex = 3;
+    }
+
+    if (mReadTextureImagePrograms[programIndex] == 0) {
+        vs = fCreateShader(LOCAL_GL_VERTEX_SHADER);
+        fs = fCreateShader(LOCAL_GL_FRAGMENT_SHADER);
+        fShaderSource(vs, 1, (const GLchar**) &vShader, NULL);
+        fShaderSource(fs, 1, (const GLchar**) &fShader[programIndex], NULL);
+        fCompileShader(vs);
+        fCompileShader(fs);
+        prog = fCreateProgram();
+        fAttachShader(prog, vs);
+        fAttachShader(prog, fs);
+        fBindAttribLocation(prog, 0, "aVertex");
+        fBindAttribLocation(prog, 1, "aTexCoord");
+        fLinkProgram(prog);
+
+        fGetProgramiv(prog, LOCAL_GL_LINK_STATUS, &success);
+        if (!success) {
+            goto cleanup;
+        }
+
+        mReadTextureImagePrograms[programIndex] = prog;
+    } else {
+        prog = mReadTextureImagePrograms[programIndex];
     }
 
     fUseProgram(prog);
+
+    fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
     fEnableVertexAttribArray(0);
     fEnableVertexAttribArray(1);
 
     fVertexAttribPointer(0, 4, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, verts);
-    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, texcoords);
+    if (aYInvert) {
+        fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                             aTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB ? texcoordsrectFlip : texcoordsFlip);
+    } else {
+        fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                             aTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB ? texcoordsrect : texcoords);
+    }
 
+    fGetIntegerv(LOCAL_GL_ACTIVE_TEXTURE, &oldTexUnit);
     fActiveTexture(LOCAL_GL_TEXTURE0);
-    fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
+    if (aTextureTarget == LOCAL_GL_TEXTURE_2D)
+        fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_2D, &oldTex);
+    else if (aTextureTarget == LOCAL_GL_TEXTURE_EXTERNAL)
+        fGetIntegerv(LOCAL_GL_TEXTURE_BINDING_EXTERNAL, &oldTex);
+    fBindTexture(aTextureTarget, aTexture);
 
     fUniform1i(fGetUniformLocation(prog, "uTexture"), 0);
 
@@ -1541,14 +1653,11 @@ GLContext::ReadTextureImage(GLuint aTexture,
                 LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE,
                 isurf->Data());
 
-    SwapRAndBComponents(isurf);
-
     if (oldPackAlignment != 4)
         fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, oldPackAlignment);
 
-    if (aYInvert) {
-      isurf = YInvertImageSurface(isurf);
-    }
+    // we succeeded; don't delete prog below, we have it cached!
+    prog = 0;
 
  cleanup:
     // note that deleting 0 has no effect in any of these calls
@@ -1557,6 +1666,17 @@ GLContext::ReadTextureImage(GLuint aTexture,
     fDeleteShader(vs);
     fDeleteShader(fs);
     fDeleteProgram(prog);
+
+    if (oldBlend)
+        fEnable(LOCAL_GL_BLEND);
+    if (oldScissor)
+        fEnable(LOCAL_GL_SCISSOR_TEST);
+
+    if (oldTexUnit != -1) {
+        fActiveTexture(LOCAL_GL_TEXTURE0);
+        fBindTexture(aTextureTarget, oldTex);
+        fActiveTexture(oldTexUnit);
+    }
 
     fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, oldrb);
     fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, oldfb);
@@ -2669,7 +2789,7 @@ GLContext::SetBlitFramebufferForDestTexture(GLuint aTexture)
     }
 }
 
-#ifdef DEBUG
+#ifdef MOZ_ENABLE_GL_TRACKING
 
 void
 GLContext::CreatedProgram(GLContext *aOrigin, GLuint aName)

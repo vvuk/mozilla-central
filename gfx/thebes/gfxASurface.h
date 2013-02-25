@@ -6,9 +6,9 @@
 #ifndef GFX_ASURFACE_H
 #define GFX_ASURFACE_H
 
-#ifdef MOZ_DUMP_PAINTING
+//#ifdef MOZ_DUMP_PAINTING
  #define MOZ_DUMP_IMAGES
-#endif
+//#endif
 
 #include "gfxTypes.h"
 #include "gfxRect.h"

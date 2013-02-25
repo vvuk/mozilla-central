@@ -318,6 +318,28 @@ public:
    */
   float ComputeRenderIntegrity();
 
+#ifdef LAYERSCOPE
+  void DebugBeginFrame(int64_t aFrameStamp);
+  void DebugSendTexture(void *aLayerRef,
+                        GLenum aTextureTarget, GLuint aTextureID,
+                        GLuint aWidth, GLuint aHeight,
+                        ShaderProgramType aShader = BGRALayerProgramType,
+                        bool aFlipY = false);
+  void DebugSendColor(void *aLayerRef,
+                      const gfxRGBA& aColor, const nsIntSize& aSize);
+  void DebugEndFrame();
+#else
+  void DebugBeginFrame(int64_t aFrameStamp) {}
+  void DebugSendTexture(void *aLayerRef,
+                        GLenum aTextureTarget, GLuint aTextureID,
+                        GLuint aWidth, GLuint aHeight,
+                        ShaderProgramType aShader = BGRALayerProgramType,
+                        bool aFlipY = false) {}
+  void DebugSendColor(void *aLayerRef,
+                      const gfxRGBA& aColor, const nsIntSize& aSize) {}
+  void DebugEndFrame() {}
+#endif
+
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
@@ -425,6 +447,11 @@ private:
   // next forwarded transaction that re-validates their buffers.
   bool mMaybeInvalidTree;
 #endif
+
+  // a value (maybe a timestamp, but doesn't have to be) of the frame
+  // that's currently being rendered, or of the last frame rendered if
+  // we're not rendering
+  int64_t mFrameStamp;
 
   static bool sDrawFPS;
   static bool sFrameCounter;

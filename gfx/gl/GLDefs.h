@@ -3047,6 +3047,7 @@ typedef uint64_t EGLTime;
 
 // OES_EGL_image_external
 #define LOCAL_GL_TEXTURE_EXTERNAL                 0x8D65
+#define LOCAL_GL_TEXTURE_BINDING_EXTERNAL         0x8D67
 
 #define LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS       0x8DFB
 #define LOCAL_GL_MAX_VARYING_VECTORS              0x8DFC

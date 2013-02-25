@@ -316,6 +316,11 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   gl()->ApplyFilterToBoundTexture(mFilter);
 
+  mOGLManager->DebugSendTexture(this,
+                                LOCAL_GL_TEXTURE_2D,
+                                mTexture,
+                                mBounds.width, mBounds.height);
+
   program->Activate();
   if (mLayerProgram == gl::RGBARectLayerProgramType) {
     // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
@@ -646,6 +651,17 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, 0);
   } else {
+
+    mTexImage->BeginTileIteration();
+    do {
+      mOGLManager->DebugSendTexture(this, LOCAL_GL_TEXTURE_2D,
+                                    mTexImage->GetTextureID(),
+                                    mTexImage->GetSize().width,
+                                    mTexImage->GetSize().height,
+                                    mTexImage->GetShaderProgramType(),
+                                    mNeedsYFlip);
+    } while (mTexImage->NextTile());
+
     // Tiled texture image rendering path
     mTexImage->SetFilter(filter);
     mTexImage->BeginTileIteration();

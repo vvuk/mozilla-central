@@ -99,6 +99,9 @@ public:
   bool Initialised() { return mInitialised; }
 
   virtual nsIntPoint GetOriginOffset() = 0;
+
+  TextureImage* TexImage() { return mTexImage.get(); }
+
 protected:
 
   GLContext* gl() const { return mOGLLayer->gl(); }
@@ -141,6 +144,27 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     WriteSnapshotToDumpFile(mLayer, surf);
   }
 #endif
+
+  mTexImage->BeginTileIteration();
+  if (mTexImageOnWhite)
+    mTexImageOnWhite->BeginTileIteration();
+  do {
+    aManager->DebugSendTexture(mLayer,
+                               LOCAL_GL_TEXTURE_2D,
+                               mTexImage->GetTextureID(),
+                               mTexImage->GetSize().width,
+                               mTexImage->GetSize().height,
+                               mTexImage->GetShaderProgramType());
+    if (mTexImageOnWhite) {
+      aManager->DebugSendTexture(mLayer,
+                                 LOCAL_GL_TEXTURE_2D,
+                                 mTexImageOnWhite->GetTextureID(),
+                                 mTexImageOnWhite->GetSize().width,
+                                 mTexImageOnWhite->GetSize().height,
+                                 mTexImageOnWhite->GetShaderProgramType());
+      mTexImageOnWhite->NextTile();
+    }
+  } while (mTexImage->NextTile());
 
   int32_t passes = mTexImageOnWhite ? 2 : 1;
   for (int32_t pass = 1; pass <= passes; ++pass) {
@@ -1069,10 +1093,30 @@ ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
   if (!mBuffer) {
     mBuffer = new ShadowBufferOGL(this);
   }
+#if 0
+  else if (mBuffer->Initialised() && mBuffer->TexImage()) {
+    mOGLManager->DebugSendTexture((void*)(((intptr_t)this) & ~0xf),
+                                  LOCAL_GL_TEXTURE_2D,
+                                  mBuffer->TexImage()->GetTextureID(),
+                                  mBuffer->TexImage()->GetSize().width,
+                                  mBuffer->TexImage()->GetSize().height,
+                                  mBuffer->mTexImage->GetShaderProgramType());
+  }
+#endif
   
   if (nsRefPtr<TextureImage> texImage =
       ShadowLayerManager::OpenDescriptorForDirectTexturing(
         gl(), aNewFront.buffer(), WrapMode(gl(), ALLOW_REPEAT))) {
+
+#if 0
+    mOGLManager->DebugSendTexture((void*)((((intptr_t)this) & ~0xf) | 1),
+                                  LOCAL_GL_TEXTURE_2D,
+                                  texImage->GetTextureID(),
+                                  texImage->GetSize().width,
+                                  texImage->GetSize().height,
+                                  texImage->GetShaderProgramType());
+#endif
+
     // We can directly texture the drawn surface.  Use that as our new
     // front buffer, and return our previous directly-textured surface
     // to the renderer.

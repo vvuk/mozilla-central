@@ -26,7 +26,7 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/TimeStamp.h"
 
-#if defined(DEBUG) || defined(PR_LOGGING)
+#if defined(DEBUG) || defined(FORCE_PR_LOG)
 #  include <stdio.h>            // FILE
 #  include "prlog.h"
 #  ifndef MOZ_LAYERS_HAVE_LOG

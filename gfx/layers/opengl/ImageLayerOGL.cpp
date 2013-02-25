@@ -1012,6 +1012,16 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     NS_ASSERTION(mTexImage->GetContentType() != gfxASurface::CONTENT_ALPHA,
                  "Image layer has alpha image");
 
+    mTexImage->BeginTileIteration();
+    do {
+      mOGLManager->DebugSendTexture(this,
+                                    LOCAL_GL_TEXTURE_2D,
+                                    mTexImage->GetTextureID(),
+                                    mTexImage->GetSize().width,
+                                    mTexImage->GetSize().height,
+                                    mTexImage->GetShaderProgramType());
+    } while (mTexImage->NextTile());
+
     ShaderProgramOGL *colorProgram =
       mOGLManager->GetProgram(mTexImage->GetShaderProgramType(), GetMaskLayer());
 
@@ -1052,6 +1062,12 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 #ifdef MOZ_WIDGET_GONK
   } else if (mExternalBufferTexture.IsAllocated()) {
     gl()->MakeCurrent();
+
+    mOGLManager->DebugSendTexture(this, LOCAL_GL_TEXTURE_EXTERNAL,
+                                  mExternalBufferTexture.GetTextureID(),
+                                  mSize.width, mSize.height,
+                                  RGBAExternalLayerProgramType);
+
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_EXTERNAL, mExternalBufferTexture.GetTextureID());
 
@@ -1093,6 +1109,7 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
     program->LoadMask(GetMaskLayer());
 
     MakeTextureIfNeeded(gl(), mTexture);
+
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(handleDetails.mTarget, mTexture);
     
@@ -1100,6 +1117,12 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
       NS_ERROR("Failed to bind shared texture handle");
       return;
     }
+
+    mOGLManager->DebugSendTexture(this, handleDetails.mTarget,
+                                  mTexture,
+                                  mSize.width, mSize.height,
+                                  handleDetails.mProgramType);
+
 
     gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
                              LOCAL_GL_ONE, LOCAL_GL_ONE);
@@ -1129,6 +1152,16 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                                 mPictureRect,
                                                 nsIntSize(mSize.width, mSize.height));
   } else {
+    mOGLManager->DebugSendTexture(this, LOCAL_GL_TEXTURE_2D,
+                                  mYUVTexture[0].GetTextureID(),
+                                  mSize.width, mSize.height);
+    mOGLManager->DebugSendTexture(this, LOCAL_GL_TEXTURE_2D,
+                                  mYUVTexture[1].GetTextureID(),
+                                  mCbCrSize.width, mCbCrSize.height);
+    mOGLManager->DebugSendTexture(this, LOCAL_GL_TEXTURE_2D,
+                                  mYUVTexture[2].GetTextureID(),
+                                  mCbCrSize.width, mCbCrSize.height);
+
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mYUVTexture[0].GetTextureID());
     gl()->ApplyFilterToBoundTexture(mFilter);

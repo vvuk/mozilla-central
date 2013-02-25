@@ -32,6 +32,7 @@
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
+#include "nsPrintfCString.h"
 
 #include "gfxCrashReporterUtils.h"
 
@@ -747,10 +748,12 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
                                 EndTransactionFlags aFlags)
 {
   mInTransaction = false;
+  mFrameStamp = PR_Now();
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
-  Log();
+  nsPrintfCString prefix("@(%llx) ", mFrameStamp);
+  Log(prefix.get());
 #endif
 
   if (mDestroyed) {
@@ -1067,6 +1070,8 @@ LayerManagerOGL::Render()
   if (width == 0 || height == 0)
     return;
 
+  DebugBeginFrame(mFrameStamp);
+
   // If the widget size changed, we have to force a MakeCurrent
   // to make sure that GL sees the updated widget size.
   if (mWidgetSize.width != width ||
@@ -1103,6 +1108,8 @@ LayerManagerOGL::Render()
   }
 
   if (CompositingDisabled()) {
+    DebugEndFrame();
+
     RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
                              nsIntPoint(0, 0));
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
@@ -1150,6 +1157,8 @@ LayerManagerOGL::Render()
 #endif
 
   if (mTarget) {
+    DebugEndFrame();
+
     CopyToTarget(mTarget);
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
@@ -1168,11 +1177,16 @@ LayerManagerOGL::Render()
   }
 
   if (mGLContext->IsDoubleBuffered()) {
+    DebugEndFrame();
+
     mGLContext->SwapBuffers();
     LayerManager::PostPresent();
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
   }
+
+  DebugSendTexture(NULL, mFBOTextureTarget, mBackBufferTexture, width, height);
+  DebugEndFrame();
 
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
