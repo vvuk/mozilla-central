@@ -15,6 +15,7 @@ EXPORTS_mozilla += \
   Char16.h \
   CheckedInt.h \
   Compiler.h \
+  Compression.h \
   Constants.h \
   DebugOnly.h \
   EnumSet.h \
