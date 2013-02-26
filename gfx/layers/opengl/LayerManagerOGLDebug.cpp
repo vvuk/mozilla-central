@@ -34,14 +34,13 @@
 #include <memory>
 #include <stdint.h>
 #include "mozilla/LinkedList.h"
+#include "mozilla/Compression.h"
 #include "nsThreadUtils.h"
 #include "nsISocketTransport.h"
 #include "nsIServerSocket.h"
 #include "nsNetCID.h"
 #include "nsIOutputStream.h"
 #include "nsIEventTarget.h"
-
-#include "lz4.h"
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed))
@@ -214,9 +213,9 @@ public:
       dataptr = (char *)mImage->Data();
       datasize = mImage->GetDataSize();
 
-      compresseddata = std::auto_ptr<char>((char*) moz_malloc(LZ4_compressBound((int) datasize)));
+      compresseddata = std::auto_ptr<char>((char*) moz_malloc(Compression::lz4::compressBound((int) datasize)));
       if (compresseddata.get()) {
-        int ndatasize = LZ4_compress(dataptr, compresseddata.get(), datasize);
+        int ndatasize = Compression::lz4::compress(dataptr, compresseddata.get(), datasize);
         if (ndatasize > 0) {
           datasize = ndatasize;
           dataptr = compresseddata.get();

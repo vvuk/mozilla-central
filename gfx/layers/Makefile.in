@@ -94,7 +94,6 @@ GTEST_CPPSRCS = \
 
 ifdef LAYERSCOPE
 DEFINES += -DLAYERSCOPE
-CSRCS += lz4.c
 CPPSRCS += LayerManagerOGLDebug.cpp
 endif
 
