@@ -29,11 +29,11 @@ endif
 
 # uncomment this to get layers logging
 # even in release builds
-#DEFINES += -DFORCE_PR_LOG
+DEFINES += -DFORCE_PR_LOG
 
 # uncomment this to enable layerscope,
 # even if not configured with it
-#MOZ_LAYERSCOPE = 1
+MOZ_LAYERSCOPE = 1
 
 EXPORTS = \
         BasicLayers.h \
