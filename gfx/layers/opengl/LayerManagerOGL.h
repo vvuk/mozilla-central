@@ -323,7 +323,7 @@ public:
   void DebugSendTexture(void *aLayerRef,
                         GLenum aTextureTarget, GLuint aTextureID,
                         GLuint aWidth, GLuint aHeight,
-                        ShaderProgramType aShader = BGRALayerProgramType,
+                        gl::ShaderProgramType aShader = gl::BGRALayerProgramType,
                         bool aFlipY = false);
   void DebugSendColor(void *aLayerRef,
                       const gfxRGBA& aColor, const nsIntSize& aSize);
@@ -333,7 +333,7 @@ public:
   void DebugSendTexture(void *aLayerRef,
                         GLenum aTextureTarget, GLuint aTextureID,
                         GLuint aWidth, GLuint aHeight,
-                        ShaderProgramType aShader = BGRALayerProgramType,
+                        gl::ShaderProgramType aShader = gl::BGRALayerProgramType,
                         bool aFlipY = false) {}
   void DebugSendColor(void *aLayerRef,
                       const gfxRGBA& aColor, const nsIntSize& aSize) {}
