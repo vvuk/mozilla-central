@@ -28,6 +28,7 @@ namespace ion {
 # define JS_PARALLEL_COMPILATION
 
 struct WorkerThread;
+struct AsmJSCompilationData;
 
 /* Per-runtime state for off thread work items. */
 class WorkerThreadState
@@ -42,8 +43,18 @@ class WorkerThreadState
         WORKER
     };
 
-    /* Shared worklist for helper threads. */
+    /* Shared worklist for Ion worker threads. */
     js::Vector<ion::IonBuilder*, 0, SystemAllocPolicy> ionWorklist;
+
+    /* Worklist for AsmJS worker threads. */
+    js::Vector<AsmJSCompilationData*, 0, SystemAllocPolicy> asmWorklist;
+
+    /*
+     * Finished list for AsmJS worker threads.
+     * Simultaneous AsmJS compilations all service the same AsmJS module.
+     * The main thread must pick up finished optimizations and perform codegen.
+     */
+    js::Vector<AsmJSCompilationData*, 0, SystemAllocPolicy> asmFinishedList;
 
     WorkerThreadState() { PodZero(this); }
     ~WorkerThreadState();
@@ -61,7 +72,26 @@ class WorkerThreadState
     void notify(CondVar which);
     void notifyAll(CondVar which);
 
+    bool canStartAsmJSCompile();
     bool canStartIonCompile();
+
+    uint32_t harvestFailedAsmJSJobs() {
+        JS_ASSERT(isLocked());
+        uint32_t n = numAsmJSFailedJobs;
+        numAsmJSFailedJobs = 0;
+        return n;
+    }
+    void noteAsmJSFailure() {
+        // Be mindful to signal the main thread after calling this function.
+        JS_ASSERT(isLocked());
+        numAsmJSFailedJobs++;
+    }
+    bool asmJSWorkerFailed() const {
+        return bool(numAsmJSFailedJobs);
+    }
+    void resetAsmJSFailureState() {
+        numAsmJSFailedJobs = 0;
+    }
 
   private:
 
@@ -80,6 +110,12 @@ class WorkerThreadState
 
     /* Condvar to notify helper threads that they may be able to make progress. */
     PRCondVar *helperWakeup;
+
+    /*
+     * Number of AsmJS workers that encountered failure for the active module.
+     * Their parent is logically the main thread, and this number serves for harvesting.
+     */
+    uint32_t numAsmJSFailedJobs;
 };
 
 /* Individual helper thread, one allocated per core. */
@@ -96,7 +132,13 @@ struct WorkerThread
     /* Any builder currently being compiled by Ion on this thread. */
     ion::IonBuilder *ionBuilder;
 
+    /* Any AsmJS data currently being optimized by Ion on this thread. */
+    AsmJSCompilationData *asmData;
+
     void destroy();
+
+    void handleAsmJSWorkload(WorkerThreadState &state);
+    void handleIonWorkload(WorkerThreadState &state);
 
     static void ThreadMain(void *arg);
     void threadLoop();
@@ -105,6 +147,18 @@ struct WorkerThread
 #endif /* JS_THREADSAFE && JS_ION */
 
 /* Methods for interacting with worker threads. */
+
+/* Initialize worker threads unless already initialized. */
+bool
+EnsureParallelCompilationInitialized(JSRuntime *rt);
+
+/* Perform MIR optimization and LIR generation on a single function. */
+bool
+StartOffThreadAsmJSCompile(JSContext *cx, AsmJSCompilationData *asmData);
+
+/* Cancel all scheduled or in progress AsmJS compilations for the active module. */
+void
+CancelOffThreadAsmJSCompile();
 
 /*
  * Schedule an Ion compilation for a script, given a builder which has been

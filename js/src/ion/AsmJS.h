@@ -22,6 +22,19 @@ namespace js {
 class SPSProfiler;
 class AsmJSModule;
 namespace frontend { struct TokenStream; struct ParseNode; }
+namespace ion { class MIRGenerator; class LIRGraph; }
+
+// Struct type for passing parallel compilation data between the main thread
+// and compilation workers.
+struct AsmJSCompilationData {
+    uint32_t funcNum;       // Index |i| of function in |Module.function(i)|.
+    ion::MIRGenerator *mir; // Passed from main thread to worker.
+    ion::LIRGraph *lir;     // Passed from worker to main thread.
+
+    AsmJSCompilationData(uint32_t funcNum, ion::MIRGenerator *mir)
+      : funcNum(funcNum), mir(mir), lir(NULL)
+    { }
+};
 
 // Return whether asm.js optimization is inhibitted by the platform or
 // dynamically disabled. (Exposed as JSNative for shell testing.)

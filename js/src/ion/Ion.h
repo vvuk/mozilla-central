@@ -315,11 +315,18 @@ void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
 
 void ToggleBarriers(JS::Zone *zone, bool needs);
 
+// Compilation helpers.
+
 class IonBuilder;
 class MIRGenerator;
+class LIRGraph;
 class CodeGenerator;
 
+bool OptimizeMIR(MIRGenerator *mir);
+LIRGraph *GenerateLIR(MIRGenerator *mir);
+CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm = NULL);
 CodeGenerator *CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL);
+
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
 

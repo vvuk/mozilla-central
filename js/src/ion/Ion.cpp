@@ -1016,8 +1016,8 @@ OptimizeMIR(MIRGenerator *mir)
     return true;
 }
 
-CodeGenerator *
-GenerateLIR(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL)
+LIRGraph *
+GenerateLIR(MIRGenerator *mir)
 {
     MIRGraph &graph = mir->graph();
 
@@ -1091,23 +1091,26 @@ GenerateLIR(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL)
     if (mir->shouldCancel("Allocate Registers"))
         return NULL;
 
+    return lir;
+}
+
+CodeGenerator *
+GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm)
+{
     CodeGenerator *codegen = js_new<CodeGenerator>(mir, lir, maybeMasm);
-    if (!codegen) {
+    if (!codegen)
+        return NULL;
+
+    bool compiled = false;
+    if (mir->compilingAsmJS())
+        compiled = codegen->generateAsm();
+    else
+        compiled = codegen->generate();
+
+    if (!compiled) {
         js_delete(codegen);
         return NULL;
-    }
-
-    if (mir->compilingAsmJS()) {
-        if (!codegen->generateAsmJS()) {
-            js_delete(codegen);
-            return NULL;
-        }
-    } else {
-        if (!codegen->generate()) {
-            js_delete(codegen);
-            return NULL;
-        }
-    }
+  }
 
     return codegen;
 }
@@ -1117,7 +1120,12 @@ CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm)
 {
     if (!OptimizeMIR(mir))
         return NULL;
-    return GenerateLIR(mir, maybeMasm);
+
+    LIRGraph *lir = GenerateLIR(mir);
+    if (!lir)
+        return NULL;
+
+    return GenerateCode(mir, lir, maybeMasm);
 }
 
 class SequentialCompileContext {
@@ -1681,7 +1689,7 @@ ParallelCompileContext::compile(IonBuilder *builder,
     // For the time being, we do not enable parallel compilation.
 
     if (!OptimizeMIR(builder)) {
-        IonSpew(IonSpew_Abort, "Failed during back-end compilation.");
+        IonSpew(IonSpew_Abort, "Failed during MIR optimization.");
         return AbortReason_Disable;
     }
 
@@ -1689,9 +1697,15 @@ ParallelCompileContext::compile(IonBuilder *builder,
         return AbortReason_Disable;
     }
 
-    CodeGenerator *codegen = GenerateLIR(builder);
-    if (!codegen)  {
-        IonSpew(IonSpew_Abort, "Failed during back-end compilation.");
+    LIRGraph *lir = GenerateLIR(builder);
+    if (!lir) {
+        IonSpew(IonSpew_Abort, "Failed during LIR generation.");
+        return AbortReason_Disable;
+    }
+
+    CodeGenerator *codegen = GenerateCode(builder, lir);
+    if (!codegen) {
+        IonSpew(IonSpew_Abort, "Failed during code generation.");
         return AbortReason_Disable;
     }
 

@@ -9,6 +9,7 @@
 #define jsion_asmjsmodule_h__
 
 #include "gc/Marking.h"
+#include "ion/IonAllocPolicy.h"
 #include "ion/RegisterSets.h"
 
 #include "jstypedarrayinlines.h"
@@ -482,7 +483,7 @@ class AsmJSModule
         return functionBytes_;
     }
 
-    bool addHeapAccesses(const Vector<ion::AsmJSHeapAccess> &accesses) {
+    bool addHeapAccesses(const Vector<ion::AsmJSHeapAccess, 0, ion::IonAllocPolicy> &accesses) {
         if (!heapAccesses_.reserve(heapAccesses_.length() + accesses.length()))
             return false;
         for (size_t i = 0; i < accesses.length(); i++)

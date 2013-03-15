@@ -366,6 +366,8 @@ js::LinkAsmJS(JSContext *cx, StackFrame *fp, MutableHandleValue rval)
     RootedObject moduleObj(cx, fp->fun()->nonLazyScript()->asmJS);
     const AsmJSModule &module = AsmJSModuleObjectToModule(moduleObj);
 
+    // TODO: Join on workers here.
+
     if (!DynamicallyLinkModule(cx, fp, moduleObj))
         return !cx->isExceptionPending();
 
