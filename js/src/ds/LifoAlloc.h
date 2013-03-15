@@ -94,6 +94,7 @@ class BumpChunk
     void setNext(BumpChunk *succ) { next_ = succ; }
 
     size_t used() const { return bump - bumpBase(); }
+    size_t getBumpSpaceSize() const { return bumpSpaceSize; }
     size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) {
         return mallocSizeOf(this);
     }
@@ -217,6 +218,9 @@ class LifoAlloc
     /* Frees all held memory. */
     void freeAll();
 
+    static const unsigned HUGE_ALLOCATION = 100 * 1024 * 1024;
+    void freeAllIfHugeAllocation();
+
     JS_ALWAYS_INLINE
     void *alloc(size_t n) {
         JS_OOM_POSSIBLY_FAIL();
@@ -329,6 +333,16 @@ class LifoAlloc
             accum += it->used();
             if (it == latest)
                 break;
+            it = it->next();
+        }
+        return accum;
+    }
+
+    size_t allocated() const {
+        size_t accum = 0;
+        BumpChunk *it = first;
+        while (it) {
+            accum += it->getBumpSpaceSize() + sizeof(BumpChunk);
             it = it->next();
         }
         return accum;

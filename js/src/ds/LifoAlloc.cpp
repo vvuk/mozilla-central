@@ -65,6 +65,21 @@ LifoAlloc::freeAll()
     first = latest = last = NULL;
 }
 
+void
+LifoAlloc::freeAllIfHugeAllocation()
+{
+    if (markCount)
+        return;
+
+    size_t accum = 0;
+    for (BumpChunk *it = first; it; it = it->next())
+        accum += it->used();
+    if (accum < HUGE_ALLOCATION)
+        return;
+
+    freeAll();
+}
+
 LifoAlloc::BumpChunk *
 LifoAlloc::getOrCreateChunk(size_t n)
 {

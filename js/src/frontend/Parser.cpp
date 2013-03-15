@@ -394,6 +394,7 @@ Parser<ParseHandler>::~Parser()
     JSContext *cx = context;
     cx->tempLifoAlloc().release(tempPoolMark);
     cx->activeCompilations--;
+    cx->tempLifoAlloc().freeAllIfHugeAllocation();
 }
 
 template <typename ParseHandler>

@@ -5576,6 +5576,17 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
     bool result = Execute(cx, script, *obj, rval);
     if (!sct.complete())
         result = false;
+
+    if (script->length > 1000000) {
+        script = NULL;
+        printf("Evaluate:\n");
+        printf("before: a: %zu, t: %zu, temp: %zu\n", cx->analysisLifoAlloc().allocated(),
+               cx->typeLifoAlloc().allocated(), cx->tempLifoAlloc().allocated());
+        JS_GC(cx->runtime);
+        cx->runtime->gcHelperThread.waitBackgroundSweepOrAllocEnd();
+        printf("after: a: %zu, t: %zu, temp: %zu\n", cx->analysisLifoAlloc().allocated(),
+               cx->typeLifoAlloc().allocated(), cx->tempLifoAlloc().allocated());
+    }
     return result;
 }
 
