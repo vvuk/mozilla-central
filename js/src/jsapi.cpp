@@ -5580,12 +5580,12 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
     if (script->length > 1000000) {
         script = NULL;
         printf("Evaluate:\n");
-        printf("before: a: %zu, t: %zu, temp: %zu\n", cx->analysisLifoAlloc().allocated(),
-               cx->typeLifoAlloc().allocated(), cx->tempLifoAlloc().allocated());
+        printf("before: a: %llu, t: %llu, temp: %llu\n", (uint64_t) cx->analysisLifoAlloc().allocated(),
+               (uint64_t) cx->typeLifoAlloc().allocated(), (uint64_t) cx->tempLifoAlloc().allocated());
         JS_GC(cx->runtime);
         cx->runtime->gcHelperThread.waitBackgroundSweepOrAllocEnd();
-        printf("after: a: %zu, t: %zu, temp: %zu\n", cx->analysisLifoAlloc().allocated(),
-               cx->typeLifoAlloc().allocated(), cx->tempLifoAlloc().allocated());
+        printf("after: a: %llu, t: %llu, temp: %llu\n", (uint64_t) cx->analysisLifoAlloc().allocated(),
+               (uint64_t) cx->typeLifoAlloc().allocated(), (uint64_t) cx->tempLifoAlloc().allocated());
     }
     return result;
 }

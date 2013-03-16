@@ -174,6 +174,8 @@ IonRuntime::~IonRuntime()
 bool
 IonRuntime::initialize(JSContext *cx)
 {
+    int64_t t0 = JS_Now();
+
     AutoEnterAtomsCompartment ac(cx);
 
     if (!cx->compartment->ensureIonCompartmentExists(cx))
@@ -231,6 +233,9 @@ IonRuntime::initialize(JSContext *cx)
         if (!generateVMWrapper(cx, *fun))
             return false;
     }
+
+    int64_t t1 = JS_Now();
+    printf("IonRuntime::initialize: %lld ms\n", t1-t0);
 
     return true;
 }
@@ -1103,14 +1108,14 @@ GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm)
 
     bool compiled = false;
     if (mir->compilingAsmJS())
-        compiled = codegen->generateAsm();
+        compiled = codegen->generateAsmJS();
     else
         compiled = codegen->generate();
 
     if (!compiled) {
         js_delete(codegen);
         return NULL;
-  }
+    }
 
     return codegen;
 }
