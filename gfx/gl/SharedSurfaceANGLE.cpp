@@ -57,7 +57,7 @@ SharedSurface_ANGLEShareHandle::UnlockProdImpl()
 void
 SharedSurface_ANGLEShareHandle::Fence()
 {
-    mGL->fFinish();
+    //mGL->fFinish();
 }
 
 bool

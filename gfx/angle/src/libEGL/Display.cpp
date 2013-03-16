@@ -956,6 +956,8 @@ void Display::sync(bool block)
     result = query->Issue(D3DISSUE_END);
     ASSERT(SUCCEEDED(result));
 
+    int queryCount = 1;
+
     do
     {
         result = query->GetData(NULL, 0, D3DGETDATA_FLUSH);
@@ -967,7 +969,10 @@ void Display::sync(bool block)
             // explicitly check for device loss
             // some drivers seem to return S_FALSE even if the device is lost
             // instead of D3DERR_DEVICELOST like they should
-            if (testDeviceLost())
+            // only do this if we end up hitting this loop a bunch of times
+            // (127), otherwise we'll be potentially hitting this on every frame
+            // that does any meaningful drawing.
+            if ((queryCount++ & 0x7f) == 0 && testDeviceLost())
             {
                 result = D3DERR_DEVICELOST;
             }
