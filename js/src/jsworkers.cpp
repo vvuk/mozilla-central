@@ -357,7 +357,7 @@ WorkerThread::handleAsmJSWorkload(WorkerThreadState &state)
 
     state.unlock();
     do {
-        ion::IonContext icx(NULL, asmData->mir->compartment, &asmData->mir->temp());
+        ion::IonContext icx(asmData->mir->compartment, &asmData->mir->temp());
 
         if (!OptimizeMIR(asmData->mir))
             break;
@@ -400,7 +400,7 @@ WorkerThread::handleIonWorkload(WorkerThreadState &state)
 
     state.unlock();
     {
-        ion::IonContext ictx(NULL, ionBuilder->script()->compartment(), &ionBuilder->temp());
+        ion::IonContext ictx(ionBuilder->script()->compartment(), &ionBuilder->temp());
         ionBuilder->setBackgroundCodegen(ion::CompileBackEnd(ionBuilder));
     }
     state.lock();
@@ -442,18 +442,6 @@ WorkerThread::threadLoop()
         if (terminate) {
             state.unlock();
             return;
-        }
-
-        ionBuilder = state.ionWorklist.popCopy();
-
-        DebugOnly<ion::ExecutionMode> executionMode = ionBuilder->info().executionMode();
-        JS_ASSERT(GetIonScript(ionBuilder->script(), executionMode) == ION_COMPILING_SCRIPT);
-
-        state.unlock();
-
-        {
-            ion::IonContext ictx(ionBuilder->script()->compartment(), &ionBuilder->temp());
-            ionBuilder->setBackgroundCodegen(ion::CompileBackEnd(ionBuilder));
         }
 
         // Dispatch tasks, prioritizing AsmJS work.

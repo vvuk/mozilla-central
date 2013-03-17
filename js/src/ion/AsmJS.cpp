@@ -4354,7 +4354,7 @@ GenerateFunctionMIR(JSContext *cx, ModuleCompiler &m, ModuleCompiler::Func &func
 
     // Force Ion allocations to occur in the LifoAlloc while in scope.
     TempAllocator *tempAlloc = lifo.new_<TempAllocator>(&lifo);
-    IonContext icx(cx, cx->compartment, tempAlloc);
+    IonContext icx(cx->compartment, tempAlloc);
 
     // Allocate objects required for MIR generation.
     // Memory for the objects is provided by the LifoAlloc argument,
