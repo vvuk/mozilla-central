@@ -40,6 +40,8 @@ protected:
     const EGLSurface mPBuffer;
     nsRefPtr<ID3D10Texture2D> mTexture;
     nsRefPtr<ID3D10ShaderResourceView> mSRV;
+    nsRefPtr<ID3D10Device1> mD3D;
+    nsRefPtr<ID3D10Query> mQuery;
 
     SharedSurface_ANGLEShareHandle(GLContext* gl,
                                    GLLibraryEGL* egl,
@@ -47,6 +49,7 @@ protected:
                                    bool hasAlpha,
                                    EGLContext context,
                                    EGLSurface pbuffer,
+                                   ID3D10Device1* d3d,
                                    ID3D10Texture2D* texture,
                                    ID3D10ShaderResourceView* srv)
         : SharedSurface_GL(SharedSurfaceType::EGLSurfaceANGLE,
@@ -57,6 +60,7 @@ protected:
         , mEGL(egl)
         , mContext(context)
         , mPBuffer(pbuffer)
+        , mD3D(d3d)
         , mTexture(texture)
         , mSRV(srv)
     {}

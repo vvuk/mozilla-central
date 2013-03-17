@@ -57,13 +57,41 @@ SharedSurface_ANGLEShareHandle::UnlockProdImpl()
 void
 SharedSurface_ANGLEShareHandle::Fence()
 {
-    //mGL->fFinish();
+    if (mQuery) {
+        mQuery->End();
+
+        BOOL finished = S_FALSE;
+        HRESULT ok = mQuery->GetData(&finished, sizeof(BOOL), 0);
+
+        while (!ok) {
+            // Keep polling
+            Sleep(0);
+            ok = mQuery->GetData(&finished, sizeof(BOOL), 0);
+        }
+
+        // !finished with ok = TRUE should never happen!
+        MOZ_ASSERT(finished);
+    } else {
+        mGL->fFinish();
+    }
 }
 
 bool
 SharedSurface_ANGLEShareHandle::WaitSync()
 {
-    // Since we glFinish in Fence(), we're always going to be resolved here.
+    // We know ANGLE is using D3D under the hood, sooo...
+    if (!mQuery) {
+        D3D10_QUERY_DESC desc = { D3D10_QUERY_EVENT, 0 };
+        HRESULT hr = mD3D->CreateQuery(&desc, getter_AddRefs(mQuery));
+        if (FAILED(hr)) {
+            printf_stderr("Failed to create query with 0x%08x\n", hr);
+            mQuery = nullptr;
+            return false;
+        }
+    }
+
+    // issue the query
+    mQuery->End();
     return true;
 }
 
@@ -254,7 +282,7 @@ CleanUpIfFailed:
     return new SharedSurface_ANGLEShareHandle(gl, egl,
                                               size, hasAlpha,
                                               context, pbuffer,
-                                              texture, srv);
+                                              d3d, texture, srv);
 }
 
 
