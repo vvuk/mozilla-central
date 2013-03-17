@@ -6653,6 +6653,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
 
     // XXX How about IME events and input events for plugins?
     if (aEvent->mFlags.mIsTrusted) {
+      bool maybeUnlockPointer = aEvent->eventStructType == NS_TOUCH_EVENT;
+
       switch (aEvent->message) {
       case NS_KEY_PRESS:
       case NS_KEY_DOWN:
@@ -6660,27 +6662,30 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         nsIDocument* doc = GetCurrentEventContent() ?
                            mCurrentEventContent->OwnerDoc() : nullptr;
         nsIDocument* fullscreenAncestor = nullptr;
-        if (static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE &&
-            (fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(doc))) {
-          // Prevent default action on ESC key press when exiting
-          // DOM fullscreen mode. This prevents the browser ESC key
-          // handler from stopping all loads in the document, which
-          // would cause <video> loads to stop.
-          aEvent->mFlags.mDefaultPrevented = true;
-          aEvent->mFlags.mOnlyChromeDispatch = true;
-
-          if (aEvent->message == NS_KEY_UP) {
-            // ESC key released while in DOM fullscreen mode.
-            // If fullscreen is running in content-only mode, exit the target
-            // doctree branch from fullscreen, otherwise fully exit all
-            // browser windows and documents from fullscreen mode.
-            // Note: in the content-only fullscreen case, we pass the
-            // fullscreenAncestor since |doc| may not actually be fullscreen
-            // here, and ExitFullscreen() has no affect when passed a
-            // non-fullscreen document.
-            nsIDocument::ExitFullscreen(
-              nsContentUtils::IsFullscreenApiContentOnly() ? fullscreenAncestor : nullptr,
-              /* async */ true);
+        if (static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE) {
+          if ((fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(doc))) {
+            // Prevent default action on ESC key press when exiting
+            // DOM fullscreen mode. This prevents the browser ESC key
+            // handler from stopping all loads in the document, which
+            // would cause <video> loads to stop.
+            aEvent->mFlags.mDefaultPrevented = true;
+            aEvent->mFlags.mOnlyChromeDispatch = true;
+  
+            if (aEvent->message == NS_KEY_UP) {
+              // ESC key released while in DOM fullscreen mode.
+              // If fullscreen is running in content-only mode, exit the target
+              // doctree branch from fullscreen, otherwise fully exit all
+              // browser windows and documents from fullscreen mode.
+              // Note: in the content-only fullscreen case, we pass the
+              // fullscreenAncestor since |doc| may not actually be fullscreen
+              // here, and ExitFullscreen() has no affect when passed a
+              // non-fullscreen document.
+              nsIDocument::ExitFullscreen(
+                nsContentUtils::IsFullscreenApiContentOnly() ? fullscreenAncestor : nullptr,
+                /* async */ true);
+            }
+          } else {
+            maybeUnlockPointer = true;
           }
         }
         // Else not full-screen mode or key code is unrestricted, fall
@@ -6785,6 +6790,29 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           }
         }
         break;
+      }
+
+      if (maybeUnlockPointer) {
+        nsCOMPtr<nsIDocument> pointerLockedDoc =
+          do_QueryReferent(nsEventStateManager::sPointerLockedDoc);
+        // Note, we don't use nsContentUtils::IsInPointerLockContext here,
+        // since we want ESC and touch events to really exit pointer lock, even
+        // if the focus is in chrome and pointer lock in content.
+        if (pointerLockedDoc) {
+          nsIDocument* d = mDocument;
+          while (d->GetParentDocument()) {
+            d = d->GetParentDocument();
+          }
+          nsIDocument* pd = pointerLockedDoc;
+          while(pd->GetParentDocument()) {
+            pd = pd->GetParentDocument();
+          }
+          if (d == pd) {
+            aEvent->mFlags.mDefaultPrevented = true;
+            aEvent->mFlags.mOnlyChromeDispatch = true;
+            pointerLockedDoc->UnlockPointer();
+          }
+        }
       }
     }
 

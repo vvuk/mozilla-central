@@ -1615,10 +1615,29 @@ ContentPermissionPrompt.prototype = {
 
   prompt: function CPP_prompt(request) {
 
-    if (request.type != "geolocation") {
-        return;
+    switch (request.type) {
+      case "geolocation":
+        this.handleGeolocation(request);
+        break;
+      case "pointerLock":
+        this.handlePointerLock(request);
+        break;
     }
+  },
 
+  getChromeWindow: function CPP_getChromeWindow(aWindow) {
+    var chromeWin = aWindow 
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIWebNavigation)
+      .QueryInterface(Ci.nsIDocShellTreeItem)
+      .rootTreeItem
+      .QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindow)
+      .QueryInterface(Ci.nsIDOMChromeWindow);
+    return chromeWin;
+  },
+
+  handleGeolocation: function CPP_handleGeolocation(request) {
     var requestingPrincipal = request.principal;
     var requestingURI = requestingPrincipal.URI;
 
@@ -1638,18 +1657,6 @@ ContentPermissionPrompt.prototype = {
       return;
     }
 
-    function getChromeWindow(aWindow) {
-      var chromeWin = aWindow 
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIWebNavigation)
-        .QueryInterface(Ci.nsIDocShellTreeItem)
-        .rootTreeItem
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindow)
-        .QueryInterface(Ci.nsIDOMChromeWindow);
-      return chromeWin;
-    }
-
     var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     let secHistogram = Components.classes["@mozilla.org/base/telemetry;1"].
                                   getService(Ci.nsITelemetry).
@@ -1667,7 +1674,7 @@ ContentPermissionPrompt.prototype = {
     var message;
     var secondaryActions = [];
     var requestingWindow = request.window.top;
-    var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
+    var chromeWin = this.getChromeWindow(requestingWindow).wrappedJSObject;
 
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
@@ -1709,6 +1716,94 @@ ContentPermissionPrompt.prototype = {
     secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST);
     chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",
                                       mainAction, secondaryActions);
+  },
+
+  handlePointerLock: function CPP_handleGeolocation(request) {
+    var requestingPrincipal = request.principal;
+    var requestingURI = requestingPrincipal.URI;
+
+    // Ignore requests from non-nsIStandardURLs
+    if (!(requestingURI instanceof Ci.nsIStandardURL))
+      return;
+
+    var result = Services.perms.testExactPermissionFromPrincipal(requestingPrincipal, "pointerLock");
+
+    var autoAllow = false;
+    if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
+      autoAllow = true;
+    }
+
+    if (result == Ci.nsIPermissionManager.DENY_ACTION) {
+      request.cancel();
+      return;
+    }
+
+    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+
+    var mainAction = {
+      label: browserBundle.GetStringFromName("pointerLock.lock"),
+      accessKey: browserBundle.GetStringFromName("pointerLock.accesskey"),
+      callback: function() {
+        // If we allowed the lock automatically, nothing to do here.
+        if (!autoAllow) {
+          request.allow();
+        }
+      },
+    };
+
+    var message = browserBundle.formatStringFromName(autoAllow ? "pointerLock.autoLockIitle" : "pointerLock.title",
+                                                     [ requestingURI.schemeIs("file") ?
+                                                       requestingURI.path :
+                                                       requestingURI.host ], 1);
+    var secondaryActions = [];
+    var requestingWindow = request.window.top;
+    var chromeWin = this.getChromeWindow(requestingWindow).wrappedJSObject;
+
+    // Don't offer "always/never" in PB mode
+    if (!autoAllow && !PrivateBrowsingUtils.isWindowPrivate(chromeWin)) {
+      secondaryActions.push({
+        label: browserBundle.GetStringFromName("pointerLock.alwaysAllowPointerLock"),
+        accessKey: browserBundle.GetStringFromName("pointerLock.alwaysAllowPointerLock.accesskey"),
+        callback: function () {
+          Services.perms.addFromPrincipal(requestingPrincipal, "pointerLock", Ci.nsIPermissionManager.ALLOW_ACTION);
+          request.allow();
+        }
+      });
+      secondaryActions.push({
+        label: browserBundle.GetStringFromName("pointerLock.neverAllowPointerLock"),
+        accessKey: browserBundle.GetStringFromName("pointerLock.neverAllowPointerLock.accesskey"),
+        callback: function () {
+          Services.perms.addFromPrincipal(requestingPrincipal, "pointerLock", Ci.nsIPermissionManager.DENY_ACTION);
+          request.cancel();
+        }
+      });
+    }
+
+    var info = chromeWin.document.getElementById("pointerLock-cancel");
+    info.value = browserBundle.GetStringFromName("pointerLock.cancel");
+
+    var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
+
+    var notification = chromeWin.PopupNotifications.show(browser, "pointerLock", message, null,
+                                                         autoAllow ? null : mainAction, secondaryActions,
+                                                         {
+                                                           removeOnDismissal: true,
+                                                           dismissed: false,
+                                                           eventCallback:
+                                                             function (type) {
+                                                               if (type == "shown" && autoAllow) {
+                                                                 chromeWin.setTimeout(function() {
+                                                                   chromeWin.PopupNotifications.remove(notification);
+                                                                 }, 2500);
+                                                               } else if (type == "removed") {
+                                                                 if (autoAllow) {
+                                                                   request.allow();
+                                                                 } else {
+                                                                   request.cancel();
+                                                                 }
+                                                               }
+                                                             }
+                                                         });
   }
 };
 

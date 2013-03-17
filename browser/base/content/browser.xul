@@ -450,6 +450,13 @@
       </popupnotificationcontent>
     </popupnotification>
 
+    <popupnotification id="pointerLock-notification" hidden="true">
+      <popupnotificationcontent orient="vertical" align="start">
+        <separator class="thin"/>
+        <label id="pointerLock-cancel"/>
+      </popupnotificationcontent>
+    </popupnotification>
+
     <popupnotification id="mixed-content-blocked-notification" hidden="true">
       <popupnotificationcontent orient="vertical" align="start">
         <separator/>
