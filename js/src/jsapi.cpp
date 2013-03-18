@@ -89,8 +89,9 @@
 #include "methodjit/Logging.h"
 #endif
 
-#ifdef JS_METHODJIT
+#ifdef JS_ION
 #include "ion/Ion.h"
+#include "ion/AsmJSModule.h"
 #endif
 
 using namespace js;
@@ -977,6 +978,19 @@ JSRuntime::init(uint32_t maxbytes)
         return false;
 
     nativeStackBase = GetNativeStackBase();
+
+#ifdef XP_MACOSX
+    if (!runtimeListLock_) {
+        runtimeListLock_ = PR_NewLock();
+        runtimeListHead_ = NULL;
+    }
+
+    PR_Lock(runtimeListLock_);
+    runtimeListNext_ = runtimeListHead_;
+    runtimeListHead_ = this;
+    PR_Unlock(runtimeListLock_);
+#endif
+
     return true;
 }
 
@@ -984,6 +998,25 @@ JSRuntime::~JSRuntime()
 {
 #ifdef JS_THREADSAFE
     clearOwnerThread();
+#endif
+
+#ifdef XP_MACOSX
+    {
+        PR_Lock(runtimeListLock_);
+        JSRuntime *r = runtimeListHead_;
+        if (r == this) {
+            runtimeListHead_ = runtimeListNext_;
+        } else {
+            while (r && r->runtimeListNext_ != this) {
+                r = r->runtimeListNext_;
+            }
+            JS_ASSERT(r);
+            r->runtimeListNext_ = runtimeListNext_;
+        }
+
+        runtimeListNext_ = NULL;
+        PR_Unlock(runtimeListLock_);
+    }
 #endif
 
     /*
