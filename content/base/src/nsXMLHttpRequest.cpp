@@ -982,6 +982,10 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       if (aRv.Failed()) {
         return JSVAL_NULL;
       }
+
+      // Free memory buffer which we no longer need
+      mResponseBody.Truncate();
+      mResponseBodyDecodedPos = 0;
     }
     return OBJECT_TO_JSVAL(mResultArrayBuffer);
   }
