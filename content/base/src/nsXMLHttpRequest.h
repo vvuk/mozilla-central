@@ -663,11 +663,7 @@ protected:
   
   JS::Value mResultJSON;
 
-  uint32_t mArrayBufferValidLength;
-  uint32_t mArrayBufferAllocLength;
-  void *mArrayBufferOpaqueData;
-  uint8_t *mArrayBufferData;
-
+  JS::ArrayBufferBuilder mArrayBufferBuilder;
   JSObject* mResultArrayBuffer;
 
   void ResetResponse();

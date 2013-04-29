@@ -3676,6 +3676,106 @@ JS_AllocateArrayBufferContents(JSContext *cx, uint32_t nbytes, void **contents, 
 extern JS_PUBLIC_API(JSBool)
 JS_ReallocateArrayBufferContents(JSContext *cx, uint32_t nbytes, void **contents, uint8_t **data);
 
+namespace JS {
+
+class ArrayBufferBuilder
+{
+    JSContext *cx_;
+    void *rawcontents_;
+    uint8_t *dataptr_;
+    uint32_t capacity_;
+    uint32_t length_;
+  public:
+    ArrayBufferBuilder(JSContext *cx = NULL)
+        : cx_(cx),
+          rawcontents_(NULL),
+          dataptr_(NULL),
+          capacity_(0),
+          length_(0)
+    {
+    }
+
+    ~ArrayBufferBuilder() {
+        reset();
+    }
+
+    void setContext(JSContext *cx) {
+        cx_ = cx;
+    }
+
+    void reset() {
+        if (rawcontents_)
+            JS_free(cx_, rawcontents_);
+        rawcontents_ = dataptr_ = NULL;
+        capacity_ = length_ = 0;
+    }
+
+    // will truncate if newcap is < length()
+    JSBool setCapacity(uint32_t newcap) {
+        JSBool ok = JS_ReallocateArrayBufferContents(cx_, newcap, &rawcontents_, &dataptr_);
+        if (ok) {
+            capacity_ = newcap;
+            if (length_ > newcap)
+                length_ = newcap;
+        }
+        return ok;
+    }
+
+    JSBool append(uint8_t *data, uint32_t datalen, uint32_t maxgrowth = 0) {
+        if (length_ + datalen > capacity_) {
+            uint32_t newcap;
+            // double while under maxgrowth or if not specified
+            if (!maxgrowth || length_ < maxgrowth) {
+                newcap = length_ * 2;
+            } else {
+                newcap = length_ + maxgrowth;
+            }
+
+            // but make sure there's always enough to satisfy our request
+            if (newcap < length_ + datalen)
+                newcap = length_ + datalen;
+
+            if (!setCapacity(newcap))
+                return JS_FALSE;
+        }
+
+        memcpy(dataptr_ + length_, data, datalen);
+        length_ += datalen;
+
+        return JS_TRUE;
+    }
+
+    uint8_t *data() {
+        return dataptr_;
+    }
+
+    uint32_t length() {
+        return length_;
+    }
+
+    uint32_t capacity() {
+        return capacity_;
+    }
+
+    JSObject* getArrayBuffer() {
+        if (capacity_ > length_) {
+            if (!setCapacity(length_))
+                return NULL;
+        }
+
+        JSObject* obj = JS_NewArrayBufferWithContents(cx_, rawcontents_);
+        if (!obj)
+            return NULL;
+
+        rawcontents_ = dataptr_ = NULL;
+        length_ = capacity_ = 0;
+
+        return obj;
+    }
+};
+
+} /* namespace JS */
+
 extern JS_PUBLIC_API(JSIdArray *)
 JS_Enumerate(JSContext *cx, JSObject *obj);
 
