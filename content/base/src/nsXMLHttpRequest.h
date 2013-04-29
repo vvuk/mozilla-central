@@ -662,6 +662,12 @@ protected:
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
   
   JS::Value mResultJSON;
+
+  uint32_t mArrayBufferValidLength;
+  uint32_t mArrayBufferAllocLength;
+  void *mArrayBufferOpaqueData;
+  uint8_t *mArrayBufferData;
+
   JSObject* mResultArrayBuffer;
 
   void ResetResponse();

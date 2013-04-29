@@ -86,6 +86,12 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
+// Maximum size that we'll grow an ArrayBuffer instead of doubling,
+// once doubling reaches this threshold
+#define XML_HTTP_REQUEST_ARRAYBUFFER_MAX_GROWTH (32*1024*1024)
+// start at 64k
+#define XML_HTTP_REQUEST_ARRAYBUFFER_MIN_SIZE (64*1024)
+
 #define LOAD_STR "load"
 #define ERROR_STR "error"
 #define ABORT_STR "abort"
@@ -294,6 +300,10 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mFirstStartRequestSeen(false),
     mInLoadProgressEvent(false),
     mResultJSON(JSVAL_VOID),
+    mArrayBufferValidLength(0),
+    mArrayBufferAllocLength(0),
+    mArrayBufferOpaqueData(nullptr),
+    mArrayBufferData(nullptr),
     mResultArrayBuffer(nullptr),
     mXPCOMifier(nullptr)
 {
@@ -318,6 +328,15 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 
   NS_ABORT_IF_FALSE(!(mState & XML_HTTP_REQUEST_SYNCLOOPING), "we rather crash than hang");
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
+
+  // clean up
+  if (mArrayBufferOpaqueData) {
+    JS_free(nullptr, mArrayBufferOpaqueData);
+    mArrayBufferOpaqueData = nullptr;
+    mArrayBufferData = nullptr;
+    mArrayBufferValidLength = 0;
+    mArrayBufferAllocLength = 0;
+  }
 
   nsLayoutStatics::Release();
 }
@@ -977,15 +996,18 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 
     if (!mResultArrayBuffer) {
       RootJSResultObjects();
-      aRv = nsContentUtils::CreateArrayBuffer(aCx, mResponseBody,
-                                              &mResultArrayBuffer);
-      if (aRv.Failed()) {
+
+      // we never created this
+      mResultArrayBuffer = JS_NewArrayBufferWithContents(aCx, mArrayBufferOpaqueData);
+      if (!mResultArrayBuffer) {
         return JSVAL_NULL;
       }
 
-      // Free memory buffer which we no longer need
-      mResponseBody.Truncate();
-      mResponseBodyDecodedPos = 0;
+      // this got taken by the arraybuffer
+      mArrayBufferOpaqueData = nullptr;
+      mArrayBufferData = nullptr;
+      mArrayBufferValidLength = 0;
+      mArrayBufferAllocLength = 0;
     }
     return OBJECT_TO_JSVAL(mResultArrayBuffer);
   }
@@ -1744,16 +1766,41 @@ nsXMLHttpRequest::StreamReaderFunc(nsIInputStream* in,
     if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_MOZ_BLOB) {
       xmlHttpRequest->mResponseBlob = nullptr;
     }
-    if (NS_SUCCEEDED(rv)) {
-      *writeCount = count;
-    }
-    return rv;
-  }
+  } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
+             xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER) {
+    if (xmlHttpRequest->mArrayBufferValidLength + count > xmlHttpRequest->mArrayBufferAllocLength) {
+      // we need to grow
+      uint32_t oldsize = xmlHttpRequest->mArrayBufferAllocLength;
+      uint32_t newsize;
+      if (oldsize > XML_HTTP_REQUEST_ARRAYBUFFER_MAX_GROWTH) {
+        newsize = oldsize + PR_MAX(count, XML_HTTP_REQUEST_ARRAYBUFFER_MAX_GROWTH);
+      } else if (oldsize) {
+        newsize = oldsize * 2;
+      } else {
+        newsize = PR_MAX(count, XML_HTTP_REQUEST_ARRAYBUFFER_MIN_SIZE);
+      }
 
-  if ((xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT &&
-       xmlHttpRequest->mResponseXML) ||
-      xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
-      xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER) {
+      printf_stderr("StreamReaderFunc: count: %d old size: %d new: %d, old ptrs: %p %p\n", count, oldsize, newsize, xmlHttpRequest->mArrayBufferOpaqueData, xmlHttpRequest->mArrayBufferData);
+      JSBool ok = JS_ReallocateArrayBufferContents(nullptr /* XXXX I want a JSContext! */,
+                                                   newsize,
+                                                   &xmlHttpRequest->mArrayBufferOpaqueData,
+                                                   &xmlHttpRequest->mArrayBufferData);
+      printf_stderr("StreamReaderFunc: post-realloc: ok: %d ptrs: %p %p\n", ok, xmlHttpRequest->mArrayBufferOpaqueData, xmlHttpRequest->mArrayBufferData);
+      if (!ok) {
+        // assuming...
+        *writeCount = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+
+      xmlHttpRequest->mArrayBufferAllocLength = newsize;
+    }
+
+    memcpy(xmlHttpRequest->mArrayBufferData + xmlHttpRequest->mArrayBufferValidLength,
+           fromRawSegment, count);
+    xmlHttpRequest->mArrayBufferValidLength += count;
+    printf_stderr("StreamReaderFunc: valid length: %d\n", xmlHttpRequest->mArrayBufferValidLength);
+  } else if (xmlHttpRequest->mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT &&
+             xmlHttpRequest->mResponseXML) {
     // Copy for our own use
     uint32_t previousLength = xmlHttpRequest->mResponseBody.Length();
     xmlHttpRequest->mResponseBody.Append(fromRawSegment,count);
@@ -2118,6 +2165,24 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     }
     NS_ASSERTION(mResponseBody.IsEmpty(), "mResponseBody should be empty");
     NS_ASSERTION(mResponseText.IsEmpty(), "mResponseText should be empty");
+  } else if (NS_SUCCEEDED(status) &&
+             (mResponseType == XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER ||
+              mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER)) {
+    printf_stderr("OnStopRequest: AB valid length: %d \n", mArrayBufferValidLength);
+    // we want to realloc back down to the actual size
+    if (mArrayBufferAllocLength > mArrayBufferValidLength) {
+      JSBool ok = JS_ReallocateArrayBufferContents(nullptr /* XXXX I want a JSContext! */,
+                                                   mArrayBufferValidLength,
+                                                   &mArrayBufferOpaqueData,
+                                                   &mArrayBufferData);
+      printf_stderr("OnStopRequest: post realloc ptrs: %p %p\n", mArrayBufferOpaqueData, mArrayBufferData);
+      if (ok) {
+        mArrayBufferAllocLength = mArrayBufferValidLength;
+      } else {
+        // uhhhh, what? this should never happen!
+        status = NS_ERROR_UNEXPECTED;
+      }
+    }
   }
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
