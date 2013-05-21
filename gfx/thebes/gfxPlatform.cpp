@@ -97,6 +97,8 @@ static void ShutdownCMS();
 static void MigratePrefs();
 
 static bool sDrawLayerBorders = false;
+static bool sDrawFrameBars = false;
+static bool sDrawFPS = false;
 
 #include "mozilla/gfx/2D.h"
 using namespace mozilla::gfx;
@@ -404,7 +406,15 @@ gfxPlatform::Init()
     gPlatform->mOrientationSyncMillis = Preferences::GetUint("layers.orientation.sync.timeout", (uint32_t)0);
 
     mozilla::Preferences::AddBoolVarCache(&sDrawLayerBorders,
-                                          "layers.draw-borders",
+                                          "layers.diagnostics.draw-borders",
+                                          false);
+
+    mozilla::Preferences::AddBoolVarCache(&sDrawFPS,
+                                          "layers.diagnostics.draw-fps",
+                                          false);
+
+    mozilla::Preferences::AddBoolVarCache(&sDrawFrameBars,
+                                          "layers.diagnostics.frame-sidebars",
                                           false);
 
     CreateCMSOutputProfile();
@@ -1121,12 +1131,14 @@ gfxPlatform::IsLangCJK(eFontPrefLang aLang)
     }
 }
 
-bool
-gfxPlatform::DrawLayerBorders()
+uint32_t
+gfxPlatform::CompositorDiagnosticFlags()
 {
-    return sDrawLayerBorders;
+  return
+    (sDrawLayerBorders ? Compositor::DiagnosticColoredBorders : 0) |
+    (sDrawFPS ? Compositor::DiagnosticFPS : 0) |
+    (sDrawFrameBars ? Compositor::DiagnosticFrameBars : 0);
 }
-
 
 void
 gfxPlatform::GetLangPrefs(eFontPrefLang aPrefLangs[], uint32_t &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang)

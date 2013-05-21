@@ -330,12 +330,8 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       }
       break;
     }
-    case Edit::TOpSetColoredBorders: {
-      if (edit.get_OpSetColoredBorders().enabled()) {
-        mLayerManager->GetCompositor()->EnableColoredBorders();
-      } else {
-        mLayerManager->GetCompositor()->DisableColoredBorders();
-      }
+    case Edit::TOpSetDiagnostics: {
+      mLayerManager->GetCompositor()->SetDiagnostics(edit.get_OpSetDiagnostics().flags());
       break;
     }
     // Tree ops

@@ -29,7 +29,6 @@
 #include "GLContext.h"
 #include "GLContextProvider.h"
 #include "Composer2D.h"
-#include "FPSCounter.h"
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
@@ -243,16 +242,6 @@ LayerManagerOGL::AddPrograms(ShaderProgramType aType)
   }
 }
 
-// Impl of a a helper-runnable's "Run" method, used in Initialize()
-NS_IMETHODIMP
-LayerManagerOGL::ReadDrawFPSPref::Run()
-{
-  // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
-  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  return NS_OK;
-}
-
 bool
 LayerManagerOGL::Initialize(bool force)
 {
@@ -437,15 +426,6 @@ LayerManagerOGL::Initialize(bool force)
     console->LogStringMessage(msg.get());
   }
 
-  if (NS_IsMainThread()) {
-    // NOTE: This must match the code in ReadDrawFPSPref::Run().
-    Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-    Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  } else {
-    // We have to dispatch an event to the main thread to read the pref.
-    NS_DispatchToMainThread(new ReadDrawFPSPref());
-  }
-
   mComposer2D = mWidget->GetComposer2D();
 
   reporter.SetSuccessful();
@@ -539,14 +519,6 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     bool needGLRender = true;
     if (mComposer2D && mComposer2D->TryRender(mRoot, mWorldMatrix)) {
       needGLRender = false;
-
-      if (sDrawFPS) {
-        if (!mFPS) {
-          mFPS = new FPSState();
-        }
-        double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
-        printf_stderr("HWComposer: FPS is %g\n", fps);
-      }
 
       // This lets us reftest and screenshot content rendered by the
       // 2d composer.
@@ -686,10 +658,6 @@ LayerManagerOGL::RootLayer() const
 
   return ToLayerOGL(mRoot);
 }
-
-bool LayerManagerOGL::sDrawFPS = false;
-bool LayerManagerOGL::sFrameCounter = false;
-
 
 // |aTexCoordRect| is the rectangle from the texture that we want to
 // draw using the given program.  The program already has a necessary
@@ -885,18 +853,6 @@ LayerManagerOGL::Render()
     CopyToTarget(mTarget);
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
-  }
-
-  if (sDrawFPS && !mFPS) {
-    mFPS = new FPSState();
-  } else if (!sDrawFPS && mFPS) {
-    mFPS = nullptr;
-  }
-
-  if (mFPS) {
-    mFPS->DrawFPS(TimeStamp::Now(), mGLContext, GetProgram(Copy2DProgramType));
-  } else if (sFrameCounter) {
-    FPSState::DrawFrameCounter(mGLContext);
   }
 
   if (mGLContext->IsDoubleBuffered()) {

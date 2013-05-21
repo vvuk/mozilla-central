@@ -535,7 +535,7 @@ public:
 
     uint32_t GetOrientationSyncMillis() const;
 
-    static bool DrawLayerBorders();
+    static uint32_t CompositorDiagnosticFlags();
 
 protected:
     gfxPlatform();

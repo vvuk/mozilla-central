@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -536,6 +536,8 @@ CompositorD3D11::BeginFrame(const Rect *aClipRectIn,
     return;
   }
 
+  PreStartFrameDraw(gfx::Rect(rect.x, rect.y, rect.width, rect.height));
+
   mDefaultRT->SetSize(IntSize(rect.width, rect.height));
 
   mContext->IASetInputLayout(mAttachments->mInputLayout);
@@ -563,6 +565,8 @@ CompositorD3D11::BeginFrame(const Rect *aClipRectIn,
 void
 CompositorD3D11::EndFrame()
 {
+  PreFinishFrameDraw();
+
   mContext->Flush();
   mSwapChain->Present(0, 0);
 

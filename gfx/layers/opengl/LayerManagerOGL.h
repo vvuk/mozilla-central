@@ -37,7 +37,6 @@ class ContainerLayerComposite;
 class ImageLayerComposite;
 class CanvasLayerComposite;
 class ColorLayerComposite;
-struct FPSState;
 
 /**
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
@@ -362,12 +361,6 @@ private:
    */
   bool mIsRenderingToEGLSurface;
 
-  /** Helper-class used by Initialize **/
-  class ReadDrawFPSPref MOZ_FINAL : public nsRunnable {
-  public:
-    NS_IMETHOD Run() MOZ_OVERRIDE;
-  };
-
   /** Current root layer. */
   LayerOGL *RootLayer() const;
 
@@ -413,7 +406,6 @@ private:
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
-  nsAutoPtr<FPSState> mFPS;
   nsIntRect mRenderBounds;
 #ifdef DEBUG
   // NB: only interesting when this is a purely compositing layer
@@ -422,9 +414,6 @@ private:
   // next forwarded transaction that re-validates their buffers.
   bool mMaybeInvalidTree;
 #endif
-
-  static bool sDrawFPS;
-  static bool sFrameCounter;
 };
 
 /**

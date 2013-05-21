@@ -3973,9 +3973,9 @@ pref("layers.acceleration.force-enabled", true);
 pref("layers.acceleration.force-enabled", false);
 #endif
 
-pref("layers.acceleration.draw-fps", false);
-
-pref("layers.draw-borders", false);
+pref("layers.diagnostics.draw-borders", false);
+pref("layers.diagnostics.draw-fps", false);
+pref("layers.diagnostics.frame-sidebars", false);
 
 pref("layers.offmainthreadcomposition.enabled", false);
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for

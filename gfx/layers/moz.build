@@ -23,6 +23,7 @@ EXPORTS += [
     'CompositorParent.h',
     'CopyableCanvasLayer.h',
     'D3D9SurfaceImage.h',
+    'FPSStats.h',
     'FrameMetrics.h',
     'GonkIOSurfaceImage.h',
     'ImageContainer.h',

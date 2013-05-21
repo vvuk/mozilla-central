@@ -13,7 +13,6 @@
 #include "mozilla/layers/PLayer.h"
 #include "mozilla/layers/Effects.h"
 #include "nsIWidget.h"
-#include "FPSCounter.h"
 
 #include "gfxUtils.h"
 
@@ -48,11 +47,13 @@ static inline IntSize ns2gfxSize(const nsIntSize& s) {
 
 
 void
-FPSState::DrawFPS(TimeStamp aNow,
-                  GLContext* context, ShaderProgramOGL* copyprog)
+CompositorOGL::DrawDiagnosticFPS(const gfx::Rect&)
 {
-  int fps = int(mCompositionFps.AddFrameAndGetFps(aNow));
-  int txnFps = int(mTransactionFps.GetFpsAt(aNow));
+  int fps = int(mFPSStats.GetFps());
+  int txnFps = int(mTransactionFPSStats.GetFps());
+
+  GLContext* context = mGLContext;
+  ShaderProgramOGL* copyprog = GetProgram(Copy2DProgramType);
 
   GLint viewport[4];
   context->fGetIntegerv(LOCAL_GL_VIEWPORT, viewport);
@@ -234,6 +235,7 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
   , mUseExternalSurfaceSize(aUseExternalSurfaceSize)
   , mFrameInProgress(false)
   , mDestroyed(false)
+  , mTexture(0)
 {
   MOZ_COUNT_CTOR(CompositorOGL);
   sBackend = LAYERS_OPENGL;
@@ -311,16 +313,6 @@ CompositorOGL::CleanupResources()
   }
 
   mGLContext = nullptr;
-}
-
-// Impl of a a helper-runnable's "Run" method, used in Initialize()
-NS_IMETHODIMP
-CompositorOGL::ReadDrawFPSPref::Run()
-{
-  // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
-  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  return NS_OK;
 }
 
 bool
@@ -490,15 +482,6 @@ CompositorOGL::Initialize()
     else
       msg += NS_LITERAL_STRING("TEXTURE_RECTANGLE");
     console->LogStringMessage(msg.get());
-  }
-
-  if (NS_IsMainThread()) {
-    // NOTE: This must match the code in ReadDrawFPSPref::Run().
-    Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-    Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  } else {
-    // We have to dispatch an event to the main thread to read the pref.
-    NS_DispatchToMainThread(new ReadDrawFPSPref());
   }
 
   reporter.SetSuccessful();
@@ -710,36 +693,6 @@ GetFrameBufferInternalFormat(GLContext* gl,
     return aWidget->GetGLFrameBufferFormat();
   }
   return LOCAL_GL_RGBA;
-}
-
-bool CompositorOGL::sDrawFPS = false;
-bool CompositorOGL::sFrameCounter = false;
-
-static uint16_t sFrameCount = 0;
-void
-FPSState::DrawFrameCounter(GLContext* context)
-{
-  profiler_set_frame_number(sFrameCount);
-
-  context->fEnable(LOCAL_GL_SCISSOR_TEST);
-
-  uint16_t frameNumber = sFrameCount;
-  for (size_t i = 0; i < 16; i++) {
-    context->fScissor(3*i, 0, 3, 3);
-
-    // We should do this using a single draw call
-    // instead of 16 glClear()
-    if ((frameNumber >> i) & 0x1) {
-      context->fClearColor(0.0, 0.0, 0.0, 0.0);
-    } else {
-      context->fClearColor(1.0, 1.0, 1.0, 0.0);
-    }
-    context->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
-  }
-  // We intentionally overflow at 2^16.
-  sFrameCount++;
-
-  context->fDisable(LOCAL_GL_SCISSOR_TEST);
 }
 
 /*
@@ -1208,14 +1161,17 @@ CompositorOGL::EndFrame()
 {
   MOZ_ASSERT(mCurrentRenderTarget == mWindowRenderTarget, "Rendering target not properly restored");
 
+  nsIntRect rect;
+  if (mUseExternalSurfaceSize) {
+    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
+  } else {
+    mWidget->GetBounds(rect);
+  }
+
+  PreStartFrameDraw(gfx::Rect(rect.x, rect.y, rect.width, rect.height));
+
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    nsIntRect rect;
-    if (mUseExternalSurfaceSize) {
-      rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-    } else {
-      mWidget->GetBounds(rect);
-    }
     nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     CopyToTarget(ctx, mCurrentRenderTarget->GetTransform());
@@ -1235,17 +1191,7 @@ CompositorOGL::EndFrame()
 
   mCurrentRenderTarget = nullptr;
 
-  if (sDrawFPS && !mFPS) {
-    mFPS = new FPSState();
-  } else if (!sDrawFPS && mFPS) {
-    mFPS = nullptr;
-  }
-
-  if (mFPS) {
-    mFPS->DrawFPS(TimeStamp::Now(), mGLContext, GetProgram(Copy2DProgramType));
-  } else if (sFrameCounter) {
-    FPSState::DrawFrameCounter(mGLContext);
-  }
+  PreFinishFrameDraw();
 
   mGLContext->SwapBuffers();
   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
@@ -1254,13 +1200,7 @@ CompositorOGL::EndFrame()
 void
 CompositorOGL::EndFrameForExternalComposition(const gfxMatrix& aTransform)
 {
-  if (sDrawFPS) {
-    if (!mFPS) {
-      mFPS = new FPSState();
-    }
-    double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
-    printf_stderr("HWComposer: FPS is %g\n", fps);
-  }
+  PreFinishFrameDraw();
 
   // This lets us reftest and screenshot content rendered externally
   if (mTarget) {
@@ -1330,29 +1270,6 @@ CompositorOGL::CopyToTarget(gfxContext *aTarget, const gfxMatrix& aTransform)
   aTarget->SetMatrix(glToCairoTransform);
   aTarget->SetSource(imageSurface);
   aTarget->Paint();
-}
-
-double
-CompositorOGL::AddFrameAndGetFps(const TimeStamp& timestamp)
-{
-  if (sDrawFPS) {
-    if (!mFPS) {
-      mFPS = new FPSState();
-    }
-    double fps = mFPS->mCompositionFps.AddFrameAndGetFps(timestamp);
-
-    return fps;
-  }
-
-  return 0.;
-}
-
-void
-CompositorOGL::NotifyLayersTransaction()
-{
-  if (mFPS) {
-    mFPS->NotifyShadowTreeTransaction();
-  }
 }
 
 void

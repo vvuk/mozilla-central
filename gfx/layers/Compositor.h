@@ -9,10 +9,11 @@
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/Matrix.h"
 #include "gfxMatrix.h"
+#include "gfxPlatform.h"
 #include "Layers.h"
 #include "mozilla/layers/TextureHost.h"
 #include "mozilla/RefPtr.h"
-
+#include "FPSStats.h"
 
 /**
  * Different elements of a web pages are rendered into separate "layers" before
@@ -170,8 +171,10 @@ class Compositor : public RefCounted<Compositor>
 public:
   Compositor()
     : mCompositorID(0)
-    , mDrawColoredBorders(false)
+    , mDiagnosticFlags(0)
+    , mCurrentFrameBarColor(0)
   {
+    mDiagnosticFlags = gfxPlatform::CompositorDiagnosticFlags();
     MOZ_COUNT_CTOR(Compositor);
   }
   virtual ~Compositor()
@@ -323,21 +326,60 @@ public:
    */
   virtual bool SupportsPartialTextureUpdate() = 0;
 
-  void EnableColoredBorders()
+  /**
+   * Diagnostics support
+   */
+  enum DiagnosticFlags {
+    DiagnosticColoredBorders = 1 << 0,
+    DiagnosticFrameBars = 1 << 1,
+    DiagnosticFPS = 1 << 2
+  };
+
+  void SetDiagnostics(uint32_t flags)
   {
-    mDrawColoredBorders = true;
+    if (!(mDiagnosticFlags & DiagnosticFPS) && (flags & DiagnosticFPS))
+    {
+      // toggling FPS on, reset it
+      mFPSStats.Reset();
+      mTransactionFPSStats.Reset();
+    }
+
+    mDiagnosticFlags = flags;
   }
-  void DisableColoredBorders()
+  void EnableDiagnostic(uint32_t flag)
   {
-    mDrawColoredBorders = false;
+    mDiagnosticFlags |= flag;
+
+    if (flag & DiagnosticFPS) {
+      mFPSStats.Reset();
+      mTransactionFPSStats.Reset();
+    }
+  }
+  void DisableDiagnostic(uint32_t flag)
+  {
+    mDiagnosticFlags &= ~flag;
+  }
+  bool IsDiagnosticEnabled(uint32_t flag)
+  {
+    return mDiagnosticFlags & flag;
+  }
+  bool AreAnyDiagnosticsEnabled()
+  {
+    return mDiagnosticFlags != 0;
   }
 
-  void DrawDiagnostics(const gfx::Color& color,
-                       const gfx::Rect& visibleRect,
-                       const gfx::Rect& aClipRect,
-                       const gfx::Matrix4x4& transform,
-                       const gfx::Point& aOffset);
+  void PreStartFrameDraw(const gfx::Rect& contentRect);
+  void PreFinishFrameDraw();
 
+  virtual void DrawDiagnosticFPS(const gfx::Rect& contentRect) { }
+
+  void DrawDiagnosticFrameBar(const gfx::Rect& contentRect);
+
+  void DrawDiagnosticColoredBorder(const gfx::Color& color,
+                                   const gfx::Rect& visibleRect,
+                                   const gfx::Rect& aClipRect,
+                                   const gfx::Matrix4x4& transform,
+                                   const gfx::Point& aOffset);
 
 #ifdef MOZ_DUMP_PAINTING
   virtual const char* Name() const = 0;
@@ -366,7 +408,11 @@ public:
    * used for FPS information at the moment.
    * XXX: surely there is a better way to do this?
    */
-  virtual void NotifyLayersTransaction() = 0;
+  virtual void NotifyLayersTransaction() {
+    if (IsDiagnosticEnabled(DiagnosticFPS)) {
+      mTransactionFPSStats.AddFrame(TimeStamp::Now());
+    }
+  }
 
   /**
    * Notify the compositor that composition is being paused. This allows the
@@ -397,7 +443,13 @@ public:
 protected:
   uint32_t mCompositorID;
   static LayersBackend sBackend;
-  bool mDrawColoredBorders;
+  uint32_t mDiagnosticFlags;
+
+  FPSStats mFPSStats;
+  FPSStats mTransactionFPSStats;
+  uint32_t mCurrentFrameBarColor;
+
+  gfx::Rect mCurrentFrameRect;
 };
 
 } // namespace layers

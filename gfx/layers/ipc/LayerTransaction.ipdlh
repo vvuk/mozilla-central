@@ -18,6 +18,7 @@ include "mozilla/dom/ScreenOrientation.h";
 include "nsCSSProperty.h";
 include "gfxipc/ShadowLayerUtils.h";
 include "ImageLayers.h";
+include "mozilla/layers/Compositor.h";
 
 using gfxPoint3D;
 using nscoord;
@@ -234,7 +235,7 @@ struct OpRemoveChild      { PLayer container; PLayer childLayer; };
 struct OpRepositionChild  { PLayer container; PLayer childLayer; PLayer after; };
 struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
-struct OpSetColoredBorders { bool enabled; };
+struct OpSetDiagnostics   { uint32_t flags; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
@@ -311,7 +312,7 @@ union Edit {
   OpCreateRefLayer;
 
   OpSetLayerAttributes;
-  OpSetColoredBorders;
+  OpSetDiagnostics;
 
   OpSetRoot;
   OpInsertAfter;

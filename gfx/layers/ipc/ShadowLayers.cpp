@@ -167,7 +167,7 @@ CompositableForwarder::IdentifyTextureHost(const TextureFactoryIdentifier& aIden
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mIsFirstPaint(false)
- , mDrawColoredBorders(false)
+ , mCompositorDiagnostics(0)
 {
   mTxn = new Transaction();
 }
@@ -382,9 +382,9 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
 
-  if (mDrawColoredBorders != gfxPlatform::DrawLayerBorders()) {
-    mDrawColoredBorders = gfxPlatform::DrawLayerBorders();
-    mTxn->AddEdit(OpSetColoredBorders(mDrawColoredBorders));
+  if (mCompositorDiagnostics != gfxPlatform::CompositorDiagnosticFlags()) {
+    mCompositorDiagnostics = gfxPlatform::CompositorDiagnosticFlags();
+    mTxn->AddEdit(OpSetDiagnostics(mCompositorDiagnostics));
   }
 
   AutoTxnEnd _(mTxn);

@@ -16,7 +16,6 @@
 namespace mozilla {
 namespace layers {
 
-struct FPSState;
 class CompositingRenderTargetOGL;
 class GLManagerCompositor;
 
@@ -118,7 +117,7 @@ public:
   virtual const char* Name() const MOZ_OVERRIDE { return "OGL"; }
 #endif // MOZ_DUMP_PAINTING
 
-  virtual void NotifyLayersTransaction() MOZ_OVERRIDE;
+  virtual void DrawDiagnosticFPS(const gfx::Rect&) MOZ_OVERRIDE;
 
   virtual void Pause() MOZ_OVERRIDE;
   virtual bool Resume() MOZ_OVERRIDE;
@@ -149,12 +148,6 @@ private:
   nsIntSize mSurfaceSize;
 
   gfx::Point mRenderOffset;
-
-  /** Helper-class used by Initialize **/
-  class ReadDrawFPSPref MOZ_FINAL : public nsRunnable {
-  public:
-    NS_IMETHOD Run() MOZ_OVERRIDE;
-  };
 
   already_AddRefed<mozilla::gl::GLContext> CreateContext();
 
@@ -311,16 +304,10 @@ private:
    */
   void CopyToTarget(gfxContext *aTarget, const gfxMatrix& aWorldMatrix);
 
-  /**
-   * Records the passed frame timestamp and returns the current estimated FPS.
-   */
-  double AddFrameAndGetFps(const TimeStamp& timestamp);
-
   bool mDestroyed;
 
-  nsAutoPtr<FPSState> mFPS;
-  static bool sDrawFPS;
-  static bool sFrameCounter;
+  // fps helpers
+  GLuint mTexture;
 };
 
 }
