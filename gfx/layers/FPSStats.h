@@ -6,9 +6,14 @@
 #ifndef MOZILLA_GFX_FPSSTATS_H
 #define MOZILLA_GFX_FPSSTATS_H
 
+#include "nsTArray.h"
 #include "mozilla/TimeStamp.h"
 
 namespace mozilla {
+namespace gfx {
+class DataSourceSurface;
+}
+
 namespace layers {
 
 const double kFpsWindowMs = 250.0;
@@ -39,7 +44,7 @@ public:
     return EstimateFps(aFrameTime);
   }
 
-  double GetFps() {
+  double GetFps() const {
     size_t previousFrame = mCurrentFrameIndex;
     if (previousFrame == 0) {
       previousFrame = kNumFrameTimeStamps - 1;
@@ -53,12 +58,12 @@ public:
     return EstimateFps(mFrames[previousFrame]);
   }
 
-  double GetFpsAt(TimeStamp aNow) {
+  double GetFpsAt(TimeStamp aNow) const {
     return EstimateFps(aNow);
   }
 
 protected:
-  double EstimateFps(TimeStamp aNow) {
+  double EstimateFps(TimeStamp aNow) const {
     TimeStamp beginningOfWindow =
       (aNow - TimeDuration::FromMilliseconds(kFpsWindowMs));
     TimeStamp earliestFrameInWindow = aNow;
@@ -80,6 +85,13 @@ protected:
 
   size_t mCurrentFrameIndex;
   nsAutoTArray<TimeStamp, kNumFrameTimeStamps> mFrames;
+};
+
+class FPSUtils {
+public:
+  static bool FillFPSSurface(gfx::DataSourceSurface* aSurface,
+                             const FPSStats& fpsStats,
+                             const FPSStats& txnStats);
 };
 
 } // namespace layers

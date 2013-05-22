@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -487,6 +487,74 @@ TextureHostYCbCrD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
   mDevice->CreateTexture2D(&desc, &initData, byRef(mTextures[2]));
 
   mSize = IntSize(size.width, size.height);
+}
+
+bool
+DataTextureSourceD3D11::UploadDataSourceSurface(DataSourceSurface *aNewSurface)
+{
+  HRESULT hr;
+
+  if (DataTextureSource::mSize != aNewSurface->GetSize() ||
+      mFormat != aNewSurface->GetFormat()) {
+    return false;
+  }
+
+  if (!mTextures[0]) {
+    ID3D11Device *device = gfxWindowsPlatform::GetPlatform()->GetD3D11Device();
+
+    DXGI_FORMAT fmt;
+    switch (mFormat) {
+    case FORMAT_B8G8R8A8:
+      fmt = DXGI_FORMAT_B8G8R8A8_UNORM;
+      break;
+    case FORMAT_B8G8R8X8:
+      fmt = DXGI_FORMAT_B8G8R8A8_UNORM;
+      break;
+    case FORMAT_A8:
+      fmt = DXGI_FORMAT_R8_UNORM; /* Note that we map this to R8, not A8! */
+      break;
+    default:
+      return false;
+    }
+
+    CD3D11_TEXTURE2D_DESC desc(fmt,
+                               DataTextureSource::mSize.width,
+                               DataTextureSource::mSize.height,
+                               1, 1, D3D11_BIND_SHADER_RESOURCE,
+                               D3D11_USAGE_DYNAMIC,
+                               D3D11_CPU_ACCESS_WRITE);
+
+    hr = device->CreateTexture2D(&desc, nullptr, byRef(mTextures[0]));
+    if (FAILED(hr)) {
+      return false;
+    }
+  }
+
+  RefPtr<ID3D11DeviceContext> context;
+  gfxWindowsPlatform::GetPlatform()->GetD3D11Device()->GetImmediateContext(byRef(context));
+
+  D3D11_MAPPED_SUBRESOURCE mapInfo;
+  hr = context->Map(mTextures[0], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapInfo);
+  if (FAILED(hr)) {
+    return false;
+  }
+
+  if (mapInfo.RowPitch == aNewSurface->Stride()) {
+    memcpy(mapInfo.pData, aNewSurface->GetData(),
+           aNewSurface->Stride() * aNewSurface->GetSize().height);
+  } else {
+    int minStride = std::min<int>((int) mapInfo.RowPitch,
+                                  (int) aNewSurface->Stride());
+    for (int j = 0; j < aNewSurface->GetSize().height; ++j) {
+      memcpy(reinterpret_cast<uint8_t*>(mapInfo.pData) + mapInfo.RowPitch * j,
+             aNewSurface->GetData() + aNewSurface->Stride() * j,
+             minStride);
+    }
+  }
+
+  context->Unmap(mTextures[0], 0);
+
+  return true;
 }
 
 }

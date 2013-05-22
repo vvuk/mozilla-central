@@ -45,6 +45,7 @@
 #include "DrawEventRecorder.h"
 
 #include "Logging.h"
+#include "Tools.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo *
@@ -477,6 +478,25 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSiz
   }
 #endif
   return retVal;
+}
+
+TemporaryRef<DataSourceSurface>
+Factory::CreateDataSourceSurface(const IntSize &aSize,
+                                 SurfaceFormat aFormat)
+{
+  int32_t stride = GetAlignedStride<4>(aSize.width * BytesPerPixel(aFormat));
+  uint8_t *data = new (std::nothrow) uint8_t[stride * aSize.height];
+  if (!data) {
+    return nullptr;
+  }
+
+  RefPtr<SourceSurfaceRawData> newSurf = new SourceSurfaceRawData();
+
+  if (newSurf->InitWrappingData(data, aSize, stride, aFormat, true)) {
+    return newSurf;
+  }
+
+  return nullptr;
 }
 
 TemporaryRef<DataSourceSurface>

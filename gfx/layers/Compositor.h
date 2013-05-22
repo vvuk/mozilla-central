@@ -106,6 +106,7 @@ class nsIWidget;
 namespace mozilla {
 namespace gfx {
 class DrawTarget;
+class DataSourceSurface;
 }
 
 namespace layers {
@@ -327,6 +328,16 @@ public:
   virtual bool SupportsPartialTextureUpdate() = 0;
 
   /**
+   * Create a DataTextureSource, if this compositor can support them.
+   */
+  virtual TemporaryRef<DataTextureSource> CreateDataTextureSource(const gfx::IntSize& aSize,
+                                                                  gfx::SurfaceFormat aFormat)
+  {
+    return nullptr;
+  }
+
+
+  /**
    * Diagnostics support
    */
   enum DiagnosticFlags {
@@ -371,7 +382,7 @@ public:
   void PreStartFrameDraw(const gfx::Rect& contentRect);
   void PreFinishFrameDraw();
 
-  virtual void DrawDiagnosticFPS(const gfx::Rect& contentRect) { }
+  virtual void DrawDiagnosticFPS(const gfx::Rect& contentRect);
 
   void DrawDiagnosticFrameBar(const gfx::Rect& contentRect);
 
@@ -448,6 +459,9 @@ protected:
   FPSStats mFPSStats;
   FPSStats mTransactionFPSStats;
   uint32_t mCurrentFrameBarColor;
+
+  RefPtr<DataTextureSource> mFPSTextureSource;
+  RefPtr<gfx::DataSourceSurface> mFPSDataSourceSurface;
 
   gfx::Rect mCurrentFrameRect;
 };

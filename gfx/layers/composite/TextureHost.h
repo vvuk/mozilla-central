@@ -19,6 +19,10 @@ class gfxReusableSurfaceWrapper;
 class gfxImageSurface;
 
 namespace mozilla {
+namespace gfx {
+class DataSourceSurface;
+}
+
 namespace layers {
 
 class Compositor;
@@ -101,6 +105,35 @@ public:
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
 #endif
 };
+
+/**
+ * DataTextureSource is just a TextureSource that you can upload
+ * a DataSourceSurface into.
+ */
+class DataTextureSource : public TextureSource
+{
+public:
+  /* Upload a new DataSourceSurface to this DataTextureSource.  It
+   * must have the same dimensions and format as what it was
+   * constructed with.
+   */
+  virtual bool UploadDataSourceSurface(gfx::DataSourceSurface *aNewSurface) = 0;
+
+protected:
+  /* Create an empty DataTextureSource */
+  DataTextureSource(const gfx::IntSize& aInitialSize,
+                    gfx::SurfaceFormat aFormat)
+    : mSize(aInitialSize), mFormat(aFormat)
+  { }
+
+  gfx::IntSize GetSize() const MOZ_OVERRIDE {
+    return mSize;
+  }
+
+  gfx::IntSize mSize;
+  gfx::SurfaceFormat mFormat;
+};
+
 
 /**
  * TextureHost is a thin abstraction over texture data that need to be shared

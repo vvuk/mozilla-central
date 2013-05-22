@@ -111,6 +111,12 @@ public:
    */
   virtual void AbortFrame() MOZ_OVERRIDE { }
 
+  virtual TemporaryRef<DataTextureSource> CreateDataTextureSource(const gfx::IntSize& aSize,
+                                                                  gfx::SurfaceFormat aFormat) MOZ_OVERRIDE
+  {
+    return new DataTextureSourceD3D11(aSize, aFormat);
+  }
+
   /**
    * Setup the viewport and projection matrix for rendering
    * to a window of the given dimensions.
@@ -123,8 +129,6 @@ public:
 #ifdef MOZ_DUMP_PAINTING
   virtual const char* Name() const MOZ_OVERRIDE { return "Direct3D 11"; }
 #endif
-
-  virtual void NotifyLayersTransaction() MOZ_OVERRIDE { }
 
   virtual nsIWidget* GetWidget() const MOZ_OVERRIDE { return mWidget; }
   virtual const nsIntSize& GetWidgetSize() MOZ_OVERRIDE;

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -243,6 +243,24 @@ inline uint32_t GetMaxTextureSizeForFeatureLevel(D3D_FEATURE_LEVEL aFeatureLevel
   }
   return maxTextureSize;
 }
+
+class DataTextureSourceD3D11 : public DataTextureSource
+                             , public TextureSourceD3D11
+{
+public:
+  /* DataTextureSource */
+  DataTextureSourceD3D11(const gfx::IntSize& aInitialSize,
+                         gfx::SurfaceFormat aFormat)
+    : DataTextureSource(aInitialSize, aFormat)
+  {
+    TextureSourceD3D11::mSize = aInitialSize;
+  }
+
+  bool UploadDataSourceSurface(gfx::DataSourceSurface *aNewSurface) MOZ_OVERRIDE;
+
+  /* TextureSource */
+  virtual TextureSourceD3D11* AsSourceD3D11() MOZ_OVERRIDE { return this; }
+};
 
 }
 }

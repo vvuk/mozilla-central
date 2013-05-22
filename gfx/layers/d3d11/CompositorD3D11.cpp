@@ -15,6 +15,8 @@
 #include "mozilla/layers/Effects.h"
 #include "nsWindowsHelpers.h"
 
+#include "mozilla/gfx/SourceSurfaceRawData.h"
+
 #ifdef MOZ_METRO
 #include <DXGI1_2.h>
 #endif

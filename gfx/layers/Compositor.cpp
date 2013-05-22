@@ -55,7 +55,7 @@ Compositor::PreFinishFrameDraw()
 
   if (IsDiagnosticEnabled(DiagnosticFPS)) {
     mFPSStats.AddFrame(TimeStamp::Now());
-    DrawDiagnosticFPS();
+    DrawDiagnosticFPS(mCurrentFrameRect);
   }
 }
 
@@ -86,7 +86,7 @@ Compositor::DrawDiagnosticColoredBorder(const gfx::Color& aColor,
   EffectChain effects;
   effects.mPrimaryEffect = new EffectSolidColor(aColor);
   int lWidth = 1;
-  float opacity = 0.8;
+  float opacity = 0.8f;
   // left
   this->DrawQuad(gfx::Rect(rect.x, rect.y,
                            lWidth, rect.height),
@@ -107,6 +107,40 @@ Compositor::DrawDiagnosticColoredBorder(const gfx::Color& aColor,
                            rect.width - 2 * lWidth, lWidth),
                  aClipRect, effects, opacity,
                  aTransform, aOffset);
+}
+
+void
+Compositor::DrawDiagnosticFPS(const gfx::Rect& contentRect)
+{
+  gfx::IntSize size(40, 40);
+
+  if (!mFPSTextureSource || !mFPSDataSourceSurface) {
+    mFPSTextureSource = CreateDataTextureSource(size, gfx::FORMAT_B8G8R8A8);
+    if (mFPSTextureSource) // don't bother creating the next if the first one failed
+      mFPSDataSourceSurface = gfx::Factory::CreateDataSourceSurface(size, gfx::FORMAT_B8G8R8A8);
+  }
+
+  if (!mFPSTextureSource || !mFPSDataSourceSurface)
+    return;
+
+  if (!FPSUtils::FillFPSSurface(mFPSDataSourceSurface,
+                                mFPSStats,
+                                mTransactionFPSStats))
+    return;
+
+  if (!mFPSTextureSource->UploadDataSourceSurface(mFPSDataSourceSurface)) {
+    return;
+  }
+
+  // now draw
+  EffectChain effect;
+  effect.mPrimaryEffect = new EffectBGRA(mFPSTextureSource, true, gfx::FILTER_LINEAR);
+
+  gfx::Rect targetRect(contentRect.width - 100.0 - size.width, 10.0,
+                       size.width, size.height);
+  this->DrawQuad(targetRect, targetRect, effect, 1.0,
+                 gfx::Matrix4x4(),
+                 gfx::Point(0.0, 0.0));
 }
 
 } // namespace
