@@ -638,6 +638,41 @@ TiledTextureHostOGL::Lock()
   return true;
 }
 
+bool
+DataTextureSourceOGL::UploadSurfaceToTexture(gfx::DataSourceSurface *aNewSurface)
+{
+  if (mSize != aNewSurface->GetSize() ||
+      mFormat != aNewSurface->GetFormat()) {
+    return false;
+  }
+
+  if (mGLTexture == 0) {
+    mGL->GenTextures(&mGLTexture, 1);
+  }
+
+  mGL->BindTexture(LOCAL_GL_TEXTURE_2D, mGLTexture);
+
+  switch (mFormat) {
+  case FORMAT_B8G8R8A8:
+  case FORMAT_B8G8R8X8:
+    mGL->TexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA,
+                    mSize.width, mSize.height, 0,
+                    LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, aNewSurface->GetData());
+    break;
+  default:
+    return false;
+  }
+
+  return true;
+}
+
+void
+DataTextureSourceOGL::BindTexture(GLenum aTextureUnit)
+{
+  mGL->fActiveTexture(aTextureUnit);
+  mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mGLTexture);
+}
+
 #ifdef MOZ_WIDGET_GONK
 static gfx::SurfaceFormat
 SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat)

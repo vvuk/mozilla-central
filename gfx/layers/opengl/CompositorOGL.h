@@ -63,6 +63,12 @@ public:
   virtual void EndFrameForExternalComposition(const gfxMatrix& aTransform) MOZ_OVERRIDE;
   virtual void AbortFrame() MOZ_OVERRIDE;
 
+  virtual TemporaryRef<DataTextureSource> CreateDataTextureSource(const gfx::IntSize& aSize,
+                                                                  gfx::SurfaceFormat aFormat) MOZ_OVERRIDE
+  {
+    return new DataTextureSourceOGL(aSize, aFormat, mGLContext);
+  }
+
   virtual bool SupportsPartialTextureUpdate() MOZ_OVERRIDE
   {
     return mGLContext->CanUploadSubTextures();

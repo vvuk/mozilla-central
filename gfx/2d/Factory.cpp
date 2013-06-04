@@ -493,7 +493,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
   RefPtr<SourceSurfaceRawData> newSurf = new SourceSurfaceRawData();
 
   if (newSurf->InitWrappingData(data, aSize, stride, aFormat, true)) {
-    return newSurf;
+    return newSurf.forget();
   }
 
   return nullptr;

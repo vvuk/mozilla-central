@@ -59,9 +59,9 @@ public:
 };
 
 inline gl::ShaderProgramType
-GetProgramTypeForTexture(const TextureHost *aTextureHost)
+GetProgramTypeForFormat(gfx::SurfaceFormat aFormat)
 {
-  switch (aTextureHost->GetFormat()) {
+  switch (aFormat) {
   case gfx::FORMAT_B8G8R8A8:
     return gl::BGRALayerProgramType;;
   case gfx::FORMAT_B8G8R8X8:
@@ -73,6 +73,12 @@ GetProgramTypeForTexture(const TextureHost *aTextureHost)
   default:
     MOZ_NOT_REACHED("unhandled program type");
   }
+}
+
+inline gl::ShaderProgramType
+GetProgramTypeForTexture(const TextureHost *aTextureHost)
+{
+  return GetProgramTypeForFormat(aTextureHost->GetFormat());
 }
 
 /**
@@ -547,6 +553,45 @@ private:
   GLenum mGLFormat;
   gl::GLContext* mGL;
 };
+
+class DataTextureSourceOGL : public DataTextureSource
+                           , public TextureSourceOGL
+{
+public:
+  /* DataTextureSource */
+  DataTextureSourceOGL(const gfx::IntSize& aInitialSize,
+                       gfx::SurfaceFormat aFormat,
+                       gl::GLContext *aGL)
+    : DataTextureSource(aInitialSize, aFormat),
+      mGL(aGL),
+      mGLTexture(0)
+  {
+  }
+
+  virtual ~DataTextureSourceOGL() {
+    if (mGLTexture) {
+      mGL->MakeCurrent();
+      mGL->DeleteTextures(&mGLTexture, 1);
+      mGLTexture = 0;
+    }
+  }
+
+  bool UploadDataSourceSurface(gfx::DataSourceSurface *aNewSurface) MOZ_OVERRIDE;
+
+  /* TextureSource */
+  TextureSourceOGL* AsSourceOGL() MOZ_OVERRIDE { return this; }
+
+  /* TextureSourceOGL */
+  void BindTexture(GLenum aTextureUnit) MOZ_OVERRIDE;
+  bool IsValid() const MOZ_OVERRIDE { return mGLTexture != 0; }
+  gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
+  gl::ShaderProgramType GetShaderProgram() const { return GetProgramTypeForFormat(mFormat); }
+  GLenum GetWrapMode() const { return LOCAL_GL_CLAMP_TO_EDGE; }
+
+protected:
+  gl::GLContext* mGL;
+  GLuint mGLTexture;
+}
 
 #ifdef MOZ_WIDGET_GONK
 
